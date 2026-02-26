@@ -59,6 +59,12 @@ wave_state = "idle"
 wave_timer = 0
 wave_warning = 0
 
+-- boss meteor system
+boss_active = false
+boss_meteor = nil
+boss_dodges = 0
+boss_warning = 0
+
 -- stars
 stars = {}
 star_timer = 0
@@ -140,6 +146,10 @@ function update_menu()
     wave_state = "idle"
     wave_timer = 1200 + rnd(600)  -- 20-30 seconds to first wave
     wave_warning = 0
+    boss_active = false
+    boss_meteor = nil
+    boss_dodges = 0
+    boss_warning = 0
     combo = 0
     last_combo_time = 0
     combo_pulse = 0
@@ -346,10 +356,40 @@ function update_play()
     end
   elseif wave_state == "active" then
     -- wave is active - spawn meteors faster
+
+    -- boss spawn logic: end of wave + difficulty 2+
+    if not boss_active and wave_timer <= 180 and wave_timer > 170 and difficulty >= 2 then
+      boss_active = true
+      boss_warning = 60  -- 1 second warning
+      sfx(3)  -- warning sound
+      _log("boss_warning")
+    end
+
+    -- spawn boss after warning
+    if boss_active and boss_warning > 0 then
+      boss_warning -= 1
+      if boss_warning == 0 then
+        boss_meteor = {
+          x = rnd(112) + 8,
+          y = -12,
+          speed = 0.3,
+          type = 4,  -- boss type
+          size = 8,
+          crad = 12,
+          near_player = false,
+          health = 3
+        }
+        _log("boss_spawn")
+      end
+    end
+
     if wave_timer <= 0 then
       -- end wave
       wave_state = "idle"
       wave_timer = 1200 + rnd(600)  -- 20-30 seconds cooldown
+      boss_active = false
+      boss_meteor = nil
+      boss_warning = 0
       _log("wave_end")
     end
   end
@@ -469,6 +509,88 @@ function update_play()
         end
       end
       del(meteors, m)
+    end
+  end
+
+  -- update boss meteor
+  if boss_meteor then
+    -- apply slowtime multiplier
+    local speed = boss_meteor.speed
+    if slowtime > 0 then
+      speed *= slowtime_mult
+    end
+    boss_meteor.y += speed
+
+    -- track if boss gets near player (dodge zone)
+    if not boss_meteor.near_player then
+      local dist = sqrt((boss_meteor.x - px) * (boss_meteor.x - px) + (boss_meteor.y - py) * (boss_meteor.y - py))
+      if dist < 25 then
+        boss_meteor.near_player = true
+      end
+    end
+
+    -- check collision with player
+    if invincible == 0 and
+       abs(boss_meteor.x - px) < boss_meteor.crad and
+       abs(boss_meteor.y - py) < boss_meteor.crad then
+
+      -- reset combo on hit
+      if combo > 0 then
+        _log("combo_reset:"..combo)
+        combo = 0
+        combo_pulse = 0
+      end
+
+      -- boss deals double damage
+      if shield_active then
+        shield_active = false
+        invincible = 30
+        _log("shield_used:boss")
+      else
+        lives -= 2  -- double damage
+        invincible = 60
+        _log("collision:boss:lives="..lives)
+      end
+
+      shake_time = 30  -- stronger shake
+
+      -- spawn explosion particles
+      spawn_particles(boss_meteor.x, boss_meteor.y, 12, 10, 3)
+
+      boss_meteor = nil
+      boss_active = false
+      sfx(1)  -- collision
+      _log("sfx:boss_collision")
+
+      if lives <= 0 then
+        state = "gameover"
+        music(-1)
+        _log("music:stop")
+        if score > highscore then
+          highscore = score
+          dset(0, highscore)
+          _log("new_highscore:"..highscore)
+        end
+        _log("state:gameover")
+      end
+    end
+
+    -- successful boss dodge: boss exits screen after being near player
+    if boss_meteor.y > 136 then
+      if boss_meteor.near_player then
+        boss_dodges += 1
+        score += 200  -- boss bonus
+        shake_time = 10
+        _log("boss_dodge:score="..score)
+
+        -- spawn celebration particles
+        spawn_particles(64, 64, 15, 10, 2)
+
+        sfx(5)  -- triumphant sound
+        _log("sfx:boss_defeated")
+      end
+      boss_meteor = nil
+      boss_active = false
     end
   end
 
@@ -667,6 +789,27 @@ function draw_play()
     circfill(m.x - 1, m.y - 1, 1, 5)
   end
 
+  -- draw boss meteor
+  if boss_meteor then
+    -- pulsing ring effect
+    local pulse = sin(t() * 2) * 2
+    circ(boss_meteor.x, boss_meteor.y, boss_meteor.size + 2 + pulse, 10)
+    circ(boss_meteor.x, boss_meteor.y, boss_meteor.size + 4 + pulse, 9)
+
+    -- main body (bright white/gold)
+    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size, 10)
+    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size - 2, 9)
+    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size - 4, 7)
+    -- glowing core
+    circfill(boss_meteor.x - 1, boss_meteor.y - 1, 2, 7)
+  end
+
+  -- boss warning text
+  if boss_warning > 0 or boss_meteor then
+    local pulse_col = 8 + flr(t() * 8) % 2
+    print("boss!", 50, 30, pulse_col)
+  end
+
   -- draw stars
   for s in all(stars) do
     draw_star(s.x, s.y)
@@ -717,6 +860,11 @@ function draw_play()
   -- draw slowtime indicator
   if slowtime > 0 then
     print("slow", 2, 120, 14)
+  end
+
+  -- draw boss dodges counter
+  if boss_dodges > 0 then
+    print("boss x"..boss_dodges, 2, 114, 10)
   end
 end
 
