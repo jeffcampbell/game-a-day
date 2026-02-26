@@ -120,6 +120,61 @@ function update_menu()
   end
 end
 
+function spawn_meteor()
+  -- determine meteor type based on difficulty
+  -- types: 1=fast/red, 2=slow/blue, 3=normal/gray
+  local mtype = 3
+  local rand = rnd(100)
+
+  -- higher difficulty (lower spawn rate) = more fast meteors
+  if meteor_rate <= 30 then
+    if rand < 40 then mtype = 1
+    elseif rand < 70 then mtype = 3
+    else mtype = 2 end
+  elseif meteor_rate <= 45 then
+    if rand < 25 then mtype = 1
+    elseif rand < 60 then mtype = 3
+    else mtype = 2 end
+  else
+    if rand < 15 then mtype = 1
+    elseif rand < 50 then mtype = 3
+    else mtype = 2 end
+  end
+
+  -- set properties based on type
+  local size, speed_mult, crad
+  if mtype == 1 then
+    -- fast red
+    size = 3
+    speed_mult = 1.5
+    crad = 5
+  elseif mtype == 2 then
+    -- slow blue
+    size = 6
+    speed_mult = 0.5
+    crad = 8
+  else
+    -- normal gray
+    size = 4
+    speed_mult = 1
+    crad = 6
+  end
+
+  add(meteors, {
+    x = rnd(112) + 8,
+    y = -8,
+    speed = (1 + rnd(1 + difficulty * 0.3)) * speed_mult,
+    type = mtype,
+    size = size,
+    crad = crad
+  })
+
+  local tname = "normal"
+  if mtype == 1 then tname = "fast"
+  elseif mtype == 2 then tname = "slow" end
+  _log("meteor_spawn:"..tname)
+end
+
 function update_play()
   -- get input once per frame
   local buttons = test_input()
@@ -168,15 +223,10 @@ function update_play()
   -- spawn meteors
   meteor_timer -= 1
   if meteor_timer <= 0 then
-    add(meteors, {
-      x = rnd(112) + 8,
-      y = -8,
-      speed = 1 + rnd(1 + difficulty * 0.3)
-    })
+    spawn_meteor()
     meteor_timer = meteor_rate
     sfx(0)  -- meteor spawn
     _log("sfx:meteor_spawn")
-    _log("meteor_spawn")
   end
 
   -- update meteors
@@ -185,8 +235,8 @@ function update_play()
 
     -- check collision with player
     if invincible == 0 and
-       abs(m.x - px) < 6 and
-       abs(m.y - py) < 6 then
+       abs(m.x - px) < m.crad and
+       abs(m.y - py) < m.crad then
       lives -= 1
       invincible = 60
       shake_time = 10
@@ -265,9 +315,16 @@ function draw_menu()
   print("collect stars +50", 20, 78, 10)
   print("press z to start", 22, 100, 11)
 
-  -- draw example meteor
+  -- draw example meteors
+  -- fast red
+  circfill(50, 20, 3, 8)
+  circfill(50, 20, 1, 2)
+  -- normal gray
   circfill(64, 20, 4, 8)
   circfill(64, 20, 2, 2)
+  -- slow blue
+  circfill(82, 20, 6, 12)
+  circfill(82, 20, 4, 1)
 
   -- draw example star
   draw_star(90, 78)
@@ -295,8 +352,22 @@ function draw_play()
 
   -- draw meteors
   for m in all(meteors) do
-    circfill(m.x, m.y, 4, 8)
-    circfill(m.x, m.y, 2, 2)
+    local col1, col2
+    if m.type == 1 then
+      -- fast red
+      col1 = 8
+      col2 = 2
+    elseif m.type == 2 then
+      -- slow blue
+      col1 = 12
+      col2 = 1
+    else
+      -- normal gray
+      col1 = 8
+      col2 = 2
+    end
+    circfill(m.x, m.y, m.size, col1)
+    circfill(m.x, m.y, m.size - 2, col2)
     circfill(m.x - 1, m.y - 1, 1, 5)
   end
 
