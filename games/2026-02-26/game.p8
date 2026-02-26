@@ -49,6 +49,11 @@ meteors = {}
 meteor_timer = 0
 meteor_rate = 60
 
+-- wave system
+wave_state = "idle"
+wave_timer = 0
+wave_warning = 0
+
 -- stars
 stars = {}
 star_timer = 0
@@ -127,6 +132,9 @@ function update_menu()
     shield_active = false
     slowtime = 0
     last_score_time = t()
+    wave_state = "idle"
+    wave_timer = 1200 + rnd(600)  -- 20-30 seconds to first wave
+    wave_warning = 0
     px = 60
     py = 100
     music(1)  -- gameplay music
@@ -289,13 +297,57 @@ function update_play()
 
   -- increase difficulty over time
   difficulty = 1 + flr(t() / 30)
-  meteor_rate = max(20, 60 - difficulty * 3)
+  local base_rate = max(20, 60 - difficulty * 3)
 
   -- play sound on difficulty increase
   if difficulty > last_difficulty then
     sfx(3)
     _log("sfx:difficulty_up:"..difficulty)
     last_difficulty = difficulty
+  end
+
+  -- wave system
+  wave_timer -= 1
+
+  if wave_state == "idle" then
+    -- countdown to next wave
+    if wave_timer <= 120 and wave_warning == 0 then
+      -- start warning 2 seconds before wave
+      wave_warning = 120
+      sfx(3)  -- warning sound
+      _log("wave_warning")
+    end
+
+    if wave_warning > 0 then
+      wave_warning -= 1
+    end
+
+    if wave_timer <= 0 then
+      -- start wave
+      wave_state = "active"
+      wave_timer = 480 + rnd(240)  -- 8-12 seconds
+      wave_warning = 0
+      sfx(3)
+      _log("wave_start")
+    end
+  elseif wave_state == "active" then
+    -- wave is active - spawn meteors faster
+    if wave_timer <= 0 then
+      -- end wave
+      wave_state = "idle"
+      wave_timer = 1200 + rnd(600)  -- 20-30 seconds cooldown
+      _log("wave_end")
+    end
+  end
+
+  -- set meteor rate based on wave state
+  if wave_state == "active" then
+    -- wave intensity scales with difficulty
+    local wave_mult = max(0.3, 1 - difficulty * 0.1)
+    meteor_rate = flr(base_rate * wave_mult)
+  else
+    -- relaxed spawn rate between waves
+    meteor_rate = base_rate + 15
   end
 
   -- score increases every second
@@ -503,6 +555,22 @@ function draw_play()
     local sx = (i * 37) % 128
     local sy = (i * 53 + t() * 10) % 128
     pset(sx, sy, 5)
+  end
+
+  -- wave warning visual: pulsing border
+  if wave_warning > 0 then
+    local pulse = flr(wave_warning / 8) % 2
+    if pulse == 0 then
+      local col = 8  -- red warning
+      rect(0, 0, 127, 127, col)
+      rect(1, 1, 126, 126, col)
+    end
+  end
+
+  -- wave active indicator
+  if wave_state == "active" then
+    local pulse_col = 8 + flr(t() * 4) % 2
+    print("wave!", 2, 14, pulse_col)
   end
 
   -- draw player
