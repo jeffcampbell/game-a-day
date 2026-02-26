@@ -18,7 +18,7 @@ function _capture()
   if testmode then add(test_log, "SCREEN:"..tostr(stat(0))) end
 end
 
-function test_input(b)
+function test_input()
   if testmode and test_input_idx < #test_inputs then
     test_input_idx += 1
     return test_inputs[test_input_idx] or 0
@@ -113,14 +113,17 @@ function update_menu()
 end
 
 function update_play()
+  -- get input once per frame
+  local buttons = test_input()
+
   -- player movement
   local old_px = px
   local old_py = py
 
-  if (test_input() & 1) > 0 then px -= pspeed end
-  if (test_input() & 2) > 0 then px += pspeed end
-  if (test_input() & 4) > 0 then py -= pspeed end
-  if (test_input() & 8) > 0 then py += pspeed end
+  if (buttons & 1) > 0 then px -= pspeed end
+  if (buttons & 2) > 0 then px += pspeed end
+  if (buttons & 4) > 0 then py -= pspeed end
+  if (buttons & 8) > 0 then py += pspeed end
 
   px = mid(4, px, 120)
   py = mid(4, py, 120)
