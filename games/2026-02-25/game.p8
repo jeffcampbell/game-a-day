@@ -29,15 +29,21 @@ end
 -- game state
 state = "menu"
 score = 0
+high_score = 0
 player_x = 64
 stars = {}
 spawn_timer = 0
 spawn_rate = 30
 speed = 1
 prev_input = 0
+shake_timer = 0
+shake_x = 0
+shake_y = 0
 
 function _init()
   _log("init")
+  -- load high score from cartridge data
+  high_score = dget(0)
 end
 
 function _update()
@@ -45,14 +51,26 @@ function _update()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
   end
+
+  -- update screen shake
+  if shake_timer > 0 then
+    shake_timer -= 1
+    shake_x = rnd(4) - 2
+    shake_y = rnd(4) - 2
+  else
+    shake_x = 0
+    shake_y = 0
+  end
 end
 
 function _draw()
   cls()
+  camera(shake_x, shake_y)
   if state == "menu" then draw_menu()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
   end
+  camera()
 end
 
 -- menu state
@@ -60,6 +78,7 @@ function update_menu()
   local input = test_input()
   -- check if O button just pressed
   if input & 16 > 0 and prev_input & 16 == 0 then
+    sfx(3)  -- menu selection sound
     start_game()
   end
   prev_input = input
@@ -70,6 +89,9 @@ function draw_menu()
   print("dodge falling stars", 20, 55, 6)
   print("arrows to move", 28, 70, 13)
   print("press o to start", 24, 85, 11)
+  if high_score > 0 then
+    print("best: "..high_score, 44, 100, 10)
+  end
 end
 
 -- play state
@@ -114,17 +136,27 @@ function update_play()
       del(stars, s)
       score += 1
       _log("score:"..score)
+      sfx(1)  -- score increase sound
 
       -- increase difficulty every 10 points
       if score % 10 == 0 then
         speed = min(3, speed + 0.2)
         spawn_rate = max(15, spawn_rate - 2)
         _log("difficulty_up")
+        sfx(2)  -- difficulty increase sound
       end
     end
 
     -- check collision with player
     if abs(s.x - player_x) < 5 and abs(s.y - 112) < 5 then
+      sfx(0)  -- collision sound
+      shake_timer = 8  -- trigger screen shake
+      -- update high score if beaten
+      if score > high_score then
+        high_score = score
+        dset(0, high_score)
+        _log("new_high_score:"..high_score)
+      end
       state = "gameover"
       _log("collision")
       _log("state:gameover")
@@ -176,9 +208,17 @@ end
 
 function draw_gameover()
   print("game over!", 40, 50, 8)
-  print("final score: "..score, 30, 70, 7)
+  print("final score: "..score, 30, 65, 7)
+  if high_score > 0 then
+    print("best: "..high_score, 44, 75, 10)
+  end
   print("press o to retry", 24, 90, 11)
 end
+__sfx__
+000100001c0502105025050290502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d0502d050
+000100002465026650296502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d6502d650
+00010000246502665029650186501865018650186500c6500c6500c6500c6500c6500c6500c6500c6500c6500c6500c6500c6500c6500c6500c6500c6500c6500c650
+000100001c6501f650216502365023650236502365023650236502365023650236502365023650236502365023650236502365023650236502365023650236502365023650
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
