@@ -44,6 +44,15 @@ combo = 0
 last_combo_time = 0
 combo_pulse = 0
 
+-- metrics tracking
+max_combo = 0
+total_stars = 0
+total_powerups = 0
+survival_time = 0
+game_start_time = 0
+achievements = {}
+achievements_logged = false
+
 -- player
 px = 60
 py = 100
@@ -143,6 +152,7 @@ function update_menu()
     shield_active = false
     slowtime = 0
     last_score_time = t()
+    game_start_time = t()
     wave_state = "idle"
     wave_timer = 1200 + rnd(600)  -- 20-30 seconds to first wave
     wave_warning = 0
@@ -153,6 +163,10 @@ function update_menu()
     combo = 0
     last_combo_time = 0
     combo_pulse = 0
+    max_combo = 0
+    total_stars = 0
+    total_powerups = 0
+    survival_time = 0
     px = 60
     py = 100
     music(1)  -- gameplay music
@@ -476,13 +490,16 @@ function update_play()
 
       if lives <= 0 then
         state = "gameover"
+        survival_time = flr(t() - game_start_time)
         music(-1)  -- stop music
         _log("music:stop")
+        _log("survival_time:"..survival_time)
         if score > highscore then
           highscore = score
           dset(0, highscore)
           _log("new_highscore:"..highscore)
         end
+        calculate_achievements()
         _log("state:gameover")
       end
     end
@@ -494,6 +511,12 @@ function update_play()
         last_combo_time = t()
         combo_pulse = 10
         _log("dodge:combo="..combo)
+
+        -- track max combo
+        if combo > max_combo then
+          max_combo = combo
+          _log("max_combo:"..max_combo)
+        end
 
         -- milestone bonuses
         if combo == 10 or combo == 25 or combo == 50 or combo == 100 then
@@ -564,13 +587,16 @@ function update_play()
 
       if lives <= 0 then
         state = "gameover"
+        survival_time = flr(t() - game_start_time)
         music(-1)
         _log("music:stop")
+        _log("survival_time:"..survival_time)
         if score > highscore then
           highscore = score
           dset(0, highscore)
           _log("new_highscore:"..highscore)
         end
+        calculate_achievements()
         _log("state:gameover")
       end
     end
@@ -614,6 +640,7 @@ function update_play()
     if abs(s.x - px) < 6 and
        abs(s.y - py) < 6 then
       score += 50
+      total_stars += 1
 
       -- spawn star particles
       spawn_particles(s.x, s.y, 6, 10, 1.5)
@@ -621,7 +648,7 @@ function update_play()
       del(stars, s)
       sfx(2)  -- star pickup
       _log("sfx:star_pickup")
-      _log("pickup:star:score="..score)
+      _log("pickup:star:total="..total_stars)
     end
 
     -- remove old stars
@@ -647,6 +674,7 @@ function update_play()
     if abs(p.x - px) < 6 and
        abs(p.y - py) < 6 then
       score += 25
+      total_powerups += 1
 
       -- apply power-up effect
       if p.type == 1 then
@@ -676,7 +704,7 @@ function update_play()
       del(powerups, p)
       sfx(5)  -- powerup pickup
       _log("sfx:powerup_pickup")
-      _log("pickup:powerup:score="..score)
+      _log("pickup:powerup:total="..total_powerups)
     end
 
     -- remove old power-ups (8 seconds)
@@ -686,7 +714,36 @@ function update_play()
   end
 end
 
+function calculate_achievements()
+  achievements = {}
+  achievements_logged = false
+
+  if max_combo >= 50 then
+    add(achievements, {text="combo killer", col=8})
+  end
+  if boss_dodges >= 3 then
+    add(achievements, {text="boss slayer", col=10})
+  end
+  if total_stars >= 10 then
+    add(achievements, {text="star collector", col=9})
+  end
+  if survival_time >= 60 then
+    add(achievements, {text="survivor", col=12})
+  end
+  if total_powerups >= 5 then
+    add(achievements, {text="power player", col=14})
+  end
+end
+
 function update_gameover()
+  -- log achievements on first frame
+  if not achievements_logged then
+    for a in all(achievements) do
+      _log("achievement:"..a.text)
+    end
+    achievements_logged = true
+  end
+
   if (test_input() & 16) > 0 then
     sfx(4)  -- ui select
     _log("sfx:ui_select")
@@ -869,10 +926,38 @@ function draw_play()
 end
 
 function draw_gameover()
-  print("game over!", 36, 50, 8)
-  print("score: "..score, 35, 65, 7)
-  print("high: "..highscore, 35, 73, 10)
-  print("press z to retry", 22, 95, 11)
+  -- title
+  print("game over!", 36, 4, 8)
+
+  -- score section
+  print("final score: "..score, 3, 14, 7)
+  if score == highscore and score > 0 then
+    print("new high score!", 28, 20, 10)
+  else
+    print("high score: "..highscore, 3, 20, 10)
+  end
+
+  -- metrics section
+  print("--- stats ---", 32, 30, 13)
+  print("time: "..survival_time.."s", 3, 38, 6)
+  print("max combo: x"..max_combo, 3, 44, 6)
+  print("bosses: "..boss_dodges, 3, 50, 6)
+  print("stars: "..total_stars, 3, 56, 6)
+  print("power-ups: "..total_powerups, 3, 62, 6)
+
+  -- achievements section
+  local ach_y = 72
+  if #achievements > 0 then
+    print("achievements:", 26, ach_y, 7)
+    ach_y += 8
+    for a in all(achievements) do
+      print("\151 "..a.text, 20, ach_y, a.col)
+      ach_y += 6
+    end
+  end
+
+  -- retry prompt
+  print("press z to retry", 22, 118, 11)
 end
 
 function draw_star(x, y)
