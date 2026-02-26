@@ -53,6 +53,9 @@ meteor_rate = 60
 stars = {}
 star_timer = 0
 
+-- particles
+particles = {}
+
 function _init()
   cartdata("meteor_dodge_v1")
   highscore = dget(0)
@@ -109,6 +112,7 @@ function update_menu()
     last_difficulty = 1
     meteors = {}
     stars = {}
+    particles = {}
     meteor_timer = 0
     star_timer = 0
     last_score_time = t()
@@ -175,6 +179,51 @@ function spawn_meteor()
   _log("meteor_spawn:"..tname)
 end
 
+function spawn_particles(x, y, count, color, spread)
+  for i=1,count do
+    local angle = rnd(1)
+    local speed = 0.5 + rnd(spread)
+    add(particles, {
+      x = x,
+      y = y,
+      vx = cos(angle) * speed,
+      vy = sin(angle) * speed,
+      age = 0,
+      max_age = 20 + rnd(10),
+      color = color,
+      size = 1 + rnd(1)
+    })
+  end
+  _log("particles:"..count)
+end
+
+function update_particles()
+  for p in all(particles) do
+    p.x += p.vx
+    p.y += p.vy
+    p.age += 1
+
+    -- fade velocity
+    p.vx *= 0.9
+    p.vy *= 0.9
+
+    if p.age >= p.max_age then
+      del(particles, p)
+    end
+  end
+end
+
+function draw_particles()
+  for p in all(particles) do
+    -- fade size as particle ages
+    local fade = 1 - (p.age / p.max_age)
+    local s = p.size * fade
+    if s > 0.5 then
+      circfill(p.x, p.y, s, p.color)
+    end
+  end
+end
+
 function update_play()
   -- get input once per frame
   local buttons = test_input()
@@ -199,6 +248,9 @@ function update_play()
   if invincible > 0 then
     invincible -= 1
   end
+
+  -- update particles
+  update_particles()
 
   -- increase difficulty over time
   difficulty = 1 + flr(t() / 30)
@@ -239,7 +291,14 @@ function update_play()
        abs(m.y - py) < m.crad then
       lives -= 1
       invincible = 60
-      shake_time = 10
+      shake_time = 15  -- enhanced shake
+
+      -- spawn explosion particles
+      local pcol = 8  -- default gray
+      if m.type == 1 then pcol = 8  -- red meteor
+      elseif m.type == 2 then pcol = 12 end  -- blue meteor
+      spawn_particles(m.x, m.y, 5, pcol, 2)
+
       del(meteors, m)
       sfx(1)  -- collision
       _log("sfx:collision")
@@ -284,6 +343,10 @@ function update_play()
     if abs(s.x - px) < 6 and
        abs(s.y - py) < 6 then
       score += 50
+
+      -- spawn star particles
+      spawn_particles(s.x, s.y, 6, 10, 1.5)
+
       del(stars, s)
       sfx(2)  -- star pickup
       _log("sfx:star_pickup")
@@ -340,11 +403,18 @@ function draw_play()
 
   -- draw player
   if invincible == 0 or invincible % 4 < 2 then
+    local body_col, inner_col, cockpit_col = 12, 7, 10
+
+    -- flash white on fresh damage
+    if invincible > 54 then
+      body_col, inner_col, cockpit_col = 7, 7, 7
+    end
+
     -- ship body
-    circfill(px, py, 3, 12)
-    circfill(px, py, 2, 7)
+    circfill(px, py, 3, body_col)
+    circfill(px, py, 2, inner_col)
     -- cockpit
-    circfill(px, py - 1, 1, 10)
+    circfill(px, py - 1, 1, cockpit_col)
     -- wings
     pset(px - 3, py + 1, 6)
     pset(px + 3, py + 1, 6)
@@ -375,6 +445,9 @@ function draw_play()
   for s in all(stars) do
     draw_star(s.x, s.y)
   end
+
+  -- draw particles
+  draw_particles()
 
   -- draw ui
   print("score:"..score, 2, 2, 7)
