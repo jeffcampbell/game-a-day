@@ -12,8 +12,8 @@ games/
   2026-02-25/
     game.p8          # PICO-8 source cartridge
     assessment.md    # Tester's notes (persists across iterations)
-    game.html        # Exported on deploy
-    game.js          # Exported on deploy
+    game.html        # Exported HTML player (committed alongside .p8)
+    game.js          # Exported JS runtime (committed alongside .p8)
   2026-02-26/
     ...
 ```
@@ -39,6 +39,33 @@ games/
 | Down   | Arrow Down  | 8       | 3           |
 | O      | Z / C       | 16      | 4           |
 | X      | X / V       | 32      | 5           |
+
+## Required: Cartridge Sections
+
+Every .p8 file MUST include these sections for valid cartridge format and HTML export:
+
+```
+pico-8 cartridge // http://www.pico-8.com
+version 42
+__lua__
+-- game code here
+__gfx__
+-- sprite data (can be minimal/empty rows of 0s)
+__label__
+-- 128x128 label image (required for HTML export)
+-- minimum: 128 rows of 128 hex digits (0-f), one per pixel
+```
+
+The `__label__` section is CRITICAL — without it, `pico8 -export` will fail.
+A minimal label can be generated programmatically (e.g., fill with the game title).
+
+## HTML Export
+
+After writing game.p8, always export to HTML/JS:
+```bash
+pico8 games/YYYY-MM-DD/game.p8 -export games/YYYY-MM-DD/game.html
+```
+This creates `game.html` + `game.js`. Both must be committed alongside `game.p8`.
 
 ## Required Architecture: State Machine
 
