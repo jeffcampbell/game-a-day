@@ -96,7 +96,7 @@ function _draw()
 end
 
 function update_menu()
-  if test_input() & 16 > 0 then
+  if (test_input() & 16) > 0 then
     state = "play"
     score = 0
     lives = 3
@@ -117,10 +117,10 @@ function update_play()
   local old_px = px
   local old_py = py
 
-  if test_input() & 1 > 0 then px -= pspeed end
-  if test_input() & 2 > 0 then px += pspeed end
-  if test_input() & 4 > 0 then py -= pspeed end
-  if test_input() & 8 > 0 then py += pspeed end
+  if (test_input() & 1) > 0 then px -= pspeed end
+  if (test_input() & 2) > 0 then px += pspeed end
+  if (test_input() & 4) > 0 then py -= pspeed end
+  if (test_input() & 8) > 0 then py += pspeed end
 
   px = mid(4, px, 120)
   py = mid(4, py, 120)
@@ -222,7 +222,7 @@ function update_play()
 end
 
 function update_gameover()
-  if test_input() & 16 > 0 then
+  if (test_input() & 16) > 0 then
     state = "menu"
     _log("state:menu")
   end
