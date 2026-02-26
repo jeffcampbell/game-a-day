@@ -39,6 +39,13 @@ difficulty = 1
 last_score_time = 0
 last_difficulty = 1
 
+-- difficulty preset: 1=zen, 2=normal, 3=hard
+difficulty_preset = 2
+
+-- pattern system (active during waves)
+pattern_type = nil  -- nil, 1=convergence, 2=scatter, 3=zigzag
+pattern_timer = 0
+
 -- combo system
 combo = 0
 last_combo_time = 0
@@ -91,6 +98,10 @@ particles = {}
 function _init()
   cartdata("meteor_dodge_v1")
   highscore = dget(0)
+  difficulty_preset = dget(1)
+  if difficulty_preset < 1 or difficulty_preset > 3 then
+    difficulty_preset = 2  -- default to normal
+  end
   music(0)  -- menu music
   _log("music:menu")
   _log("init")
@@ -134,9 +145,25 @@ function _draw()
 end
 
 function update_menu()
-  if (test_input() & 16) > 0 then
+  local buttons = test_input()
+
+  -- mode selection with arrow keys
+  if (buttons & 1) > 0 and difficulty_preset > 1 then
+    difficulty_preset -= 1
+    dset(1, difficulty_preset)
+    sfx(4)  -- ui sound
+    _log("mode_select:"..get_mode_name())
+  elseif (buttons & 2) > 0 and difficulty_preset < 3 then
+    difficulty_preset += 1
+    dset(1, difficulty_preset)
+    sfx(4)  -- ui sound
+    _log("mode_select:"..get_mode_name())
+  end
+
+  if (buttons & 16) > 0 then
     sfx(4)  -- ui select
     _log("sfx:ui_select")
+    _log("mode:"..get_mode_name())
     state = "play"
     score = 0
     lives = 3
@@ -154,7 +181,21 @@ function update_menu()
     last_score_time = t()
     game_start_time = t()
     wave_state = "idle"
-    wave_timer = 1200 + rnd(600)  -- 20-30 seconds to first wave
+    pattern_type = nil
+    pattern_timer = 0
+
+    -- set wave timing based on difficulty preset
+    if difficulty_preset == 1 then
+      -- zen mode: no waves
+      wave_timer = 999999
+    elseif difficulty_preset == 3 then
+      -- hard mode: waves start at 10s
+      wave_timer = 600 + rnd(300)
+    else
+      -- normal mode: waves start at 20-30s
+      wave_timer = 1200 + rnd(600)
+    end
+
     wave_warning = 0
     boss_active = false
     boss_meteor = nil
@@ -173,6 +214,12 @@ function update_menu()
     _log("music:play")
     _log("state:play")
   end
+end
+
+function get_mode_name()
+  if difficulty_preset == 1 then return "zen"
+  elseif difficulty_preset == 3 then return "hard"
+  else return "normal" end
 end
 
 function spawn_meteor()
@@ -215,14 +262,40 @@ function spawn_meteor()
     crad = 6
   end
 
+  -- apply hard mode speed boost
+  if difficulty_preset == 3 then
+    speed_mult *= 1.2
+  end
+
+  -- calculate spawn position and velocity based on pattern
+  local spawn_x, vx = rnd(112) + 8, 0
+  local vy = (1 + rnd(1 + difficulty * 0.3)) * speed_mult
+
+  if pattern_type == 1 then
+    -- convergence: spawn wider, arc toward center
+    spawn_x = rnd(128)
+    local center_dir = sgn(64 - spawn_x)
+    vx = center_dir * 0.3
+  elseif pattern_type == 2 then
+    -- scatter: spawn center, spread outward
+    spawn_x = 56 + rnd(16)
+    vx = (spawn_x - 64) / 20
+  elseif pattern_type == 3 then
+    -- zigzag: spawn offset, oscillate
+    spawn_x = rnd(112) + 8
+    -- oscillation handled in update
+  end
+
   add(meteors, {
-    x = rnd(112) + 8,
+    x = spawn_x,
     y = -8,
-    speed = (1 + rnd(1 + difficulty * 0.3)) * speed_mult,
+    speed = vy,
+    vx = vx,
     type = mtype,
     size = size,
     crad = crad,
-    near_player = false
+    near_player = false,
+    zigzag_phase = rnd(1)  -- for zigzag pattern
   })
 
   local tname = "normal"
@@ -344,67 +417,114 @@ function update_play()
     last_difficulty = difficulty
   end
 
-  -- wave system
-  wave_timer -= 1
+  -- wave system (disabled in zen mode)
+  if difficulty_preset != 1 then
+    wave_timer -= 1
 
-  if wave_state == "idle" then
-    -- countdown to next wave
-    if wave_timer <= 120 and wave_warning == 0 then
-      -- start warning 2 seconds before wave
-      wave_warning = 120
-      sfx(3)  -- warning sound
-      _log("wave_warning")
-    end
-
-    if wave_warning > 0 then
-      wave_warning -= 1
-    end
-
-    if wave_timer <= 0 then
-      -- start wave
-      wave_state = "active"
-      wave_timer = 480 + rnd(240)  -- 8-12 seconds
-      wave_warning = 0
-      sfx(3)
-      _log("wave_start")
-    end
-  elseif wave_state == "active" then
-    -- wave is active - spawn meteors faster
-
-    -- boss spawn logic: end of wave + difficulty 2+
-    if not boss_active and wave_timer <= 180 and wave_timer > 170 and difficulty >= 2 then
-      boss_active = true
-      boss_warning = 60  -- 1 second warning
-      sfx(3)  -- warning sound
-      _log("boss_warning")
-    end
-
-    -- spawn boss after warning
-    if boss_active and boss_warning > 0 then
-      boss_warning -= 1
-      if boss_warning == 0 then
-        boss_meteor = {
-          x = rnd(112) + 8,
-          y = -12,
-          speed = 0.3,
-          type = 4,  -- boss type
-          size = 8,
-          crad = 12,
-          near_player = false,
-          health = 3
-        }
-        _log("boss_spawn")
+    if wave_state == "idle" then
+      -- clear pattern when not in wave
+      if pattern_type != nil then
+        pattern_type = nil
+        _log("pattern:normal")
       end
-    end
 
-    if wave_timer <= 0 then
-      -- end wave
-      wave_state = "idle"
-      wave_timer = 1200 + rnd(600)  -- 20-30 seconds cooldown
-      boss_active = false
-      boss_meteor = nil
-      boss_warning = 0
-      _log("wave_end")
+      -- countdown to next wave
+      if wave_timer <= 120 and wave_warning == 0 then
+        -- start warning 2 seconds before wave
+        wave_warning = 120
+        sfx(3)  -- warning sound
+        _log("wave_warning")
+      end
+
+      if wave_warning > 0 then
+        wave_warning -= 1
+      end
+
+      if wave_timer <= 0 then
+        -- start wave
+        wave_state = "active"
+
+        -- hard mode: longer, more intense waves
+        if difficulty_preset == 3 then
+          wave_timer = 600 + rnd(300)  -- 10-15 seconds
+        else
+          wave_timer = 480 + rnd(240)  -- 8-12 seconds
+        end
+
+        wave_warning = 0
+
+        -- initialize pattern system
+        pattern_type = 1  -- start with convergence
+        pattern_timer = 240 + rnd(120)  -- 4-6 seconds
+        _log("wave_pattern:convergence")
+
+        sfx(3)
+        _log("wave_start")
+      end
+    elseif wave_state == "active" then
+      -- wave is active - spawn meteors faster
+
+      -- rotate patterns during wave
+      pattern_timer -= 1
+      if pattern_timer <= 0 then
+        -- cycle to next pattern
+        pattern_type += 1
+        if pattern_type > 3 then pattern_type = 1 end
+
+        pattern_timer = 240 + rnd(120)  -- 4-6 seconds
+
+        local pname = "convergence"
+        if pattern_type == 2 then pname = "scatter"
+        elseif pattern_type == 3 then pname = "zigzag" end
+        _log("wave_pattern:"..pname)
+      end
+
+      -- boss spawn logic
+      local boss_difficulty_req = difficulty_preset == 3 and 1 or 2
+      if not boss_active and wave_timer <= 180 and wave_timer > 170 and difficulty >= boss_difficulty_req then
+        boss_active = true
+        boss_warning = 60  -- 1 second warning
+        sfx(3)  -- warning sound
+        _log("boss_warning")
+      end
+
+      -- spawn boss after warning
+      if boss_active and boss_warning > 0 then
+        boss_warning -= 1
+        if boss_warning == 0 then
+          boss_meteor = {
+            x = rnd(112) + 8,
+            y = -12,
+            speed = 0.3,
+            vx = 0,
+            type = 4,  -- boss type
+            size = 8,
+            crad = 12,
+            near_player = false,
+            health = 3,
+            zigzag_phase = 0
+          }
+          _log("boss_spawn")
+        end
+      end
+
+      if wave_timer <= 0 then
+        -- end wave
+        wave_state = "idle"
+
+        -- hard mode: shorter cooldown
+        if difficulty_preset == 3 then
+          wave_timer = 600 + rnd(300)  -- 10-15 seconds
+        else
+          wave_timer = 1200 + rnd(600)  -- 20-30 seconds
+        end
+
+        boss_active = false
+        boss_meteor = nil
+        boss_warning = 0
+        pattern_type = nil
+        _log("wave_end")
+      end
     end
   end
 
@@ -444,6 +564,17 @@ function update_play()
       speed *= slowtime_mult
     end
     m.y += speed
+
+    -- apply horizontal movement based on pattern
+    if m.vx then
+      m.x += m.vx
+    end
+
+    -- zigzag pattern: oscillate left/right
+    if pattern_type == 3 then
+      m.zigzag_phase += 0.02
+      m.x += cos(m.zigzag_phase) * 1.5
+    end
 
     -- track if meteor gets near player (dodge zone)
     if not m.near_player then
@@ -543,6 +674,11 @@ function update_play()
       speed *= slowtime_mult
     end
     boss_meteor.y += speed
+
+    -- apply horizontal movement if present
+    if boss_meteor.vx then
+      boss_meteor.x += boss_meteor.vx
+    end
 
     -- track if boss gets near player (dodge zone)
     if not boss_meteor.near_player then
@@ -757,8 +893,32 @@ end
 function draw_menu()
   print("meteor dodge", 32, 40, 7)
   print("avoid the meteors!", 20, 55, 6)
-  print("arrow keys to move", 18, 70, 13)
-  print("collect stars +50", 20, 78, 10)
+
+  -- difficulty mode selection
+  print("mode:", 36, 66, 13)
+
+  -- zen mode
+  local zen_col = difficulty_preset == 1 and 10 or 5
+  print("zen", 24, 74, zen_col)
+  if difficulty_preset == 1 then
+    print("\151", 16, 74, 10)  -- arrow
+  end
+
+  -- normal mode
+  local normal_col = difficulty_preset == 2 and 10 or 5
+  print("normal", 48, 74, normal_col)
+  if difficulty_preset == 2 then
+    print("\151", 40, 74, 10)  -- arrow
+  end
+
+  -- hard mode
+  local hard_col = difficulty_preset == 3 and 10 or 5
+  print("hard", 88, 74, hard_col)
+  if difficulty_preset == 3 then
+    print("\151", 80, 74, 10)  -- arrow
+  end
+
+  print("arrows to select", 24, 84, 6)
   print("press z to start", 22, 100, 11)
 
   -- draw example meteors
@@ -771,9 +931,6 @@ function draw_menu()
   -- slow blue
   circfill(82, 20, 6, 12)
   circfill(82, 20, 4, 1)
-
-  -- draw example star
-  draw_star(90, 78)
 end
 
 function draw_play()
