@@ -44,6 +44,7 @@ shake_y = 0
 function _init()
   _log("init")
   -- load high score from cartridge data
+  cartdata("stardodge")
   high_score = dget(0)
 end
 
