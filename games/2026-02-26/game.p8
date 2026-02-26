@@ -39,6 +39,11 @@ difficulty = 1
 last_score_time = 0
 last_difficulty = 1
 
+-- combo system
+combo = 0
+last_combo_time = 0
+combo_pulse = 0
+
 -- player
 px = 60
 py = 100
@@ -135,6 +140,9 @@ function update_menu()
     wave_state = "idle"
     wave_timer = 1200 + rnd(600)  -- 20-30 seconds to first wave
     wave_warning = 0
+    combo = 0
+    last_combo_time = 0
+    combo_pulse = 0
     px = 60
     py = 100
     music(1)  -- gameplay music
@@ -189,7 +197,8 @@ function spawn_meteor()
     speed = (1 + rnd(1 + difficulty * 0.3)) * speed_mult,
     type = mtype,
     size = size,
-    crad = crad
+    crad = crad,
+    near_player = false
   })
 
   local tname = "normal"
@@ -295,6 +304,11 @@ function update_play()
   -- update particles
   update_particles()
 
+  -- update combo pulse
+  if combo_pulse > 0 then
+    combo_pulse -= 1
+  end
+
   -- increase difficulty over time
   difficulty = 1 + flr(t() / 30)
   local base_rate = max(20, 60 - difficulty * 3)
@@ -377,10 +391,25 @@ function update_play()
     end
     m.y += speed
 
+    -- track if meteor gets near player (dodge zone)
+    if not m.near_player then
+      local dist = sqrt((m.x - px) * (m.x - px) + (m.y - py) * (m.y - py))
+      if dist < 20 then
+        m.near_player = true
+      end
+    end
+
     -- check collision with player
     if invincible == 0 and
        abs(m.x - px) < m.crad and
        abs(m.y - py) < m.crad then
+
+      -- reset combo on hit
+      if combo > 0 then
+        _log("combo_reset:"..combo)
+        combo = 0
+        combo_pulse = 0
+      end
 
       -- check shield first
       if shield_active then
@@ -418,8 +447,27 @@ function update_play()
       end
     end
 
-    -- remove off-screen meteors
+    -- successful dodge: meteor exits screen after being near player
     if m.y > 136 then
+      if m.near_player and t() - last_combo_time >= 1 then
+        combo += 1
+        last_combo_time = t()
+        combo_pulse = 10
+        _log("dodge:combo="..combo)
+
+        -- milestone bonuses
+        if combo == 10 or combo == 25 or combo == 50 or combo == 100 then
+          local bonus = combo * 10
+          score += bonus
+          _log("combo_bonus:"..combo.."="..bonus)
+        end
+
+        -- sound every 10 combos
+        if combo % 10 == 0 then
+          sfx(3)
+          _log("sfx:combo_milestone:"..combo)
+        end
+      end
       del(meteors, m)
     end
   end
@@ -636,9 +684,34 @@ function draw_play()
   print("score:"..score, 2, 2, 7)
   print("hi:"..highscore, 2, 8, 10)
 
+  -- draw combo counter (top-right)
+  if combo > 0 then
+    local combo_text = "x"..combo
+    local text_width = #combo_text * 4
+    local combo_x = 127 - text_width
+    local combo_y = 2
+
+    -- color based on combo level
+    local combo_col = 7  -- white
+    if combo >= 50 then
+      combo_col = 8  -- red
+    elseif combo >= 25 then
+      combo_col = 9  -- orange/yellow
+    elseif combo >= 10 then
+      combo_col = 10  -- yellow
+    end
+
+    -- pulsate effect
+    if combo_pulse > 0 then
+      combo_y -= flr(combo_pulse / 5)
+    end
+
+    print(combo_text, combo_x, combo_y, combo_col)
+  end
+
   -- draw lives
   for i=1,lives do
-    circfill(125 - i * 8, 5, 2, 8)
+    circfill(125 - i * 8, 13, 2, 8)
   end
 
   -- draw slowtime indicator
