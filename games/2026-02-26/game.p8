@@ -53,6 +53,13 @@ meteor_rate = 60
 stars = {}
 star_timer = 0
 
+-- power-ups
+powerups = {}
+powerup_timer = 0
+shield_active = false
+slowtime = 0
+slowtime_mult = 0.4
+
 -- particles
 particles = {}
 
@@ -112,9 +119,13 @@ function update_menu()
     last_difficulty = 1
     meteors = {}
     stars = {}
+    powerups = {}
     particles = {}
     meteor_timer = 0
     star_timer = 0
+    powerup_timer = 0
+    shield_active = false
+    slowtime = 0
     last_score_time = t()
     px = 60
     py = 100
@@ -177,6 +188,22 @@ function spawn_meteor()
   if mtype == 1 then tname = "fast"
   elseif mtype == 2 then tname = "slow" end
   _log("meteor_spawn:"..tname)
+end
+
+function spawn_powerup()
+  -- types: 1=shield, 2=slowtime, 3=invincibility
+  local ptype = flr(rnd(3)) + 1
+  add(powerups, {
+    x = rnd(112) + 8,
+    y = rnd(100) + 10,
+    age = 0,
+    type = ptype
+  })
+
+  local pname = "shield"
+  if ptype == 2 then pname = "slowtime"
+  elseif ptype == 3 then pname = "invincibility" end
+  _log("powerup_spawn:"..pname)
 end
 
 function spawn_particles(x, y, count, color, spread)
@@ -249,6 +276,14 @@ function update_play()
     invincible -= 1
   end
 
+  -- update slowtime
+  if slowtime > 0 then
+    slowtime -= 1
+    if slowtime == 0 then
+      _log("slowtime:end")
+    end
+  end
+
   -- update particles
   update_particles()
 
@@ -283,14 +318,29 @@ function update_play()
 
   -- update meteors
   for m in all(meteors) do
-    m.y += m.speed
+    -- apply slowtime multiplier
+    local speed = m.speed
+    if slowtime > 0 then
+      speed *= slowtime_mult
+    end
+    m.y += speed
 
     -- check collision with player
     if invincible == 0 and
        abs(m.x - px) < m.crad and
        abs(m.y - py) < m.crad then
-      lives -= 1
-      invincible = 60
+
+      -- check shield first
+      if shield_active then
+        shield_active = false
+        invincible = 30  -- brief invincibility
+        _log("shield_used")
+      else
+        lives -= 1
+        invincible = 60
+        _log("collision:lives="..lives)
+      end
+
       shake_time = 15  -- enhanced shake
 
       -- spawn explosion particles
@@ -302,7 +352,6 @@ function update_play()
       del(meteors, m)
       sfx(1)  -- collision
       _log("sfx:collision")
-      _log("collision:lives="..lives)
 
       if lives <= 0 then
         state = "gameover"
@@ -356,6 +405,61 @@ function update_play()
     -- remove old stars
     if s.age > 300 then
       del(stars, s)
+    end
+  end
+
+  -- spawn power-ups (after 10 seconds)
+  if t() > 10 then
+    powerup_timer -= 1
+    if powerup_timer <= 0 then
+      spawn_powerup()
+      powerup_timer = 180 + rnd(300)  -- 3-8 seconds
+    end
+  end
+
+  -- update power-ups
+  for p in all(powerups) do
+    p.age += 1
+
+    -- check collision with player
+    if abs(p.x - px) < 6 and
+       abs(p.y - py) < 6 then
+      score += 25
+
+      -- apply power-up effect
+      if p.type == 1 then
+        -- shield
+        shield_active = true
+        _log("pickup:shield")
+      elseif p.type == 2 then
+        -- slow-time
+        slowtime = 480  -- 8 seconds
+        _log("pickup:slowtime:480")
+      elseif p.type == 3 then
+        -- invincibility boost
+        if invincible > 0 then
+          invincible += 300
+        else
+          invincible = 300
+        end
+        _log("pickup:invincibility")
+      end
+
+      -- spawn particles
+      local pcol = 12
+      if p.type == 2 then pcol = 14
+      elseif p.type == 3 then pcol = 10 end
+      spawn_particles(p.x, p.y, 8, pcol, 2)
+
+      del(powerups, p)
+      sfx(5)  -- powerup pickup
+      _log("sfx:powerup_pickup")
+      _log("pickup:powerup:score="..score)
+    end
+
+    -- remove old power-ups (8 seconds)
+    if p.age > 480 then
+      del(powerups, p)
     end
   end
 end
@@ -420,6 +524,12 @@ function draw_play()
     pset(px + 3, py + 1, 6)
   end
 
+  -- draw shield ring
+  if shield_active then
+    local ring_offset = (t() * 4) % 8
+    circ(px, py, 5 + ring_offset * 0.2, 12)
+  end
+
   -- draw meteors
   for m in all(meteors) do
     local col1, col2
@@ -446,6 +556,11 @@ function draw_play()
     draw_star(s.x, s.y)
   end
 
+  -- draw power-ups
+  for p in all(powerups) do
+    draw_powerup(p.x, p.y, p.type)
+  end
+
   -- draw particles
   draw_particles()
 
@@ -456,6 +571,11 @@ function draw_play()
   -- draw lives
   for i=1,lives do
     circfill(125 - i * 8, 5, 2, 8)
+  end
+
+  -- draw slowtime indicator
+  if slowtime > 0 then
+    print("slow", 2, 120, 14)
   end
 end
 
@@ -478,6 +598,37 @@ function draw_star(x, y)
   end
   circfill(x, y, 2, 9)
 end
+
+function draw_powerup(x, y, ptype)
+  local spin = t() * 3
+  local c, border_c
+
+  if ptype == 1 then
+    -- shield (blue with border)
+    c = 12
+    border_c = 1
+  elseif ptype == 2 then
+    -- slow-time (purple)
+    c = 14
+    border_c = 2
+  else
+    -- invincibility (gold)
+    c = 10
+    border_c = 9
+  end
+
+  -- draw star shape
+  for i=0,3 do
+    local a = (i / 4 + spin) % 1
+    local dx = cos(a) * 4
+    local dy = sin(a) * 4
+    line(x, y, x + dx, y + dy, c)
+  end
+
+  -- center and border
+  circfill(x, y, 2, c)
+  circ(x, y, 3, border_c)
+end
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -493,7 +644,7 @@ __sfx__
 000300001d0501f05021050230502505027050290502b0502d0502f050310503305035050370503905039050390503905039050390503805037050350503305031050300502e0502c0502a0502805026050240502205020050
 00020000180501a0501c0501e050200502205024050260502805028050280502805028050280502705026050240502205020050200502005020050200501f0501d0501c0501a05018050160501405012050100500f050
 00010000200502205024050260502805028050280502805028050280502805028050280502805027050260502505024050230502205021050200501f0501e0501d0501c0501b0501a05019050180501705016050150500000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300002405026050280502a0502c0502e050300503205034050360503805037050360503505034050330503205031050300502f0502e0502d0502c0502b0502a05029050280502705026050250502405023050220502105020050
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
