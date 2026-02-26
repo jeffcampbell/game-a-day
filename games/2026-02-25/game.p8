@@ -30,6 +30,7 @@ end
 state = "menu"
 score = 0
 high_score = 0
+combo_count = 0
 player_x = 64
 stars = {}
 spawn_timer = 0
@@ -100,6 +101,7 @@ function start_game()
   _log("state:play")
   score = 0
   _log("score:0")
+  combo_count = 0
   player_x = 64
   stars = {}
   spawn_timer = 0
@@ -134,16 +136,26 @@ function update_play()
     -- check if passed bottom
     if s.y > 120 then
       del(stars, s)
-      score += 1
+      combo_count += 1
+
+      -- award combo bonus points
+      local bonus = flr(1 * (1 + combo_count * 0.1))
+      score += bonus
       _log("score:"..score)
-      sfx(1)  -- score increase sound
+
+      -- combo milestone sounds
+      if combo_count % 5 == 0 then
+        sfx(2)  -- milestone sound at 5x, 10x, 15x
+        _log("combo:"..combo_count)
+      else
+        sfx(1)  -- regular score sound
+      end
 
       -- increase difficulty every 10 points
       if score % 10 == 0 then
         speed = min(3, speed + 0.2)
         spawn_rate = max(15, spawn_rate - 2)
         _log("difficulty_up")
-        sfx(2)  -- difficulty increase sound
       end
     end
 
@@ -151,6 +163,7 @@ function update_play()
     if abs(s.x - player_x) < 5 and abs(s.y - 112) < 5 then
       sfx(0)  -- collision sound
       shake_timer = 8  -- trigger screen shake
+      combo_count = 0  -- reset combo on collision
       -- update high score if beaten
       if score > high_score then
         high_score = score
@@ -187,6 +200,17 @@ function draw_play()
 
   -- draw score
   print("score:"..score, 2, 2, 7)
+
+  -- draw combo counter (top-right)
+  if combo_count > 0 then
+    local combo_col = 11  -- green
+    if combo_count >= 15 then
+      combo_col = 10  -- yellow for high streaks
+    elseif combo_count >= 10 then
+      combo_col = 9   -- orange
+    end
+    print("x"..combo_count, 104, 2, combo_col)
+  end
 
   -- draw speed indicator
   local speed_bars = flr(speed * 2)
