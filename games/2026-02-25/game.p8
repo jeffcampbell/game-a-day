@@ -43,6 +43,12 @@ shake_timer = 0
 shake_x = 0
 shake_y = 0
 
+-- power-up state
+power_ups = {}
+powerup_spawn_timer = 100
+active_powerup = ""
+powerup_timer = 0
+
 function _init()
   _log("init")
   -- load high score from cartridge data
@@ -114,6 +120,11 @@ function start_game()
   spawn_rate = 30
   speed = 1
   prev_input = 0
+  -- reset power-ups
+  power_ups = {}
+  powerup_spawn_timer = 100
+  active_powerup = ""
+  powerup_timer = 0
 end
 
 function update_play()
@@ -127,6 +138,55 @@ function update_play()
     player_x = min(124, player_x + 2)
   end
 
+  -- update active power-up timer
+  if powerup_timer > 0 then
+    powerup_timer -= 1
+    if powerup_timer == 0 then
+      active_powerup = ""
+      _log("powerup_expired")
+    end
+  end
+
+  -- spawn power-ups
+  powerup_spawn_timer -= 1
+  if powerup_spawn_timer <= 0 then
+    -- pick random power-up type
+    local types = {"shield", "slow", "magnet"}
+    local ptype = types[flr(rnd(3))+1]
+    add(power_ups, {x=rnd(116)+6, y=0, type=ptype})
+    powerup_spawn_timer = 100 + rnd(50)
+    _log("powerup_spawn:"..ptype)
+  end
+
+  -- update power-ups
+  for p in all(power_ups) do
+    p.y += 0.8  -- slower than stars
+
+    -- remove if off screen
+    if p.y > 128 then
+      del(power_ups, p)
+    end
+
+    -- check collision with player
+    if abs(p.x - player_x) < 6 and abs(p.y - 112) < 6 then
+      sfx(2)  -- pickup sound
+      _log("powerup_collect:"..p.type)
+
+      if p.type == "shield" then
+        active_powerup = "shield"
+        powerup_timer = 0  -- shield lasts until used
+      elseif p.type == "slow" then
+        active_powerup = "slow"
+        powerup_timer = 600  -- 10 seconds
+      elseif p.type == "magnet" then
+        active_powerup = "magnet"
+        powerup_timer = 480  -- 8 seconds
+      end
+
+      del(power_ups, p)
+    end
+  end
+
   -- spawn stars
   spawn_timer -= 1
   if spawn_timer <= 0 then
@@ -135,9 +195,21 @@ function update_play()
     _log("star_spawn")
   end
 
+  -- calculate effective star speed
+  local star_speed = speed
+  if active_powerup == "slow" then
+    star_speed = speed * 0.5
+  end
+
   -- update stars
   for s in all(stars) do
-    s.y += speed
+    -- apply magnet effect
+    if active_powerup == "magnet" then
+      local dx = player_x - s.x
+      s.x += sgn(dx) * 0.3
+    end
+
+    s.y += star_speed
 
     -- check if passed bottom
     if s.y > 120 then
@@ -177,28 +249,38 @@ function update_play()
 
     -- check collision with player
     if abs(s.x - player_x) < 5 and abs(s.y - 112) < 5 then
-      sfx(0)  -- collision sound
-      shake_timer = 8  -- trigger screen shake
-      combo_count = 0  -- reset combo on collision
-      perfect_round = false  -- lost life, no perfect round
       del(stars, s)  -- remove the colliding star
 
-      -- lose a life
-      lives -= 1
-      _log("collision")
-      _log("lives:"..lives)
+      -- check if shield is active
+      if active_powerup == "shield" then
+        sfx(3)  -- shield absorb sound
+        active_powerup = ""
+        powerup_timer = 0
+        combo_count = 0  -- reset combo
+        _log("shield_used")
+      else
+        sfx(0)  -- collision sound
+        shake_timer = 8  -- trigger screen shake
+        combo_count = 0  -- reset combo on collision
+        perfect_round = false  -- lost life, no perfect round
 
-      -- check if game over (all lives lost)
-      if lives <= 0 then
-        -- update high score if beaten
-        if score > high_score then
-          high_score = score
-          dset(0, high_score)
-          _log("new_high_score:"..high_score)
+        -- lose a life
+        lives -= 1
+        _log("collision")
+        _log("lives:"..lives)
+
+        -- check if game over (all lives lost)
+        if lives <= 0 then
+          -- update high score if beaten
+          if score > high_score then
+            high_score = score
+            dset(0, high_score)
+            _log("new_high_score:"..high_score)
+          end
+          state = "gameover"
+          _log("state:gameover")
+          _log("final_score:"..score)
         end
-        state = "gameover"
-        _log("state:gameover")
-        _log("final_score:"..score)
       end
       return
     end
@@ -208,10 +290,48 @@ function update_play()
 end
 
 function draw_play()
+  -- draw power-ups
+  for p in all(power_ups) do
+    local col = 7
+    if p.type == "shield" then
+      col = 14  -- pink
+    elseif p.type == "slow" then
+      col = 7  -- white
+    elseif p.type == "magnet" then
+      col = 9  -- orange
+    end
+    circfill(p.x, p.y, 3, col)
+    circ(p.x, p.y, 3, 0)
+  end
+
   -- draw player ship
   circfill(player_x, 112, 3, 8)
   circ(player_x, 112, 3, 9)
   line(player_x-2, 110, player_x+2, 110, 9)
+
+  -- draw active power-up effect around player
+  if active_powerup == "shield" then
+    -- draw ring around player
+    circ(player_x, 112, 5, 14)
+    circ(player_x, 112, 6, 14)
+  elseif active_powerup == "slow" then
+    -- draw asterisks around player
+    local t = t() * 4
+    for i=0,3 do
+      local angle = i / 4 + t
+      local px = player_x + cos(angle) * 8
+      local py = 112 + sin(angle) * 8
+      print("*", px-1, py-2, 7)
+    end
+  elseif active_powerup == "magnet" then
+    -- draw spikes around player
+    for i=0,7 do
+      local angle = i / 8
+      local px = player_x + cos(angle) * 6
+      local py = 112 + sin(angle) * 6
+      line(player_x, 112, px, py, 9)
+    end
+  end
 
   -- draw stars
   for s in all(stars) do
@@ -245,6 +365,23 @@ function draw_play()
       combo_col = 9   -- orange
     end
     print("x"..combo_count, 104, 2, combo_col)
+  end
+
+  -- draw active power-up indicator (top-right, below combo)
+  if active_powerup != "" then
+    local pup_col = 7
+    local pup_text = ""
+    if active_powerup == "shield" then
+      pup_col = 14
+      pup_text = "shld"
+    elseif active_powerup == "slow" then
+      pup_col = 7
+      pup_text = "slow"
+    elseif active_powerup == "magnet" then
+      pup_col = 9
+      pup_text = "magn"
+    end
+    print(pup_text, 98, 9, pup_col)
   end
 
   -- draw speed indicator
