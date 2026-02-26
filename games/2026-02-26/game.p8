@@ -38,6 +38,7 @@ shake_time = 0
 difficulty = 1
 last_score_time = 0
 last_difficulty = 1
+pause_cooldown = 0
 
 -- difficulty preset: 1=zen, 2=normal, 3=hard
 difficulty_preset = 2
@@ -112,6 +113,8 @@ function _update()
     update_menu()
   elseif state == "play" then
     update_play()
+  elseif state == "pause" then
+    update_pause()
   elseif state == "gameover" then
     update_gameover()
   end
@@ -127,6 +130,8 @@ function _draw()
     draw_menu()
   elseif state == "play" then
     draw_play()
+  elseif state == "pause" then
+    draw_pause()
   elseif state == "gameover" then
     draw_gameover()
   end
@@ -169,6 +174,7 @@ function update_menu()
     lives = 3
     difficulty = 1
     last_difficulty = 1
+    pause_cooldown = 0
     meteors = {}
     stars = {}
     powerups = {}
@@ -213,6 +219,31 @@ function update_menu()
     music(1)  -- gameplay music
     _log("music:play")
     _log("state:play")
+  end
+end
+
+function update_pause()
+  local buttons = test_input()
+
+  -- update pause cooldown
+  if pause_cooldown > 0 then
+    pause_cooldown -= 1
+  end
+
+  -- resume with X
+  if (buttons & 32) > 0 and pause_cooldown == 0 then
+    state = "play"
+    pause_cooldown = 15
+    _log("resume")
+  end
+
+  -- quit to menu with Z (O button)
+  if (buttons & 16) > 0 then
+    state = "menu"
+    pause_cooldown = 0
+    music(-1)
+    _log("pause:quit")
+    _log("state:menu")
   end
 end
 
@@ -368,6 +399,19 @@ end
 function update_play()
   -- get input once per frame
   local buttons = test_input()
+
+  -- update pause cooldown
+  if pause_cooldown > 0 then
+    pause_cooldown -= 1
+  end
+
+  -- check for pause button (X)
+  if (buttons & 32) > 0 and pause_cooldown == 0 then
+    state = "pause"
+    pause_cooldown = 15
+    _log("pause")
+    return
+  end
 
   -- player movement
   local old_px = px
@@ -931,6 +975,72 @@ function draw_menu()
   -- slow blue
   circfill(82, 20, 6, 12)
   circfill(82, 20, 4, 1)
+end
+
+function draw_pause()
+  -- draw the game state in background (frozen)
+  for i=0,20 do
+    local sx = (i * 37) % 128
+    local sy = (i * 53 + t() * 10) % 128
+    pset(sx, sy, 5)
+  end
+
+  -- draw meteors
+  for m in all(meteors) do
+    local mcol = 6
+    if m.type == 1 then mcol = 8
+    elseif m.type == 2 then mcol = 12 end
+    circfill(m.x, m.y, m.size, mcol)
+    circfill(m.x, m.y, m.size - 2, 2)
+  end
+
+  -- draw stars
+  for s in all(stars) do
+    local pulse = 1 + sin(t() * 2 + s.x / 20) * 0.5
+    for i=0,3 do
+      local angle = i / 4 + t() * 0.1
+      local px = s.x + cos(angle) * 3 * pulse
+      local py = s.y + sin(angle) * 3 * pulse
+      circfill(px, py, 1, 10)
+    end
+  end
+
+  -- draw player
+  local pcol = 7
+  if invincible > 0 and (invincible % 8 < 4) then
+    pcol = 10
+  end
+  circfill(px, py, 3, pcol)
+  circfill(px - 1, py - 1, 1, 12)
+
+  -- semi-transparent overlay
+  for y=0,127 do
+    if y % 2 == 0 then
+      for x=0,127,2 do
+        pset(x, y, 0)
+      end
+    else
+      for x=1,127,2 do
+        pset(x, y, 0)
+      end
+    end
+  end
+
+  -- pause title
+  print("paused", 44, 30, 7)
+
+  -- current stats
+  local survival = flr(survival_time)
+  print("score: "..score, 36, 50, 11)
+  print("time: "..survival.."s", 36, 58, 11)
+
+  if combo > 0 then
+    print("combo: "..combo.."x", 34, 66, 10)
+  end
+
+  -- controls
+  print("x to resume", 32, 86, 6)
+  print("z to quit to menu", 18, 94, 6)
 end
 
 function draw_play()
