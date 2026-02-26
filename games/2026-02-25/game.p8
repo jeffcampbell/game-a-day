@@ -31,6 +31,8 @@ state = "menu"
 score = 0
 high_score = 0
 combo_count = 0
+lives = 3
+perfect_round = true
 player_x = 64
 stars = {}
 spawn_timer = 0
@@ -103,6 +105,9 @@ function start_game()
   score = 0
   _log("score:0")
   combo_count = 0
+  lives = 3
+  _log("lives:3")
+  perfect_round = true
   player_x = 64
   stars = {}
   spawn_timer = 0
@@ -155,8 +160,18 @@ function update_play()
       -- increase difficulty every 10 points
       if score % 10 == 0 then
         speed = min(3, speed + 0.2)
+        local old_rate = spawn_rate
         spawn_rate = max(15, spawn_rate - 2)
         _log("difficulty_up")
+
+        -- check if completed perfect round (maxed difficulty without losing life)
+        if spawn_rate == 15 and old_rate > 15 and perfect_round then
+          score += 50
+          _log("perfect_round_bonus:50")
+          _log("score:"..score)
+          sfx(3)  -- victory sound
+          perfect_round = true  -- reset for next round
+        end
       end
     end
 
@@ -165,16 +180,26 @@ function update_play()
       sfx(0)  -- collision sound
       shake_timer = 8  -- trigger screen shake
       combo_count = 0  -- reset combo on collision
-      -- update high score if beaten
-      if score > high_score then
-        high_score = score
-        dset(0, high_score)
-        _log("new_high_score:"..high_score)
-      end
-      state = "gameover"
+      perfect_round = false  -- lost life, no perfect round
+      del(stars, s)  -- remove the colliding star
+
+      -- lose a life
+      lives -= 1
       _log("collision")
-      _log("state:gameover")
-      _log("final_score:"..score)
+      _log("lives:"..lives)
+
+      -- check if game over (all lives lost)
+      if lives <= 0 then
+        -- update high score if beaten
+        if score > high_score then
+          high_score = score
+          dset(0, high_score)
+          _log("new_high_score:"..high_score)
+        end
+        state = "gameover"
+        _log("state:gameover")
+        _log("final_score:"..score)
+      end
       return
     end
   end
@@ -201,6 +226,15 @@ function draw_play()
 
   -- draw score
   print("score:"..score, 2, 2, 7)
+
+  -- draw lives (below score)
+  local life_col = 11  -- green
+  if lives == 2 then
+    life_col = 10  -- yellow warning
+  elseif lives == 1 then
+    life_col = 8  -- red danger
+  end
+  print("lives:"..lives, 2, 9, life_col)
 
   -- draw combo counter (top-right)
   if combo_count > 0 then
