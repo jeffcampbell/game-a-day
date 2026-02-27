@@ -29,9 +29,11 @@ end
 -- game state
 state = "menu"
 score = 0
-highscore = 0
-new_record = false  -- flag for new high score
+highscore = 0  -- kept for migration only
+leaderboard = {}  -- array of {score, initials, timestamp}
+new_record = false  -- flag for leaderboard entry
 new_record_flash = 0  -- flash timer for new record
+leaderboard_rank = 0  -- rank achieved (1-10, 0 if not ranked)
 gametime = 0
 multiplier = 1.0
 diff_level = 1
@@ -42,6 +44,15 @@ difficulty = 2  -- 1=easy, 2=normal, 3=hard
 diff_selection = 2  -- current selection cursor
 input_cooldown = 0  -- navigation delay
 pause_cooldown = 0  -- pause button cooldown
+
+-- initial entry state
+entry_initials = {"a", "a", "a"}  -- 3 letters
+entry_cursor = 1  -- which letter (1-3)
+entry_saved = false  -- confirmation flag
+
+-- leaderboard display state
+lb_scroll = 0  -- scroll offset
+last_entry_rank = 0  -- highlight player's last entry
 
 -- settings state
 music_enabled = true  -- toggle music on/off
@@ -112,12 +123,18 @@ function _init()
   -- enable persistent cartridge data
   cartdata("bounce_king")
 
-  -- load saved high score (slot 0)
-  highscore = dget(0)
-  _log("highscore_loaded:"..highscore)
+  -- migrate old highscore (slot 0) if exists
+  local old_hs = dget(0)
+  if old_hs > 0 then
+    highscore = old_hs
+    _log("old_highscore:"..highscore)
+  end
 
   -- load settings (slots 1-3)
   load_settings()
+
+  -- load leaderboard (slots 4-43, 4 per entry)
+  load_leaderboard()
 
   _log("state:menu")
 end
@@ -141,6 +158,70 @@ function save_settings()
   dset(2, sfx_enabled and 1 or 0)
   dset(3, ball_skin)
   _log("settings_saved")
+end
+
+-- leaderboard persistence (slots 4-43)
+-- each entry uses 4 slots: score, char1, char2, char3
+-- timestamp stored as minutes since first entry
+function load_leaderboard()
+  leaderboard = {}
+  for i = 1, 10 do
+    local slot_base = 4 + (i - 1) * 4
+    local sc = dget(slot_base)
+    if sc > 0 then
+      local c1 = dget(slot_base + 1)
+      local c2 = dget(slot_base + 2)
+      local c3 = dget(slot_base + 3)
+      -- convert codes back to chars (1=a, 26=z)
+      local init1 = c1 >= 1 and c1 <= 26 and sub("abcdefghijklmnopqrstuvwxyz", c1, c1) or "a"
+      local init2 = c2 >= 1 and c2 <= 26 and sub("abcdefghijklmnopqrstuvwxyz", c2, c2) or "a"
+      local init3 = c3 >= 1 and c3 <= 26 and sub("abcdefghijklmnopqrstuvwxyz", c3, c3) or "a"
+      add(leaderboard, {
+        score = sc,
+        initials = init1..init2..init3,
+        timestamp = 0  -- not used for now, kept for future
+      })
+    end
+  end
+
+  -- migrate old highscore if leaderboard empty
+  if #leaderboard == 0 and highscore > 0 then
+    add(leaderboard, {
+      score = highscore,
+      initials = "cpu",
+      timestamp = 0
+    })
+    save_leaderboard()
+    _log("migrated_highscore:"..highscore)
+  end
+
+  _log("leaderboard_loaded:"..#leaderboard)
+end
+
+function save_leaderboard()
+  -- save top 10 entries
+  for i = 1, 10 do
+    local slot_base = 4 + (i - 1) * 4
+    if i <= #leaderboard then
+      local entry = leaderboard[i]
+      dset(slot_base, entry.score)
+      -- convert chars to codes (a=1, z=26)
+      local init = entry.initials
+      local c1 = sub(init, 1, 1)
+      local c2 = sub(init, 2, 2)
+      local c3 = sub(init, 3, 3)
+      dset(slot_base + 1, ord(c1) - 96)  -- a=97, so a=1
+      dset(slot_base + 2, ord(c2) - 96)
+      dset(slot_base + 3, ord(c3) - 96)
+    else
+      -- clear unused slots
+      dset(slot_base, 0)
+      dset(slot_base + 1, 0)
+      dset(slot_base + 2, 0)
+      dset(slot_base + 3, 0)
+    end
+  end
+  _log("leaderboard_saved:"..#leaderboard)
 end
 
 -- audio wrapper functions
@@ -183,12 +264,16 @@ function _update()
     update_difficulty_select()
   elseif state == "settings" then
     update_settings()
+  elseif state == "leaderboard" then
+    update_leaderboard()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
     update_pause()
   elseif state == "gameover" then
     update_gameover()
+  elseif state == "enter_initials" then
+    update_enter_initials()
   end
 end
 
@@ -204,12 +289,16 @@ function _draw()
     draw_difficulty_select()
   elseif state == "settings" then
     draw_settings()
+  elseif state == "leaderboard" then
+    draw_leaderboard()
   elseif state == "play" then
     draw_play()
   elseif state == "pause" then
     draw_pause()
   elseif state == "gameover" then
     draw_gameover()
+  elseif state == "enter_initials" then
+    draw_enter_initials()
   end
 
   -- reset camera
@@ -272,6 +361,12 @@ function update_menu()
     settings_selection = 1  -- reset cursor
     input_cooldown = 10
   end
+
+  if input & 4 > 0 then  -- up button
+    state = "leaderboard"
+    _log("state:leaderboard")
+    input_cooldown = 10
+  end
 end
 
 function draw_menu()
@@ -279,10 +374,13 @@ function draw_menu()
   print("survive the fall!", 26, 52, 6)
   print("left/right: steer", 20, 70, 13)
   print("collect power-ups", 18, 78, 11)
-  print("press o to start", 22, 96, 10)
-  print("press x for settings", 14, 104, 13)
-  if highscore > 0 then
-    print("best: "..highscore, 40, 116, 10)
+  print("press o to start", 22, 90, 10)
+  print("press x for settings", 14, 98, 13)
+  print("press up for leaderboard", 8, 106, 12)
+  -- show top score from leaderboard
+  if #leaderboard > 0 then
+    local top = leaderboard[1]
+    print("best: "..top.score.." ("..top.initials..")", 24, 118, 10)
   end
 end
 
@@ -442,6 +540,62 @@ function draw_settings()
   print("x: back to menu", 18, 118, 13)
 end
 
+-- leaderboard state
+function update_leaderboard()
+  local input = test_input()
+
+  -- back to menu with X button
+  if input & 32 > 0 then
+    state = "menu"
+    _log("state:menu")
+    input_cooldown = 10
+  end
+end
+
+function draw_leaderboard()
+  print("leaderboard", 38, 8, 7)
+  print("-- top 10 scores --", 22, 18, 6)
+
+  if #leaderboard == 0 then
+    print("no entries yet!", 26, 60, 13)
+    print("play to set a record!", 14, 70, 11)
+  else
+    local y = 28
+    for i = 1, min(10, #leaderboard) do
+      local entry = leaderboard[i]
+      local col = 13  -- default cyan
+      if i == 1 then
+        col = 10  -- gold for 1st
+      elseif i == 2 then
+        col = 12  -- light blue for 2nd
+      elseif i == 3 then
+        col = 14  -- pink for 3rd
+      end
+
+      -- highlight player's last entry
+      if i == last_entry_rank and last_entry_rank > 0 then
+        col = 11  -- green highlight
+        print(">", 8, y, col)
+      end
+
+      -- rank
+      local rank_str = i < 10 and " "..i or tostr(i)
+      print(rank_str, 14, y, col)
+
+      -- initials
+      print(entry.initials, 28, y, col)
+
+      -- score
+      print(entry.score, 52, y, col)
+
+      y += 9
+      if y > 118 then break end  -- prevent overflow
+    end
+  end
+
+  print("x: back to menu", 20, 122, 5)
+end
+
 -- pause state
 function update_pause()
   -- update pause cooldown
@@ -493,6 +647,7 @@ function init_game()
   score = 0
   new_record = false  -- reset new record flag
   new_record_flash = 0
+  leaderboard_rank = 0  -- reset rank
   gametime = 0
   multiplier = 1.0
   diff_level = 1
@@ -1170,7 +1325,47 @@ end
 
 -- gameover state
 function update_gameover()
-  if test_input() & 16 > 0 then
+  local input = test_input()
+
+  -- check for leaderboard entry (only once)
+  if not new_record and leaderboard_rank == 0 then
+    -- determine if score ranks in top 10
+    local rank = 0
+    for i = 1, #leaderboard do
+      if score > leaderboard[i].score then
+        rank = i
+        break
+      end
+    end
+    -- also consider if leaderboard not full
+    if rank == 0 and #leaderboard < 10 then
+      rank = #leaderboard + 1
+    end
+
+    if rank > 0 then
+      -- player achieved a leaderboard rank!
+      leaderboard_rank = rank
+      new_record = true
+      new_record_flash = 60
+      play_sfx(6)
+      shake(20, 0.5)
+      _log("leaderboard_rank:"..rank)
+    end
+  end
+
+  -- if ranked, wait for O button to enter initials
+  if leaderboard_rank > 0 and input & 16 > 0 then
+    state = "enter_initials"
+    _log("state:enter_initials")
+    entry_initials = {"a", "a", "a"}
+    entry_cursor = 1
+    entry_saved = false
+    input_cooldown = 15
+    return
+  end
+
+  -- otherwise, O to retry
+  if leaderboard_rank == 0 and input & 16 > 0 then
     state = "play"
     _log("state:play")
     init_game()
@@ -1185,10 +1380,10 @@ function draw_gameover()
   print("final score", 38, 22, 7)
   print(score, 64 - #tostr(score) * 2, 30, 10)
 
-  -- new record indicator (prominent)
-  if new_record then
+  -- new leaderboard entry indicator (prominent)
+  if new_record and leaderboard_rank > 0 then
     local flash_col = (new_record_flash % 8 < 4) and 10 or 9
-    print("new record!", 36, 38, flash_col)
+    print("leaderboard rank #"..leaderboard_rank, 18, 38, flash_col)
     -- update flash timer
     if new_record_flash > 0 then
       new_record_flash -= 1
@@ -1196,8 +1391,9 @@ function draw_gameover()
   end
 
   -- best score display
-  if highscore > 0 then
-    print("best: "..highscore, 42, 48, 12)
+  if #leaderboard > 0 then
+    local top = leaderboard[1]
+    print("best: "..top.score.." ("..top.initials..")", 20, 48, 12)
   end
 
   -- performance stats section
@@ -1230,8 +1426,156 @@ function draw_gameover()
   -- survival time
   print("time: "..flr(gametime/30).."s", 36, 114, 6)
 
-  -- retry prompt
-  print("press o to retry", 24, 122, 13)
+  -- retry or enter initials prompt
+  if leaderboard_rank > 0 then
+    print("press o to enter name", 14, 122, 10)
+  else
+    print("press o to retry", 24, 122, 13)
+  end
+end
+
+-- enter initials state
+function update_enter_initials()
+  local input = test_input()
+
+  -- update cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+    return
+  end
+
+  if entry_saved then
+    -- after saving, wait for O to continue
+    if input & 16 > 0 then
+      state = "play"
+      _log("state:play")
+      init_game()
+    end
+    return
+  end
+
+  -- navigate between letters (left/right)
+  if input & 1 > 0 then  -- left
+    entry_cursor = max(1, entry_cursor - 1)
+    play_sfx(1)
+    _log("initial_cursor:"..entry_cursor)
+    input_cooldown = 8
+  end
+  if input & 2 > 0 then  -- right
+    entry_cursor = min(3, entry_cursor + 1)
+    play_sfx(1)
+    _log("initial_cursor:"..entry_cursor)
+    input_cooldown = 8
+  end
+
+  -- change letter (up/down)
+  if input & 4 > 0 then  -- up
+    local code = ord(entry_initials[entry_cursor])
+    code = code == 122 and 97 or code + 1  -- wrap z->a
+    entry_initials[entry_cursor] = chr(code)
+    play_sfx(1)
+    _log("initial_change:"..entry_initials[entry_cursor])
+    input_cooldown = 5
+  end
+  if input & 8 > 0 then  -- down
+    local code = ord(entry_initials[entry_cursor])
+    code = code == 97 and 122 or code - 1  -- wrap a->z
+    entry_initials[entry_cursor] = chr(code)
+    play_sfx(1)
+    _log("initial_change:"..entry_initials[entry_cursor])
+    input_cooldown = 5
+  end
+
+  -- confirm with O button
+  if input & 16 > 0 then
+    if entry_cursor < 3 then
+      -- move to next letter
+      entry_cursor += 1
+      play_sfx(1)
+      input_cooldown = 10
+    else
+      -- save entry to leaderboard
+      local initials_str = entry_initials[1]..entry_initials[2]..entry_initials[3]
+      local new_entry = {
+        score = score,
+        initials = initials_str,
+        timestamp = 0
+      }
+
+      -- insert at correct rank
+      local inserted = false
+      for i = 1, #leaderboard do
+        if score > leaderboard[i].score then
+          -- insert here
+          local temp = {}
+          for j = 1, i - 1 do
+            add(temp, leaderboard[j])
+          end
+          add(temp, new_entry)
+          for j = i, #leaderboard do
+            if #temp < 10 then
+              add(temp, leaderboard[j])
+            end
+          end
+          leaderboard = temp
+          inserted = true
+          break
+        end
+      end
+
+      -- if not inserted and room, append
+      if not inserted and #leaderboard < 10 then
+        add(leaderboard, new_entry)
+      end
+
+      -- save to cartdata
+      save_leaderboard()
+      last_entry_rank = leaderboard_rank  -- remember for highlight
+      entry_saved = true
+      play_sfx(6)
+      shake(10, 0.3)
+      _log("entry_saved:"..initials_str..":"..score)
+      input_cooldown = 15
+    end
+  end
+
+  -- skip with X button
+  if input & 32 > 0 then
+    state = "play"
+    _log("state:play")
+    _log("entry_skipped")
+    init_game()
+  end
+end
+
+function draw_enter_initials()
+  print("new leaderboard entry!", 12, 20, 10)
+  print("rank #"..leaderboard_rank, 48, 30, 11)
+
+  if entry_saved then
+    print("entry saved!", 34, 60, 7)
+    print("score: "..score, 42, 70, 10)
+    print("press o to continue", 16, 100, 13)
+  else
+    print("enter your initials:", 16, 50, 7)
+
+    -- display initials with cursor
+    local x_base = 40
+    for i = 1, 3 do
+      local col = (i == entry_cursor) and 10 or 6
+      local char = entry_initials[i]
+      print(char, x_base + (i - 1) * 16, 68, col)
+
+      -- cursor indicator
+      if i == entry_cursor then
+        print("^", x_base + (i - 1) * 16, 76, 11)
+      end
+    end
+
+    print("arrows: select/change", 12, 94, 13)
+    print("o: confirm letter", 22, 102, 13)
+    print("x: skip entry", 28, 110, 5)
+  end
 end
 
 -- helper: get zone index for x position
