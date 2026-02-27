@@ -104,7 +104,13 @@ wave_border_pulse = 0
 boss_active = false
 boss_meteor = nil
 boss_dodges = 0
+boss_defeats = 0
 boss_warning = 0
+boss_hp = 0
+boss_attack_timer = 0
+boss_attack_projectiles = {}
+boss_attack_warning = 0
+boss_attack_type = 0
 
 -- stars
 stars = {}
@@ -406,7 +412,13 @@ function update_menu()
     boss_active = false
     boss_meteor = nil
     boss_dodges = 0
+    boss_defeats = 0
     boss_warning = 0
+    boss_hp = 0
+    boss_attack_timer = 0
+    boss_attack_projectiles = {}
+    boss_attack_warning = 0
+    boss_attack_type = 0
     combo = 0
     last_combo_time = 0
     combo_pulse = 0
@@ -744,6 +756,72 @@ function draw_float_texts()
   end
 end
 
+function boss_take_damage()
+  boss_hp -= 1
+  boss_dodges = 0
+  _log("boss_damage:hp="..boss_hp)
+  if boss_hp <= 0 then
+    boss_defeats += 1
+    boss_meteor = nil
+    boss_active = false
+    boss_attack_projectiles = {}
+    add_score(500)
+    shake_time = 20
+    spawn_particles(64, 40, 30, 10, 3)
+    sfx(5)
+    _log("boss_defeated:total="..boss_defeats..":score="..score)
+    multiplier = min(3, multiplier+0.5)
+    add(float_texts, {x=64, y=30, text="boss defeated!", age=0, max_age=90, vy=-0.2, color=10})
+  else
+    shake_time = 15
+    spawn_particles(boss_meteor.x, boss_meteor.y, 20, 9, 2)
+    sfx(3)
+    _log("boss_hp_lost:remaining="..boss_hp)
+    add(float_texts, {x=boss_meteor.x, y=boss_meteor.y-10, text="hit!", age=0, max_age=40, vy=-0.4, color=8})
+  end
+end
+
+function player_hit_by_boss()
+  if combo > 0 then
+    _log("combo_reset:"..combo)
+    combo = 0
+    combo_pulse = 0
+  end
+  if multiplier > 1 then
+    _log("mult_reset:was="..multiplier)
+    multiplier = 1
+    last_mult_milestone = 1
+    multiplier_pulse = 0
+  end
+  if shield_active then
+    shield_active = false
+    invincible = 30
+    _log("shield_used:boss")
+  else
+    lives -= 1
+    invincible = 60
+    _log("collision:boss_attack:lives="..lives)
+  end
+  shake_time = 20
+  spawn_particles(px, py, 12, 8, 3)
+  sfx(1)
+  _log("sfx:boss_hit_player")
+  if lives <= 0 then
+    start_fade("gameover")
+    survival_time = flr(t()-game_start_time)
+    music(-1)
+    _log("music:stop")
+    _log("survival_time:"..survival_time)
+    if score > highscore then
+      highscore = score
+      dset(0, highscore)
+      _log("new_highscore:"..highscore)
+    end
+    calculate_achievements()
+    _log("state:gameover")
+  end
+end
+
 function update_play()
   -- get input once per frame
   local buttons = test_input()
@@ -966,20 +1044,10 @@ function update_play()
       if boss_active and boss_warning > 0 then
         boss_warning -= 1
         if boss_warning == 0 then
-          boss_meteor = {
-            x = rnd(112) + 8,
-            y = -12,
-            speed = 0.3,
-            vx = 0,
-            type = 4,  -- boss type
-            size = 8,
-            crad = 12,
-            near_player = false,
-            near_miss_logged = false,
-            health = 3,
-            zigzag_phase = 0
-          }
-          _log("boss_spawn")
+          boss_meteor = {x=64, y=20, speed=0, vx=0, type=4, size=8, crad=12, zigzag_phase=0}
+          boss_hp = 3
+          boss_attack_timer = 90
+          _log("boss_spawn:hp=3")
         end
       end
 
@@ -1238,178 +1306,65 @@ function update_play()
 
   -- update boss meteor
   if boss_meteor then
-    -- apply slowtime multiplier
-    local speed = boss_meteor.speed
-    if slowtime > 0 then
-      speed *= slowtime_mult
-    end
-    boss_meteor.y += speed
+    -- boss hovers and moves horizontally
+    boss_meteor.zigzag_phase += 0.02
+    boss_meteor.x = 64 + sin(boss_meteor.zigzag_phase) * 40
 
-    -- apply horizontal movement if present
-    if boss_meteor.vx then
-      boss_meteor.x += boss_meteor.vx
-    end
-
-    -- track if boss gets near player (dodge zone)
-    if not boss_meteor.near_player then
-      local dist = sqrt((boss_meteor.x - px) * (boss_meteor.x - px) + (boss_meteor.y - py) * (boss_meteor.y - py))
-      if dist < 25 then
-        boss_meteor.near_player = true
-      end
-    end
-
-    -- near-miss detection for boss (wider threshold)
-    if not boss_meteor.near_miss_logged and invincible == 0 then
-      local dist = sqrt((boss_meteor.x - px) * (boss_meteor.x - px) + (boss_meteor.y - py) * (boss_meteor.y - py))
-      -- trigger when boss is within 15-18 pixels and passing by player
-      if dist >= 15 and dist < 18 and boss_meteor.y >= py - 10 then
-        boss_meteor.near_miss_logged = true
-        near_misses += 1
-
-        -- increase multiplier
-        local old_mult = flr(multiplier * 10) / 10
-        local mult_cap = difficulty_preset == 4 and 4.0 or 3.0
-        multiplier = min(mult_cap, multiplier + 0.2)
-        local new_mult = flr(multiplier * 10) / 10
-        multiplier_pulse = 10
-
-        -- track max multiplier
-        if multiplier > max_multiplier then
-          max_multiplier = multiplier
-          _log("max_mult:"..multiplier)
-        end
-
-        -- check for multiplier milestone
-        if new_mult > old_mult and new_mult > last_mult_milestone then
-          local is_milestone = (new_mult == 1.5 or new_mult == 2.0 or new_mult == 3.0 or new_mult == 4.0 or new_mult == 5.0)
-          if is_milestone then
-            -- milestone reached! enhanced feedback
-            last_mult_milestone = new_mult
-            sfx(2)
-            _log("mult_milestone:"..new_mult)
-
-            -- floating milestone text
-            add(float_texts, {
-              x = px,
-              y = py - 10,
-              text = new_mult.."x multiplier!",
-              age = 0,
-              max_age = 60,
-              vy = -0.3,
-              color = 10  -- gold/yellow
-            })
-
-            -- screen flash
-            screen_flash = 10
-
-            -- stronger shake
-            shake_time = 12
-
-            -- extra particles
-            spawn_particles(px, py, 20, 10, 2.5)
+    -- attack timer countdown
+    if boss_attack_warning > 0 then
+      boss_attack_warning -= 1
+      if boss_attack_warning == 0 then
+        _log("boss_attack:"..boss_attack_type)
+        if boss_attack_type == 1 then
+          for i=0,7 do
+            local a=i/8
+            add(boss_attack_projectiles, {x=boss_meteor.x, y=boss_meteor.y, speed=0.8+sin(a)*0.2, vx=cos(a)*1.2})
+          end
+        else
+          local dx,dy=px-boss_meteor.x, py-boss_meteor.y
+          local d=sqrt(dx*dx+dy*dy)
+          if d == 0 then d = 0.1 end
+          local vx,vy=dx/d*0.8, dy/d*1.5
+          for i=0,4 do
+            add(boss_attack_projectiles, {x=boss_meteor.x+vx*i*8, y=boss_meteor.y+vy*i*8, speed=vy, vx=vx})
           end
         end
-
-        local points = add_score(10)
-        near_miss_pulse = 5
-        _log("near_miss:boss:mult="..multiplier..":score="..score)
-
-        -- spawn gold particles
-        spawn_particles(boss_meteor.x, boss_meteor.y, 10, 10, 2)
-
-        -- brief screen shake
-        shake_time = 5
-
-        -- add floating text
-        add(float_texts, {
-          x = boss_meteor.x,
-          y = boss_meteor.y,
-          text = "+"..points,
-          age = 0,
-          max_age = 30,
-          vy = -0.5,
-          color = 10
-        })
-
-        -- play sound
-        sfx(2)
-        _log("sfx:near_miss_boss")
+        if boss_attack_type > 0 then sfx(boss_attack_type-1) end
+        boss_attack_timer = boss_hp==3 and 180 or boss_hp==2 and 120 or 90
+        boss_attack_type = 0
+      end
+    elseif boss_attack_timer > 0 then
+      boss_attack_timer -= 1
+      if boss_attack_timer == 0 then
+        boss_attack_type = flr(rnd(2)) + 1
+        boss_attack_warning = 60
+        _log("boss_attack_warning:type="..boss_attack_type)
+        sfx(3)
       end
     end
 
-    -- check collision with player
-    if invincible == 0 and
-       abs(boss_meteor.x - px) < boss_meteor.crad and
-       abs(boss_meteor.y - py) < boss_meteor.crad then
-
-      -- reset combo on hit
-      if combo > 0 then
-        _log("combo_reset:"..combo)
-        combo = 0
-        combo_pulse = 0
-      end
-
-      -- reset multiplier on hit
-      if multiplier > 1.0 then
-        _log("mult_reset:was="..multiplier)
-        multiplier = 1.0
-        last_mult_milestone = 1.0
-        multiplier_pulse = 0
-      end
-
-      -- boss deals double damage
-      if shield_active then
-        shield_active = false
-        invincible = 30
-        _log("shield_used:boss")
-      else
-        lives -= 2  -- double damage
-        invincible = 60
-        _log("collision:boss:lives="..lives)
-      end
-
-      shake_time = 30  -- stronger shake
-
-      -- spawn explosion particles
-      spawn_particles(boss_meteor.x, boss_meteor.y, 12, 10, 3)
-
-      boss_meteor = nil
-      boss_active = false
-      sfx(1)  -- collision
-      _log("sfx:boss_collision")
-
-      if lives <= 0 then
-        start_fade("gameover")
-        survival_time = flr(t() - game_start_time)
-        music(-1)
-        _log("music:stop")
-        _log("survival_time:"..survival_time)
-        if score > highscore then
-          highscore = score
-          dset(0, highscore)
-          _log("new_highscore:"..highscore)
-        end
-        calculate_achievements()
-        _log("state:gameover")
-      end
+    if invincible == 0 and abs(boss_meteor.x-px) < boss_meteor.crad and abs(boss_meteor.y-py) < boss_meteor.crad then
+      player_hit_by_boss()
     end
+  end
 
-    -- successful boss dodge: boss exits screen after being near player
-    if boss_meteor.y > 136 then
-      if boss_meteor.near_player then
-        boss_dodges += 1
-        add_score(200)  -- boss bonus
-        shake_time = 10
-        _log("boss_dodge:score="..score)
-
-        -- spawn celebration particles
-        spawn_particles(64, 64, 15, 10, 2)
-
-        sfx(5)  -- triumphant sound
-        _log("sfx:boss_defeated")
-      end
-      boss_meteor = nil
-      boss_active = false
+  for p in all(boss_attack_projectiles) do
+    p.y += p.speed
+    if p.vx then p.x += p.vx end
+    if invincible == 0 and abs(p.x-px) < 8 and abs(p.y-py) < 8 then
+      player_hit_by_boss()
+      del(boss_attack_projectiles, p)
+    elseif p.y > 136 then
+      multiplier = min(difficulty_preset==4 and 4 or 3, multiplier+0.1)
+      if multiplier > max_multiplier then max_multiplier = multiplier end
+      spawn_particles(px, py, 8, 10, 1.5)
+      add(float_texts, {x=px, y=py-8, text="+"..add_score(50), age=0, max_age=30, vy=-0.5, color=10})
+      _log("boss_dodge")
+      boss_dodges += 1
+      if boss_dodges >= 3 then boss_take_damage() end
+      del(boss_attack_projectiles, p)
+    elseif p.y < -12 or p.x < -12 or p.x > 140 then
+      del(boss_attack_projectiles, p)
     end
   end
 
@@ -1538,7 +1493,7 @@ function calculate_achievements()
   if max_combo >= 50 then
     add(achievements, {text="combo killer", col=8})
   end
-  if boss_dodges >= 3 then
+  if boss_defeats >= 1 then
     add(achievements, {text="boss slayer", col=10})
   end
   if total_stars >= 10 then
@@ -1630,17 +1585,15 @@ function draw_menu()
     print("\151", 94, 66, 10)  -- arrow
   end
 
-  -- unlock hint
   if not insane_unlocked then
-    print("unlock: 5000pts", 28, 84, 13)
-    print("in normal mode", 30, 90, 13)
+    print("unlock: 5k norm", 28, 84, 13)
   else
-    print("arrows to select", 24, 84, 6)
+    print("arrows: select", 26, 84, 6)
   end
 
-  print("press z to start", 22, 98, 11)
-  print("press x for help", 22, 106, 13)
-  print("\139 for leaderboard", 20, 114, 10)
+  print("z: start", 42, 98, 11)
+  print("x: help", 42, 106, 13)
+  print("\139: leaderboard", 32, 114, 10)
 
   -- draw example meteors
   -- fast red
@@ -1665,67 +1618,43 @@ function draw_tutorial()
   print("page "..(tutorial_page+1).."/3", 44, 4, 6)
 
   if tutorial_page == 0 then
-    -- page 1: core mechanics
     print("how to play", 34, 14, 7)
-
     print("controls:", 4, 26, 11)
-    print("arrows: move ship", 4, 34, 6)
-    print("z: select/advance", 4, 42, 6)
-    print("x: back/pause", 4, 50, 6)
-
+    print("arrows: move", 4, 34, 6)
+    print("z: select", 4, 42, 6)
+    print("x: pause", 4, 50, 6)
     print("objective:", 4, 62, 11)
     print("dodge meteors!", 4, 70, 6)
-    print("survive as long", 4, 78, 6)
-    print("as possible", 4, 86, 6)
-
-    print("score:", 4, 98, 11)
-    print("near-miss: +10pts", 4, 106, 10)
-    print("combo bonus!", 4, 114, 10)
+    print("survive!", 4, 78, 6)
+    print("score:", 4, 90, 11)
+    print("near-miss: +10", 4, 98, 10)
+    print("combo bonus!", 4, 106, 10)
 
   elseif tutorial_page == 1 then
-    -- page 2: difficulty modes & multiplier
-    print("difficulty modes", 22, 14, 7)
-
-    print("zen mode:", 4, 22, 10)
-    print("relaxed, no waves", 4, 28, 6)
-
-    print("normal mode:", 4, 36, 11)
-    print("balanced gameplay", 4, 42, 6)
-
-    print("hard mode:", 4, 50, 8)
-    print("waves start fast!", 4, 56, 6)
-
-    print("insane mode:", 4, 64, 9)
-    print("unlock via normal", 4, 70, 13)
-
-    print("multiplier:", 4, 82, 11)
-    print("boost via near-miss", 4, 88, 6)
-    print("max: 3.0x-4.0x", 4, 94, 10)
-    print("by difficulty", 4, 100, 6)
+    print("difficulty", 38, 14, 7)
+    print("zen: relaxed", 4, 26, 10)
+    print("normal: balanced", 4, 34, 11)
+    print("hard: fast waves", 4, 42, 8)
+    print("insane: unlock", 4, 50, 9)
+    print("via normal 5k+", 4, 58, 13)
+    print("multiplier:", 4, 74, 11)
+    print("near-miss boost", 4, 82, 6)
+    print("max: 3x-4x", 4, 90, 10)
 
   elseif tutorial_page == 2 then
-    -- page 3: power-ups & advanced
     print("power-ups", 36, 14, 7)
-
-    -- shield
     rectfill(4, 26, 12, 34, 11)
     print("shield", 18, 28, 11)
     print("blocks 1 hit", 18, 36, 6)
-
-    -- slowtime
     rectfill(4, 46, 12, 54, 14)
     print("slow-time", 18, 48, 14)
     print("slows meteors", 18, 56, 6)
-
-    -- invincibility
     rectfill(4, 66, 12, 74, 10)
     print("invincible", 18, 68, 10)
-    print("immune to hits", 18, 76, 6)
-
-    print("wave patterns:", 4, 88, 11)
-    print("meteors spawn in", 4, 96, 6)
-    print("coordinated waves", 4, 104, 6)
-    print("with boss meteors!", 4, 112, 8)
+    print("immune", 18, 76, 6)
+    print("waves:", 4, 88, 11)
+    print("meteor patterns", 4, 96, 6)
+    print("+ boss fights!", 4, 104, 8)
   end
 
   -- navigation hint
@@ -2024,32 +1953,56 @@ function draw_play()
 
   -- draw boss meteor
   if boss_meteor then
-    -- draw trail
-    for i=1,5 do
-      local trail_y = boss_meteor.y - i * 3
-      local trail_size = boss_meteor.size - i * 0.8
-      if trail_size > 1 then
-        circ(boss_meteor.x, trail_y, trail_size, 9)
-      end
+    -- color based on HP (3=gold, 2=orange, 1=red)
+    local outer_col, mid_col, core_col
+    if boss_hp == 3 then
+      outer_col, mid_col, core_col = 10, 9, 7  -- gold
+    elseif boss_hp == 2 then
+      outer_col, mid_col, core_col = 9, 8, 2  -- orange
+    else
+      outer_col, mid_col, core_col = 8, 2, 14  -- red
     end
 
     -- pulsing ring effect
     local pulse = sin(t() * 2) * 2
-    circ(boss_meteor.x, boss_meteor.y, boss_meteor.size + 2 + pulse, 10)
-    circ(boss_meteor.x, boss_meteor.y, boss_meteor.size + 4 + pulse, 9)
+    circ(boss_meteor.x, boss_meteor.y, boss_meteor.size + 2 + pulse, outer_col)
+    circ(boss_meteor.x, boss_meteor.y, boss_meteor.size + 4 + pulse, mid_col)
 
-    -- main body (bright white/gold)
-    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size, 10)
-    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size - 2, 9)
-    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size - 4, 7)
+    -- main body
+    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size, outer_col)
+    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size - 2, mid_col)
+    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size - 4, core_col)
     -- glowing core
-    circfill(boss_meteor.x - 1, boss_meteor.y - 1, 2, 7)
+    circfill(boss_meteor.x - 1, boss_meteor.y - 1, 2, core_col)
+  end
+
+  -- draw boss attack projectiles
+  for p in all(boss_attack_projectiles) do
+    circfill(p.x, p.y, 3, 8)
+    circfill(p.x, p.y, 2, 9)
+    circfill(p.x, p.y, 1, 10)
   end
 
   -- boss warning text
-  if boss_warning > 0 or boss_meteor then
+  if boss_warning > 0 then
     local pulse_col = 8 + flr(t() * 8) % 2
-    print("boss!", 50, 30, pulse_col)
+    print("boss!", 50, 10, pulse_col)
+  elseif boss_meteor then
+    -- show HP bar
+    local hp_x = 32
+    local hp_y = 10
+    rect(hp_x, hp_y, hp_x + 64, hp_y + 4, 5)
+    if boss_hp > 0 then
+      local hp_width = flr(boss_hp / 3 * 64)
+      rectfill(hp_x + 1, hp_y + 1, hp_x + hp_width, hp_y + 3, boss_hp == 3 and 10 or boss_hp == 2 and 9 or 8)
+    end
+
+    -- attack warning
+    if boss_attack_warning > 0 then
+      local attack_names = {"ring!", "beam!"}
+      local warn_col = 8 + flr(boss_attack_warning / 8) % 2
+      print(attack_names[boss_attack_type], 48, 18, warn_col)
+    end
   end
 
   -- draw stars
@@ -2133,9 +2086,9 @@ function draw_play()
     print("slow", 2, 120, 14)
   end
 
-  -- draw boss dodges counter
-  if boss_dodges > 0 then
-    print("boss x"..boss_dodges, 2, 114, 10)
+  -- draw boss dodges counter (toward next damage)
+  if boss_active and boss_dodges > 0 then
+    print("hits:"..boss_dodges.."/3", 2, 114, 10)
   end
 end
 
@@ -2237,14 +2190,14 @@ function draw_gameover()
   end
   y += spacing
 
-  -- bosses dodged (frame 30)
+  -- bosses defeated (frame 30)
   if gameover_timer >= 30 then
     local boss_col = 6
-    if boss_dodges >= 5 then boss_col = 12
-    elseif boss_dodges >= 3 then boss_col = 10
-    elseif boss_dodges >= 1 then boss_col = 8 end
-    print("\007 bosses: "..boss_dodges, 3, y, boss_col)
-    _log("metric_display:boss_dodges:"..boss_dodges)
+    if boss_defeats >= 3 then boss_col = 12
+    elseif boss_defeats >= 2 then boss_col = 10
+    elseif boss_defeats >= 1 then boss_col = 8 end
+    print("\007 bosses: "..boss_defeats, 3, y, boss_col)
+    _log("metric_display:boss_defeats:"..boss_defeats)
   end
 
   -- insane mode unlock notification (frame 10)
