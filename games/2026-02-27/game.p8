@@ -613,6 +613,7 @@ function update_menu()
       menu_cursor = max(1, menu_cursor - 1)
       play_sfx(1)
       _log("menu_nav:up:"..menu_cursor)
+      _log("sfx_menu_nav")
       input_cooldown = 10
     end
 
@@ -620,6 +621,7 @@ function update_menu()
       menu_cursor = min(7, menu_cursor + 1)
       play_sfx(1)
       _log("menu_nav:down:"..menu_cursor)
+      _log("sfx_menu_nav")
       input_cooldown = 10
     end
 
@@ -1485,8 +1487,17 @@ function init_challenge()
     _log("variant:powerup_gauntlet:spawn_0.5x")
   end
 
-  play_music(1)  -- challenge mode music (more intense)
-  _log("challenge_init:variant="..challenge_variant..",seed="..challenge_seed..",scroll="..scroll_speed..",interval="..obs_interval)
+  -- variant-specific music patterns
+  local music_pattern = 0  -- time attack (pattern 0)
+  if challenge_variant == 2 then
+    music_pattern = 1  -- survival mode (pattern 1, higher intensity)
+  elseif challenge_variant == 3 then
+    music_pattern = 0  -- combo master (pattern 0, rhythmic)
+  elseif challenge_variant == 4 then
+    music_pattern = 1  -- power-up gauntlet (pattern 1, playful)
+  end
+  play_music(music_pattern)
+  _log("challenge_init:variant="..challenge_variant..",music="..music_pattern..",seed="..challenge_seed..",scroll="..scroll_speed..",interval="..obs_interval)
 end
 
 -- achievement checking
@@ -1591,6 +1602,7 @@ function update_play()
     scroll_speed += 0.1
     obs_interval = max(20, obs_interval - 5)
     play_sfx(2)  -- difficulty increase ascending tone
+    _log("sfx_difficulty_up:level="..diff_level)
     wave_pulse = 20  -- trigger wave counter pulse
     _log("difficulty:"..diff_level)
     _log("wave:"..diff_level)
@@ -1927,9 +1939,12 @@ function update_play()
           cleanup_satellites(o.boss_id)
         end
       else
-        play_sfx(4)  -- dodge/safe milestone sparkle
+        -- dodge sound with combo-based pitch variation
+        local pitch_offset = min(flr(combo / 5) * 2, 12)
+        play_sfx(8, -1, pitch_offset)  -- dodge sound (upbeat, ascending)
         shake(3, 0.4)
         _log("dodge_bonus:"..bonus)
+        _log("sfx_dodge:combo="..combo..",pitch="..pitch_offset)
         local pcol = in_danger_zone and 8 or 11  -- red for danger zone
         add_particles(ball.x, ball.y, 15, pcol)
       end
@@ -1955,6 +1970,7 @@ function update_play()
         last_milestone = milestone
         _log("milestone:"..milestone)
         play_sfx(7)  -- celebratory milestone sound
+        _log("sfx_combo_milestone:"..milestone)
         shake(3, 0.25)  -- gentle shake for milestone
         -- milestone floating text with color
         local m_col = 10  -- yellow
@@ -2807,18 +2823,22 @@ function collect_powerup(p)
       _log("lives:"..lives)
     end
     play_sfx(5, -1, 0)  -- shield powerup (base pitch)
+    _log("sfx_powerup:shield:pitch=0")
     add_floating_text(p.x - 12, p.y - 20, "shield!", 11)
   elseif p.type == "slowmo" then
     slowmo_time = 60
     play_sfx(5, -1, 4)  -- slowmo powerup (higher pitch)
+    _log("sfx_powerup:slowmo:pitch=4")
     add_floating_text(p.x - 12, p.y - 20, "slowmo!", 12)
   elseif p.type == "doublescore" then
     doublescore_time = 150
     play_sfx(5, -1, 8)  -- doublescore powerup (even higher pitch)
+    _log("sfx_powerup:doublescore:pitch=8")
     add_floating_text(p.x - 18, p.y - 20, "double score!", 10)
   elseif p.type == "magnet" then
     magnet_time = 240  -- 8 seconds at 30fps
     play_sfx(5, -1, 2)  -- magnet powerup (slightly higher pitch)
+    _log("sfx_powerup:magnet:pitch=2")
     add_floating_text(p.x - 12, p.y - 20, "magnet!", 13)
     _log("powerup:magnet")
   elseif p.type == "bomb" then
@@ -2833,6 +2853,7 @@ function collect_powerup(p)
       end
     end
     play_sfx(5, -1, 12)  -- bomb powerup (explosion sound, highest pitch)
+    _log("sfx_powerup:bomb:pitch=12")
     shake(12, 1.5)  -- strong shake on bomb
     screen_flash = 8  -- flash screen
     add_floating_text(p.x - 10, p.y - 20, "bomb!", 8)
@@ -2840,6 +2861,7 @@ function collect_powerup(p)
   elseif p.type == "freeze" then
     freeze_time = 180  -- 6 seconds at 30fps
     play_sfx(5, -1, 6)  -- freeze powerup (mid-high pitch)
+    _log("sfx_powerup:freeze:pitch=6")
     add_floating_text(p.x - 12, p.y - 20, "freeze!", 12)
     _log("powerup:freeze")
   end
@@ -2965,6 +2987,8 @@ function update_practice_speed_select()
     state = "practice_play"
     _log("state:practice_play")
     init_practice_game()
+    play_music(0)  -- practice mode music (same intensity as normal mode)
+    _log("practice_music_start:pattern=0")
   end
 
   -- back to obstacle select
@@ -3528,8 +3552,11 @@ function update_challenge()
       multiplier = min(multiplier + 0.15, mult_cap)
       max_multiplier = max(max_multiplier, multiplier)
       spawn_particles(ball.x, ball.y, 15, 10)
-      play_sfx(0)
+      -- dodge sound with combo-based pitch variation
+      local pitch_offset = min(flr(combo / 5) * 2, 12)
+      play_sfx(8, -1, pitch_offset)
       _log("dodge:combo="..combo..",mult="..multiplier..",bonus="..bonus)
+      _log("sfx_dodge:combo="..combo..",pitch="..pitch_offset)
 
       -- check combo milestones
       local milestone = 0
@@ -3547,6 +3574,7 @@ function update_challenge()
         shake_screen(3, 0.25)
         play_sfx(7)
         _log("milestone:"..milestone)
+        _log("sfx_combo_milestone:"..milestone)
       end
     end
   end
