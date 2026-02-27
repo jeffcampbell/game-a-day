@@ -37,6 +37,7 @@ combo = 0
 difficulty = 2  -- 1=easy, 2=normal, 3=hard
 diff_selection = 2  -- current selection cursor
 input_cooldown = 0  -- navigation delay
+pause_cooldown = 0  -- pause button cooldown
 
 -- visual juice
 shake_time = 0
@@ -93,6 +94,8 @@ function _update()
     update_difficulty_select()
   elseif state == "play" then
     update_play()
+  elseif state == "pause" then
+    update_pause()
   elseif state == "gameover" then
     update_gameover()
   end
@@ -110,6 +113,8 @@ function _draw()
     draw_difficulty_select()
   elseif state == "play" then
     draw_play()
+  elseif state == "pause" then
+    draw_pause()
   elseif state == "gameover" then
     draw_gameover()
   end
@@ -227,6 +232,47 @@ function draw_difficulty_select()
   print("up/down: choose", 18, 122, 13)
 end
 
+-- pause state
+function update_pause()
+  -- update pause cooldown
+  if pause_cooldown > 0 then
+    pause_cooldown -= 1
+  end
+
+  -- check for unpause button (X = button 5)
+  local input = test_input()
+  if pause_cooldown == 0 and input & 32 > 0 then
+    state = "play"
+    music(0)  -- resume music
+    _log("state:resume")
+    pause_cooldown = 15
+  end
+end
+
+function draw_pause()
+  -- draw the frozen game state
+  draw_play()
+
+  -- draw semi-transparent overlay (checkerboard pattern for dimming)
+  for i = 0, 127, 2 do
+    for j = 0, 127, 2 do
+      pset(i, j, 0)
+    end
+  end
+
+  -- pause UI box
+  rectfill(24, 40, 104, 90, 0)
+  rect(24, 40, 104, 90, 7)
+  rect(25, 41, 103, 89, 6)
+
+  -- pause text
+  print("paused", 48, 46, 7)
+  print("score: "..score, 38, 56, 10)
+  print("time: "..flr(gametime/30).."s", 36, 64, 11)
+  print("combo: "..combo, 40, 72, 9)
+  print("press x to resume", 28, 82, 13)
+end
+
 -- game initialization
 function init_game()
   ball.x = 64
@@ -267,6 +313,21 @@ end
 
 -- play state
 function update_play()
+  -- update pause cooldown
+  if pause_cooldown > 0 then
+    pause_cooldown -= 1
+  end
+
+  -- check for pause button (X = button 5)
+  local input = test_input()
+  if pause_cooldown == 0 and input & 32 > 0 then
+    state = "pause"
+    music(-1)  -- stop music when paused
+    _log("state:pause")
+    pause_cooldown = 15
+    return
+  end
+
   gametime += 1
 
   -- difficulty progression
@@ -292,8 +353,7 @@ function update_play()
   if slowmo_time > 0 then slowmo_time -= 1 end
   if doublescore_time > 0 then doublescore_time -= 1 end
 
-  -- input
-  local input = test_input()
+  -- movement input
   if input & 1 > 0 then
     ball.vx -= 0.5
     _log("steer_left")
