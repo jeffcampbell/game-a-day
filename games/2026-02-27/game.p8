@@ -1140,6 +1140,24 @@ end
 
 -- daily challenge initialization
 function init_challenge()
+  -- recompute seed in case we crossed midnight
+  challenge_seed = flr(time() / 86400)
+  _log("challenge_seed_recomputed:"..challenge_seed)
+
+  -- check if seed changed (new day) and update best score
+  local stored_seed = dget(55)
+  if stored_seed ~= challenge_seed then
+    -- new day, reset best score
+    challenge_best = 0
+    dset(55, challenge_seed)
+    dset(54, 0)
+    _log("challenge_new_day:seed="..challenge_seed)
+  else
+    -- same day, load existing best
+    challenge_best = dget(54)
+    _log("challenge_same_day:best="..challenge_best)
+  end
+
   -- reuse init_game logic
   ball.x = 64
   ball.y = 100
@@ -2886,12 +2904,11 @@ function update_challenge()
     return
   end
 
-  -- ball physics
-  local b_input = test_input()
-  if b_input & 1 > 0 then  -- left
+  -- ball physics (reuse input variable instead of calling test_input() again)
+  if input & 1 > 0 then  -- left
     ball.vx = max(ball.vx - 0.5, -2.5)
   end
-  if b_input & 2 > 0 then  -- right
+  if input & 2 > 0 then  -- right
     ball.vx = min(ball.vx + 0.5, 2.5)
   end
 
