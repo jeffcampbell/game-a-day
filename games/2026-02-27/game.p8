@@ -91,6 +91,17 @@ power_types_collected = {}  -- set of collected types this game
 last_damage_time = 0  -- time since last damage
 danger_zone_pickups = 0  -- total across all games (persistent)
 
+-- practice mode state
+practice_obstacle_type = "spike"  -- selected obstacle type
+practice_speed_modifier = 1.0  -- 0.5=slow, 1.0=normal, 1.5=fast
+practice_collisions = 0  -- collision counter
+practice_pause_timer = 0  -- pause after collision
+practice_obstacle_selection = 1  -- menu cursor (1-7)
+practice_speed_selection = 2  -- menu cursor (1-3)
+practice_obstacle_types = {"spike", "moving", "rotating", "pendulum", "zigzag", "orbiter", "boss"}
+practice_speed_names = {"slow", "normal", "fast"}
+practice_speed_values = {0.5, 1.0, 1.5}
+
 -- visual juice
 shake_time = 0
 shake_intensity = 0
@@ -320,6 +331,12 @@ function _update()
     update_leaderboard()
   elseif state == "achievements" then
     update_achievements()
+  elseif state == "practice_obstacle_select" then
+    update_practice_obstacle_select()
+  elseif state == "practice_speed_select" then
+    update_practice_speed_select()
+  elseif state == "practice_play" then
+    update_practice_play()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -347,6 +364,12 @@ function _draw()
     draw_leaderboard()
   elseif state == "achievements" then
     draw_achievements()
+  elseif state == "practice_obstacle_select" then
+    draw_practice_obstacle_select()
+  elseif state == "practice_speed_select" then
+    draw_practice_speed_select()
+  elseif state == "practice_play" then
+    draw_practice_play()
   elseif state == "play" then
     draw_play()
   elseif state == "pause" then
@@ -430,21 +453,27 @@ function update_menu()
     ach_scroll = 0  -- reset scroll
     input_cooldown = 10
   end
+
+  if input & 1 > 0 then  -- left button
+    state = "practice_obstacle_select"
+    _log("state:practice_obstacle_select")
+    practice_obstacle_selection = 1  -- reset cursor
+    input_cooldown = 10
+  end
 end
 
 function draw_menu()
   print("bounce king", 38, 40, 7)
   print("survive the fall!", 26, 52, 6)
-  print("left/right: steer", 20, 68, 13)
-  print("collect power-ups", 18, 76, 11)
-  print("press o to start", 22, 88, 10)
-  print("press x for settings", 14, 96, 13)
-  print("up: leaderboard", 26, 104, 12)
-  print("down: achievements", 18, 112, 11)
+  print("press o to start", 22, 68, 10)
+  print("press x for settings", 14, 76, 13)
+  print("left: practice mode", 18, 84, 11)
+  print("up: leaderboard", 26, 92, 12)
+  print("down: achievements", 18, 100, 11)
   -- show top score from leaderboard
   if #leaderboard > 0 then
     local top = leaderboard[1]
-    print("best: "..top.score.." ("..top.initials..")", 24, 118, 10)
+    print("best: "..top.score.." ("..top.initials..")", 24, 110, 10)
   end
 end
 
@@ -2034,6 +2063,427 @@ function add_floating_text(x, y, text, col)
     lifetime = 30
   })
   _log("floating_text:"..text)
+end
+
+-- practice mode: obstacle selection
+function update_practice_obstacle_select()
+  local input = test_input()
+
+  -- update cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+  end
+
+  -- navigation with cooldown
+  if input_cooldown == 0 then
+    if input & 4 > 0 then  -- up
+      practice_obstacle_selection = max(1, practice_obstacle_selection - 1)
+      play_sfx(1)
+      _log("practice_obstacle_nav:up")
+      input_cooldown = 10
+    end
+    if input & 8 > 0 then  -- down
+      practice_obstacle_selection = min(7, practice_obstacle_selection + 1)
+      play_sfx(1)
+      _log("practice_obstacle_nav:down")
+      input_cooldown = 10
+    end
+  end
+
+  -- confirm selection
+  if input & 16 > 0 then  -- O button
+    practice_obstacle_type = practice_obstacle_types[practice_obstacle_selection]
+    _log("practice_obstacle_selected:"..practice_obstacle_type)
+    state = "practice_speed_select"
+    _log("state:practice_speed_select")
+    input_cooldown = 10
+  end
+
+  -- back to menu
+  if input & 32 > 0 then  -- X button
+    state = "menu"
+    _log("state:menu")
+    input_cooldown = 10
+  end
+end
+
+function draw_practice_obstacle_select()
+  print("practice mode", 32, 20, 7)
+  print("select obstacle", 28, 30, 6)
+
+  -- draw obstacle options
+  local y = 45
+  for i = 1, 7 do
+    local col = (i == practice_obstacle_selection) and 10 or 13
+    local prefix = (i == practice_obstacle_selection) and "> " or "  "
+    print(prefix..practice_obstacle_types[i], 32, y, col)
+    y += 10
+  end
+
+  print("o: select  x: back", 14, 118, 5)
+end
+
+-- practice mode: speed selection
+function update_practice_speed_select()
+  local input = test_input()
+
+  -- update cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+  end
+
+  -- navigation with cooldown
+  if input_cooldown == 0 then
+    if input & 4 > 0 then  -- up
+      practice_speed_selection = max(1, practice_speed_selection - 1)
+      play_sfx(1)
+      _log("practice_speed_nav:up")
+      input_cooldown = 10
+    end
+    if input & 8 > 0 then  -- down
+      practice_speed_selection = min(3, practice_speed_selection + 1)
+      play_sfx(1)
+      _log("practice_speed_nav:down")
+      input_cooldown = 10
+    end
+  end
+
+  -- confirm selection
+  if input & 16 > 0 then  -- O button
+    practice_speed_modifier = practice_speed_values[practice_speed_selection]
+    _log("practice_speed_selected:"..practice_speed_names[practice_speed_selection])
+    state = "practice_play"
+    _log("state:practice_play")
+    init_practice_game()
+  end
+
+  -- back to obstacle select
+  if input & 32 > 0 then  -- X button
+    state = "practice_obstacle_select"
+    _log("state:practice_obstacle_select")
+    input_cooldown = 10
+  end
+end
+
+function draw_practice_speed_select()
+  print("practice mode", 32, 20, 7)
+  print("select speed", 32, 30, 6)
+
+  print("obstacle: "..practice_obstacle_type, 20, 45, 13)
+
+  -- draw speed options
+  local y = 60
+  for i = 1, 3 do
+    local col = (i == practice_speed_selection) and 10 or 13
+    local prefix = (i == practice_speed_selection) and "> " or "  "
+    local mult = practice_speed_values[i].."x"
+    print(prefix..practice_speed_names[i].." ("..mult..")", 32, y, col)
+    y += 12
+  end
+
+  print("o: start  x: back", 18, 118, 5)
+end
+
+-- practice mode: gameplay initialization
+function init_practice_game()
+  ball.x = 64
+  ball.y = 100
+  ball.vx = 0
+  ball.vy = 0
+  ball.grounded = false
+  obstacles = {}
+  particles = {}
+  floating_texts = {}
+  ball_trail = {}
+  obs_timer = 0
+  practice_collisions = 0
+  practice_pause_timer = 0
+
+  -- apply speed modifier to scroll and spawn
+  scroll_speed = 0.5 * practice_speed_modifier
+  obs_interval = flr(60 / practice_speed_modifier)
+
+  _log("practice_game_init:type="..practice_obstacle_type..",speed="..practice_speed_modifier)
+end
+
+-- practice mode: spawn selected obstacle
+function spawn_practice_obstacle()
+  if practice_obstacle_type == "spike" then
+    local o = {x = 20 + rnd(88), y = -10, type = "spike", r = 6, dodged = false, is_boss = false}
+    add(obstacles, o)
+    _log("practice_spawn:spike")
+  elseif practice_obstacle_type == "moving" then
+    local o = {x = 20 + rnd(88), y = -10, type = "moving", r = 10, vx = 0.5 + rnd(1), dodged = false, is_boss = false}
+    if rnd(1) > 0.5 then o.vx *= -1 end
+    add(obstacles, o)
+    _log("practice_spawn:moving")
+  elseif practice_obstacle_type == "rotating" then
+    local o = {x = 20 + rnd(88), y = -10, type = "rotating", r = 8, angle = 0, dodged = false, is_boss = false}
+    add(obstacles, o)
+    _log("practice_spawn:rotating")
+  elseif practice_obstacle_type == "pendulum" then
+    local o = {x = 40 + rnd(48), y = -10, type = "pendulum", r = 7, swing_time = 0, base_x = 0, dodged = false, is_boss = false}
+    o.base_x = o.x
+    add(obstacles, o)
+    _log("practice_spawn:pendulum")
+  elseif practice_obstacle_type == "zigzag" then
+    local o = {x = 20 + rnd(88), y = -10, type = "zigzag", r = 6, zig_time = 0, zig_dir = rnd(1) > 0.5 and 1 or -1, dodged = false, is_boss = false}
+    add(obstacles, o)
+    _log("practice_spawn:zigzag")
+  elseif practice_obstacle_type == "orbiter" then
+    local o = {x = 40 + rnd(48), y = -10, type = "orbiter", r = 5, orbit_angle = 0, orbit_radius = 8, dodged = false, is_boss = false}
+    add(obstacles, o)
+    _log("practice_spawn:orbiter")
+  elseif practice_obstacle_type == "boss" then
+    local o = {x = 64, base_x = 64, y = -10, type = "boss", r = 13, wave_time = 0, dodged = false, is_boss = true}
+    add(obstacles, o)
+    _log("practice_spawn:boss")
+  end
+end
+
+-- practice mode: gameplay update
+function update_practice_play()
+  -- handle pause timer (1 second pause after collision)
+  if practice_pause_timer > 0 then
+    practice_pause_timer -= 1
+    if practice_pause_timer == 0 then
+      -- reset ball after pause
+      ball.x = 64
+      ball.y = 100
+      ball.vx = 0
+      ball.vy = 0
+      ball.grounded = false
+      _log("practice_reset")
+    end
+    return
+  end
+
+  local input = test_input()
+
+  -- exit to menu
+  if input & 32 > 0 then  -- X button
+    state = "menu"
+    _log("state:menu")
+    return
+  end
+
+  -- ball physics (same as normal play)
+  -- steering
+  if input & 1 > 0 then ball.vx -= 0.5 end  -- left
+  if input & 2 > 0 then ball.vx += 0.5 end  -- right
+
+  -- velocity limits
+  ball.vx = mid(-3, ball.vx, 3)
+
+  -- gravity and floor
+  if ball.y < 100 then
+    ball.vy += 0.2
+  else
+    ball.y = 100
+    ball.vy = 0
+    ball.grounded = true
+  end
+
+  -- floor bounce
+  if ball.y >= 100 and ball.vy > 0 then
+    ball.vy = -4
+  end
+
+  -- apply velocity
+  ball.x += ball.vx
+  ball.y += ball.vy
+
+  -- friction
+  ball.vx *= 0.9
+
+  -- wall bounce
+  if ball.x < ball.r then
+    ball.x = ball.r
+    ball.vx = abs(ball.vx)
+  end
+  if ball.x > 128 - ball.r then
+    ball.x = 128 - ball.r
+    ball.vx = -abs(ball.vx)
+  end
+
+  -- update trail
+  if #ball_trail < max_trail_length then
+    add(ball_trail, {x = ball.x, y = ball.y, life = 10})
+  else
+    for i = 1, max_trail_length - 1 do
+      ball_trail[i] = ball_trail[i + 1]
+    end
+    ball_trail[max_trail_length] = {x = ball.x, y = ball.y, life = 10}
+  end
+
+  for t in all(ball_trail) do
+    t.life -= 1
+  end
+
+  -- spawn obstacles
+  obs_timer += 1
+  if obs_timer >= obs_interval then
+    spawn_practice_obstacle()
+    obs_timer = 0
+  end
+
+  -- update obstacles (same movement logic as normal game)
+  for o in all(obstacles) do
+    o.y += scroll_speed
+
+    -- obstacle type movement
+    if o.type == "moving" then
+      o.x += o.vx
+      if o.x < 10 or o.x > 118 then o.vx *= -1 end
+    elseif o.type == "rotating" then
+      o.angle += 0.05
+    elseif o.type == "pendulum" then
+      o.swing_time += 0.04
+      o.x = o.base_x + sin(o.swing_time) * 25
+    elseif o.type == "zigzag" then
+      o.zig_time += 0.1
+      local amplitude = 15
+      o.x += o.zig_dir * 1.5
+      if o.x < 10 or o.x > 118 then o.zig_dir *= -1 end
+    elseif o.type == "orbiter" then
+      o.orbit_angle += 0.05
+    elseif o.type == "boss" then
+      o.wave_time += 0.03
+      o.x = o.base_x + sin(o.wave_time) * 30
+    end
+
+    -- collision detection
+    local dist
+    if o.type == "orbiter" then
+      -- check center + 2 satellites
+      local dx = ball.x - o.x
+      local dy = ball.y - o.y
+      dist = sqrt(dx * dx + dy * dy)
+      if dist < ball.r + 3 then
+        practice_collision()
+      else
+        -- check satellites
+        for angle_offset = 0, 1, 0.5 do
+          local sat_x = o.x + cos(o.orbit_angle + angle_offset) * o.orbit_radius
+          local sat_y = o.y + sin(o.orbit_angle + angle_offset) * o.orbit_radius
+          local sdx = ball.x - sat_x
+          local sdy = ball.y - sat_y
+          local sdist = sqrt(sdx * sdx + sdy * sdy)
+          if sdist < ball.r + 3 then
+            practice_collision()
+            break
+          end
+        end
+      end
+    else
+      local dx = ball.x - o.x
+      local dy = ball.y - o.y
+      dist = sqrt(dx * dx + dy * dy)
+      if dist < ball.r + o.r then
+        practice_collision()
+      end
+    end
+
+    -- remove off-screen obstacles
+    if o.y > 140 then
+      del(obstacles, o)
+    end
+  end
+
+  -- update particles
+  for p in all(particles) do
+    p.x += p.vx
+    p.y += p.vy
+    p.life -= 1
+    if p.life <= 0 then
+      del(particles, p)
+    end
+  end
+
+  -- update floating texts
+  for ft in all(floating_texts) do
+    ft.y += ft.vy
+    ft.lifetime -= 1
+    if ft.lifetime <= 0 then
+      del(floating_texts, ft)
+    end
+  end
+end
+
+function practice_collision()
+  if practice_pause_timer > 0 then return end  -- already in pause
+
+  practice_collisions += 1
+  practice_pause_timer = 30  -- 1 second at 30fps
+  add_particles(ball.x, ball.y, 15, 8)
+  play_sfx(4)
+  _log("practice_collision:"..practice_collisions)
+end
+
+function draw_practice_play()
+  -- draw ball trail
+  for i, t in pairs(ball_trail) do
+    if t.life > 0 then
+      local trail_col = (ball_skin == 1 and 6) or (ball_skin == 2 and 9) or 12
+      circfill(t.x, t.y, 1, trail_col)
+    end
+  end
+
+  -- draw ball
+  local ball_col = (ball_skin == 1 and 7) or (ball_skin == 2 and 10) or 12
+  circfill(ball.x, ball.y, ball.r, ball_col)
+
+  -- draw obstacles (same as normal play)
+  for o in all(obstacles) do
+    if o.type == "spike" then
+      circfill(o.x, o.y, o.r, 8)
+    elseif o.type == "moving" then
+      circfill(o.x, o.y, o.r, 14)
+    elseif o.type == "rotating" then
+      circfill(o.x, o.y, o.r, 12)
+      local rx = o.x + cos(o.angle) * 6
+      local ry = o.y + sin(o.angle) * 6
+      line(o.x, o.y, rx, ry, 7)
+    elseif o.type == "pendulum" then
+      line(o.base_x, 0, o.x, o.y, 6)
+      circfill(o.x, o.y, o.r, 13)
+    elseif o.type == "zigzag" then
+      circfill(o.x, o.y, o.r, 11)
+    elseif o.type == "orbiter" then
+      circfill(o.x, o.y, 3, 9)
+      circ(o.x, o.y, o.orbit_radius, 5)
+      for angle_offset = 0, 1, 0.5 do
+        local sat_x = o.x + cos(o.orbit_angle + angle_offset) * o.orbit_radius
+        local sat_y = o.y + sin(o.orbit_angle + angle_offset) * o.orbit_radius
+        circfill(sat_x, sat_y, 3, 10)
+      end
+    elseif o.type == "boss" then
+      circfill(o.x, o.y, o.r, 8)
+      circ(o.x, o.y, o.r + 2, 2)
+    end
+  end
+
+  -- draw particles
+  for p in all(particles) do
+    pset(p.x, p.y, p.col)
+  end
+
+  -- draw floating texts
+  for ft in all(floating_texts) do
+    print(ft.text, ft.x, ft.y, ft.col)
+  end
+
+  -- draw UI: obstacle type, speed, collision count
+  print("practice", 2, 2, 13)
+  print(practice_obstacle_type, 2, 9, 10)
+  print(practice_speed_names[practice_speed_selection].." ("..practice_speed_modifier.."x)", 2, 16, 11)
+  print("hits: "..practice_collisions, 2, 23, 8)
+  print("x: exit", 88, 2, 5)
+
+  -- show pause indicator
+  if practice_pause_timer > 0 then
+    print("resetting...", 36, 64, 7)
+  end
 end
 
 __gfx__
