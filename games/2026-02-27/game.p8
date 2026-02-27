@@ -74,6 +74,7 @@ max_combo = 0
 total_dodges = 0
 total_powerups = 0
 total_dodge_bonus = 0
+max_multiplier = 0
 
 -- achievement system
 achievements = {}  -- unlocked status {id -> true/false}
@@ -121,6 +122,7 @@ challenge_score = 0  -- current challenge score
 challenge_best = 0  -- today's personal best
 daily_history = {}  -- last 7 days: {day_seed, best_score}
 challenge_pulse = 0  -- urgency pulse effect
+summary_page = 1  -- summary screen page (1-3)
 
 -- visual juice
 shake_time = 0
@@ -1160,6 +1162,7 @@ function init_game()
   total_dodges = 0
   total_powerups = 0
   total_dodge_bonus = 0
+  max_multiplier = 0
 
   -- reset achievement tracking for this game
   power_types_collected = {}
@@ -1249,6 +1252,14 @@ function init_challenge()
   magnet_time = 0
   freeze_time = 0
   obstacles_frozen = false
+
+  -- reset performance stats
+  max_combo = 0
+  total_dodges = 0
+  total_powerups = 0
+  total_dodge_bonus = 0
+  max_multiplier = 0
+  power_types_collected = {}
 
   -- seed-based difficulty (use challenge_seed for deterministic behavior)
   srand(challenge_seed)
@@ -1408,6 +1419,7 @@ function update_play()
   -- score multiplier every 30s
   if gametime % 900 == 0 then
     multiplier += 0.5
+    max_multiplier = max(max_multiplier, multiplier)
     _log("multiplier:"..multiplier)
   end
 
@@ -3098,6 +3110,7 @@ function update_challenge()
       challenge_best = challenge_score
     end
     save_daily_challenge()
+    summary_page = 1  -- reset to first page
     state = "challenge_summary"
     _log("state:challenge_summary:score="..challenge_score..",best="..challenge_best)
     return
@@ -3274,6 +3287,7 @@ function update_challenge()
       add_floating_text("+"..bonus, ball.x, ball.y - 10, 10)
       -- increase multiplier (3x growth for challenge mode)
       multiplier = min(multiplier + 0.15, 5.0)
+      max_multiplier = max(max_multiplier, multiplier)
       spawn_particles(ball.x, ball.y, 15, 10)
       play_sfx(0)
       _log("dodge:combo="..combo..",mult="..multiplier..",bonus="..bonus)
@@ -3399,6 +3413,7 @@ function update_challenge()
           save_daily_challenge()
           play_sfx(7)  -- game over descending tone
           play_music(3, 500)  -- game over music with fade
+          summary_page = 1  -- reset to first page
           state = "challenge_summary"
           _log("state:challenge_summary:death:score="..challenge_score..",best="..challenge_best)
           return
@@ -3608,34 +3623,95 @@ function update_challenge_summary()
     input_cooldown -= 1
   end
 
-  if input_cooldown == 0 and (input & 16 > 0 or input & 32 > 0) then  -- O or X
-    play_music(2)  -- menu music
-    state = "menu"
-    _log("state:menu:challenge_summary_exit")
-    input_cooldown = 10
+  -- page navigation
+  if input_cooldown == 0 then
+    if input & 4 > 0 then  -- up
+      summary_page = max(1, summary_page - 1)
+      input_cooldown = 10
+      _log("summary_page:up:"..summary_page)
+    elseif input & 8 > 0 then  -- down
+      summary_page = min(3, summary_page + 1)
+      input_cooldown = 10
+      _log("summary_page:down:"..summary_page)
+    elseif input & 16 > 0 or input & 32 > 0 then  -- O or X
+      play_music(2)  -- menu music
+      state = "menu"
+      summary_page = 1  -- reset for next time
+      _log("state:menu:challenge_summary_exit")
+      input_cooldown = 10
+    end
   end
 end
 
 function draw_challenge_summary()
-  print("challenge complete!", 22, 30, 7)
+  -- page 1: overview & score
+  if summary_page == 1 then
+    print("challenge complete!", 22, 20, 7)
 
-  print("your score: "..challenge_score, 28, 50, 10)
-  print("today's best: "..challenge_best, 22, 60, challenge_score == challenge_best and 10 or 6)
-
-  -- show previous days
-  if #daily_history > 0 then
-    print("recent history:", 28, 75, 14)
-    local y = 85
-    for i = 1, min(3, #daily_history) do
-      local entry = daily_history[#daily_history - i + 1]
-      local days_ago = challenge_seed - entry.seed
-      local label = days_ago == 0 and "today" or (days_ago == 1 and "yesterday" or (days_ago.." days ago"))
-      print(label..": "..entry.score, 20, y, 6)
-      y += 8
+    print("your score: "..challenge_score, 28, 40, 10)
+    local best_col = challenge_score == challenge_best and 10 or 6
+    print("today's best: "..challenge_best, 22, 50, best_col)
+    if challenge_score == challenge_best then
+      print("new record!", 32, 60, 9)
     end
+
+    -- time survived
+    local time_sec = flr((90 - challenge_time_left / 30))
+    print("time: "..time_sec.."s", 45, 70, 12)
+
+    -- lives remaining
+    print("lives left: "..lives, 38, 80, lives > 0 and 11 or 8)
+
+    print("page 1/3", 48, 105, 5)
+
+  -- page 2: combat stats
+  elseif summary_page == 2 then
+    print("combat stats", 32, 20, 7)
+
+    print("best combo: "..max_combo, 30, 40, 10)
+    print("total dodges: "..total_dodges, 25, 50, 11)
+
+    -- average dodge bonus
+    local avg = total_dodges > 0 and flr(total_dodge_bonus / total_dodges) or 0
+    print("avg dodge bonus: "..avg, 20, 60, 12)
+
+    -- max multiplier
+    local mult_str = ""..flr(max_multiplier*10)/10
+    print("max multiplier: "..mult_str.."x", 18, 70, 9)
+
+    print("page 2/3", 48, 105, 5)
+
+  -- page 3: power-ups & history
+  elseif summary_page == 3 then
+    print("power-ups & history", 18, 20, 7)
+
+    print("power-ups: "..total_powerups, 30, 40, 10)
+
+    -- count types collected
+    local types_count = 0
+    for k, v in pairs(power_types_collected) do
+      if v then types_count += 1 end
+    end
+    print("types found: "..types_count.."/6", 28, 50, 11)
+
+    -- recent history
+    if #daily_history > 0 then
+      print("recent history:", 28, 65, 14)
+      local y = 75
+      for i = 1, min(3, #daily_history) do
+        local entry = daily_history[#daily_history - i + 1]
+        local days_ago = challenge_seed - entry.seed
+        local label = days_ago == 0 and "today" or (days_ago == 1 and "yest." or (days_ago.."d ago"))
+        print(label..": "..entry.score, 24, y, 6)
+        y += 8
+      end
+    end
+
+    print("page 3/3", 48, 105, 5)
   end
 
-  print("press o or x to return", 12, 115, 5)
+  -- navigation hints
+  print("\x8e\x8f page  o/x return", 10, 115, 5)
 end
 
 __gfx__
