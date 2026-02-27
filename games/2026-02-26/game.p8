@@ -115,6 +115,9 @@ fade_alpha = 0
 fade_dir = 0  -- 0=none, 1=fade out, -1=fade in
 next_state = nil
 
+-- tutorial system
+tutorial_page = 0  -- 0-2 for different tutorial screens
+
 -- parallax background
 stars_bg = {}  -- background stars (slower)
 
@@ -151,6 +154,8 @@ function _update()
 
   if state == "menu" then
     update_menu()
+  elseif state == "tutorial" then
+    update_tutorial()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -171,6 +176,8 @@ function _draw()
 
   if state == "menu" then
     draw_menu()
+  elseif state == "tutorial" then
+    draw_tutorial()
   elseif state == "play" then
     draw_play()
   elseif state == "pause" then
@@ -211,6 +218,16 @@ function update_menu()
     _log("mode_select:"..get_mode_name())
   end
 
+  -- enter tutorial with X button
+  if (buttons & 32) > 0 then
+    sfx(4)  -- ui sound
+    _log("sfx:ui_select")
+    state = "tutorial"
+    tutorial_page = 0
+    _log("state:tutorial")
+  end
+
+  -- start game with Z/O button
   if (buttons & 16) > 0 then
     sfx(4)  -- ui select
     _log("sfx:ui_select")
@@ -278,6 +295,28 @@ function update_menu()
     music(1)  -- gameplay music
     _log("music:play")
     _log("state:play")
+  end
+end
+
+function update_tutorial()
+  local buttons = test_input()
+
+  -- navigate pages with up/down arrows
+  if (buttons & 4) > 0 and tutorial_page > 0 then
+    tutorial_page -= 1
+    sfx(4)
+    _log("tutorial_page:"..tutorial_page)
+  elseif (buttons & 8) > 0 and tutorial_page < 2 then
+    tutorial_page += 1
+    sfx(4)
+    _log("tutorial_page:"..tutorial_page)
+  end
+
+  -- return to menu with X or Z
+  if (buttons & 32) > 0 or (buttons & 16) > 0 then
+    state = "menu"
+    sfx(4)
+    _log("state:menu")
   end
 end
 
@@ -1231,6 +1270,7 @@ function draw_menu()
 
   print("arrows to select", 24, 84, 6)
   print("press z to start", 22, 100, 11)
+  print("press x for help", 22, 108, 13)
 
   -- draw example meteors
   -- fast red
@@ -1242,6 +1282,81 @@ function draw_menu()
   -- slow blue
   circfill(82, 20, 6, 12)
   circfill(82, 20, 4, 1)
+end
+
+function draw_tutorial()
+  -- draw background stars
+  for s in all(stars_bg) do
+    local c = s.bright == 1 and 6 or 5
+    pset(s.x, s.y, c)
+  end
+
+  -- page indicator
+  print("page "..(tutorial_page+1).."/3", 44, 4, 6)
+
+  if tutorial_page == 0 then
+    -- page 1: core mechanics
+    print("how to play", 34, 14, 7)
+
+    print("controls:", 4, 26, 11)
+    print("arrows: move ship", 4, 34, 6)
+    print("z: select/advance", 4, 42, 6)
+    print("x: back/pause", 4, 50, 6)
+
+    print("objective:", 4, 62, 11)
+    print("dodge meteors!", 4, 70, 6)
+    print("survive as long", 4, 78, 6)
+    print("as possible", 4, 86, 6)
+
+    print("score:", 4, 98, 11)
+    print("near-miss: +10pts", 4, 106, 10)
+    print("combo bonus!", 4, 114, 10)
+
+  elseif tutorial_page == 1 then
+    -- page 2: difficulty modes & multiplier
+    print("difficulty modes", 22, 14, 7)
+
+    print("zen mode:", 4, 26, 10)
+    print("relaxed, no waves", 4, 34, 6)
+
+    print("normal mode:", 4, 44, 11)
+    print("balanced gameplay", 4, 52, 6)
+
+    print("hard mode:", 4, 62, 8)
+    print("waves start fast!", 4, 70, 6)
+
+    print("score multiplier:", 4, 82, 11)
+    print("scales with survival", 4, 90, 6)
+    print("time. max 3.0x!", 4, 98, 6)
+    print("near-miss boosts it", 4, 106, 10)
+
+  elseif tutorial_page == 2 then
+    -- page 3: power-ups & advanced
+    print("power-ups", 36, 14, 7)
+
+    -- shield
+    rectfill(4, 26, 12, 34, 11)
+    print("shield", 18, 28, 11)
+    print("blocks 1 hit", 18, 36, 6)
+
+    -- slowtime
+    rectfill(4, 46, 12, 54, 14)
+    print("slow-time", 18, 48, 14)
+    print("slows meteors", 18, 56, 6)
+
+    -- invincibility
+    rectfill(4, 66, 12, 74, 10)
+    print("invincible", 18, 68, 10)
+    print("immune to hits", 18, 76, 6)
+
+    print("wave patterns:", 4, 88, 11)
+    print("meteors spawn in", 4, 96, 6)
+    print("coordinated waves", 4, 104, 6)
+    print("with boss meteors!", 4, 112, 8)
+  end
+
+  -- navigation hint
+  print("up/down: change page", 14, 122, 13)
 end
 
 function draw_pause()
