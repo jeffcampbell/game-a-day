@@ -1157,11 +1157,20 @@ function update_play()
       m.vx = cos(m.spiral_angle + 0.25) * 0.8
     end
 
-   
+
     if not m.near_player then
-      local dist = sqrt((m.x - px) * (m.x - px) + (m.y - py) * (m.y - py))
-      if dist < 20 then
+      local dist_p1 = sqrt((m.x - px) * (m.x - px) + (m.y - py) * (m.y - py))
+      local near_p1 = dist_p1 < 20
+      local near_p2 = coop_mode and sqrt((m.x - p2x) * (m.x - p2x) + (m.y - p2y) * (m.y - p2y)) < 20 or false
+      if near_p1 or near_p2 then
         m.near_player = true
+        if near_p1 and near_p2 then
+          _log("near_both")
+        elseif near_p1 then
+          _log("near_p1")
+        else
+          _log("near_p2")
+        end
       end
     end
 
