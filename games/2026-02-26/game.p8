@@ -1453,7 +1453,7 @@ function update_play()
     local p2_powerup = coop_mode and abs(p.x - p2x) < 6 and abs(p.y - p2y) < 6
 
     if p1_powerup or p2_powerup then
-      add_score(25)
+      local points = add_score(25)
       total_powerups += 1
 
       local trigger_x = p1_powerup and px or p2x
@@ -1476,6 +1476,7 @@ function update_play()
       end
       spawn_particles(trigger_x, trigger_y, 18, pc, 3)
       add(float_texts, {x=trigger_x, y=trigger_y, text=pn, age=0, max_age=40, vy=-0.8, color=pc})
+      add(float_texts, {x=trigger_x, y=trigger_y-8, text="+"..points, age=0, max_age=30, vy=-0.5, color=10})
       shake_time = 8
 
      
@@ -1483,7 +1484,7 @@ function update_play()
 
       del(powerups, p)
       _log("sfx:powerup_"..pn)
-      _log("pickup:powerup:total="..total_powerups)
+      _log("pickup:powerup:total="..total_powerups..":bonus="..points)
     end
 
    
