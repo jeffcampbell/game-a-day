@@ -42,8 +42,10 @@ last_difficulty = 1
 pause_cooldown = 0
 gameover_timer = 0
 
--- difficulty preset: 1=zen, 2=normal, 3=hard
+-- difficulty preset: 1=zen, 2=normal, 3=hard, 4=insane
 difficulty_preset = 2
+insane_unlocked = false  -- unlocks after scoring 5000+ in Normal mode
+just_unlocked_insane = false  -- set when insane unlocks during this game
 
 -- pattern system (active during waves)
 pattern_type = nil  -- nil, 1=convergence, 2=scatter, 3=zigzag, 4=spiral, 5=sweep, 6=spread
@@ -133,9 +135,12 @@ function _init()
   cartdata("meteor_dodge_v1")
   highscore = dget(0)
   difficulty_preset = dget(1)
-  if difficulty_preset < 1 or difficulty_preset > 3 then
+  if difficulty_preset < 1 or difficulty_preset > 4 then
     difficulty_preset = 2  -- default to normal
   end
+  -- load insane mode unlock state
+  insane_unlocked = dget(2) == 1
+  _log("insane_unlocked:"..tostr(insane_unlocked))
   music(0)  -- menu music
   -- initialize parallax background
   for i=1,30 do
@@ -233,12 +238,13 @@ function update_menu()
   local buttons = test_input()
 
   -- mode selection with arrow keys
+  local max_mode = insane_unlocked and 4 or 3
   if (buttons & 1) > 0 and difficulty_preset > 1 then
     difficulty_preset -= 1
     dset(1, difficulty_preset)
     sfx(4)  -- ui sound
     _log("mode_select:"..get_mode_name())
-  elseif (buttons & 2) > 0 and difficulty_preset < 3 then
+  elseif (buttons & 2) > 0 and difficulty_preset < max_mode then
     difficulty_preset += 1
     dset(1, difficulty_preset)
     sfx(4)  -- ui sound
@@ -295,6 +301,9 @@ function update_menu()
     if difficulty_preset == 1 then
       -- zen mode: no waves
       wave_timer = 999999
+    elseif difficulty_preset == 4 then
+      -- insane mode: waves start immediately
+      wave_timer = 0
     elseif difficulty_preset == 3 then
       -- hard mode: waves start at 10s
       wave_timer = 600 + rnd(300)
@@ -382,6 +391,7 @@ end
 function get_mode_name()
   if difficulty_preset == 1 then return "zen"
   elseif difficulty_preset == 3 then return "hard"
+  elseif difficulty_preset == 4 then return "insane"
   else return "normal" end
 end
 
@@ -720,6 +730,11 @@ function update_play()
   difficulty = 1 + flr(t() / 30)
   local base_rate = max(20, 60 - difficulty * 3)
 
+  -- insane mode: much faster spawn rate
+  if difficulty_preset == 4 then
+    base_rate = max(20, 40 - difficulty * 3)  -- starts faster, harder cap
+  end
+
   -- play sound on difficulty increase
   if difficulty > last_difficulty then
     sfx(3)
@@ -758,7 +773,15 @@ function update_play()
 
         -- calculate wave intensity based on wave count and survival time
         local survival = flr(t() - game_start_time)
-        if survival >= 90 or wave_count >= 6 then
+
+        -- insane mode: critical waves every 10s
+        if difficulty_preset == 4 then
+          if survival % 10 == 0 or wave_count % 2 == 0 then
+            wave_intensity = 3  -- critical (frequent)
+          else
+            wave_intensity = 2  -- high (minimum)
+          end
+        elseif survival >= 90 or wave_count >= 6 then
           wave_intensity = 3  -- critical
         elseif survival >= 60 or wave_count >= 4 then
           wave_intensity = 2  -- high
@@ -771,8 +794,8 @@ function update_play()
         -- border pulse on wave start
         wave_border_pulse = 30
 
-        -- hard mode: longer, more intense waves
-        if difficulty_preset == 3 then
+        -- hard/insane mode: longer, more intense waves
+        if difficulty_preset == 3 or difficulty_preset == 4 then
           wave_timer = 600 + rnd(300)  -- 10-15 seconds
         else
           wave_timer = 480 + rnd(240)  -- 8-12 seconds
@@ -785,8 +808,8 @@ function update_play()
         pattern_type = flr(rnd(max_pattern)) + 1
         pattern_timer = 240 + rnd(120)  -- 4-6 seconds
 
-        -- hard mode: dual patterns
-        if difficulty_preset == 3 then
+        -- hard/insane mode: dual patterns
+        if difficulty_preset == 3 or difficulty_preset == 4 then
           pattern_type2 = flr(rnd(max_pattern)) + 1
           -- ensure different patterns
           if pattern_type2 == pattern_type then
@@ -841,7 +864,7 @@ function update_play()
       end
 
       -- boss spawn logic
-      local boss_difficulty_req = difficulty_preset == 3 and 1 or 2
+      local boss_difficulty_req = (difficulty_preset == 3 or difficulty_preset == 4) and 1 or 2
       if not boss_active and wave_timer <= 180 and wave_timer > 170 and difficulty >= boss_difficulty_req then
         boss_active = true
         boss_warning = 60  -- 1 second warning
@@ -874,8 +897,8 @@ function update_play()
         -- end wave
         wave_state = "idle"
 
-        -- hard mode: shorter cooldown
-        if difficulty_preset == 3 then
+        -- hard/insane mode: shorter cooldown
+        if difficulty_preset == 3 or difficulty_preset == 4 then
           wave_timer = 600 + rnd(300)  -- 10-15 seconds
         else
           wave_timer = 1200 + rnd(600)  -- 20-30 seconds
@@ -964,7 +987,8 @@ function update_play()
 
         -- increase multiplier
         local old_mult = flr(multiplier * 10) / 10
-        multiplier = min(5.0, multiplier + 0.2)
+        local mult_cap = difficulty_preset == 4 and 4.0 or 3.0
+        multiplier = min(mult_cap, multiplier + 0.2)
         local new_mult = flr(multiplier * 10) / 10
         multiplier_pulse = 10
 
@@ -1154,7 +1178,8 @@ function update_play()
 
         -- increase multiplier
         local old_mult = flr(multiplier * 10) / 10
-        multiplier = min(5.0, multiplier + 0.2)
+        local mult_cap = difficulty_preset == 4 and 4.0 or 3.0
+        multiplier = min(mult_cap, multiplier + 0.2)
         local new_mult = flr(multiplier * 10) / 10
         multiplier_pulse = 10
 
@@ -1451,10 +1476,22 @@ function update_gameover()
     achievements_logged = true
   end
 
+  -- check for insane mode unlock (Normal mode, 5000+ score)
+  if gameover_timer == 1 and not insane_unlocked and difficulty_preset == 2 and score >= 5000 then
+    insane_unlocked = true
+    just_unlocked_insane = true
+    dset(2, 1)  -- persist unlock state
+    screen_flash = 20
+    shake_time = 15
+    sfx(5)  -- special unlock sound
+    _log("unlock:insane_mode")
+  end
+
   if (test_input() & 16) > 0 then
     sfx(4)  -- ui select
     _log("sfx:ui_select")
     start_fade("menu")
+    just_unlocked_insane = false  -- reset for next game
     music(0)  -- menu music
     _log("music:menu")
   end
@@ -1465,32 +1502,49 @@ function draw_menu()
   print("avoid the meteors!", 20, 55, 6)
 
   -- difficulty mode selection
-  print("mode:", 36, 66, 13)
+  print("mode:", 46, 58, 13)
 
   -- zen mode
   local zen_col = difficulty_preset == 1 and 10 or 5
-  print("zen", 24, 74, zen_col)
+  print("zen", 10, 66, zen_col)
   if difficulty_preset == 1 then
-    print("\151", 16, 74, 10)  -- arrow
+    print("\151", 2, 66, 10)  -- arrow
   end
 
   -- normal mode
   local normal_col = difficulty_preset == 2 and 10 or 5
-  print("normal", 48, 74, normal_col)
+  print("normal", 36, 66, normal_col)
   if difficulty_preset == 2 then
-    print("\151", 40, 74, 10)  -- arrow
+    print("\151", 28, 66, 10)  -- arrow
   end
 
   -- hard mode
   local hard_col = difficulty_preset == 3 and 10 or 5
-  print("hard", 88, 74, hard_col)
+  print("hard", 74, 66, hard_col)
   if difficulty_preset == 3 then
-    print("\151", 80, 74, 10)  -- arrow
+    print("\151", 66, 66, 10)  -- arrow
   end
 
-  print("arrows to select", 24, 84, 6)
-  print("press z to start", 22, 100, 11)
-  print("press x for help", 22, 108, 13)
+  -- insane mode (show locked/unlocked)
+  local insane_col = difficulty_preset == 4 and 10 or (insane_unlocked and 5 or 2)
+  print("insane", 102, 66, insane_col)
+  if not insane_unlocked then
+    print("[locked]", 98, 74, 2)
+  end
+  if difficulty_preset == 4 then
+    print("\151", 94, 66, 10)  -- arrow
+  end
+
+  -- unlock hint
+  if not insane_unlocked then
+    print("unlock: 5000pts", 28, 84, 13)
+    print("in normal mode", 30, 90, 13)
+  else
+    print("arrows to select", 24, 84, 6)
+  end
+
+  print("press z to start", 22, 102, 11)
+  print("press x for help", 22, 110, 13)
 
   -- draw example meteors
   -- fast red
@@ -1536,19 +1590,22 @@ function draw_tutorial()
     -- page 2: difficulty modes & multiplier
     print("difficulty modes", 22, 14, 7)
 
-    print("zen mode:", 4, 26, 10)
-    print("relaxed, no waves", 4, 34, 6)
+    print("zen mode:", 4, 22, 10)
+    print("relaxed, no waves", 4, 28, 6)
 
-    print("normal mode:", 4, 44, 11)
-    print("balanced gameplay", 4, 52, 6)
+    print("normal mode:", 4, 36, 11)
+    print("balanced gameplay", 4, 42, 6)
 
-    print("hard mode:", 4, 62, 8)
-    print("waves start fast!", 4, 70, 6)
+    print("hard mode:", 4, 50, 8)
+    print("waves start fast!", 4, 56, 6)
 
-    print("score multiplier:", 4, 82, 11)
-    print("scales with survival", 4, 90, 6)
-    print("time. max 3.0x!", 4, 98, 6)
-    print("near-miss boosts it", 4, 106, 10)
+    print("insane mode:", 4, 64, 9)
+    print("unlock via normal", 4, 70, 13)
+
+    print("multiplier:", 4, 82, 11)
+    print("boost via near-miss", 4, 88, 6)
+    print("max: 3.0x-4.0x", 4, 94, 10)
+    print("by difficulty", 4, 100, 6)
 
   elseif tutorial_page == 2 then
     -- page 3: power-ups & advanced
@@ -1998,14 +2055,23 @@ function draw_gameover()
     _log("metric_display:boss_dodges:"..boss_dodges)
   end
 
-  -- achievements section (frame 35)
-  if gameover_timer >= 35 and #achievements > 0 then
+  -- insane mode unlock notification (frame 10)
+  if just_unlocked_insane and gameover_timer >= 10 then
+    local unlock_col = 10 + (flr(gameover_timer / 8) % 2)  -- pulse yellow/gold
+    print("unlocked:", 38, 88, 7)
+    print("insane mode!", 30, 96, unlock_col)
+  end
+
+  -- achievements section (frame 35, or frame 104 if unlock shown)
+  local ach_start = just_unlocked_insane and 104 or 35
+  if gameover_timer >= ach_start and #achievements > 0 then
     local ach_y = 96
+    if just_unlocked_insane then ach_y = 104 end
     print("achievements:", 26, ach_y, 7)
     ach_y += 8
     for i, a in pairs(achievements) do
       -- stagger achievement appearance
-      if gameover_timer >= 35 + (i * 3) then
+      if gameover_timer >= ach_start + (i * 3) then
         print("\151 "..a.text, 20, ach_y, a.col)
       end
       ach_y += 6
