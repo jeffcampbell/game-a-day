@@ -126,6 +126,10 @@ challenge_best = 0  -- today's personal best
 daily_history = {}  -- last 7 days: {day_seed, best_score}
 challenge_pulse = 0  -- urgency pulse effect
 summary_page = 1  -- summary screen page (1-3)
+challenge_variant = 1  -- 1=time_attack, 2=survival, 3=combo_master, 4=powerup_gauntlet
+variant_cursor = 1  -- current variant selection
+challenge_lives = 3  -- lives for survival mode
+challenge_max_combo = 0  -- max combo for combo_master mode
 
 -- visual juice
 shake_time = 0
@@ -493,6 +497,8 @@ function _update()
     update_practice_speed_select()
   elseif state == "practice_play" then
     update_practice_play()
+  elseif state == "challenge_variant_menu" then
+    update_challenge_variant_menu()
   elseif state == "challenge" then
     update_challenge()
   elseif state == "challenge_summary" then
@@ -532,6 +538,8 @@ function _draw()
     draw_practice_speed_select()
   elseif state == "practice_play" then
     draw_practice_play()
+  elseif state == "challenge_variant_menu" then
+    draw_challenge_variant_menu()
   elseif state == "challenge" then
     draw_challenge()
   elseif state == "challenge_summary" then
@@ -623,9 +631,9 @@ function update_menu()
         diff_selection = difficulty
         input_cooldown = 10
       elseif selection == "challenge" then
-        init_challenge()
-        state = "challenge"
-        _log("state:challenge")
+        state = "challenge_variant_menu"
+        _log("state:challenge_variant_menu")
+        variant_cursor = 1
         input_cooldown = 10
       elseif selection == "practice" then
         state = "practice_obstacle_select"
@@ -1287,6 +1295,82 @@ function init_game()
   _log("game_init:difficulty="..difficulty)
 end
 
+-- challenge variant menu
+function update_challenge_variant_menu()
+  local input = test_input()
+
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+  end
+
+  if input_cooldown == 0 then
+    -- navigate variants
+    if input & 4 > 0 then  -- up
+      variant_cursor = max(1, variant_cursor - 1)
+      play_sfx(1)
+      _log("variant_nav:up:"..variant_cursor)
+      input_cooldown = 10
+    end
+
+    if input & 8 > 0 then  -- down
+      variant_cursor = min(4, variant_cursor + 1)
+      play_sfx(1)
+      _log("variant_nav:down:"..variant_cursor)
+      input_cooldown = 10
+    end
+
+    -- select variant
+    if input & 16 > 0 then  -- O button
+      challenge_variant = variant_cursor
+      init_challenge()
+      state = "challenge"
+      _log("state:challenge:variant="..challenge_variant)
+      input_cooldown = 10
+    end
+
+    -- back to menu
+    if input & 32 > 0 then  -- X button
+      play_music(2)  -- menu music
+      state = "menu"
+      _log("state:menu:variant_cancel")
+      input_cooldown = 10
+    end
+  end
+end
+
+function draw_challenge_variant_menu()
+  print("daily challenge", 28, 20, 7)
+  print("select variant", 32, 32, 6)
+
+  local variant_names = {
+    "time attack",
+    "survival mode",
+    "combo master",
+    "power-up gauntlet"
+  }
+
+  local variant_desc = {
+    "90s: max score",
+    "3 lives: endurance",
+    "60s: biggest combo",
+    "90s: scarce power-ups"
+  }
+
+  -- draw variant options
+  local y = 50
+  for i = 1, 4 do
+    local col = (i == variant_cursor) and 10 or 6
+    local marker = (i == variant_cursor) and "> " or "  "
+    print(marker..variant_names[i], 20, y, col)
+    print(variant_desc[i], 26, y + 8, 5)
+    y += 20
+  end
+
+  -- controls
+  print("arrows: navigate", 22, 118, 5)
+  print("z: select  x: back", 18, 124, 5)
+end
+
 -- daily challenge initialization
 function init_challenge()
   -- recompute seed in case we crossed midnight
@@ -1377,8 +1461,32 @@ function init_challenge()
   zone_timer = 0
   zone_interval = 450 + rnd(150)
 
+  -- apply variant-specific modifiers
+  challenge_lives = 3
+  challenge_max_combo = 0
+
+  if challenge_variant == 1 then
+    -- time attack: standard 90s mode (no changes needed)
+    challenge_time_left = 90 * 30
+  elseif challenge_variant == 2 then
+    -- survival: unlimited time, 3 lives, 2x spawn rate, faster difficulty scaling
+    challenge_time_left = 99999 * 30  -- effectively unlimited
+    obs_interval = flr(obs_interval * 0.5)  -- 2x spawn rate
+    _log("variant:survival:spawn_2x")
+  elseif challenge_variant == 3 then
+    -- combo master: 60s, slower spawning, no lives system
+    challenge_time_left = 60 * 30
+    obs_interval = flr(obs_interval * 1.25)  -- slower spawning
+    _log("variant:combo_master:spawn_0.8x")
+  elseif challenge_variant == 4 then
+    -- power-up gauntlet: 90s, slower obstacles, half power-up rate
+    challenge_time_left = 90 * 30
+    obs_interval = flr(obs_interval * 2)  -- slower obstacles
+    _log("variant:powerup_gauntlet:spawn_0.5x")
+  end
+
   play_music(1)  -- challenge mode music (more intense)
-  _log("challenge_init:seed="..challenge_seed..",scroll="..scroll_speed..",interval="..obs_interval)
+  _log("challenge_init:variant="..challenge_variant..",seed="..challenge_seed..",scroll="..scroll_speed..",interval="..obs_interval)
 end
 
 -- achievement checking
@@ -2658,8 +2766,18 @@ end
 
 -- power-up collection
 function collect_powerup(p)
+  -- combo master: no power-ups allowed
+  if challenge_active and challenge_variant == 3 then
+    _log("powerup_disabled:combo_master")
+    return
+  end
+
   local bonus = flr(50 * multiplier * (doublescore_time > 0 and 2 or 1))
-  score += bonus
+  if challenge_active then
+    challenge_score += bonus
+  else
+    score += bonus
+  end
   total_powerups += 1
   _log("powerup_collected:"..p.type)
   _log("powerup_bonus:"..bonus)
@@ -3213,13 +3331,14 @@ function update_challenge()
   else
     -- time's up, end challenge
     challenge_active = false
-    if challenge_score > challenge_best then
-      challenge_best = challenge_score
+    local current_result = challenge_variant == 3 and challenge_max_combo or challenge_score
+    if current_result > challenge_best then
+      challenge_best = current_result
     end
     save_daily_challenge()
     summary_page = 1  -- reset to first page
     state = "challenge_summary"
-    _log("state:challenge_summary:score="..challenge_score..",best="..challenge_best)
+    _log("state:challenge_summary:result="..current_result..",best="..challenge_best)
     return
   end
 
@@ -3294,7 +3413,11 @@ function update_challenge()
 
   -- spawn power-ups
   pu_timer += 1
-  if pu_timer >= 240 then
+  local pu_interval = 240
+  if challenge_variant == 4 then
+    pu_interval = 480  -- half spawn rate for power-up gauntlet
+  end
+  if pu_timer >= pu_interval then
     spawn_powerup()
     pu_timer = 0
   end
@@ -3386,14 +3509,23 @@ function update_challenge()
       elseif combo_bonus == 3 then bonus_mod = 0.7  -- stingy
       end
       local bonus = flr(10 * multiplier * 2 * bonus_mod)
+      -- power-up gauntlet: extra 10 points per dodge
+      if challenge_variant == 4 then
+        bonus += 10
+      end
       challenge_score += bonus
       combo += 1
       max_combo = max(max_combo, combo)
+      challenge_max_combo = max(challenge_max_combo, combo)
       total_dodges += 1
       total_dodge_bonus += bonus
       add_floating_text("+"..bonus, ball.x, ball.y - 10, 10)
       -- increase multiplier (3x growth for challenge mode)
-      multiplier = min(multiplier + 0.15, 5.0)
+      local mult_cap = 5.0
+      if challenge_variant == 3 or challenge_variant == 4 then
+        mult_cap = 1.5  -- cap at 1.5x for combo master and power-up gauntlet
+      end
+      multiplier = min(multiplier + 0.15, mult_cap)
       max_multiplier = max(max_multiplier, multiplier)
       spawn_particles(ball.x, ball.y, 15, 10)
       play_sfx(0)
@@ -3498,32 +3630,76 @@ function update_challenge()
     end
 
     if collision then
-      if shield_time == 0 then
-        -- collision detected
-        lives -= 1
-        life_flash = 20
-        combo = 0
-        last_milestone = 0
-        multiplier = max(1.0, multiplier - 0.5)
-        shake_screen(10, 1.5)
-        spawn_particles(ball.x, ball.y, 20, 8)
-        play_sfx(3)  -- collision/damage harsh buzz
-        _log("collision:lives="..lives..",mult="..multiplier)
-        del(obstacles, o)
+      -- combo master: shield not available
+      local has_shield = shield_time > 0 and challenge_variant ~= 3
 
-        if lives <= 0 then
-          -- game over
-          challenge_active = false
-          if challenge_score > challenge_best then
-            challenge_best = challenge_score
+      if not has_shield then
+        -- combo master: damage resets combo but doesn't end game
+        if challenge_variant == 3 then
+          combo = 0
+          last_milestone = 0
+          multiplier = max(1.0, multiplier - 0.3)
+          shake_screen(6, 1.0)
+          spawn_particles(ball.x, ball.y, 15, 8)
+          play_sfx(3)  -- collision/damage harsh buzz
+          _log("collision:combo_reset:combo=0,mult="..multiplier)
+          del(obstacles, o)
+        -- survival mode: use challenge_lives
+        elseif challenge_variant == 2 then
+          challenge_lives -= 1
+          life_flash = 20
+          combo = 0
+          last_milestone = 0
+          multiplier = max(1.0, multiplier - 0.5)
+          shake_screen(10, 1.5)
+          spawn_particles(ball.x, ball.y, 20, 8)
+          play_sfx(3)  -- collision/damage harsh buzz
+          _log("collision:lives="..challenge_lives..",mult="..multiplier)
+          del(obstacles, o)
+
+          if challenge_lives <= 0 then
+            -- game over
+            challenge_active = false
+            local current_result = challenge_variant == 3 and challenge_max_combo or challenge_score
+            if current_result > challenge_best then
+              challenge_best = current_result
+            end
+            save_daily_challenge()
+            play_sfx(7)  -- game over descending tone
+            play_music(3, 500)  -- game over music with fade
+            summary_page = 1  -- reset to first page
+            state = "challenge_summary"
+            _log("state:challenge_summary:death:result="..current_result..",best="..challenge_best)
+            return
           end
-          save_daily_challenge()
-          play_sfx(7)  -- game over descending tone
-          play_music(3, 500)  -- game over music with fade
-          summary_page = 1  -- reset to first page
-          state = "challenge_summary"
-          _log("state:challenge_summary:death:score="..challenge_score..",best="..challenge_best)
-          return
+        else
+          -- time attack / power-up gauntlet: use standard lives
+          lives -= 1
+          life_flash = 20
+          combo = 0
+          last_milestone = 0
+          multiplier = max(1.0, multiplier - 0.5)
+          shake_screen(10, 1.5)
+          spawn_particles(ball.x, ball.y, 20, 8)
+          play_sfx(3)  -- collision/damage harsh buzz
+          _log("collision:lives="..lives..",mult="..multiplier)
+          del(obstacles, o)
+
+          if lives <= 0 then
+            -- game over
+            challenge_active = false
+            local current_result = challenge_variant == 3 and challenge_max_combo or challenge_score
+            if current_result > challenge_best then
+              challenge_best = current_result
+            end
+            save_daily_challenge()
+            play_sfx(7)  -- game over descending tone
+            play_music(3, 500)  -- game over music with fade
+            summary_page = 1  -- reset to first page
+            state = "challenge_summary"
+            _log("state:challenge_summary:death:result="..current_result..",best="..challenge_best)
+            return
+          end
         end
       else
         -- shield active: absorb collision
@@ -3575,10 +3751,16 @@ function update_challenge()
     end
   end
 
-  -- difficulty progression (apply scaling setting)
+  -- difficulty progression (variant-specific + scaling setting)
   local scale_interval = 600  -- normal = every 10s
-  if diff_scaling == 1 then scale_interval = 900  -- conservative = every 15s
-  elseif diff_scaling == 3 then scale_interval = 300  -- aggressive = every 5s
+  if challenge_variant == 2 then
+    scale_interval = 240  -- survival: every 8s
+  elseif challenge_variant == 3 then
+    scale_interval = 360  -- combo master: every 12s
+  end
+  -- apply user scaling setting on top of variant defaults
+  if diff_scaling == 1 then scale_interval = flr(scale_interval * 1.5)  -- conservative
+  elseif diff_scaling == 3 then scale_interval = flr(scale_interval * 0.5)  -- aggressive
   end
 
   if gametime % scale_interval == 0 and gametime > 0 then
@@ -3672,56 +3854,89 @@ function draw_challenge()
     print(ft.text, ft.x, ft.y, ft.col)
   end
 
-  -- draw UI with urgency theme
-  local time_sec = flr(challenge_time_left / 30)
-  local time_col = 7
-  if time_sec <= 10 then
-    time_col = (challenge_pulse < 15) and 8 or 9  -- pulse red/orange
-  elseif time_sec <= 30 then
-    time_col = 9  -- orange
-  end
+  -- draw variant-specific HUD
+  if challenge_variant == 1 then
+    -- time attack: score, time, multiplier
+    local time_sec = flr(challenge_time_left / 30)
+    local time_col = 7
+    if time_sec <= 10 then
+      time_col = (challenge_pulse < 15) and 8 or 9
+    elseif time_sec <= 30 then
+      time_col = 9
+    end
+    print("time attack", 2, 2, 8)
+    print("time: "..time_sec.."s", 2, 9, time_col)
+    print("score: "..challenge_score, 2, 16, 10)
 
-  print("challenge", 2, 2, 8)
-  print("time: "..time_sec.."s", 2, 9, time_col)
-  print("score: "..challenge_score, 2, 16, 10)
-
-  -- combo counter
-  if combo > 0 then
     local combo_col = (combo >= 20 and 14) or (combo >= 10 and 9) or 10
-    print("x"..combo, 100, 2, combo_col)
+    if combo > 0 then print("x"..combo, 100, 2, combo_col) end
+
+    local mult_text = multiplier.."x"
+    local mult_col = (multiplier >= 3.0 and 14) or (multiplier >= 2.0 and 9) or 10
+    print(mult_text, 100, 9, mult_col)
+
+  elseif challenge_variant == 2 then
+    -- survival: lives, time survived, combo
+    local time_sec = flr(gametime / 30)
+    print("survival", 2, 2, 8)
+    print("lives: "..challenge_lives, 2, 9, 10)
+    print("time: "..time_sec.."s", 2, 16, 11)
+
+    local combo_col = (combo >= 20 and 14) or (combo >= 10 and 9) or 10
+    if combo > 0 then print("x"..combo, 100, 2, combo_col) end
+    print("score: "..challenge_score, 80, 9, 6)
+
+    -- lives indicators
+    for i = 1, challenge_lives do
+      local life_col = life_flash > 0 and 8 or 11
+      circfill(2 + (i - 1) * 6, 120, 2, life_col)
+    end
+
+  elseif challenge_variant == 3 then
+    -- combo master: current combo, max combo, dodges, time
+    local time_sec = flr(challenge_time_left / 30)
+    local time_col = time_sec <= 10 and 8 or 7
+    print("combo master", 2, 2, 8)
+    print("time: "..time_sec.."s", 2, 9, time_col)
+
+    local combo_col = (combo >= 20 and 14) or (combo >= 10 and 9) or 10
+    print("combo: "..combo, 2, 16, combo_col)
+    print("max: "..challenge_max_combo, 60, 16, 11)
+    print("dodges: "..total_dodges, 2, 23, 6)
+
+  elseif challenge_variant == 4 then
+    -- power-up gauntlet: score, power-ups, dodges, time
+    local time_sec = flr(challenge_time_left / 30)
+    local time_col = time_sec <= 10 and 8 or 7
+    print("gauntlet", 2, 2, 8)
+    print("time: "..time_sec.."s", 2, 9, time_col)
+    print("score: "..challenge_score, 2, 16, 10)
+    print("power-ups: "..total_powerups, 2, 23, 11)
+    print("dodges: "..total_dodges, 70, 23, 6)
   end
 
-  -- multiplier
-  local mult_text = multiplier.."x"
-  local mult_col = (multiplier >= 3.0 and 14) or (multiplier >= 2.0 and 9) or 10
-  print(mult_text, 100, 9, mult_col)
-
-  -- lives
-  for i = 1, lives do
-    local life_col = life_flash > 0 and 8 or 11
-    circfill(2 + (i - 1) * 6, 120, 2, life_col)
-  end
-
-  -- power-up indicators
-  local pu_y = 110
-  if shield_time > 0 then
-    print("shield", 2, pu_y, 11)
-    pu_y -= 6
-  end
-  if slowmo_time > 0 then
-    print("slow", 2, pu_y, 12)
-    pu_y -= 6
-  end
-  if doublescore_time > 0 then
-    print("2x", 2, pu_y, 10)
-    pu_y -= 6
-  end
-  if magnet_time > 0 then
-    print("magnet", 2, pu_y, 9)
-    pu_y -= 6
-  end
-  if freeze_time > 0 then
-    print("freeze", 2, pu_y, 14)
+  -- power-up indicators (not for combo master)
+  if challenge_variant ~= 3 then
+    local pu_y = 110
+    if shield_time > 0 then
+      print("shield", 2, pu_y, 11)
+      pu_y -= 6
+    end
+    if slowmo_time > 0 then
+      print("slow", 2, pu_y, 12)
+      pu_y -= 6
+    end
+    if doublescore_time > 0 then
+      print("2x", 2, pu_y, 10)
+      pu_y -= 6
+    end
+    if magnet_time > 0 then
+      print("magnet", 2, pu_y, 9)
+      pu_y -= 6
+    end
+    if freeze_time > 0 then
+      print("freeze", 2, pu_y, 14)
+    end
   end
 
   print("x: quit", 88, 120, 5)
@@ -3757,23 +3972,46 @@ function update_challenge_summary()
 end
 
 function draw_challenge_summary()
-  -- page 1: overview & score
+  -- page 1: overview & variant-specific stats
   if summary_page == 1 then
-    print("challenge complete!", 22, 20, 7)
+    local variant_names = {"time attack", "survival", "combo master", "gauntlet"}
+    print(variant_names[challenge_variant], 30, 15, 7)
+    print("complete!", 42, 23, 6)
 
-    print("your score: "..challenge_score, 28, 40, 10)
-    local best_col = challenge_score == challenge_best and 10 or 6
-    print("today's best: "..challenge_best, 22, 50, best_col)
-    if challenge_score == challenge_best then
-      print("new record!", 32, 60, 9)
+    if challenge_variant == 1 or challenge_variant == 2 or challenge_variant == 4 then
+      -- show score for time attack, survival, and gauntlet
+      print("your score: "..challenge_score, 28, 40, 10)
+      local best_col = challenge_score == challenge_best and 10 or 6
+      print("today's best: "..challenge_best, 22, 50, best_col)
+      if challenge_score == challenge_best then
+        print("new record!", 32, 60, 9)
+      end
+    elseif challenge_variant == 3 then
+      -- combo master: show max combo as primary stat
+      print("max combo: "..challenge_max_combo, 32, 40, 10)
+      local best_col = challenge_max_combo == challenge_best and 10 or 6
+      print("today's best: "..challenge_best, 22, 50, best_col)
+      if challenge_max_combo == challenge_best then
+        print("new record!", 32, 60, 9)
+      end
+      print("total dodges: "..total_dodges, 26, 70, 11)
     end
 
-    -- time survived
-    local time_sec = flr((90 - challenge_time_left / 30))
-    print("time: "..time_sec.."s", 45, 70, 12)
-
-    -- lives remaining
-    print("lives left: "..lives, 38, 80, lives > 0 and 11 or 8)
+    -- variant-specific secondary stats
+    if challenge_variant == 1 or challenge_variant == 4 then
+      -- time attack / gauntlet: time survived
+      local time_sec = flr((90 - challenge_time_left / 30))
+      print("time: "..time_sec.."s", 45, 80, 12)
+    elseif challenge_variant == 2 then
+      -- survival: time survived (may exceed 90s)
+      local time_sec = flr(gametime / 30)
+      print("survived: "..time_sec.."s", 38, 70, 12)
+      print("lives left: "..challenge_lives, 38, 80, challenge_lives > 0 and 11 or 8)
+    elseif challenge_variant == 3 then
+      -- combo master: time used
+      local time_sec = flr((60 - challenge_time_left / 30))
+      print("time: "..time_sec.."s / 60s", 32, 80, 6)
+    end
 
     print("page 1/3", 48, 105, 5)
 
