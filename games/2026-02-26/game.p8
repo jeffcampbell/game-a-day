@@ -35,6 +35,7 @@ invincible = 0
 shake_x = 0
 shake_y = 0
 shake_time = 0
+screen_flash = 0
 difficulty = 1
 last_score_time = 0
 last_difficulty = 1
@@ -59,6 +60,7 @@ near_miss_pulse = 0
 -- multiplier system
 multiplier = 1.0
 max_multiplier = 1.0
+last_mult_milestone = 1.0
 multiplier_pulse = 0
 multiplier_samples = 0
 multiplier_sample_count = 0
@@ -188,10 +190,18 @@ function _draw()
 
   camera()
 
+  -- draw screen flash (milestone effect)
+  if screen_flash > 0 then
+    local flash_alpha = screen_flash / 10
+    if flash_alpha > 0.3 then
+      rectfill(0, 0, 127, 127, 10)  -- yellow flash
+    end
+  end
+
   -- draw fade overlay (on top of everything)
   draw_fade()
 
-  -- update shake
+  -- update shake and flash
   if shake_time > 0 then
     shake_time -= 1
     shake_x = rnd(4) - 2
@@ -199,6 +209,10 @@ function _draw()
   else
     shake_x = 0
     shake_y = 0
+  end
+
+  if screen_flash > 0 then
+    screen_flash -= 1
   end
 end
 
@@ -254,6 +268,7 @@ function update_menu()
     pattern_timer = 0
     multiplier = 1.0
     max_multiplier = 1.0
+    last_mult_milestone = 1.0
     multiplier_pulse = 0
     multiplier_samples = 0
     multiplier_sample_count = 0
@@ -289,9 +304,11 @@ function update_menu()
     py = 100
     multiplier = 1.0
     max_multiplier = 1.0
+    last_mult_milestone = 1.0
     multiplier_pulse = 0
     multiplier_samples = 0
     multiplier_sample_count = 0
+    screen_flash = 0
     music(1)  -- gameplay music
     _log("music:play")
     _log("state:play")
@@ -832,10 +849,35 @@ function update_play()
           _log("max_mult:"..multiplier)
         end
 
-        -- play tier-up sound
-        if new_mult > old_mult and (new_mult == 1.5 or new_mult == 2.0 or new_mult == 3.0 or new_mult == 4.0 or new_mult == 5.0) then
-          sfx(2)
-          _log("mult_tier:"..new_mult)
+        -- check for multiplier milestone
+        if new_mult > old_mult and new_mult > last_mult_milestone then
+          local is_milestone = (new_mult == 1.5 or new_mult == 2.0 or new_mult == 3.0 or new_mult == 4.0 or new_mult == 5.0)
+          if is_milestone then
+            -- milestone reached! enhanced feedback
+            last_mult_milestone = new_mult
+            sfx(2)
+            _log("mult_milestone:"..new_mult)
+
+            -- floating milestone text
+            add(float_texts, {
+              x = px,
+              y = py - 10,
+              text = new_mult.."x multiplier!",
+              age = 0,
+              max_age = 60,
+              vy = -0.3,
+              color = 10  -- gold/yellow
+            })
+
+            -- screen flash
+            screen_flash = 10
+
+            -- stronger shake
+            shake_time = 12
+
+            -- extra particles
+            spawn_particles(px, py, 20, 10, 2.5)
+          end
         end
 
         local points = add_score(10)
@@ -881,6 +923,7 @@ function update_play()
       if multiplier > 1.0 then
         _log("mult_reset:was="..multiplier)
         multiplier = 1.0
+        last_mult_milestone = 1.0
         multiplier_pulse = 0
       end
 
@@ -996,10 +1039,35 @@ function update_play()
           _log("max_mult:"..multiplier)
         end
 
-        -- play tier-up sound
-        if new_mult > old_mult and (new_mult == 1.5 or new_mult == 2.0 or new_mult == 3.0 or new_mult == 4.0 or new_mult == 5.0) then
-          sfx(2)
-          _log("mult_tier:"..new_mult)
+        -- check for multiplier milestone
+        if new_mult > old_mult and new_mult > last_mult_milestone then
+          local is_milestone = (new_mult == 1.5 or new_mult == 2.0 or new_mult == 3.0 or new_mult == 4.0 or new_mult == 5.0)
+          if is_milestone then
+            -- milestone reached! enhanced feedback
+            last_mult_milestone = new_mult
+            sfx(2)
+            _log("mult_milestone:"..new_mult)
+
+            -- floating milestone text
+            add(float_texts, {
+              x = px,
+              y = py - 10,
+              text = new_mult.."x multiplier!",
+              age = 0,
+              max_age = 60,
+              vy = -0.3,
+              color = 10  -- gold/yellow
+            })
+
+            -- screen flash
+            screen_flash = 10
+
+            -- stronger shake
+            shake_time = 12
+
+            -- extra particles
+            spawn_particles(px, py, 20, 10, 2.5)
+          end
         end
 
         local points = add_score(10)
@@ -1045,6 +1113,7 @@ function update_play()
       if multiplier > 1.0 then
         _log("mult_reset:was="..multiplier)
         multiplier = 1.0
+        last_mult_milestone = 1.0
         multiplier_pulse = 0
       end
 
@@ -1161,13 +1230,20 @@ function update_play()
       total_powerups += 1
 
       -- apply power-up effect
+      local pname, pcol, psfx = "", 12, 5
       if p.type == 1 then
         -- shield
         shield_active = true
+        pname = "shield!"
+        pcol = 12  -- red
+        psfx = 2
         _log("pickup:shield")
       elseif p.type == 2 then
         -- slow-time
         slowtime = 480  -- 8 seconds
+        pname = "slowtime!"
+        pcol = 12  -- blue (will use 12 for now, matches shield)
+        psfx = 3
         _log("pickup:slowtime:480")
       elseif p.type == 3 then
         -- invincibility boost
@@ -1176,18 +1252,35 @@ function update_play()
         else
           invincible = 300
         end
+        pname = "invincible!"
+        pcol = 10  -- yellow
+        psfx = 5
         _log("pickup:invincibility")
       end
 
-      -- spawn particles
-      local pcol = 12
-      if p.type == 2 then pcol = 14
-      elseif p.type == 3 then pcol = 10 end
-      spawn_particles(p.x, p.y, 8, pcol, 2)
+      -- enhanced visual feedback
+      -- 1. burst particles (15-20 particles)
+      spawn_particles(p.x, p.y, 18, pcol, 3)
+
+      -- 2. floating text with power-up name
+      add(float_texts, {
+        x = p.x,
+        y = p.y,
+        text = pname,
+        age = 0,
+        max_age = 40,
+        vy = -0.8,
+        color = pcol
+      })
+
+      -- 3. screen shake
+      shake_time = 8
+
+      -- 4. distinct sfx
+      sfx(psfx)
 
       del(powerups, p)
-      sfx(5)  -- powerup pickup
-      _log("sfx:powerup_pickup")
+      _log("sfx:powerup_"..pname)
       _log("pickup:powerup:total="..total_powerups)
     end
 
