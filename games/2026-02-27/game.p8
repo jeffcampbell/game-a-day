@@ -102,6 +102,10 @@ practice_obstacle_types = {"spike", "moving", "rotating", "pendulum", "zigzag", 
 practice_speed_names = {"slow", "normal", "fast"}
 practice_speed_values = {0.5, 1.0, 1.5}
 
+-- tutorial state
+tutorial_page = 1  -- current tutorial page (1-5)
+tutorial_completed = false  -- track if player has seen tutorial
+
 -- visual juice
 shake_time = 0
 shake_intensity = 0
@@ -169,6 +173,10 @@ function _init()
 
   -- load achievements (slots 44-51)
   load_achievements()
+
+  -- load tutorial flag (slot 53)
+  local t = dget(53)
+  tutorial_completed = t == 1
 
   _log("state:menu")
 end
@@ -323,6 +331,8 @@ end
 function _update()
   if state == "menu" then
     update_menu()
+  elseif state == "tutorial" then
+    update_tutorial()
   elseif state == "difficulty_select" then
     update_difficulty_select()
   elseif state == "settings" then
@@ -356,6 +366,8 @@ function _draw()
 
   if state == "menu" then
     draw_menu()
+  elseif state == "tutorial" then
+    draw_tutorial()
   elseif state == "difficulty_select" then
     draw_difficulty_select()
   elseif state == "settings" then
@@ -460,21 +472,163 @@ function update_menu()
     practice_obstacle_selection = 1  -- reset cursor
     input_cooldown = 10
   end
+
+  if input & 2 > 0 then  -- right button
+    state = "tutorial"
+    _log("state:tutorial")
+    tutorial_page = 1  -- reset to first page
+    input_cooldown = 10
+  end
 end
 
 function draw_menu()
   print("bounce king", 38, 40, 7)
   print("survive the fall!", 26, 52, 6)
   print("press o to start", 22, 68, 10)
-  print("press x for settings", 14, 76, 13)
-  print("left: practice mode", 18, 84, 11)
-  print("up: leaderboard", 26, 92, 12)
-  print("down: achievements", 18, 100, 11)
+  print("right: tutorial", 28, 76, 14)
+  print("press x for settings", 14, 84, 13)
+  print("left: practice mode", 18, 92, 11)
+  print("up: leaderboard", 26, 100, 12)
+  print("down: achievements", 18, 108, 11)
   -- show top score from leaderboard
   if #leaderboard > 0 then
     local top = leaderboard[1]
-    print("best: "..top.score.." ("..top.initials..")", 24, 110, 10)
+    print("best: "..top.score.." ("..top.initials..")", 24, 118, 10)
   end
+end
+
+-- tutorial state
+function update_tutorial()
+  local input = test_input()
+
+  -- cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+  end
+
+  -- page navigation with cooldown
+  if input_cooldown == 0 then
+    if input & 4 > 0 then  -- up
+      tutorial_page = max(1, tutorial_page - 1)
+      play_sfx(1)
+      _log("tutorial_nav:up:"..tutorial_page)
+      input_cooldown = 10
+    end
+    if input & 8 > 0 then  -- down
+      tutorial_page = min(5, tutorial_page + 1)
+      play_sfx(1)
+      _log("tutorial_nav:down:"..tutorial_page)
+      input_cooldown = 10
+    end
+  end
+
+  -- skip/exit with O button
+  if input & 16 > 0 then  -- O button
+    tutorial_completed = true
+    dset(53, 1)  -- save completion flag
+    state = "menu"
+    _log("tutorial_complete")
+    _log("state:menu")
+  end
+end
+
+function draw_tutorial()
+  -- header
+  print("how to play", 38, 4, 7)
+  print("page "..tutorial_page.."/5", 48, 12, 6)
+
+  if tutorial_page == 1 then
+    -- controls + objective
+    print("controls:", 10, 24, 10)
+    print("left/right arrows", 20, 32, 7)
+    print("move your ball", 20, 40, 6)
+    print("ball bounces automatically", 10, 50, 11)
+
+    print("objective:", 10, 62, 10)
+    print("dodge falling obstacles", 16, 70, 7)
+    print("collect power-ups", 24, 78, 7)
+    print("survive as long as you can", 10, 86, 7)
+
+  elseif tutorial_page == 2 then
+    -- obstacles
+    print("obstacles:", 10, 24, 10)
+
+    -- spike
+    circfill(20, 38, 6, 8)
+    print("spike: static", 32, 34, 7)
+
+    -- moving
+    circfill(20, 54, 10, 8)
+    print("moving: left-right", 36, 50, 7)
+
+    -- rotating
+    circfill(20, 70, 8, 8)
+    print("rotating: pulsing", 34, 66, 7)
+
+    -- advanced
+    print("more types unlock as", 16, 86, 6)
+    print("difficulty increases!", 20, 94, 6)
+
+  elseif tutorial_page == 3 then
+    -- power-ups
+    print("power-ups:", 10, 24, 10)
+
+    -- shield
+    circfill(16, 34, 4, 11)
+    print("shield: +1 life", 26, 32, 7)
+
+    -- slowmo
+    circfill(16, 46, 4, 12)
+    print("slowmo: slow time", 26, 44, 7)
+
+    -- doublescore
+    circfill(16, 58, 4, 10)
+    print("doublescore: 2x pts", 26, 56, 7)
+
+    -- magnet
+    circfill(16, 70, 4, 13)
+    print("magnet: pull items", 26, 68, 7)
+
+    -- bomb
+    circfill(16, 82, 4, 8)
+    print("bomb: clear screen", 26, 80, 7)
+
+    -- freeze
+    circfill(16, 94, 4, 12)
+    print("freeze: stop enemies", 26, 92, 7)
+
+  elseif tutorial_page == 4 then
+    -- scoring system
+    print("scoring:", 10, 24, 10)
+
+    print("dodge bonus:", 16, 34, 7)
+    print("+10 per obstacle", 24, 42, 6)
+
+    print("combo system:", 16, 54, 7)
+    print("chain dodges for bonus", 20, 62, 6)
+    print("resets on collision", 22, 70, 8)
+
+    print("multiplier:", 16, 82, 7)
+    print("increases every 10s", 20, 90, 6)
+    print("1.0x -> 1.5x -> 2.0x...", 16, 98, 10)
+
+  elseif tutorial_page == 5 then
+    -- ready to play
+    print("you're ready!", 34, 30, 10)
+
+    print("tips:", 10, 46, 7)
+    print("- stay near the center", 16, 54, 6)
+    print("- watch for patterns", 18, 62, 6)
+    print("- time your movements", 14, 70, 6)
+    print("- collect power-ups", 18, 78, 6)
+    print("- practice makes perfect", 10, 86, 11)
+
+    print("good luck!", 40, 100, 14)
+  end
+
+  -- navigation hints
+  print("up/down: change page", 16, 118, 13)
+  print("o: skip to menu", 26, 124, 13)
 end
 
 -- difficulty selection state
