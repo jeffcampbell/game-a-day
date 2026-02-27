@@ -30,6 +30,8 @@ end
 state = "menu"
 score = 0
 highscore = 0
+new_record = false  -- flag for new high score
+new_record_flash = 0  -- flash timer for new record
 gametime = 0
 multiplier = 1.0
 diff_level = 1
@@ -101,6 +103,12 @@ particles = {}
 floating_texts = {}
 
 function _init()
+  -- enable persistent cartridge data
+  cartdata("bounce_king")
+
+  -- load saved high score (slot 0)
+  highscore = dget(0)
+  _log("highscore_loaded:"..highscore)
   _log("state:menu")
 end
 
@@ -203,7 +211,7 @@ function draw_menu()
   print("collect power-ups", 18, 78, 11)
   print("press o to start", 22, 96, 10)
   if highscore > 0 then
-    print("high: "..highscore, 40, 110, 9)
+    print("best: "..highscore, 40, 110, 10)
   end
 end
 
@@ -315,6 +323,8 @@ function init_game()
   ball.vy = 0
   ball.grounded = false
   score = 0
+  new_record = false  -- reset new record flag
+  new_record_flash = 0
   gametime = 0
   multiplier = 1.0
   diff_level = 1
@@ -617,7 +627,13 @@ function update_play()
           _log("avg_bonus:"..avg)
           if score > highscore then
             highscore = score
+            new_record = true
+            new_record_flash = 60  -- flash for 2 seconds
+            dset(0, highscore)  -- save to cartridge data
+            sfx(6)  -- celebratory sound
+            shake(20, 0.5)  -- screen shake
             _log("new_highscore:"..highscore)
+            _log("highscore_saved")
           end
         end
         return
@@ -1001,40 +1017,50 @@ function draw_gameover()
   print("final score", 38, 22, 7)
   print(score, 64 - #tostr(score) * 2, 30, 10)
 
+  -- new record indicator (prominent)
+  if new_record then
+    local flash_col = (new_record_flash % 8 < 4) and 10 or 9
+    print("new record!", 36, 38, flash_col)
+    -- update flash timer
+    if new_record_flash > 0 then
+      new_record_flash -= 1
+    end
+  end
+
+  -- best score display
+  if highscore > 0 then
+    print("best: "..highscore, 42, 48, 12)
+  end
+
   -- performance stats section
-  print("-- performance --", 26, 42, 6)
+  print("-- performance --", 26, 58, 6)
 
   -- highest combo
   local combo_col = max_combo >= 10 and 15 or 11
-  print("max combo: "..max_combo, 28, 52, combo_col)
+  print("max combo: "..max_combo, 28, 66, combo_col)
 
   -- total dodges
-  print("dodges: "..total_dodges, 32, 60, 9)
+  print("dodges: "..total_dodges, 32, 74, 9)
 
   -- powerups collected
-  print("powerups: "..total_powerups, 28, 68, 11)
+  print("powerups: "..total_powerups, 28, 82, 11)
 
   -- lives used
   local lives_used = 3 - lives
-  print("lives used: "..lives_used.."/3", 22, 76, 8)
+  print("lives used: "..lives_used.."/3", 22, 90, 8)
 
   -- final multiplier
-  print("multiplier: x"..multiplier, 24, 84, 10)
+  print("multiplier: x"..multiplier, 24, 98, 10)
 
   -- average dodge bonus
   local avg_bonus = 0
   if total_dodges > 0 then
     avg_bonus = flr(total_dodge_bonus / total_dodges)
   end
-  print("avg bonus: "..avg_bonus, 26, 92, 12)
+  print("avg bonus: "..avg_bonus, 26, 106, 12)
 
   -- survival time
-  print("time: "..flr(gametime/30).."s", 36, 102, 6)
-
-  -- high score message
-  if score == highscore and score > 0 then
-    print("new high score!", 26, 112, 10)
-  end
+  print("time: "..flr(gametime/30).."s", 36, 114, 6)
 
   -- retry prompt
   print("press o to retry", 24, 122, 13)
