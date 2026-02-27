@@ -52,6 +52,13 @@ combo = 0
 last_combo_time = 0
 combo_pulse = 0
 
+-- near-miss system
+near_misses = 0
+near_miss_pulse = 0
+
+-- floating text
+float_texts = {}
+
 -- metrics tracking
 max_combo = 0
 total_stars = 0
@@ -210,6 +217,9 @@ function update_menu()
     combo = 0
     last_combo_time = 0
     combo_pulse = 0
+    near_misses = 0
+    near_miss_pulse = 0
+    float_texts = {}
     max_combo = 0
     total_stars = 0
     total_powerups = 0
@@ -326,6 +336,7 @@ function spawn_meteor()
     size = size,
     crad = crad,
     near_player = false,
+    near_miss_logged = false,
     zigzag_phase = rnd(1)  -- for zigzag pattern
   })
 
@@ -396,6 +407,26 @@ function draw_particles()
   end
 end
 
+function update_float_texts()
+  for ft in all(float_texts) do
+    ft.y += ft.vy
+    ft.age += 1
+    if ft.age >= ft.max_age then
+      del(float_texts, ft)
+    end
+  end
+end
+
+function draw_float_texts()
+  for ft in all(float_texts) do
+    -- fade as text ages
+    local fade = 1 - (ft.age / ft.max_age)
+    if fade > 0.3 then
+      print(ft.text, ft.x - 4, ft.y, ft.color)
+    end
+  end
+end
+
 function update_play()
   -- get input once per frame
   local buttons = test_input()
@@ -445,9 +476,17 @@ function update_play()
   -- update particles
   update_particles()
 
+  -- update floating texts
+  update_float_texts()
+
   -- update combo pulse
   if combo_pulse > 0 then
     combo_pulse -= 1
+  end
+
+  -- update near-miss pulse
+  if near_miss_pulse > 0 then
+    near_miss_pulse -= 1
   end
 
   -- increase difficulty over time
@@ -545,6 +584,7 @@ function update_play()
             size = 8,
             crad = 12,
             near_player = false,
+            near_miss_logged = false,
             health = 3,
             zigzag_phase = 0
           }
@@ -625,6 +665,40 @@ function update_play()
       local dist = sqrt((m.x - px) * (m.x - px) + (m.y - py) * (m.y - py))
       if dist < 20 then
         m.near_player = true
+      end
+    end
+
+    -- near-miss detection: reward skillful dodging
+    if not m.near_miss_logged and invincible == 0 then
+      local dist = sqrt((m.x - px) * (m.x - px) + (m.y - py) * (m.y - py))
+      -- trigger when meteor is within 12-15 pixels and passing by player
+      if dist >= 12 and dist < 15 and m.y >= py - 10 then
+        m.near_miss_logged = true
+        near_misses += 1
+        score += 10
+        near_miss_pulse = 5
+        _log("near_miss:score="..score)
+
+        -- spawn gold particles
+        spawn_particles(m.x, m.y, 8, 10, 1.5)
+
+        -- brief screen shake
+        shake_time = 5
+
+        -- add floating text
+        add(float_texts, {
+          x = m.x,
+          y = m.y,
+          text = "+10",
+          age = 0,
+          max_age = 30,
+          vy = -0.5,
+          color = 10
+        })
+
+        -- play sound (reuse star pickup sound)
+        sfx(2)
+        _log("sfx:near_miss")
       end
     end
 
@@ -729,6 +803,40 @@ function update_play()
       local dist = sqrt((boss_meteor.x - px) * (boss_meteor.x - px) + (boss_meteor.y - py) * (boss_meteor.y - py))
       if dist < 25 then
         boss_meteor.near_player = true
+      end
+    end
+
+    -- near-miss detection for boss (wider threshold)
+    if not boss_meteor.near_miss_logged and invincible == 0 then
+      local dist = sqrt((boss_meteor.x - px) * (boss_meteor.x - px) + (boss_meteor.y - py) * (boss_meteor.y - py))
+      -- trigger when boss is within 15-18 pixels and passing by player
+      if dist >= 15 and dist < 18 and boss_meteor.y >= py - 10 then
+        boss_meteor.near_miss_logged = true
+        near_misses += 1
+        score += 10
+        near_miss_pulse = 5
+        _log("near_miss:boss:score="..score)
+
+        -- spawn gold particles
+        spawn_particles(boss_meteor.x, boss_meteor.y, 10, 10, 2)
+
+        -- brief screen shake
+        shake_time = 5
+
+        -- add floating text
+        add(float_texts, {
+          x = boss_meteor.x,
+          y = boss_meteor.y,
+          text = "+10",
+          age = 0,
+          max_age = 30,
+          vy = -0.5,
+          color = 10
+        })
+
+        -- play sound
+        sfx(2)
+        _log("sfx:near_miss_boss")
       end
     end
 
@@ -1146,6 +1254,9 @@ function draw_play()
 
   -- draw particles
   draw_particles()
+
+  -- draw floating texts
+  draw_float_texts()
 
   -- draw ui
   print("score:"..score, 2, 2, 7)
