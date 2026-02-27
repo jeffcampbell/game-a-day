@@ -39,6 +39,12 @@ diff_selection = 2  -- current selection cursor
 input_cooldown = 0  -- navigation delay
 pause_cooldown = 0  -- pause button cooldown
 
+-- performance stats
+max_combo = 0
+total_dodges = 0
+total_powerups = 0
+total_dodge_bonus = 0
+
 -- visual juice
 shake_time = 0
 shake_intensity = 0
@@ -309,6 +315,12 @@ function init_game()
   slowmo_time = 0
   doublescore_time = 0
 
+  -- reset performance stats
+  max_combo = 0
+  total_dodges = 0
+  total_powerups = 0
+  total_dodge_bonus = 0
+
   -- set initial parameters based on difficulty
   if difficulty == 1 then  -- easy
     scroll_speed = 0.3
@@ -481,6 +493,12 @@ function update_play()
         state = "gameover"
         _log("state:gameover")
         _log("final_score:"..score)
+        _log("max_combo:"..max_combo)
+        _log("total_dodges:"..total_dodges)
+        _log("total_powerups:"..total_powerups)
+        _log("multiplier:"..multiplier)
+        local avg = total_dodges > 0 and flr(total_dodge_bonus / total_dodges) or 0
+        _log("avg_bonus:"..avg)
         if score > highscore then
           highscore = score
           _log("new_highscore:"..highscore)
@@ -494,6 +512,14 @@ function update_play()
       o.dodged = true
       combo += 1
       _log("combo:"..combo)
+
+      -- update performance stats
+      if combo > max_combo then
+        max_combo = combo
+        _log("max_combo:"..max_combo)
+      end
+      total_dodges += 1
+
       local base_bonus = 10 * multiplier * (doublescore_time > 0 and 2 or 1)
       if o.is_boss then
         base_bonus *= 2  -- double points for boss dodges
@@ -501,6 +527,8 @@ function update_play()
       local combo_mult = 1 + flr(combo / 5)
       local bonus = flr(base_bonus * combo_mult)
       score += bonus
+      total_dodge_bonus += bonus
+
       sfx(5)  -- dodge bonus ascending notes
       local shake_amt = o.is_boss and 6 or 3
       shake(shake_amt, o.is_boss and 0.8 or 0.4)
@@ -706,13 +734,46 @@ function update_gameover()
 end
 
 function draw_gameover()
-  print("game over", 42, 50, 8)
-  print("final score: "..score, 28, 64, 7)
-  print("time: "..flr(gametime/30).."s", 36, 72, 6)
-  if score == highscore and score > 0 then
-    print("new high score!", 26, 80, 10)
+  -- title
+  print("game over", 42, 10, 8)
+
+  -- final score (prominent)
+  print("final score", 38, 22, 7)
+  print(score, 64 - #tostr(score) * 2, 30, 10)
+
+  -- performance stats section
+  print("-- performance --", 26, 42, 6)
+
+  -- highest combo
+  local combo_col = max_combo >= 10 and 15 or 11
+  print("max combo: "..max_combo, 28, 52, combo_col)
+
+  -- total dodges
+  print("dodges: "..total_dodges, 32, 60, 9)
+
+  -- powerups collected
+  print("powerups: "..total_powerups, 28, 68, 11)
+
+  -- final multiplier
+  print("multiplier: x"..multiplier, 24, 76, 10)
+
+  -- average dodge bonus
+  local avg_bonus = 0
+  if total_dodges > 0 then
+    avg_bonus = flr(total_dodge_bonus / total_dodges)
   end
-  print("press o to retry", 24, 100, 13)
+  print("avg bonus: "..avg_bonus, 26, 84, 12)
+
+  -- survival time
+  print("time: "..flr(gametime/30).."s", 36, 94, 6)
+
+  -- high score message
+  if score == highscore and score > 0 then
+    print("new high score!", 26, 104, 10)
+  end
+
+  -- retry prompt
+  print("press o to retry", 24, 118, 13)
 end
 
 -- obstacle spawning
@@ -783,8 +844,10 @@ end
 function collect_powerup(p)
   local bonus = flr(50 * multiplier * (doublescore_time > 0 and 2 or 1))
   score += bonus
+  total_powerups += 1
   _log("powerup_collected:"..p.type)
   _log("powerup_bonus:"..bonus)
+  _log("total_powerups:"..total_powerups)
 
   shake(8, 1.0)  -- medium shake on powerup collection
 
