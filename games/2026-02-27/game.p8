@@ -60,10 +60,12 @@ sfx_enabled = true  -- toggle sfx on/off
 ball_skin = 1  -- ball appearance: 1=white, 2=gold, 3=cyan
 trail_effect = 1  -- trail style: 1=basic, 2=rainbow, 3=white
 color_theme = 1  -- color scheme: 1=default, 2=pink, 3=gold, 4=red, 5=blue
-spawn_rate = 2  -- 1=easy(slow), 2=normal, 3=hard(fast)
-diff_scaling = 2  -- 1=conservative(15s), 2=normal(10s), 3=aggressive(5s)
+spawn_rate = 2  -- 1=slow, 2=normal, 3=fast, 4=extreme
+diff_scaling = 2  -- 1=conservative(15s), 2=normal(10s), 3=aggressive(5s), 4=insane(2s)
 combo_bonus = 2  -- 1=generous(1.5x), 2=normal(1.0x), 3=stingy(0.7x)
+lives_preset = 2  -- 1=generous(5), 2=normal(3), 3=hardcore(1)
 settings_selection = 1  -- current settings menu cursor (1-9)
+difficulty_customize_selection = 1  -- cursor in difficulty customize menu (1-4)
 skins_used = {}  -- track which skins have been selected
 cosmetics_unlocked = 0  -- bitmask: bit0=gold ball, bit1=cyan ball, bit2=rainbow trail, bit3=pink theme, bit4=gold theme, bit5=red theme, bit6=blue theme, bit7=white trail
 
@@ -258,37 +260,38 @@ function load_settings()
   local m = dget(1)
   local s = dget(2)
   local b = dget(3)
-  local packed_diff = dget(62)
 
   -- default to enabled if not set
   music_enabled = m == 0 or m == 1
   sfx_enabled = s == 0 or s == 1
   ball_skin = b >= 1 and b <= 3 and b or 1
 
-  -- unpack difficulty settings (default 222 = all normal)
-  if packed_diff >= 111 and packed_diff <= 333 then
-    spawn_rate = flr(packed_diff % 10)
-    diff_scaling = flr((packed_diff / 10) % 10)
-    combo_bonus = flr(packed_diff / 100)
-  else
-    spawn_rate = 2
-    diff_scaling = 2
-    combo_bonus = 2
-  end
+  -- load difficulty settings from individual slots (89-92)
+  local sr = dget(89)
+  local ds = dget(90)
+  local cb = dget(91)
+  local lp = dget(92)
+
+  spawn_rate = (sr >= 1 and sr <= 4) and sr or 2
+  diff_scaling = (ds >= 1 and ds <= 4) and ds or 2
+  combo_bonus = (cb >= 1 and cb <= 3) and cb or 2
+  lives_preset = (lp >= 1 and lp <= 3) and lp or 2
 
   -- track current skin as used
   skins_used[ball_skin] = true
 
-  _log("settings_loaded:m="..tostr(music_enabled)..",s="..tostr(sfx_enabled)..",b="..ball_skin)
+  _log("settings_loaded:m="..tostr(music_enabled)..",s="..tostr(sfx_enabled)..",b="..ball_skin..",sr="..spawn_rate..",ds="..diff_scaling..",cb="..combo_bonus..",lp="..lives_preset)
 end
 
 function save_settings()
   dset(1, music_enabled and 1 or 0)
   dset(2, sfx_enabled and 1 or 0)
   dset(3, ball_skin)
-  -- pack difficulty settings into single slot
-  local packed_diff = spawn_rate + diff_scaling * 10 + combo_bonus * 100
-  dset(62, packed_diff)
+  -- save difficulty settings to individual slots (89-92)
+  dset(89, spawn_rate)
+  dset(90, diff_scaling)
+  dset(91, combo_bonus)
+  dset(92, lives_preset)
   _log("settings_saved")
 end
 
@@ -623,6 +626,8 @@ function _update()
     update_difficulty_select()
   elseif state == "settings" then
     update_settings()
+  elseif state == "difficulty_customize" then
+    update_difficulty_customize()
   elseif state == "leaderboard" then
     update_leaderboard()
   elseif state == "achievements" then
@@ -666,6 +671,8 @@ function _draw()
     draw_difficulty_select()
   elseif state == "settings" then
     draw_settings()
+  elseif state == "difficulty_customize" then
+    draw_difficulty_customize()
   elseif state == "leaderboard" then
     draw_leaderboard()
   elseif state == "achievements" then
@@ -1058,7 +1065,7 @@ function update_settings()
       input_cooldown = 10
     end
     if input & 8 > 0 then  -- down
-      settings_selection = min(9, settings_selection + 1)
+      settings_selection = min(7, settings_selection + 1)
       play_sfx(1)
       _log("settings_nav:down")
       input_cooldown = 10
@@ -1093,25 +1100,19 @@ function update_settings()
       elseif settings_selection == 4 then
         -- controls info (no toggle)
       elseif settings_selection == 5 then
-        spawn_rate = spawn_rate % 3 + 1  -- cycle 1->2->3->1
-        play_sfx(1)
-        _log("spawn_rate:"..spawn_rate)
+        -- difficulty customization submenu
+        state = "difficulty_customize"
+        _log("state:difficulty_customize")
+        difficulty_customize_selection = 1
+        input_cooldown = 10
       elseif settings_selection == 6 then
-        diff_scaling = diff_scaling % 3 + 1  -- cycle 1->2->3->1
-        play_sfx(1)
-        _log("diff_scaling:"..diff_scaling)
-      elseif settings_selection == 7 then
-        combo_bonus = combo_bonus % 3 + 1  -- cycle 1->2->3->1
-        play_sfx(1)
-        _log("combo_bonus:"..combo_bonus)
-      elseif settings_selection == 8 then
         -- trail effect: 1=basic (always), 2=rainbow (unlock bit 2), 3=white (unlock bit 7)
         repeat
           trail_effect = trail_effect % 3 + 1
         until trail_effect == 1 or (trail_effect == 2 and (cosmetics_unlocked & 4) > 0) or (trail_effect == 3 and (cosmetics_unlocked & 128) > 0)
         play_sfx(1)
         _log("trail_effect:"..trail_effect)
-      elseif settings_selection == 9 then
+      elseif settings_selection == 7 then
         -- color theme: 1=default (always), 2=pink (bit 3), 3=gold (bit 4), 4=red (bit 5), 5=blue (bit 6)
         repeat
           color_theme = color_theme % 5 + 1
@@ -1161,32 +1162,21 @@ function draw_settings()
   local col4 = settings_selection == 4 and 10 or 6
   print("> controls", 20, 44, col4)
 
-  -- spawn rate
+  -- difficulty customization submenu
   local col5 = settings_selection == 5 and 10 or 6
-  local spawn_names = {"easy", "normal", "hard"}
-  print("> spawn: "..spawn_names[spawn_rate], 20, 56, col5)
-
-  -- difficulty scaling
-  local col6 = settings_selection == 6 and 10 or 6
-  local scale_names = {"slow", "normal", "fast"}
-  print("> scaling: "..scale_names[diff_scaling], 20, 64, col6)
-
-  -- combo bonus
-  local col7 = settings_selection == 7 and 10 or 6
-  local bonus_names = {"generous", "normal", "stingy"}
-  print("> bonus: "..bonus_names[combo_bonus], 20, 72, col7)
+  print("> difficulty...", 20, 52, col5)
 
   -- trail effect
-  local col8 = settings_selection == 8 and 10 or 6
+  local col6 = settings_selection == 6 and 10 or 6
   local trail_names = {"basic", "rainbow", "white"}
   local trail_str = trail_names[trail_effect]
   if trail_effect > 1 and (cosmetics_unlocked & (trail_effect == 2 and 4 or 128)) == 0 then
     trail_str = trail_str.." \x94"  -- locked
   end
-  print("> trail: "..trail_str, 20, 80, col8)
+  print("> trail: "..trail_str, 20, 60, col6)
 
   -- color theme
-  local col9 = settings_selection == 9 and 10 or 6
+  local col7 = settings_selection == 7 and 10 or 6
   local theme_names = {"default", "pink", "gold", "red", "blue"}
   local theme_str = theme_names[color_theme]
   if color_theme > 1 then
@@ -1195,7 +1185,7 @@ function draw_settings()
       theme_str = theme_str.." \x94"  -- locked
     end
   end
-  print("> theme: "..theme_str, 20, 88, col9)
+  print("> theme: "..theme_str, 20, 68, col7)
 
   -- show details for current selection
   if settings_selection == 4 then
@@ -1203,17 +1193,9 @@ function draw_settings()
     print("o: confirm/toggle", 8, 92, 5)
     print("x: pause/back", 14, 98, 5)
   elseif settings_selection == 5 then
-    print("obstacle spawn rate", 12, 86, 5)
-    print("easy: 20% slower", 16, 92, 6)
-    print("hard: 20% faster", 16, 98, 6)
-  elseif settings_selection == 6 then
-    print("difficulty ramp speed", 8, 86, 5)
-    print("slow: every 15s", 16, 92, 6)
-    print("fast: every 5s", 18, 98, 6)
-  elseif settings_selection == 7 then
-    print("dodge score bonus", 14, 86, 5)
-    print("generous: 1.5x", 20, 92, 6)
-    print("stingy: 0.7x", 22, 98, 6)
+    print("customize gameplay", 16, 86, 5)
+    print("spawn, scaling,", 20, 92, 6)
+    print("combo bonus, lives", 18, 98, 6)
   elseif settings_selection == 3 then
     print("ball skin cosmetic", 18, 96, 5)
     if (cosmetics_unlocked & 1) == 0 then
@@ -1222,7 +1204,7 @@ function draw_settings()
     if (cosmetics_unlocked & 2) == 0 then
       print("cyan: combo 15+", 22, 108, 6)
     end
-  elseif settings_selection == 8 then
+  elseif settings_selection == 6 then
     print("ball trail style", 18, 96, 5)
     if (cosmetics_unlocked & 4) == 0 then
       print("rainbow: 15+ powerups", 12, 102, 6)
@@ -1230,7 +1212,7 @@ function draw_settings()
     if (cosmetics_unlocked & 128) == 0 then
       print("white: survive 60s", 14, 108, 6)
     end
-  elseif settings_selection == 9 then
+  elseif settings_selection == 7 then
     print("color theme overlay", 14, 96, 5)
     if (cosmetics_unlocked & 8) == 0 then
       print("pink: 5+ danger zones", 10, 102, 6)
@@ -1247,7 +1229,119 @@ function draw_settings()
   end
 
   print("up/down: navigate", 16, 110, 13)
-  print("o: toggle", 30, 116, 13)
+  print("o: toggle/open", 26, 116, 13)
+  print("x: back", 36, 122, 13)
+end
+
+-- difficulty customize state
+function update_difficulty_customize()
+  local input = test_input()
+
+  -- update cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+  end
+
+  -- navigation with cooldown
+  if input_cooldown == 0 then
+    if input & 4 > 0 then  -- up
+      difficulty_customize_selection = max(1, difficulty_customize_selection - 1)
+      play_sfx(1)
+      _log("difficulty_customize_nav:up")
+      input_cooldown = 10
+    end
+    if input & 8 > 0 then  -- down
+      difficulty_customize_selection = min(4, difficulty_customize_selection + 1)
+      play_sfx(1)
+      _log("difficulty_customize_nav:down")
+      input_cooldown = 10
+    end
+
+    -- adjust values with left/right arrows
+    if input & 1 > 0 then  -- left
+      if difficulty_customize_selection == 1 then
+        spawn_rate = max(1, spawn_rate - 1)
+        play_sfx(1)
+        _log("spawn_rate:"..spawn_rate)
+      elseif difficulty_customize_selection == 2 then
+        diff_scaling = max(1, diff_scaling - 1)
+        play_sfx(1)
+        _log("diff_scaling:"..diff_scaling)
+      elseif difficulty_customize_selection == 3 then
+        combo_bonus = max(1, combo_bonus - 1)
+        play_sfx(1)
+        _log("combo_bonus:"..combo_bonus)
+      elseif difficulty_customize_selection == 4 then
+        lives_preset = max(1, lives_preset - 1)
+        play_sfx(1)
+        _log("lives_preset:"..lives_preset)
+      end
+      save_settings()
+      input_cooldown = 10
+    end
+
+    if input & 2 > 0 then  -- right
+      if difficulty_customize_selection == 1 then
+        spawn_rate = min(4, spawn_rate + 1)
+        play_sfx(1)
+        _log("spawn_rate:"..spawn_rate)
+      elseif difficulty_customize_selection == 2 then
+        diff_scaling = min(4, diff_scaling + 1)
+        play_sfx(1)
+        _log("diff_scaling:"..diff_scaling)
+      elseif difficulty_customize_selection == 3 then
+        combo_bonus = min(3, combo_bonus + 1)
+        play_sfx(1)
+        _log("combo_bonus:"..combo_bonus)
+      elseif difficulty_customize_selection == 4 then
+        lives_preset = min(3, lives_preset + 1)
+        play_sfx(1)
+        _log("lives_preset:"..lives_preset)
+      end
+      save_settings()
+      input_cooldown = 10
+    end
+  end
+
+  -- back to settings with X button
+  if input & 32 > 0 then
+    state = "settings"
+    _log("state:settings")
+    save_settings()
+    input_cooldown = 10
+  end
+end
+
+function draw_difficulty_customize()
+  print("difficulty", 40, 10, 7)
+
+  -- spawn rate
+  local col1 = difficulty_customize_selection == 1 and 10 or 6
+  local spawn_names = {"slow", "normal", "fast", "extreme"}
+  print("spawn rate:", 20, 24, col1)
+  print("< "..spawn_names[spawn_rate].." >", 44, 32, col1)
+
+  -- difficulty scaling
+  local col2 = difficulty_customize_selection == 2 and 10 or 6
+  local scale_names = {"slow", "normal", "fast", "insane"}
+  print("scaling:", 24, 46, col2)
+  print("< "..scale_names[diff_scaling].." >", 44, 54, col2)
+
+  -- combo bonus
+  local col3 = difficulty_customize_selection == 3 and 10 or 6
+  local bonus_names = {"1.5x", "1.0x", "0.7x"}
+  print("combo bonus:", 18, 68, col3)
+  print("< "..bonus_names[combo_bonus].." >", 44, 76, col3)
+
+  -- lives preset
+  local col4 = difficulty_customize_selection == 4 and 10 or 6
+  local lives_names = {"5 lives", "3 lives", "1 life"}
+  print("lives:", 30, 90, col4)
+  print("< "..lives_names[lives_preset].." >", 44, 98, col4)
+
+  -- help text
+  print("left/right: adjust", 18, 110, 13)
+  print("up/down: navigate", 16, 116, 13)
   print("x: back", 36, 122, 13)
 end
 
@@ -1616,7 +1710,8 @@ function init_game()
   diff_level = 1
   combo = 0
   last_milestone = 0
-  lives = 3  -- start with 3 lives
+  -- set lives based on preset: 1=5 lives, 2=3 lives, 3=1 life
+  lives = lives_preset == 1 and 5 or (lives_preset == 3 and 1 or 3)
   life_flash = 0
   obstacles = {}
   powerups = {}
@@ -1657,10 +1752,12 @@ function init_game()
   end
 
   -- apply spawn rate modifier
-  if spawn_rate == 1 then  -- easy (20% slower)
+  if spawn_rate == 1 then  -- slow (20% slower)
     obs_interval = flr(obs_interval * 1.2)
-  elseif spawn_rate == 3 then  -- hard (20% faster)
+  elseif spawn_rate == 3 then  -- fast (20% faster)
     obs_interval = flr(obs_interval * 0.8)
+  elseif spawn_rate == 4 then  -- extreme (50% faster)
+    obs_interval = flr(obs_interval * 0.5)
   end
 
   -- initialize danger zones
@@ -1828,10 +1925,12 @@ function init_challenge()
   end
 
   -- apply spawn rate modifier
-  if spawn_rate == 1 then  -- easy (20% slower)
+  if spawn_rate == 1 then  -- slow (20% slower)
     obs_interval = flr(obs_interval * 1.2)
-  elseif spawn_rate == 3 then  -- hard (20% faster)
+  elseif spawn_rate == 3 then  -- fast (20% faster)
     obs_interval = flr(obs_interval * 0.8)
+  elseif spawn_rate == 4 then  -- extreme (50% faster)
+    obs_interval = flr(obs_interval * 0.5)
   end
 
   -- initialize danger zones
@@ -2067,6 +2166,7 @@ function update_play()
   local scale_interval = 600  -- normal = every 10s
   if diff_scaling == 1 then scale_interval = 900  -- conservative = every 15s
   elseif diff_scaling == 3 then scale_interval = 300  -- aggressive = every 5s
+  elseif diff_scaling == 4 then scale_interval = 120  -- insane = every 2s
   end
 
   if gametime % scale_interval == 0 then
