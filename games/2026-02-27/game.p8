@@ -90,6 +90,9 @@ pu_timer = 0
 shield_time = 0
 slowmo_time = 0
 doublescore_time = 0
+magnet_time = 0
+freeze_time = 0
+obstacles_frozen = false
 
 -- particle effects
 particles = {}
@@ -330,6 +333,9 @@ function init_game()
   shield_time = 0
   slowmo_time = 0
   doublescore_time = 0
+  magnet_time = 0
+  freeze_time = 0
+  obstacles_frozen = false
 
   -- reset performance stats
   max_combo = 0
@@ -426,6 +432,13 @@ function update_play()
   if shield_time > 0 then shield_time -= 1 end
   if slowmo_time > 0 then slowmo_time -= 1 end
   if doublescore_time > 0 then doublescore_time -= 1 end
+  if magnet_time > 0 then magnet_time -= 1 end
+  if freeze_time > 0 then
+    freeze_time -= 1
+    obstacles_frozen = true
+  else
+    obstacles_frozen = false
+  end
 
   -- movement input
   if input & 1 > 0 then
@@ -509,31 +522,34 @@ function update_play()
   -- update obstacles
   local speed_mod = slowmo_time > 0 and 0.5 or 1.0
   for o in all(obstacles) do
-    o.y += scroll_speed * speed_mod
+    -- freeze effect: skip movement when frozen
+    if not obstacles_frozen then
+      o.y += scroll_speed * speed_mod
 
-    if o.type == "moving" then
-      o.x += o.vx
-      if o.x < 0 or o.x > 128 then
-        o.vx *= -1
+      if o.type == "moving" then
+        o.x += o.vx
+        if o.x < 0 or o.x > 128 then
+          o.vx *= -1
+        end
+      elseif o.type == "rotating" then
+        o.angle += 0.02
+        o.r = 8 + sin(o.angle) * 4
+      elseif o.type == "boss" then
+        o.wave_time += 0.03
+        o.x = o.base_x + sin(o.wave_time) * 30
+      elseif o.type == "pendulum" then
+        o.swing_time += 0.04
+        o.x = o.base_x + sin(o.swing_time) * 25
+      elseif o.type == "zigzag" then
+        o.zig_time += 0.05
+        local amp = 15 + diff_level * 2
+        o.x += sin(o.zig_time) * amp * o.zig_dir * 0.1
+        if o.x < 10 or o.x > 118 then
+          o.zig_dir *= -1
+        end
+      elseif o.type == "orbiter" then
+        o.orbit_angle += 0.05
       end
-    elseif o.type == "rotating" then
-      o.angle += 0.02
-      o.r = 8 + sin(o.angle) * 4
-    elseif o.type == "boss" then
-      o.wave_time += 0.03
-      o.x = o.base_x + sin(o.wave_time) * 30
-    elseif o.type == "pendulum" then
-      o.swing_time += 0.04
-      o.x = o.base_x + sin(o.swing_time) * 25
-    elseif o.type == "zigzag" then
-      o.zig_time += 0.05
-      local amp = 15 + diff_level * 2
-      o.x += sin(o.zig_time) * amp * o.zig_dir * 0.1
-      if o.x < 10 or o.x > 118 then
-        o.zig_dir *= -1
-      end
-    elseif o.type == "orbiter" then
-      o.orbit_angle += 0.05
     end
 
     -- check collision
@@ -702,6 +718,17 @@ function update_play()
     p.y += scroll_speed * speed_mod
     p.spawn_time += 1  -- increment for pulse effect
 
+    -- magnet effect: pull powerups toward ball
+    if magnet_time > 0 then
+      local dx = ball.x - p.x
+      local dy = ball.y - p.y
+      local dist = sqrt(dx^2 + dy^2)
+      if dist > 1 then
+        p.x += (dx / dist) * 2  -- move toward ball
+        p.y += (dy / dist) * 2
+      end
+    end
+
     -- collect
     local dist = sqrt((ball.x - p.x)^2 + (ball.y - p.y)^2)
     if dist < ball.r + 4 then
@@ -767,47 +794,61 @@ function draw_play()
     if o.type == "spike" then
       local col = o.in_danger and 14 or 8  -- pink in danger, red normal
       circfill(o.x, o.y, o.r, col)
-      circ(o.x, o.y, o.r, 2)
+      circ(o.x, o.y, o.r, obstacles_frozen and 12 or 2)  -- cyan outline when frozen
     elseif o.type == "moving" then
       local col = o.in_danger and 8 or 12  -- red in danger, blue normal
       rectfill(o.x - o.r, o.y - 3, o.x + o.r, o.y + 3, col)
+      if obstacles_frozen then
+        rect(o.x - o.r, o.y - 3, o.x + o.r, o.y + 3, 12)  -- cyan border when frozen
+      end
     elseif o.type == "rotating" then
       local col = o.in_danger and 15 or 14  -- white in danger, pink normal
       circfill(o.x, o.y, o.r, col)
+      if obstacles_frozen then
+        circ(o.x, o.y, o.r, 12)  -- cyan outline when frozen
+      end
     elseif o.type == "boss" then
       -- pulsing ring effect
       local pulse = sin(gametime / 15) * 2
       local col1 = o.in_danger and 8 or 2
-      local col2 = o.in_danger and 14 or 8
+      local col2 = obstacles_frozen and 12 or (o.in_danger and 14 or 8)
       circfill(o.x, o.y, o.r, col1)
       circ(o.x, o.y, o.r, col2)
-      circ(o.x, o.y, o.r - 2 + pulse, 14)
-      circ(o.x, o.y, o.r + 2 + pulse, 9)
+      if not obstacles_frozen then
+        circ(o.x, o.y, o.r - 2 + pulse, 14)
+        circ(o.x, o.y, o.r + 2 + pulse, 9)
+      end
     elseif o.type == "pendulum" then
       -- hanging pendulum with chain
       local col = o.in_danger and 8 or 9
       line(o.base_x, 0, o.x, o.y, 5)
       circfill(o.x, o.y, o.r, col)
-      circ(o.x, o.y, o.r, 2)
+      circ(o.x, o.y, o.r, obstacles_frozen and 12 or 2)
     elseif o.type == "zigzag" then
       -- zigzag with motion trail
       local col = o.in_danger and 8 or 12
       circfill(o.x, o.y, o.r, col)
-      circ(o.x, o.y, o.r, 1)
+      circ(o.x, o.y, o.r, obstacles_frozen and 12 or 1)
     elseif o.type == "orbiter" then
       -- center core
       local col = o.in_danger and 8 or 2
       circfill(o.x, o.y, 3, col)
-      circ(o.x, o.y, 3, 8)
+      circ(o.x, o.y, 3, obstacles_frozen and 12 or 8)
       -- satellite 1
       local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
       local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
       local sat_col = o.in_danger and 14 or 9
       circfill(sat1_x, sat1_y, 3, sat_col)
+      if obstacles_frozen then
+        circ(sat1_x, sat1_y, 3, 12)
+      end
       -- satellite 2
       local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
       circfill(sat2_x, sat2_y, 3, sat_col)
+      if obstacles_frozen then
+        circ(sat2_x, sat2_y, 3, 12)
+      end
       -- orbit lines
       circ(o.x, o.y, o.orbit_radius, 5)
     end
@@ -918,14 +959,28 @@ function draw_play()
   local ind_x = 2
   if shield_time > 0 then
     circfill(ind_x, 120, 3, 11)
+    print("s", ind_x-1, 118, 7)
     ind_x += 10
   end
   if slowmo_time > 0 then
     circfill(ind_x, 120, 3, 12)
+    print("m", ind_x-1, 118, 7)
     ind_x += 10
   end
   if doublescore_time > 0 then
     circfill(ind_x, 120, 3, 10)
+    print("2", ind_x-1, 118, 7)
+    ind_x += 10
+  end
+  if magnet_time > 0 then
+    circfill(ind_x, 120, 3, 13)
+    print("g", ind_x-1, 118, 7)
+    ind_x += 10
+  end
+  if freeze_time > 0 then
+    circfill(ind_x, 120, 3, 12)
+    print("f", ind_x-1, 118, 7)
+    ind_x += 10
   end
 end
 
@@ -1127,9 +1182,9 @@ end
 
 -- power-up spawning
 function spawn_powerup()
-  local types = {"shield", "slowmo", "doublescore"}
-  local t = types[flr(rnd(3)) + 1]
-  local cols = {shield = 11, slowmo = 12, doublescore = 10}
+  local types = {"shield", "slowmo", "doublescore", "magnet", "bomb", "freeze"}
+  local t = types[flr(rnd(6)) + 1]
+  local cols = {shield = 11, slowmo = 12, doublescore = 10, magnet = 13, bomb = 8, freeze = 12}
 
   local x = 20 + rnd(88)
 
@@ -1181,12 +1236,41 @@ function collect_powerup(p)
       _log("lives:"..lives)
     end
     sfx(2)  -- shield powerup
+    add_floating_text(p.x - 12, p.y - 20, "shield!", 11)
   elseif p.type == "slowmo" then
     slowmo_time = 60
     sfx(3)  -- slowmo powerup
+    add_floating_text(p.x - 12, p.y - 20, "slowmo!", 12)
   elseif p.type == "doublescore" then
     doublescore_time = 150
     sfx(4)  -- doublescore powerup
+    add_floating_text(p.x - 18, p.y - 20, "double score!", 10)
+  elseif p.type == "magnet" then
+    magnet_time = 240  -- 8 seconds at 30fps
+    sfx(2)  -- magnet powerup
+    add_floating_text(p.x - 12, p.y - 20, "magnet!", 13)
+    _log("powerup:magnet")
+  elseif p.type == "bomb" then
+    -- clear obstacles within radius
+    local cleared = 0
+    for o in all(obstacles) do
+      local dist = sqrt((o.x - ball.x)^2 + (o.y - ball.y)^2)
+      if dist < 40 then
+        del(obstacles, o)
+        add_particles(o.x, o.y, 15, 8)  -- red explosion particles
+        cleared += 1
+      end
+    end
+    sfx(5)  -- bomb powerup (explosion sound)
+    shake(12, 1.5)  -- strong shake on bomb
+    screen_flash = 8  -- flash screen
+    add_floating_text(p.x - 10, p.y - 20, "bomb!", 8)
+    _log("powerup:bomb:cleared="..cleared)
+  elseif p.type == "freeze" then
+    freeze_time = 180  -- 6 seconds at 30fps
+    sfx(3)  -- freeze powerup
+    add_floating_text(p.x - 12, p.y - 20, "freeze!", 12)
+    _log("powerup:freeze")
   end
 
   add_particles(p.x, p.y, 20, p.col)  -- larger particle burst
