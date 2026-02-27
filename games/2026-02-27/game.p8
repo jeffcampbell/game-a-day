@@ -34,6 +34,7 @@ gametime = 0
 multiplier = 1.0
 diff_level = 1
 combo = 0
+last_milestone = 0  -- track combo milestones
 difficulty = 2  -- 1=easy, 2=normal, 3=hard
 diff_selection = 2  -- current selection cursor
 input_cooldown = 0  -- navigation delay
@@ -303,6 +304,7 @@ function init_game()
   multiplier = 1.0
   diff_level = 1
   combo = 0
+  last_milestone = 0
   obstacles = {}
   powerups = {}
   particles = {}
@@ -489,6 +491,7 @@ function update_play()
         ball_flash = 3  -- flash ball white
         add_particles(ball.x, ball.y, 20, 7)  -- large particle burst
         combo = 0
+        last_milestone = 0
         _log("combo_reset")
         state = "gameover"
         _log("state:gameover")
@@ -547,9 +550,28 @@ function update_play()
         add_floating_text(ball.x - 6, ball.y - 12, "+"..bonus, 11)
       end
 
-      -- combo milestone text
-      if combo == 5 or combo == 10 or (combo > 10 and combo % 5 == 0) then
-        add_floating_text(ball.x - 12, ball.y - 20, "combo x"..combo.."!", 10)
+      -- check for combo milestones
+      local milestone = 0
+      if combo >= 20 then
+        milestone = flr(combo / 5) * 5  -- every 5 after 20
+      elseif combo == 15 or combo == 10 or combo == 5 then
+        milestone = combo
+      end
+
+      -- trigger milestone celebration if new milestone reached
+      if milestone > 0 and milestone > last_milestone then
+        last_milestone = milestone
+        _log("milestone:"..milestone)
+        sfx(7)  -- celebratory milestone sound
+        shake(3, 0.25)  -- gentle shake for milestone
+        -- milestone floating text with color
+        local m_col = 10  -- yellow
+        if milestone >= 15 then
+          m_col = 14  -- pink for 15+
+        elseif milestone >= 10 then
+          m_col = 9  -- orange for 10+
+        end
+        add_floating_text(64 - 18, 50, milestone.." combo!", m_col)
       end
     end
 
@@ -697,7 +719,15 @@ function draw_play()
   print("score:"..score, 2, 2, 7)
   print("time:"..flr(gametime/30).."s", 2, 9, 7)
   print("x"..multiplier, 100, 2, 9)
-  local combo_col = combo >= 10 and 15 or 7
+  -- combo counter with milestone colors
+  local combo_col = 7  -- white default
+  if combo >= 15 then
+    combo_col = 14  -- pink for 15+
+  elseif combo >= 10 then
+    combo_col = 9  -- orange for 10+
+  elseif combo >= 5 then
+    combo_col = 10  -- yellow for 5+
+  end
   print("combo:"..combo, 86, 9, combo_col)
 
   -- wave counter with pulse effect
