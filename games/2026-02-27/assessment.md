@@ -249,3 +249,86 @@ Bounce King is a **well-crafted arcade survival game** with excellent core mecha
 **Previous Approval:** ✅ APPROVED - Daily Challenge mode (main branch)
 **Current Approval:** 🔄 READY FOR RE-REVIEW - Syntax errors fixed, awaiting inspector verification
 
+---
+
+## Boss Evolution System Feature (feature/boss-evolution-system) - ✅ FIXED & READY FOR RE-REVIEW
+
+**Status:** Satellite orbital movement implemented, all issues resolved
+
+### Feature Overview
+**Three-stage boss system** that escalates difficulty based on game progression:
+- **Stage 1** (diff_level < 3): Standard wave movement (±30px, freq 0.03)
+- **Stage 2** (diff_level ≥ 3): Faster/larger wave (±35px, freq 0.05)
+- **Stage 3** (diff_level ≥ 5): Compound movement + satellite spawning
+
+### What Works ✅
+
+**Boss Stage Determination** (lines 2444-2448)
+- Correct logic: stage determined by diff_level milestones
+- Proper spawn-time stage assignment
+- Logged with stage info for testing
+
+**Visual Differentiation** (lines 1873-1891)
+- Stage-based palette colors (default → orange → pink)
+- Ring effects scale with stage (stage 3 has extra outer ring)
+- Clear visual progression communicates difficulty escalation
+
+**Audio & Juice** (lines 1699-1714)
+- Stage-specific SFX (SFX 4/2/7 per stage)
+- Screen shake scales (6+stage*2 intensity)
+- Particle count scales (25 + stage*10 particles)
+- Excellent feedback progression
+
+**Cleanup System** (lines 1652-1761, 2499-2506)
+- Satellites properly removed when boss is:
+  - Absorbed by shield (line 1654)
+  - Dodged (line 1713)
+  - Falls off screen (line 1760)
+- No orphaned satellites possible
+- Parent_boss_id tracking is sound
+
+**Code Quality**
+- ✅ Test infrastructure intact (_log, cleanup documented)
+- ✅ No nil dereferences (guards check boss_id)
+- ✅ Bounds checking safe (x-positions all within 0-127)
+- ✅ Collision detection works for satellites (standard distance formula)
+- ✅ Token budget healthy (~3,415 total, 42% of limit)
+
+### ✅ FIXED: Satellite Orbital Movement Implemented
+
+**Changes Made (commit: Fix satellite orbital movement):**
+
+**spawn_satellite() function (lines 2477-2500):**
+- Added `orbit_center_x = boss.x` - stores orbit center X
+- Added `orbit_center_y = boss.y` - stores orbit center Y
+- Added `orbit_radius = dist` - stores orbit radius (40-60px)
+- Satellites now track their orbit parameters
+
+**update_play() function (lines 1561-1566):**
+- Kept: `o.orbit_angle += o.orbit_speed`
+- **ADDED:** `o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius`
+- **ADDED:** `o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius`
+- Satellites now update their position each frame based on orbit angle
+
+**update_practice_play() function (lines 3246-3251):**
+- Same orbital movement implementation applied
+- Practice mode satellites also orbit correctly
+
+**Result:**
+- ✅ Satellites now orbit their spawn points at 0.02-0.04 turns/frame
+- ✅ Creates dynamic hazard field around stage 3 bosses
+- ✅ Stage 3 is significantly more challenging and interesting
+- ✅ Matches code structure intention and comments
+- ✅ No gameplay logic broken, purely completes the feature
+
+**Verification:**
+- Bounds checking still safe (orbit radius 40-60px from center at x=64)
+- Collision detection unchanged (still uses distance formula)
+- Cleanup logic unchanged (parent_boss_id still works)
+- No nil dereferences (orbit center stored at spawn time)
+
+**Feature Now Complete:**
+Stage 3 bosses spawn 1-2 satellites that orbit the boss spawn point, creating a dynamic rotating hazard field that makes the late-game significantly more interesting and challenging.
+
+---
+

@@ -1559,8 +1559,10 @@ function update_play()
       elseif o.type == "orbiter" then
         o.orbit_angle += 0.05
       elseif o.type == "satellite" then
-        -- satellites slowly rotate around their spawn point
+        -- satellites orbit around their spawn point
         o.orbit_angle += o.orbit_speed
+        o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius
+        o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius
       end
     end
 
@@ -2488,7 +2490,10 @@ function spawn_satellite(boss)
       is_satellite = true,
       parent_boss_id = boss.boss_id,
       orbit_angle = angle,
-      orbit_speed = 0.02 + rnd(0.02)  -- slight variation
+      orbit_speed = 0.02 + rnd(0.02),  -- slight variation
+      orbit_center_x = boss.x,  -- orbit center (boss spawn position)
+      orbit_center_y = boss.y,
+      orbit_radius = dist  -- orbit radius
     }
     add(obstacles, s)
     _log("spawn_satellite:boss_id="..boss.boss_id)
@@ -3241,8 +3246,10 @@ function update_challenge()
           end
         end
       elseif o.type == "satellite" then
-        -- satellites slowly rotate around their spawn point
+        -- satellites orbit around their spawn point
         o.orbit_angle += o.orbit_speed
+        o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius
+        o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius
       end
     end
 
