@@ -206,9 +206,9 @@ function load_settings()
   local m = dget(1)
   local s = dget(2)
   local b = dget(3)
-  local sr = dget(64)
-  local ds = dget(65)
-  local cb = dget(66)
+  local sr = dget(56)
+  local ds = dget(57)
+  local cb = dget(58)
 
   -- default to enabled if not set
   music_enabled = m == 0 or m == 1
@@ -228,9 +228,9 @@ function save_settings()
   dset(1, music_enabled and 1 or 0)
   dset(2, sfx_enabled and 1 or 0)
   dset(3, ball_skin)
-  dset(64, spawn_rate)
-  dset(65, diff_scaling)
-  dset(66, combo_bonus)
+  dset(56, spawn_rate)
+  dset(57, diff_scaling)
+  dset(58, combo_bonus)
   _log("settings_saved")
 end
 
