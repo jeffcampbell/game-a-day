@@ -478,12 +478,53 @@ function update_play()
     elseif o.type == "boss" then
       o.wave_time += 0.03
       o.x = o.base_x + sin(o.wave_time) * 30
+    elseif o.type == "pendulum" then
+      o.swing_time += 0.04
+      o.x = o.base_x + sin(o.swing_time) * 25
+    elseif o.type == "zigzag" then
+      o.zig_time += 0.05
+      local amp = 15 + diff_level * 2
+      o.x += sin(o.zig_time) * amp * o.zig_dir * 0.1
+      if o.x < 10 or o.x > 118 then
+        o.zig_dir *= -1
+      end
+    elseif o.type == "orbiter" then
+      o.orbit_angle += 0.05
     end
 
     -- check collision
     if shield_time == 0 then
-      local dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
-      if dist < ball.r + o.r then
+      local collision = false
+
+      -- standard collision for most types
+      if o.type != "orbiter" then
+        local dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
+        if dist < ball.r + o.r then
+          collision = true
+        end
+      else
+        -- orbiter: check collision with center and two satellites
+        local center_dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
+        if center_dist < ball.r + 3 then
+          collision = true
+        end
+        -- satellite 1
+        local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
+        local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
+        local sat1_dist = sqrt((ball.x - sat1_x)^2 + (ball.y - sat1_y)^2)
+        if sat1_dist < ball.r + 3 then
+          collision = true
+        end
+        -- satellite 2
+        local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
+        local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
+        local sat2_dist = sqrt((ball.x - sat2_x)^2 + (ball.y - sat2_y)^2)
+        if sat2_dist < ball.r + 3 then
+          collision = true
+        end
+      end
+
+      if collision then
         sfx(7)  -- collision impact sound
         music(-1)  -- stop music on game over
         shake(12, 1.5 + diff_level * 0.2)  -- large shake, scales with difficulty
@@ -647,6 +688,29 @@ function draw_play()
       circ(o.x, o.y, o.r, 8)
       circ(o.x, o.y, o.r - 2 + pulse, 14)
       circ(o.x, o.y, o.r + 2 + pulse, 9)
+    elseif o.type == "pendulum" then
+      -- hanging pendulum with chain
+      line(o.base_x, 0, o.x, o.y, 5)
+      circfill(o.x, o.y, o.r, 9)
+      circ(o.x, o.y, o.r, 2)
+    elseif o.type == "zigzag" then
+      -- zigzag with motion trail
+      circfill(o.x, o.y, o.r, 12)
+      circ(o.x, o.y, o.r, 1)
+    elseif o.type == "orbiter" then
+      -- center core
+      circfill(o.x, o.y, 3, 2)
+      circ(o.x, o.y, 3, 8)
+      -- satellite 1
+      local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
+      local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
+      circfill(sat1_x, sat1_y, 3, 9)
+      -- satellite 2
+      local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
+      local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
+      circfill(sat2_x, sat2_y, 3, 9)
+      -- orbit lines
+      circ(o.x, o.y, o.orbit_radius, 5)
     end
   end
 
@@ -808,7 +872,29 @@ end
 
 -- obstacle spawning
 function spawn_obstacle()
+  -- build available types based on difficulty level
   local types = {"spike", "moving", "rotating"}
+
+  -- check for new obstacle types with probability
+  if diff_level >= 2 and rnd(1) < 0.20 then
+    -- pendulum: 20% chance when diff_level >= 2
+    spawn_pendulum()
+    return
+  end
+
+  if diff_level >= 3 and rnd(1) < 0.15 then
+    -- zigzag: 15% chance when diff_level >= 3
+    spawn_zigzag()
+    return
+  end
+
+  if diff_level >= 4 and rnd(1) < 0.10 then
+    -- orbiter: 10% chance when diff_level >= 4
+    spawn_orbiter()
+    return
+  end
+
+  -- default obstacle types
   local t = types[flr(rnd(3)) + 1]
   local o = {
     x = 20 + rnd(88),
@@ -831,6 +917,55 @@ function spawn_obstacle()
 
   add(obstacles, o)
   _log("spawn_obstacle:"..t)
+end
+
+-- pendulum obstacle
+function spawn_pendulum()
+  local o = {
+    x = 40 + rnd(48),
+    y = -10,
+    type = "pendulum",
+    r = 7,
+    dodged = false,
+    is_boss = false,
+    swing_time = 0,
+    base_x = 0
+  }
+  o.base_x = o.x
+  add(obstacles, o)
+  _log("spawn_obstacle:pendulum")
+end
+
+-- zigzag obstacle
+function spawn_zigzag()
+  local o = {
+    x = 20 + rnd(88),
+    y = -10,
+    type = "zigzag",
+    r = 6,
+    dodged = false,
+    is_boss = false,
+    zig_time = 0,
+    zig_dir = rnd(1) > 0.5 and 1 or -1
+  }
+  add(obstacles, o)
+  _log("spawn_obstacle:zigzag")
+end
+
+-- orbiter obstacle
+function spawn_orbiter()
+  local o = {
+    x = 40 + rnd(48),
+    y = -10,
+    type = "orbiter",
+    r = 5,
+    dodged = false,
+    is_boss = false,
+    orbit_angle = 0,
+    orbit_radius = 8
+  }
+  add(obstacles, o)
+  _log("spawn_obstacle:orbiter")
 end
 
 -- boss obstacle spawning
