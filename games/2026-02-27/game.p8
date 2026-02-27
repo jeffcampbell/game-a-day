@@ -59,6 +59,7 @@ music_enabled = true  -- toggle music on/off
 sfx_enabled = true  -- toggle sfx on/off
 ball_skin = 1  -- ball appearance: 1=white, 2=gold, 3=cyan
 settings_selection = 1  -- current settings menu cursor (1-4)
+skins_used = {}  -- track which skins have been selected
 
 -- danger zones system
 danger_zones = {}
@@ -70,6 +71,25 @@ max_combo = 0
 total_dodges = 0
 total_powerups = 0
 total_dodge_bonus = 0
+
+-- achievement system
+achievements = {}  -- unlocked status {id -> true/false}
+ach_definitions = {
+  {id=1, name="survivor", title="survivor", desc="survive for 30+ seconds", unlocked=false},
+  {id=2, name="power_master", title="power master", desc="collect all 6 power-ups", unlocked=false},
+  {id=3, name="combo_king", title="combo king", desc="reach 20+ combo", unlocked=false},
+  {id=4, name="danger_expert", title="danger expert", desc="collect 5+ from danger zones", unlocked=false},
+  {id=5, name="speedrunner", title="speedrunner", desc="score 500+ in one game", unlocked=false},
+  {id=6, name="unstoppable", title="unstoppable", desc="reach 2.0x multiplier", unlocked=false},
+  {id=7, name="collection", title="complete collection", desc="unlock all 3 ball skins", unlocked=false},
+  {id=8, name="perfect_wave", title="perfect wave", desc="survive 10s without damage", unlocked=false}
+}
+ach_scroll = 0  -- scroll position in achievements screen
+ach_unlocked_count = 0  -- total unlocked
+-- tracking for current game
+power_types_collected = {}  -- set of collected types this game
+last_damage_time = 0  -- time since last damage
+danger_zone_pickups = 0  -- total across all games (persistent)
 
 -- visual juice
 shake_time = 0
@@ -136,6 +156,9 @@ function _init()
   -- load leaderboard (slots 4-43, 4 per entry)
   load_leaderboard()
 
+  -- load achievements (slots 44-51)
+  load_achievements()
+
   _log("state:menu")
 end
 
@@ -150,6 +173,9 @@ function load_settings()
   sfx_enabled = s == 0 or s == 1
   ball_skin = b >= 1 and b <= 3 and b or 1
 
+  -- track current skin as used
+  skins_used[ball_skin] = true
+
   _log("settings_loaded:m="..tostr(music_enabled)..",s="..tostr(sfx_enabled)..",b="..ball_skin)
 end
 
@@ -158,6 +184,32 @@ function save_settings()
   dset(2, sfx_enabled and 1 or 0)
   dset(3, ball_skin)
   _log("settings_saved")
+end
+
+-- achievement persistence (slots 44-51)
+function load_achievements()
+  achievements = {}
+  ach_unlocked_count = 0
+  for i = 1, 8 do
+    local unlocked = dget(43 + i) == 1
+    achievements[i] = unlocked
+    ach_definitions[i].unlocked = unlocked
+    if unlocked then
+      ach_unlocked_count += 1
+    end
+  end
+  -- load persistent danger zone pickups (slot 52)
+  danger_zone_pickups = dget(52) or 0
+  _log("achievements_loaded:"..ach_unlocked_count.."/8")
+end
+
+function save_achievements()
+  for i = 1, 8 do
+    dset(43 + i, achievements[i] and 1 or 0)
+  end
+  -- save persistent danger zone pickups
+  dset(52, danger_zone_pickups)
+  _log("achievements_saved")
 end
 
 -- leaderboard persistence (slots 4-43)
@@ -266,6 +318,8 @@ function _update()
     update_settings()
   elseif state == "leaderboard" then
     update_leaderboard()
+  elseif state == "achievements" then
+    update_achievements()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -291,6 +345,8 @@ function _draw()
     draw_settings()
   elseif state == "leaderboard" then
     draw_leaderboard()
+  elseif state == "achievements" then
+    draw_achievements()
   elseif state == "play" then
     draw_play()
   elseif state == "pause" then
@@ -367,16 +423,24 @@ function update_menu()
     _log("state:leaderboard")
     input_cooldown = 10
   end
+
+  if input & 8 > 0 then  -- down button
+    state = "achievements"
+    _log("state:achievements")
+    ach_scroll = 0  -- reset scroll
+    input_cooldown = 10
+  end
 end
 
 function draw_menu()
   print("bounce king", 38, 40, 7)
   print("survive the fall!", 26, 52, 6)
-  print("left/right: steer", 20, 70, 13)
-  print("collect power-ups", 18, 78, 11)
-  print("press o to start", 22, 90, 10)
-  print("press x for settings", 14, 98, 13)
-  print("press up for leaderboard", 8, 106, 12)
+  print("left/right: steer", 20, 68, 13)
+  print("collect power-ups", 18, 76, 11)
+  print("press o to start", 22, 88, 10)
+  print("press x for settings", 14, 96, 13)
+  print("up: leaderboard", 26, 104, 12)
+  print("down: achievements", 18, 112, 11)
   -- show top score from leaderboard
   if #leaderboard > 0 then
     local top = leaderboard[1]
@@ -482,8 +546,14 @@ function update_settings()
         _log("toggle_sfx:"..tostr(sfx_enabled))
       elseif settings_selection == 3 then
         ball_skin = ball_skin % 3 + 1  -- cycle 1->2->3->1
+        skins_used[ball_skin] = true  -- track skin usage
         play_sfx(1)
         _log("ball_skin:"..ball_skin)
+        -- check if all skins used for achievement
+        local all_used = skins_used[1] and skins_used[2] and skins_used[3]
+        if all_used and not achievements[7] then
+          unlock_achievement(7)
+        end
       end
       save_settings()  -- persist changes
       input_cooldown = 10
@@ -637,6 +707,47 @@ function draw_pause()
   print("press x to resume", 28, 82, 13)
 end
 
+-- achievements state
+function update_achievements()
+  -- update cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+  end
+
+  local input = test_input()
+
+  -- return to menu
+  if input_cooldown == 0 and input & 32 > 0 then  -- X button
+    state = "menu"
+    _log("state:menu")
+    input_cooldown = 10
+  end
+end
+
+function draw_achievements()
+  print("achievements", 34, 8, 7)
+  print(ach_unlocked_count.."/8 unlocked", 32, 18, 10)
+
+  -- draw achievement list
+  local y_start = 30
+  for i = 1, 8 do
+    local ach = ach_definitions[i]
+    local y = y_start + (i - 1) * 12
+
+    if ach.unlocked then
+      -- unlocked: gold color
+      print("\x8e "..ach.title, 10, y, 9)  -- checkmark
+      print(ach.desc, 10, y + 6, 10)
+    else
+      -- locked: dark color
+      print("\x94 "..ach.title, 10, y, 5)  -- lock
+      print(ach.desc, 10, y + 6, 5)
+    end
+  end
+
+  print("press x to return", 24, 118, 13)
+end
+
 -- game initialization
 function init_game()
   ball.x = 64
@@ -676,6 +787,10 @@ function init_game()
   total_powerups = 0
   total_dodge_bonus = 0
 
+  -- reset achievement tracking for this game
+  power_types_collected = {}
+  last_damage_time = gametime
+
   -- set initial parameters based on difficulty
   if difficulty == 1 then  -- easy
     scroll_speed = 0.3
@@ -700,6 +815,72 @@ function init_game()
 
   play_music(0)  -- start background music
   _log("game_init:difficulty="..difficulty)
+end
+
+-- achievement checking
+function check_achievements()
+  -- 1. survivor: survive 30+ seconds
+  if not achievements[1] and gametime >= 900 then
+    unlock_achievement(1)
+  end
+
+  -- 2. power master: collect all 6 types
+  if not achievements[2] then
+    local types_count = 0
+    for k, v in pairs(power_types_collected) do
+      if v then types_count += 1 end
+    end
+    if types_count >= 6 then
+      unlock_achievement(2)
+    end
+  end
+
+  -- 3. combo king: reach 20+ combo
+  if not achievements[3] and combo >= 20 then
+    unlock_achievement(3)
+  end
+
+  -- 4. danger expert: 5+ pickups from danger zones (persistent)
+  if not achievements[4] and danger_zone_pickups >= 5 then
+    unlock_achievement(4)
+  end
+
+  -- 5. speedrunner: 500+ score in one game
+  if not achievements[5] and score >= 500 then
+    unlock_achievement(5)
+  end
+
+  -- 6. unstoppable: 2.0x+ multiplier
+  if not achievements[6] and multiplier >= 2.0 then
+    unlock_achievement(6)
+  end
+
+  -- 7. complete collection: checked in settings menu when skin is changed
+
+  -- 8. perfect wave: survive 10s (300 frames) without damage
+  if not achievements[8] and gametime - last_damage_time >= 300 then
+    unlock_achievement(8)
+  end
+end
+
+function unlock_achievement(id)
+  if achievements[id] then return end  -- already unlocked
+
+  achievements[id] = true
+  ach_definitions[id].unlocked = true
+  ach_unlocked_count += 1
+
+  local ach = ach_definitions[id]
+  _log("achievement:"..ach.name)
+
+  -- visual/audio feedback
+  play_sfx(6)  -- achievement sound
+  shake(12, 1.2)
+  add_floating_text(64, 50, "achievement!", 10)
+  add_floating_text(64, 60, ach.title, 9)
+
+  -- save immediately
+  save_achievements()
 end
 
 -- play state
@@ -921,6 +1102,7 @@ function update_play()
         -- lose a life
         lives -= 1
         life_flash = 10  -- flash lives counter
+        last_damage_time = gametime  -- reset perfect wave tracker
         _log("life_lost")
         _log("lives:"..lives)
 
@@ -1098,6 +1280,9 @@ function update_play()
       del(floating_texts, ft)
     end
   end
+
+  -- check achievements
+  check_achievements()
 end
 
 function draw_play()
@@ -1759,6 +1944,16 @@ function collect_powerup(p)
   _log("powerup_collected:"..p.type)
   _log("powerup_bonus:"..bonus)
   _log("total_powerups:"..total_powerups)
+
+  -- track power-up type for achievement
+  power_types_collected[p.type] = true
+
+  -- check if collected from danger zone
+  local zone = get_zone(p.x)
+  if zone > 0 and danger_zones[zone].active then
+    danger_zone_pickups += 1
+    _log("danger_zone_pickup:"..danger_zone_pickups)
+  end
 
   shake(8, 1.0)  -- medium shake on powerup collection
 
