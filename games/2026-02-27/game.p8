@@ -2956,29 +2956,56 @@ function update_challenge()
     pu_timer = 0
   end
 
+  -- update danger zones
+  zone_timer += 1
+  if zone_timer >= zone_interval then
+    zone_timer = 0
+    zone_interval = 450 + rnd(150)  -- randomize next interval
+    -- toggle random zone
+    local z = danger_zones[flr(rnd(3)) + 1]
+    z.active = not z.active
+    local zone_idx = z == danger_zones[1] and "L" or (z == danger_zones[2] and "C" or "R")
+    _log("zone_toggle:"..zone_idx..":"..tostr(z.active))
+  end
+  -- update zone pulse animations
+  for z in all(danger_zones) do
+    if z.active then
+      z.pulse = (z.pulse + 0.08) % 1
+    else
+      z.pulse = 0
+    end
+  end
+
   -- update obstacles
+  local speed_mod = slowmo_time > 0 and 0.5 or 1.0
   for o in all(obstacles) do
-    o.y += scroll_speed
-    if o.type == "moving" then
-      o.x += o.vx
-      if o.x <= o.r or o.x >= 128 - o.r then
-        o.vx = -o.vx
+    -- freeze effect: skip movement when frozen
+    if not obstacles_frozen then
+      o.y += scroll_speed * speed_mod
+      if o.type == "moving" then
+        o.x += o.vx
+        if o.x <= o.r or o.x >= 128 - o.r then
+          o.vx = -o.vx
+        end
+      elseif o.type == "rotating" then
+        o.angle += 0.02
+        o.r = 8 + sin(o.angle) * 4
+      elseif o.type == "pendulum" then
+        o.swing_time += 0.04
+        o.x = o.base_x + sin(o.swing_time) * 25
+      elseif o.type == "zigzag" then
+        o.zig_time += 0.05
+        local amp = 15 + (challenge_seed % 5) * 2
+        o.x += sin(o.zig_time) * amp * o.zig_dir * 0.1
+        if o.x < 10 or o.x > 118 then
+          o.zig_dir *= -1
+        end
+      elseif o.type == "orbiter" then
+        o.orbit_angle += 0.05
+      elseif o.type == "boss" then
+        o.wave_time += 0.03
+        o.x = o.base_x + sin(o.wave_time) * 30
       end
-    elseif o.type == "rotating" then
-      o.angle += 0.05
-    elseif o.type == "pendulum" then
-      o.swing_time += 0.04
-      o.x = o.base_x + sin(o.swing_time) * 25
-    elseif o.type == "zigzag" then
-      o.x += o.dir * 0.8
-      if o.x <= 10 or o.x >= 118 then
-        o.dir = -o.dir
-      end
-    elseif o.type == "orbiter" then
-      o.orbit_angle += 0.05
-    elseif o.type == "boss" then
-      o.move_time += 0.03
-      o.x = o.base_x + sin(o.move_time) * 30
     end
 
     -- remove off-screen obstacles
@@ -3019,8 +3046,9 @@ function update_challenge()
   end
 
   -- update power-ups
+  local speed_mod = slowmo_time > 0 and 0.5 or 1.0
   for pu in all(powerups) do
-    pu.y += scroll_speed * 0.8
+    pu.y += scroll_speed * 0.8 * speed_mod
     if pu.y > 130 then
       del(powerups, pu)
     end
@@ -3040,7 +3068,12 @@ function update_challenge()
   if slowmo_time > 0 then slowmo_time -= 1 end
   if doublescore_time > 0 then doublescore_time -= 1 end
   if magnet_time > 0 then magnet_time -= 1 end
-  if freeze_time > 0 then freeze_time -= 1 end
+  if freeze_time > 0 then
+    freeze_time -= 1
+    obstacles_frozen = true
+  else
+    obstacles_frozen = false
+  end
 
   -- magnet effect
   if magnet_time > 0 then
