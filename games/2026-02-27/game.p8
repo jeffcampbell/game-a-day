@@ -1521,8 +1521,31 @@ function update_play()
         o.angle += 0.02
         o.r = 8 + sin(o.angle) * 4
       elseif o.type == "boss" then
-        o.wave_time += 0.03
-        o.x = o.base_x + sin(o.wave_time) * 30
+        -- boss evolution stages
+        if o.boss_stage == 1 then
+          -- stage 1: standard wave movement
+          o.wave_time += 0.03
+          o.x = o.base_x + sin(o.wave_time) * 30
+        elseif o.boss_stage == 2 then
+          -- stage 2: faster wave with increased amplitude
+          o.wave_time += 0.05
+          o.x = o.base_x + sin(o.wave_time) * 35
+        elseif o.boss_stage == 3 then
+          -- stage 3: compound movement (wave + vertical oscillation)
+          o.wave_time += 0.06
+          o.vertical_time += 0.04
+          o.x = o.base_x + sin(o.wave_time) * 40
+          -- add vertical oscillation for compound movement
+          local base_y = o.y
+          o.y = base_y + sin(o.vertical_time) * 3
+
+          -- spawn satellites periodically
+          o.satellite_timer += 1
+          if o.satellite_timer >= 90 then
+            o.satellite_timer = 0
+            spawn_satellite(o)
+          end
+        end
       elseif o.type == "pendulum" then
         o.swing_time += 0.04
         o.x = o.base_x + sin(o.swing_time) * 25
@@ -1535,6 +1558,11 @@ function update_play()
         end
       elseif o.type == "orbiter" then
         o.orbit_angle += 0.05
+      elseif o.type == "satellite" then
+        -- satellites orbit around their spawn point
+        o.orbit_angle += o.orbit_speed
+        o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius
+        o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius
       end
     end
 
@@ -1623,6 +1651,10 @@ function update_play()
         shield_time = 0  -- consume shield
         shake(4, 0.5)  -- light shake
         add_particles(ball.x, ball.y, 10, 11)  -- cyan particles
+        -- cleanup satellites if boss was absorbed
+        if o.type == "boss" and o.boss_id then
+          cleanup_satellites(o.boss_id)
+        end
         del(obstacles, o)  -- remove obstacle
         _log("shield_absorb")
         return
@@ -1666,13 +1698,25 @@ function update_play()
       score += bonus
       total_dodge_bonus += bonus
 
-      play_sfx(4)  -- dodge/safe milestone sparkle
-      local shake_amt = o.is_boss and 6 or 3
-      shake(shake_amt, o.is_boss and 0.8 or 0.4)
       if o.is_boss then
-        _log("boss_dodge:"..bonus)
-        add_particles(ball.x, ball.y, 25, 9)  -- extra particles for boss
+        -- boss dodge: stage-specific feedback
+        local stage = o.boss_stage or 1
+        local sfx_id = stage == 3 and 7 or (stage == 2 and 2 or 4)  -- different SFX per stage
+        play_sfx(sfx_id)
+        local shake_amt = 6 + stage * 2  -- stronger shake for higher stages
+        shake(shake_amt, 0.8 + stage * 0.2)
+        -- more particles for higher stages
+        local particle_count = 25 + stage * 10
+        local particle_col = stage == 3 and 14 or (stage == 2 and 9 or 9)
+        add_particles(ball.x, ball.y, particle_count, particle_col)
+        _log("boss_dodge:stage"..stage..":bonus="..bonus)
+        -- cleanup satellites when boss is dodged
+        if o.boss_id then
+          cleanup_satellites(o.boss_id)
+        end
       else
+        play_sfx(4)  -- dodge/safe milestone sparkle
+        shake(3, 0.4)
         _log("dodge_bonus:"..bonus)
         local pcol = in_danger_zone and 8 or 11  -- red for danger zone
         add_particles(ball.x, ball.y, 15, pcol)
@@ -1713,6 +1757,10 @@ function update_play()
 
     -- cleanup
     if o.y > 140 then
+      -- if removing a boss, clean up its satellites
+      if o.type == "boss" and o.boss_id then
+        cleanup_satellites(o.boss_id)
+      end
       del(obstacles, o)
     end
   end
@@ -1822,15 +1870,27 @@ function draw_play()
       spr(2, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "boss" then
-      -- sprite 3: boss face with pulsing rings
-      if o.in_danger then pal(8, 14); pal(2, 8) end
+      -- sprite 3: boss face with stage-based color palette
+      -- stage 1: default, stage 2: orange, stage 3: pink
+      if o.boss_stage == 2 then
+        pal(8, 9); pal(2, 9)  -- orange palette for stage 2
+      elseif o.boss_stage == 3 then
+        pal(8, 14); pal(2, 14)  -- pink palette for stage 3
+      end
+      if o.in_danger then pal(8, 8); pal(2, 8) end  -- red override for danger
       spr(3, o.x - 4, o.y - 4)
       pal()
-      -- pulsing ring effect
+      -- pulsing ring effect with stage intensity
       if not obstacles_frozen then
         local pulse = sin(gametime / 15) * 2
-        circ(o.x, o.y, o.r - 2 + pulse, 14)
-        circ(o.x, o.y, o.r + 2 + pulse, 9)
+        local ring_col1 = o.boss_stage == 3 and 14 or (o.boss_stage == 2 and 9 or 14)
+        local ring_col2 = o.boss_stage == 3 and 8 or 9
+        circ(o.x, o.y, o.r - 2 + pulse, ring_col1)
+        circ(o.x, o.y, o.r + 2 + pulse, ring_col2)
+        -- stage 3: additional outer ring
+        if o.boss_stage == 3 then
+          circ(o.x, o.y, o.r + 4 + pulse, 2)
+        end
       else
         circ(o.x, o.y, o.r, 12)  -- cyan ring when frozen
       end
@@ -1861,6 +1921,10 @@ function draw_play()
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
       circfill(sat2_x, sat2_y, 2, o.in_danger and 14 or 9)
       if obstacles_frozen then circ(sat2_x, sat2_y, 2, 12) end
+    elseif o.type == "satellite" then
+      -- boss satellites: small spinning obstacles
+      circfill(o.x, o.y, o.r, 8)  -- red core
+      circ(o.x, o.y, o.r + 1, 14)  -- pink outline
     end
   end
 
@@ -2379,6 +2443,12 @@ end
 
 -- boss obstacle spawning
 function spawn_boss()
+  -- determine boss stage based on difficulty level
+  local stage = 1
+  if diff_level >= 5 then stage = 3
+  elseif diff_level >= 3 then stage = 2
+  end
+
   local o = {
     x = 64,
     base_x = 64,
@@ -2387,16 +2457,57 @@ function spawn_boss()
     r = 13,
     dodged = false,
     is_boss = true,
-    wave_time = 0
+    wave_time = 0,
+    boss_stage = stage,
+    satellite_timer = 0,  -- for stage 3 satellite spawning
+    vertical_time = 0,  -- for stage 3 compound movement
+    boss_id = flr(rnd(10000))  -- unique id for satellite tracking
   }
 
   o.zone = get_zone(o.x)
   o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
 
   add(obstacles, o)
-  _log("spawn_obstacle:boss"..(o.in_danger and ":danger" or ""))
+  _log("spawn_obstacle:boss:stage"..stage..(o.in_danger and ":danger" or ""))
   play_sfx(6)  -- boss spawn sound
-  shake(8, 1.0)  -- screen shake on boss spawn
+  shake(8 + stage * 2, 1.0 + stage * 0.2)  -- stronger shake for higher stages
+end
+
+-- satellite spawning (for stage 3 bosses)
+function spawn_satellite(boss)
+  -- spawn 1-2 satellites around the boss at 40-60px distance
+  local count = flr(rnd(2)) + 1  -- 1 or 2 satellites
+  for i = 1, count do
+    local angle = rnd(1)  -- random angle in turns
+    local dist = 40 + rnd(20)  -- 40-60px distance
+    local s = {
+      x = boss.x + cos(angle) * dist,
+      y = boss.y + sin(angle) * dist,
+      type = "satellite",
+      r = 4,
+      dodged = false,
+      is_boss = false,
+      is_satellite = true,
+      parent_boss_id = boss.boss_id,
+      orbit_angle = angle,
+      orbit_speed = 0.02 + rnd(0.02),  -- slight variation
+      orbit_center_x = boss.x,  -- orbit center (boss spawn position)
+      orbit_center_y = boss.y,
+      orbit_radius = dist  -- orbit radius
+    }
+    add(obstacles, s)
+    _log("spawn_satellite:boss_id="..boss.boss_id)
+  end
+end
+
+-- satellite cleanup (when boss is removed)
+function cleanup_satellites(boss_id)
+  for s in all(obstacles) do
+    if s.is_satellite and s.parent_boss_id == boss_id then
+      del(obstacles, s)
+      _log("cleanup_satellite:boss_id="..boss_id)
+    end
+  end
 end
 
 -- power-up spawning
@@ -2703,9 +2814,9 @@ function spawn_practice_obstacle()
     add(obstacles, o)
     _log("practice_spawn:orbiter")
   elseif practice_obstacle_type == "boss" then
-    local o = {x = 64, base_x = 64, y = -10, type = "boss", r = 13, wave_time = 0, dodged = false, is_boss = true}
+    local o = {x = 64, base_x = 64, y = -10, type = "boss", r = 13, wave_time = 0, vertical_time = 0, boss_stage = 3, satellite_timer = 0, boss_id = flr(rnd(10000)), dodged = false, is_boss = true}
     add(obstacles, o)
-    _log("practice_spawn:boss")
+    _log("practice_spawn:boss:stage3")
   end
 end
 
@@ -2817,8 +2928,18 @@ function update_practice_play()
     elseif o.type == "orbiter" then
       o.orbit_angle += 0.05
     elseif o.type == "boss" then
-      o.wave_time += 0.03
-      o.x = o.base_x + sin(o.wave_time) * 30
+      -- boss stage behavior (practice uses stage 3)
+      o.wave_time += 0.06
+      o.vertical_time += 0.04
+      o.x = o.base_x + sin(o.wave_time) * 40
+      local base_y = o.y
+      o.y = base_y + sin(o.vertical_time) * 3
+      -- spawn satellites in practice mode too
+      o.satellite_timer += 1
+      if o.satellite_timer >= 90 then
+        o.satellite_timer = 0
+        spawn_satellite(o)
+      end
     end
 
     -- collision detection
@@ -2855,6 +2976,10 @@ function update_practice_play()
 
     -- remove off-screen obstacles
     if o.y > 140 then
+      -- cleanup satellites if boss removed
+      if o.type == "boss" and o.boss_id then
+        cleanup_satellites(o.boss_id)
+      end
       del(obstacles, o)
     end
   end
@@ -2925,8 +3050,16 @@ function draw_practice_play()
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
       circfill(sat2_x, sat2_y, 2, 10)
     elseif o.type == "boss" then
+      -- stage 3 boss in practice mode (pink palette)
+      pal(8, 14); pal(2, 14)
       spr(3, o.x - 4, o.y - 4)
-      circ(o.x, o.y, o.r + 2, 2)
+      pal()
+      circ(o.x, o.y, o.r - 2, 14)
+      circ(o.x, o.y, o.r + 2, 8)
+      circ(o.x, o.y, o.r + 4, 2)
+    elseif o.type == "satellite" then
+      circfill(o.x, o.y, o.r, 8)
+      circ(o.x, o.y, o.r + 1, 14)
     end
   end
 
@@ -3093,13 +3226,39 @@ function update_challenge()
       elseif o.type == "orbiter" then
         o.orbit_angle += 0.05
       elseif o.type == "boss" then
-        o.wave_time += 0.03
-        o.x = o.base_x + sin(o.wave_time) * 30
+        -- boss stage behavior
+        if o.boss_stage == 1 then
+          o.wave_time += 0.03
+          o.x = o.base_x + sin(o.wave_time) * 30
+        elseif o.boss_stage == 2 then
+          o.wave_time += 0.05
+          o.x = o.base_x + sin(o.wave_time) * 35
+        elseif o.boss_stage == 3 then
+          o.wave_time += 0.06
+          o.vertical_time += 0.04
+          o.x = o.base_x + sin(o.wave_time) * 40
+          local base_y = o.y
+          o.y = base_y + sin(o.vertical_time) * 3
+          o.satellite_timer += 1
+          if o.satellite_timer >= 90 then
+            o.satellite_timer = 0
+            spawn_satellite(o)
+          end
+        end
+      elseif o.type == "satellite" then
+        -- satellites orbit around their spawn point
+        o.orbit_angle += o.orbit_speed
+        o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius
+        o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius
       end
     end
 
     -- remove off-screen obstacles
     if o.y > 140 then
+      -- cleanup satellites if boss removed
+      if o.type == "boss" and o.boss_id then
+        cleanup_satellites(o.boss_id)
+      end
       del(obstacles, o)
       -- dodge bonus (2x for challenge mode)
       local bonus_mod = 1.0
@@ -3250,6 +3409,10 @@ function update_challenge()
         shield_time = 0  -- consume shield
         shake_screen(4, 0.5)  -- light shake
         spawn_particles(ball.x, ball.y, 10, 11)  -- cyan particles
+        -- cleanup satellites if boss was absorbed
+        if o.type == "boss" and o.boss_id then
+          cleanup_satellites(o.boss_id)
+        end
         del(obstacles, o)
         _log("shield_absorb")
       end
@@ -3340,8 +3503,25 @@ function draw_challenge()
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
       circfill(sat2_x, sat2_y, 2, 10)
     elseif o.type == "boss" then
+      -- stage-based boss rendering
+      local stage = o.boss_stage or 1
+      if stage == 2 then
+        pal(8, 9); pal(2, 9)
+      elseif stage == 3 then
+        pal(8, 14); pal(2, 14)
+      end
       spr(3, o.x - 4, o.y - 4)
-      circ(o.x, o.y, o.r + 2, 2)
+      pal()
+      local ring_col1 = stage == 3 and 14 or (stage == 2 and 9 or 14)
+      local ring_col2 = stage == 3 and 8 or 9
+      circ(o.x, o.y, o.r - 2, ring_col1)
+      circ(o.x, o.y, o.r + 2, ring_col2)
+      if stage == 3 then
+        circ(o.x, o.y, o.r + 4, 2)
+      end
+    elseif o.type == "satellite" then
+      circfill(o.x, o.y, o.r, 8)
+      circ(o.x, o.y, o.r + 1, 14)
     end
   end
 
