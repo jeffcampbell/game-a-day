@@ -1,10 +1,38 @@
 # Bounce King - Game Assessment
-**Date:** 2026-02-27 (Obstacle Theme Customization Review)
-**Status:** ✅ APPROVED - Critical issue fixed
+**Date:** 2026-02-27 (Cosmetic Unlock System Review)
+**Status:** ✅ APPROVED - Critical control flow bug fixed
 
 ---
 
-## Latest Review: Obstacle Theme Customization (2026-02-27)
+## Latest Review: Cosmetic Unlock System (2026-02-27)
+
+### Critical Issue Fixed ✅
+
+**Issue:** Cosmetics not unlocking when players set new personal bests
+- **Location:** Lines 1265, 2445-2471 (update_gameover function)
+- **Problem:** `check_cosmetic_unlocks()` was only called when `not new_record and leaderboard_rank == 0`, meaning it was SKIPPED when players achieved new personal bests
+- **Impact:** Players who improved and set new records would not unlock cosmetics even when meeting thresholds. This is backwards logic - cosmetics should unlock on successful games.
+- **Fix Applied:**
+  1. Added `cosmetics_checked_this_gameover` guard variable to init_game()
+  2. Moved `check_cosmetic_unlocks()` outside the `if not new_record` block
+  3. Added guard check to prevent duplicate calls within same gameover
+  4. Added `_log("cosmetics_checked")` for test verification
+- **Result:** Cosmetics now unlock on every gameover when conditions are met, regardless of whether the score is a new personal best or ranks in leaderboard
+- **Token Impact:** +4 lines (~5-10 tokens), total remains ~40% of limit
+
+**Architecture Verification:**
+- ✅ Bitmask design clean and efficient (8 bits for 8 cosmetics)
+- ✅ All unlock thresholds balanced and reasonable
+- ✅ Persistence in cartdata slot 63 working correctly
+- ✅ User feedback (floating text, SFX, shake) consistent with achievements
+- ✅ Settings menu properly displays locked cosmetics with unlock requirements
+- ✅ Test infrastructure intact with comprehensive logging
+
+**Commit:** ad52350 - "Fix cosmetic unlock bug: check on all gameovers, not just non-records"
+
+---
+
+## Previous Review: Obstacle Theme Customization (2026-02-27)
 
 ### Critical Issue Fixed ✅
 
@@ -408,4 +436,117 @@ Expand theme_map to include all 10 colors (0, 2, 5, 7, 8, 9, 10, 11, 12, 14) wit
 - Token budget: ✅ Expansion will add minimal tokens (~10-15)
 
 **Current state:** Feature incomplete, requires theme_map expansion before merge.
+
+---
+
+## Cosmetic Unlock System Feature (feature/cosmetic-unlock-system) - ❌ CHANGES REQUESTED
+
+**Status:** Critical control flow bug found - Cosmetics not checked on personal highscores
+
+### Feature Overview
+Achievement-based cosmetic unlock system that provides 8 cosmetics (2 ball skins, 2 trail styles, 4 color themes) unlocked through gameplay milestones:
+- **Gold ball:** score ≥ 300
+- **Cyan ball:** max_combo ≥ 15
+- **Rainbow trail:** total_powerups ≥ 15
+- **Pink theme:** danger_zone_pickups ≥ 5
+- **Gold theme:** max_multiplier ≥ 1.5
+- **Red theme:** diff_level ≥ 5
+- **Blue theme:** total_dodges ≥ 20
+- **White trail:** gametime ≥ 60 (seconds)
+
+### 🔴 CRITICAL BUG: Control Flow Error (Lines 1984, 2445, 2470)
+
+**Issue:** `check_cosmetic_unlocks()` is placed inside an `if not new_record` conditional block. This causes cosmetics to NOT be checked when a player achieves a new personal highscore - which is the exact scenario where cosmetics SHOULD be unlocked!
+
+**Broken Flow:**
+```lua
+Line 1984: if score > highscore then new_record = true  -- Set when new personal best
+Line 2445: if not new_record and leaderboard_rank == 0 then  -- Block SKIPPED if new_record is true
+  Line 2470: check_cosmetic_unlocks()  -- NEVER CALLED for new personal bests!
+end
+```
+
+**Impact:** Cosmetics will ONLY unlock when scores DON'T set new personal bests. This is backwards - players improving their best should get cosmetic rewards, not the opposite.
+
+**Test Case:** Player scores 600 (beats previous 500, ranks #3):
+- Line 1984: `new_record = true` ✓
+- Line 2445: `if not new_record` → FALSE, block skipped ✗
+- Cosmetics not unlocked ✗
+
+**Fix Required:** Move `check_cosmetic_unlocks()` outside the `if not new_record` block with its own guard to prevent duplicate calls per gameover session.
+
+### Gametime Threshold: Correctly Fixed ✅
+
+The white trail threshold was previously incorrect but has been properly fixed:
+```lua
+Line 1682: if gametime >= 1800 and (cosmetics_unlocked & 128) == 0 then  -- CORRECT: 1800 frames = 60 seconds at 30 FPS
+```
+- PICO-8 runs at 30 FPS, so 60 seconds = 1800 frames ✓
+- Matches UI text: "white: survive 60s" (line 1091) ✓
+- Aligns with other checks: survivor achievement uses 900 frames (30 seconds) ✓
+
+### What Works Excellently ✅
+
+**Architecture:**
+- ✅ Bitmask design is clean and efficient (8 bits for 8 cosmetics)
+- ✅ All bit assignments consistent between unlock checks and UI usage
+- ✅ Duplicate unlock prevention with `(cosmetics_unlocked & bit) == 0` guards
+- ✅ Proper separation: cosmetic unlocks removed from achievement system
+
+**Variable Tracking:**
+- ✅ `max_combo` properly initialized and updated on dodge
+- ✅ `total_dodges` properly initialized and incremented
+- ✅ `total_powerups` properly initialized and incremented
+- ✅ `max_multiplier` properly initialized and updated
+- ✅ `danger_zone_pickups` persistent across games (not reset)
+
+**Persistence:**
+- ✅ Stored in cartdata slot 63
+- ✅ Loaded on startup
+- ✅ Saved when cosmetics unlock
+- ✅ Saved when selections change
+
+**Settings Menu:**
+- ✅ Ball skins cycle with unlock checks
+- ✅ Trail effects cycle with unlock checks
+- ✅ Color themes cycle with unlock checks
+- ✅ Locked cosmetics show unlock requirements
+- ✅ Bit checks match unlock conditions
+
+**User Feedback:**
+- ✅ Floating text on unlock with cosmetic name
+- ✅ SFX 6 plays on unlock (matches achievement feedback)
+- ✅ Screen shake (12 frames, 1.2 intensity)
+- ✅ Y-coordinates within display bounds
+
+**Code Quality:**
+- ✅ Test infrastructure intact (all _log calls present)
+- ✅ No nil dereferences
+- ✅ Each cosmetic checked individually
+- ✅ Consistent formatting and style
+- ✅ Token budget healthy (~120 tokens added)
+
+### Required Changes
+
+**1. CRITICAL: Fix control flow to check cosmetics on ALL game-over scenarios**
+
+The `check_cosmetic_unlocks()` call must execute regardless of whether `new_record` was set. Suggested fix:
+
+```lua
+-- check for leaderboard entry (only once)
+if not new_record and leaderboard_rank == 0 then
+  -- leaderboard ranking logic...
+  new_record = true
+end
+
+-- check cosmetics SEPARATELY (always run this check)
+if leaderboard_rank == 0 and not cosmetics_checked_this_gameover then
+  check_cosmetic_unlocks()
+  cosmetics_checked_this_gameover = true
+end
+```
+
+Or move `check_cosmetic_unlocks()` before the entire leaderboard block.
+
+**Status After Fix:** This feature will be production-ready once control flow is corrected.
 

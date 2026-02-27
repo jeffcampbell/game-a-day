@@ -1074,12 +1074,36 @@ function draw_settings()
     print("dodge score bonus", 14, 86, 5)
     print("generous: 1.5x", 20, 92, 6)
     print("stingy: 0.7x", 22, 98, 6)
+  elseif settings_selection == 3 then
+    print("ball skin cosmetic", 18, 96, 5)
+    if (cosmetics_unlocked & 1) == 0 then
+      print("gold: score 300+", 20, 102, 6)
+    end
+    if (cosmetics_unlocked & 2) == 0 then
+      print("cyan: combo 15+", 22, 108, 6)
+    end
   elseif settings_selection == 8 then
-    print("ball trail style", 18, 102, 5)
-    print("unlock via achievements", 6, 108, 6)
+    print("ball trail style", 18, 96, 5)
+    if (cosmetics_unlocked & 4) == 0 then
+      print("rainbow: 15+ powerups", 12, 102, 6)
+    end
+    if (cosmetics_unlocked & 128) == 0 then
+      print("white: survive 60s", 14, 108, 6)
+    end
   elseif settings_selection == 9 then
-    print("color theme overlay", 14, 102, 5)
-    print("unlock via achievements", 6, 108, 6)
+    print("color theme overlay", 14, 96, 5)
+    if (cosmetics_unlocked & 8) == 0 then
+      print("pink: 5+ danger zones", 10, 102, 6)
+    end
+    if (cosmetics_unlocked & 16) == 0 then
+      print("gold: 1.5x multiplier", 8, 108, 6)
+    end
+    if (cosmetics_unlocked & 32) == 0 then
+      print("red: diff_level 5+", 12, 114, 6)
+    end
+    if (cosmetics_unlocked & 64) == 0 then
+      print("blue: 20+ dodges", 16, 120, 6)
+    end
   end
 
   print("up/down: navigate", 16, 110, 13)
@@ -1238,6 +1262,7 @@ function init_game()
   new_record = false  -- reset new record flag
   new_record_flash = 0
   leaderboard_rank = 0  -- reset rank
+  cosmetics_checked_this_gameover = false  -- reset cosmetic check flag
   gametime = 0
   multiplier = 1.0
   diff_level = 1
@@ -1563,12 +1588,6 @@ function unlock_achievement(id)
   local ach = ach_definitions[id]
   _log("achievement:"..ach.name)
 
-  -- unlock corresponding cosmetic
-  local cosmetic_bit = id - 1  -- achievement 1 -> bit 0, etc
-  cosmetics_unlocked = cosmetics_unlocked | (1 << cosmetic_bit)
-  save_cosmetics()
-  _log("cosmetic_unlocked:bit="..cosmetic_bit)
-
   -- visual/audio feedback
   play_sfx(6)  -- achievement sound
   shake(12, 1.2)
@@ -1577,6 +1596,104 @@ function unlock_achievement(id)
 
   -- save immediately
   save_achievements()
+end
+
+-- cosmetic unlocks (separate from achievements)
+function check_cosmetic_unlocks()
+  local unlocked_any = false
+
+  -- bit 0: gold ball (score 300+)
+  if score >= 300 and (cosmetics_unlocked & 1) == 0 then
+    cosmetics_unlocked = cosmetics_unlocked | 1
+    add_floating_text(64, 50, "unlocked!", 10)
+    add_floating_text(64, 60, "gold ball", 9)
+    play_sfx(6)
+    shake(12, 1.2)
+    unlocked_any = true
+    _log("cosmetic_unlock:gold_ball")
+  end
+
+  -- bit 1: cyan ball (combo 15+)
+  if max_combo >= 15 and (cosmetics_unlocked & 2) == 0 then
+    cosmetics_unlocked = cosmetics_unlocked | 2
+    add_floating_text(64, 50, "unlocked!", 10)
+    add_floating_text(64, 60, "cyan ball", 12)
+    play_sfx(6)
+    shake(12, 1.2)
+    unlocked_any = true
+    _log("cosmetic_unlock:cyan_ball")
+  end
+
+  -- bit 2: rainbow trail (15+ power-ups)
+  if total_powerups >= 15 and (cosmetics_unlocked & 4) == 0 then
+    cosmetics_unlocked = cosmetics_unlocked | 4
+    add_floating_text(64, 50, "unlocked!", 10)
+    add_floating_text(64, 60, "rainbow trail", 14)
+    play_sfx(6)
+    shake(12, 1.2)
+    unlocked_any = true
+    _log("cosmetic_unlock:rainbow_trail")
+  end
+
+  -- bit 3: pink theme (5+ danger zone pickups)
+  if danger_zone_pickups >= 5 and (cosmetics_unlocked & 8) == 0 then
+    cosmetics_unlocked = cosmetics_unlocked | 8
+    add_floating_text(64, 50, "unlocked!", 10)
+    add_floating_text(64, 60, "pink theme", 14)
+    play_sfx(6)
+    shake(12, 1.2)
+    unlocked_any = true
+    _log("cosmetic_unlock:pink_theme")
+  end
+
+  -- bit 4: gold theme (1.5x+ multiplier)
+  if max_multiplier >= 1.5 and (cosmetics_unlocked & 16) == 0 then
+    cosmetics_unlocked = cosmetics_unlocked | 16
+    add_floating_text(64, 50, "unlocked!", 10)
+    add_floating_text(64, 60, "gold theme", 10)
+    play_sfx(6)
+    shake(12, 1.2)
+    unlocked_any = true
+    _log("cosmetic_unlock:gold_theme")
+  end
+
+  -- bit 5: red theme (diff_level 5+)
+  if diff_level >= 5 and (cosmetics_unlocked & 32) == 0 then
+    cosmetics_unlocked = cosmetics_unlocked | 32
+    add_floating_text(64, 50, "unlocked!", 10)
+    add_floating_text(64, 60, "red theme", 8)
+    play_sfx(6)
+    shake(12, 1.2)
+    unlocked_any = true
+    _log("cosmetic_unlock:red_theme")
+  end
+
+  -- bit 6: blue theme (20+ dodges)
+  if total_dodges >= 20 and (cosmetics_unlocked & 64) == 0 then
+    cosmetics_unlocked = cosmetics_unlocked | 64
+    add_floating_text(64, 50, "unlocked!", 10)
+    add_floating_text(64, 60, "blue theme", 12)
+    play_sfx(6)
+    shake(12, 1.2)
+    unlocked_any = true
+    _log("cosmetic_unlock:blue_theme")
+  end
+
+  -- bit 7: white trail (60+ seconds survival)
+  if gametime >= 1800 and (cosmetics_unlocked & 128) == 0 then
+    cosmetics_unlocked = cosmetics_unlocked | 128
+    add_floating_text(64, 50, "unlocked!", 10)
+    add_floating_text(64, 60, "white trail", 7)
+    play_sfx(6)
+    shake(12, 1.2)
+    unlocked_any = true
+    _log("cosmetic_unlock:white_trail")
+  end
+
+  -- save if any unlocked
+  if unlocked_any then
+    save_cosmetics()
+  end
 end
 
 -- play state
@@ -2349,6 +2466,13 @@ function update_gameover()
       shake(20, 0.5)
       _log("leaderboard_rank:"..rank)
     end
+  end
+
+  -- check for cosmetic unlocks (once per gameover, regardless of new record)
+  if not cosmetics_checked_this_gameover then
+    check_cosmetic_unlocks()
+    cosmetics_checked_this_gameover = true
+    _log("cosmetics_checked")
   end
 
   -- if ranked, wait for O button to enter initials
