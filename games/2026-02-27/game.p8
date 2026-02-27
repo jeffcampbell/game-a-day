@@ -58,7 +58,10 @@ last_entry_rank = 0  -- highlight player's last entry
 music_enabled = true  -- toggle music on/off
 sfx_enabled = true  -- toggle sfx on/off
 ball_skin = 1  -- ball appearance: 1=white, 2=gold, 3=cyan
-settings_selection = 1  -- current settings menu cursor (1-4)
+spawn_rate = 2  -- 1=easy(slow), 2=normal, 3=hard(fast)
+diff_scaling = 2  -- 1=conservative(15s), 2=normal(10s), 3=aggressive(5s)
+combo_bonus = 2  -- 1=generous(1.5x), 2=normal(1.0x), 3=stingy(0.7x)
+settings_selection = 1  -- current settings menu cursor (1-7)
 skins_used = {}  -- track which skins have been selected
 
 -- danger zones system
@@ -203,11 +206,17 @@ function load_settings()
   local m = dget(1)
   local s = dget(2)
   local b = dget(3)
+  local sr = dget(64)
+  local ds = dget(65)
+  local cb = dget(66)
 
   -- default to enabled if not set
   music_enabled = m == 0 or m == 1
   sfx_enabled = s == 0 or s == 1
   ball_skin = b >= 1 and b <= 3 and b or 1
+  spawn_rate = sr >= 1 and sr <= 3 and sr or 2
+  diff_scaling = ds >= 1 and ds <= 3 and ds or 2
+  combo_bonus = cb >= 1 and cb <= 3 and cb or 2
 
   -- track current skin as used
   skins_used[ball_skin] = true
@@ -219,6 +228,9 @@ function save_settings()
   dset(1, music_enabled and 1 or 0)
   dset(2, sfx_enabled and 1 or 0)
   dset(3, ball_skin)
+  dset(64, spawn_rate)
+  dset(65, diff_scaling)
+  dset(66, combo_bonus)
   _log("settings_saved")
 end
 
@@ -848,7 +860,7 @@ function update_settings()
       input_cooldown = 10
     end
     if input & 8 > 0 then  -- down
-      settings_selection = min(4, settings_selection + 1)
+      settings_selection = min(7, settings_selection + 1)
       play_sfx(1)
       _log("settings_nav:down")
       input_cooldown = 10
@@ -877,6 +889,20 @@ function update_settings()
         if all_used and not achievements[7] then
           unlock_achievement(7)
         end
+      elseif settings_selection == 4 then
+        -- controls info (no toggle)
+      elseif settings_selection == 5 then
+        spawn_rate = spawn_rate % 3 + 1  -- cycle 1->2->3->1
+        play_sfx(1)
+        _log("spawn_rate:"..spawn_rate)
+      elseif settings_selection == 6 then
+        diff_scaling = diff_scaling % 3 + 1  -- cycle 1->2->3->1
+        play_sfx(1)
+        _log("diff_scaling:"..diff_scaling)
+      elseif settings_selection == 7 then
+        combo_bonus = combo_bonus % 3 + 1  -- cycle 1->2->3->1
+        play_sfx(1)
+        _log("combo_bonus:"..combo_bonus)
       end
       save_settings()  -- persist changes
       input_cooldown = 10
@@ -894,44 +920,64 @@ function update_settings()
 end
 
 function draw_settings()
-  print("settings", 44, 20, 7)
+  print("settings", 44, 10, 7)
 
   -- music toggle
   local col1 = settings_selection == 1 and 10 or 6
   local check1 = music_enabled and "\x8e" or "\x83"  -- checkmark or X
-  print("> music: "..check1, 28, 36, col1)
+  print("> music: "..check1, 20, 20, col1)
 
   -- sfx toggle
   local col2 = settings_selection == 2 and 10 or 6
   local check2 = sfx_enabled and "\x8e" or "\x83"
-  print("> sfx: "..check2, 28, 46, col2)
+  print("> sfx: "..check2, 20, 28, col2)
 
   -- ball skin
   local col3 = settings_selection == 3 and 10 or 6
   local skin_names = {"white", "gold", "cyan"}
-  print("> ball: "..skin_names[ball_skin], 28, 56, col3)
-
-  -- ball preview with current skin
-  local prev_x = 90
-  local prev_y = 58
-  local skin_col = get_ball_skin_color()
-  circfill(prev_x, prev_y, 3, skin_col)
-  circ(prev_x, prev_y, 3, 7)
+  print("> ball: "..skin_names[ball_skin], 20, 36, col3)
 
   -- controls reference
   local col4 = settings_selection == 4 and 10 or 6
-  print("> controls", 28, 66, col4)
+  print("> controls", 20, 44, col4)
 
-  -- show controls if selected
+  -- spawn rate
+  local col5 = settings_selection == 5 and 10 or 6
+  local spawn_names = {"easy", "normal", "hard"}
+  print("> spawn: "..spawn_names[spawn_rate], 20, 56, col5)
+
+  -- difficulty scaling
+  local col6 = settings_selection == 6 and 10 or 6
+  local scale_names = {"slow", "normal", "fast"}
+  print("> scaling: "..scale_names[diff_scaling], 20, 64, col6)
+
+  -- combo bonus
+  local col7 = settings_selection == 7 and 10 or 6
+  local bonus_names = {"generous", "normal", "stingy"}
+  print("> bonus: "..bonus_names[combo_bonus], 20, 72, col7)
+
+  -- show details for current selection
   if settings_selection == 4 then
-    print("arrows: move ball", 12, 78, 5)
-    print("o: confirm/toggle", 12, 84, 5)
-    print("x: pause/back", 18, 90, 5)
+    print("arrows: move ball", 8, 86, 5)
+    print("o: confirm/toggle", 8, 92, 5)
+    print("x: pause/back", 14, 98, 5)
+  elseif settings_selection == 5 then
+    print("obstacle spawn rate", 12, 86, 5)
+    print("easy: 20% slower", 16, 92, 6)
+    print("hard: 20% faster", 16, 98, 6)
+  elseif settings_selection == 6 then
+    print("difficulty ramp speed", 8, 86, 5)
+    print("slow: every 15s", 16, 92, 6)
+    print("fast: every 5s", 18, 98, 6)
+  elseif settings_selection == 7 then
+    print("dodge score bonus", 14, 86, 5)
+    print("generous: 1.5x", 20, 92, 6)
+    print("stingy: 0.7x", 22, 98, 6)
   end
 
-  print("up/down: navigate", 16, 106, 13)
-  print("o: toggle option", 18, 112, 13)
-  print("x: back to menu", 18, 118, 13)
+  print("up/down: navigate", 16, 110, 13)
+  print("o: toggle", 30, 116, 13)
+  print("x: back", 36, 122, 13)
 end
 
 -- leaderboard state
@@ -1129,6 +1175,13 @@ function init_game()
     obs_interval = 40
   end
 
+  -- apply spawn rate modifier
+  if spawn_rate == 1 then  -- easy (20% slower)
+    obs_interval = flr(obs_interval * 1.2)
+  elseif spawn_rate == 3 then  -- hard (20% faster)
+    obs_interval = flr(obs_interval * 0.8)
+  end
+
   -- initialize danger zones
   danger_zones = {
     {x_min=0, x_max=42, active=false, pulse=0},     -- left
@@ -1207,6 +1260,13 @@ function init_challenge()
   else
     scroll_speed = 0.8
     obs_interval = 40
+  end
+
+  -- apply spawn rate modifier
+  if spawn_rate == 1 then  -- easy (20% slower)
+    obs_interval = flr(obs_interval * 1.2)
+  elseif spawn_rate == 3 then  -- hard (20% faster)
+    obs_interval = flr(obs_interval * 0.8)
   end
 
   -- initialize danger zones
@@ -1307,8 +1367,13 @@ function update_play()
 
   gametime += 1
 
-  -- difficulty progression
-  if gametime % 600 == 0 then
+  -- difficulty progression (apply scaling setting)
+  local scale_interval = 600  -- normal = every 10s
+  if diff_scaling == 1 then scale_interval = 900  -- conservative = every 15s
+  elseif diff_scaling == 3 then scale_interval = 300  -- aggressive = every 5s
+  end
+
+  if gametime % scale_interval == 0 then
     diff_level += 1
     scroll_speed += 0.1
     obs_interval = max(20, obs_interval - 5)
@@ -1588,8 +1653,14 @@ function update_play()
         _log("danger_dodge:zone"..ball_zone)
       end
 
+      -- apply combo bonus modifier
+      local bonus_mod = 1.0
+      if combo_bonus == 1 then bonus_mod = 1.5  -- generous
+      elseif combo_bonus == 3 then bonus_mod = 0.7  -- stingy
+      end
+
       local combo_mult = 1 + flr(combo / 5)
-      local bonus = flr(base_bonus * combo_mult)
+      local bonus = flr(base_bonus * combo_mult * bonus_mod)
       score += bonus
       total_dodge_bonus += bonus
 
@@ -3032,7 +3103,11 @@ function update_challenge()
     if o.y > 140 then
       del(obstacles, o)
       -- dodge bonus (2x for challenge mode)
-      local bonus = flr(10 * multiplier * 2)
+      local bonus_mod = 1.0
+      if combo_bonus == 1 then bonus_mod = 1.5  -- generous
+      elseif combo_bonus == 3 then bonus_mod = 0.7  -- stingy
+      end
+      local bonus = flr(10 * multiplier * 2 * bonus_mod)
       challenge_score += bonus
       combo += 1
       max_combo = max(max_combo, combo)
@@ -3216,8 +3291,13 @@ function update_challenge()
     end
   end
 
-  -- difficulty progression
-  if gametime % 300 == 0 and gametime > 0 then
+  -- difficulty progression (apply scaling setting)
+  local scale_interval = 600  -- normal = every 10s
+  if diff_scaling == 1 then scale_interval = 900  -- conservative = every 15s
+  elseif diff_scaling == 3 then scale_interval = 300  -- aggressive = every 5s
+  end
+
+  if gametime % scale_interval == 0 and gametime > 0 then
     diff_level = min(diff_level + 1, 10)
     wave_pulse = 20
     _log("difficulty_up:"..diff_level)
