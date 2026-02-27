@@ -1482,10 +1482,10 @@ function update_play()
       shake_time = 8
 
       -- 4. distinct sfx
-      sfx(psfx)
+      sfx(ps)
 
       del(powerups, p)
-      _log("sfx:powerup_"..pname)
+      _log("sfx:powerup_"..pn)
       _log("pickup:powerup:total="..total_powerups)
     end
 
