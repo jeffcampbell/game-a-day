@@ -2080,79 +2080,88 @@ function draw_play()
   -- obstacles (sprite-based)
   for o in all(obstacles) do
     if o.type == "spike" then
-      -- sprite 0: spike
-      if o.in_danger then pal(8, 14) end  -- pink in danger
-      if obstacles_frozen then pal(2, 12) end  -- cyan outline when frozen
+      -- sprite 0: spike - apply theme colors
+      pal(8, theme_color(8)); pal(2, theme_color(2))
+      if o.in_danger then pal(8, 14) end  -- pink in danger (overrides theme)
+      if obstacles_frozen then pal(2, 12) end  -- cyan outline when frozen (overrides theme)
       spr(0, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "moving" then
-      -- sprite 1: moving horizontal bar
-      if o.in_danger then pal(12, 8) end  -- red in danger
-      if obstacles_frozen then pal(12, 12) end  -- cyan when frozen
+      -- sprite 1: moving horizontal bar - apply theme colors
+      pal(12, theme_color(12)); pal(0, theme_color(0))
+      if o.in_danger then pal(12, 8) end  -- red in danger (overrides theme)
+      if obstacles_frozen then pal(12, 12) end  -- cyan when frozen (preserves)
       spr(1, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "rotating" then
-      -- sprite 2: rotating gear
-      if o.in_danger then pal(14, 15) end  -- white in danger
-      if obstacles_frozen then pal(7, 12) end  -- cyan tint when frozen
+      -- sprite 2: rotating gear - apply theme colors
+      pal(14, theme_color(14)); pal(7, theme_color(7))
+      if o.in_danger then pal(14, 15) end  -- white in danger (overrides theme)
+      if obstacles_frozen then pal(7, 12) end  -- cyan tint when frozen (overrides theme)
       spr(2, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "boss" then
       -- sprite 3: boss face with stage-based color palette
       -- stage 1: default, stage 2: orange, stage 3: pink
       if o.boss_stage == 2 then
-        pal(8, 9); pal(2, 9)  -- orange palette for stage 2
+        pal(8, theme_color(9)); pal(2, theme_color(9))  -- orange palette for stage 2 (themed)
       elseif o.boss_stage == 3 then
-        pal(8, 14); pal(2, 14)  -- pink palette for stage 3
+        pal(8, theme_color(14)); pal(2, theme_color(14))  -- pink palette for stage 3 (themed)
+      else
+        pal(8, theme_color(8)); pal(2, theme_color(2))  -- default stage 1 (themed)
       end
-      if o.in_danger then pal(8, 8); pal(2, 8) end  -- red override for danger
+      if o.in_danger then pal(8, 8); pal(2, 8) end  -- red override for danger (overrides theme)
       spr(3, o.x - 4, o.y - 4)
       pal()
       -- pulsing ring effect with stage intensity
       if not obstacles_frozen then
         local pulse = sin(gametime / 15) * 2
-        local ring_col1 = o.boss_stage == 3 and 14 or (o.boss_stage == 2 and 9 or 14)
-        local ring_col2 = o.boss_stage == 3 and 8 or 9
+        local ring_col1 = theme_color(o.boss_stage == 3 and 14 or (o.boss_stage == 2 and 9 or 14))
+        local ring_col2 = theme_color(o.boss_stage == 3 and 8 or 9)
         circ(o.x, o.y, o.r - 2 + pulse, ring_col1)
         circ(o.x, o.y, o.r + 2 + pulse, ring_col2)
         -- stage 3: additional outer ring
         if o.boss_stage == 3 then
-          circ(o.x, o.y, o.r + 4 + pulse, 2)
+          circ(o.x, o.y, o.r + 4 + pulse, theme_color(2))
         end
       else
-        circ(o.x, o.y, o.r, 12)  -- cyan ring when frozen
+        circ(o.x, o.y, o.r, 12)  -- cyan ring when frozen (no theme)
       end
     elseif o.type == "pendulum" then
       -- sprite 4: pendulum weight with chain
-      line(o.base_x, 0, o.x, o.y, 5)
-      if o.in_danger then pal(9, 8) end  -- red in danger
-      if obstacles_frozen then pal(9, 12) end  -- cyan when frozen
+      line(o.base_x, 0, o.x, o.y, theme_color(5))  -- themed chain
+      pal(9, theme_color(9)); pal(5, theme_color(5))
+      if o.in_danger then pal(9, 8) end  -- red in danger (overrides theme)
+      if obstacles_frozen then pal(9, 12) end  -- cyan when frozen (overrides theme)
       spr(4, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "zigzag" then
-      -- sprite 5: zigzag wave
-      if o.in_danger then pal(11, 8); pal(12, 8) end  -- red in danger
-      if obstacles_frozen then pal(11, 12); pal(12, 12) end  -- cyan when frozen
+      -- sprite 5: zigzag wave - apply theme colors
+      pal(11, theme_color(11)); pal(12, theme_color(12))
+      if o.in_danger then pal(11, 8); pal(12, 8) end  -- red in danger (overrides theme)
+      if obstacles_frozen then pal(11, 12); pal(12, 12) end  -- cyan when frozen (preserves cyan)
       spr(5, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "orbiter" then
-      -- sprite 6: center core + orbit ring
-      if o.in_danger then pal(2, 8); pal(5, 8) end  -- red in danger
+      -- sprite 6: center core + orbit ring - apply theme colors
+      pal(2, theme_color(2)); pal(5, theme_color(5))
+      if o.in_danger then pal(2, 8); pal(5, 8) end  -- red in danger (overrides theme)
       spr(6, o.x - 4, o.y - 4)
       pal()
-      -- satellites (small sprites)
+      -- satellites (small sprites) with theme colors
       local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
       local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
-      circfill(sat1_x, sat1_y, 2, o.in_danger and 14 or 9)
+      local sat_col = o.in_danger and 14 or theme_color(9)
+      circfill(sat1_x, sat1_y, 2, sat_col)
       if obstacles_frozen then circ(sat1_x, sat1_y, 2, 12) end
       local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
-      circfill(sat2_x, sat2_y, 2, o.in_danger and 14 or 9)
+      circfill(sat2_x, sat2_y, 2, sat_col)
       if obstacles_frozen then circ(sat2_x, sat2_y, 2, 12) end
     elseif o.type == "satellite" then
-      -- boss satellites: small spinning obstacles
-      circfill(o.x, o.y, o.r, 8)  -- red core
-      circ(o.x, o.y, o.r + 1, 14)  -- pink outline
+      -- boss satellites: small spinning obstacles with theme colors
+      circfill(o.x, o.y, o.r, theme_color(8))  -- themed core
+      circ(o.x, o.y, o.r + 1, theme_color(14))  -- themed outline
     end
   end
 
@@ -3288,39 +3297,51 @@ function draw_practice_play()
   local ball_col = (ball_skin == 1 and 7) or (ball_skin == 2 and 10) or 12
   circfill(ball.x, ball.y, ball.r, ball_col)
 
-  -- draw obstacles (sprite-based)
+  -- draw obstacles (sprite-based) with theme colors
   for o in all(obstacles) do
     if o.type == "spike" then
+      pal(8, theme_color(8)); pal(2, theme_color(2))
       spr(0, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "moving" then
+      pal(12, theme_color(12)); pal(0, theme_color(0))
       spr(1, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "rotating" then
+      pal(14, theme_color(14)); pal(7, theme_color(7))
       spr(2, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "pendulum" then
-      line(o.base_x, 0, o.x, o.y, 6)
+      line(o.base_x, 0, o.x, o.y, theme_color(5))
+      pal(9, theme_color(9)); pal(5, theme_color(5))
       spr(4, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "zigzag" then
+      pal(11, theme_color(11)); pal(12, theme_color(12))
       spr(5, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "orbiter" then
+      pal(2, theme_color(2)); pal(5, theme_color(5))
       spr(6, o.x - 4, o.y - 4)
-      -- satellites
+      pal()
+      -- satellites with theme colors
       local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
       local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
-      circfill(sat1_x, sat1_y, 2, 10)
+      circfill(sat1_x, sat1_y, 2, theme_color(9))
       local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
-      circfill(sat2_x, sat2_y, 2, 10)
+      circfill(sat2_x, sat2_y, 2, theme_color(9))
     elseif o.type == "boss" then
-      -- stage 3 boss in practice mode (pink palette)
-      pal(8, 14); pal(2, 14)
+      -- stage 3 boss in practice mode with theme colors
+      pal(8, theme_color(14)); pal(2, theme_color(14))
       spr(3, o.x - 4, o.y - 4)
       pal()
-      circ(o.x, o.y, o.r - 2, 14)
-      circ(o.x, o.y, o.r + 2, 8)
-      circ(o.x, o.y, o.r + 4, 2)
+      circ(o.x, o.y, o.r - 2, theme_color(14))
+      circ(o.x, o.y, o.r + 2, theme_color(8))
+      circ(o.x, o.y, o.r + 4, theme_color(2))
     elseif o.type == "satellite" then
-      circfill(o.x, o.y, o.r, 8)
-      circ(o.x, o.y, o.r + 1, 14)
+      circfill(o.x, o.y, o.r, theme_color(8))
+      circ(o.x, o.y, o.r + 1, theme_color(14))
     end
   end
 
@@ -3818,48 +3839,62 @@ function draw_challenge()
   if ball_flash > 0 then ball_col = 7 end
   circfill(ball.x, ball.y, ball.r, ball_col)
 
-  -- draw obstacles (sprite-based)
+  -- draw obstacles (sprite-based) with theme colors
   for o in all(obstacles) do
     if o.type == "spike" then
+      pal(8, theme_color(8)); pal(2, theme_color(2))
       spr(0, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "moving" then
+      pal(12, theme_color(12)); pal(0, theme_color(0))
       spr(1, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "rotating" then
+      pal(14, theme_color(14)); pal(7, theme_color(7))
       spr(2, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "pendulum" then
-      line(o.base_x, 0, o.x, o.y, 6)
+      line(o.base_x, 0, o.x, o.y, theme_color(5))
+      pal(9, theme_color(9)); pal(5, theme_color(5))
       spr(4, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "zigzag" then
+      pal(11, theme_color(11)); pal(12, theme_color(12))
       spr(5, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "orbiter" then
+      pal(2, theme_color(2)); pal(5, theme_color(5))
       spr(6, o.x - 4, o.y - 4)
-      -- satellites
+      pal()
+      -- satellites with theme colors
       local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
       local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
-      circfill(sat1_x, sat1_y, 2, 10)
+      circfill(sat1_x, sat1_y, 2, theme_color(9))
       local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
-      circfill(sat2_x, sat2_y, 2, 10)
+      circfill(sat2_x, sat2_y, 2, theme_color(9))
     elseif o.type == "boss" then
-      -- stage-based boss rendering
+      -- stage-based boss rendering with theme colors
       local stage = o.boss_stage or 1
       if stage == 2 then
-        pal(8, 9); pal(2, 9)
+        pal(8, theme_color(9)); pal(2, theme_color(9))
       elseif stage == 3 then
-        pal(8, 14); pal(2, 14)
+        pal(8, theme_color(14)); pal(2, theme_color(14))
+      else
+        pal(8, theme_color(8)); pal(2, theme_color(2))
       end
       spr(3, o.x - 4, o.y - 4)
       pal()
-      local ring_col1 = stage == 3 and 14 or (stage == 2 and 9 or 14)
-      local ring_col2 = stage == 3 and 8 or 9
+      local ring_col1 = theme_color(stage == 3 and 14 or (stage == 2 and 9 or 14))
+      local ring_col2 = theme_color(stage == 3 and 8 or 9)
       circ(o.x, o.y, o.r - 2, ring_col1)
       circ(o.x, o.y, o.r + 2, ring_col2)
       if stage == 3 then
-        circ(o.x, o.y, o.r + 4, 2)
+        circ(o.x, o.y, o.r + 4, theme_color(2))
       end
     elseif o.type == "satellite" then
-      circfill(o.x, o.y, o.r, 8)
-      circ(o.x, o.y, o.r + 1, 14)
+      circfill(o.x, o.y, o.r, theme_color(8))
+      circ(o.x, o.y, o.r + 1, theme_color(14))
     end
   end
 
