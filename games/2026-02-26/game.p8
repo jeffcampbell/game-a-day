@@ -45,8 +45,10 @@ pause_cooldown = 0
 difficulty_preset = 2
 
 -- pattern system (active during waves)
-pattern_type = nil  -- nil, 1=convergence, 2=scatter, 3=zigzag
+pattern_type = nil  -- nil, 1=convergence, 2=scatter, 3=zigzag, 4=spiral, 5=sweep, 6=spread
+pattern_type2 = nil  -- second pattern for hard mode
 pattern_timer = 0
+pattern_timer2 = 0
 
 -- combo system
 combo = 0
@@ -91,6 +93,9 @@ meteor_rate = 60
 wave_state = "idle"
 wave_timer = 0
 wave_warning = 0
+wave_count = 0
+wave_intensity = 0  -- 0=low, 1=med, 2=high, 3=critical
+wave_border_pulse = 0
 
 -- boss meteor system
 boss_active = false
@@ -190,11 +195,18 @@ function _draw()
 
   camera()
 
-  -- draw screen flash (milestone effect)
+  -- draw screen flash (wave intensity or milestone effect)
   if screen_flash > 0 then
-    local flash_alpha = screen_flash / 10
+    local flash_alpha = screen_flash / 15
     if flash_alpha > 0.3 then
-      rectfill(0, 0, 127, 127, 10)  -- yellow flash
+      -- color based on wave intensity (yellow > orange > red)
+      local flash_col = 10  -- yellow (default)
+      if wave_intensity >= 3 then
+        flash_col = 8  -- red (critical)
+      elseif wave_intensity >= 2 then
+        flash_col = 9  -- orange (high)
+      end
+      rectfill(0, 0, 127, 127, flash_col)
     end
   end
 
@@ -264,8 +276,13 @@ function update_menu()
     last_score_time = t()
     game_start_time = t()
     wave_state = "idle"
+    wave_count = 0
+    wave_intensity = 0
+    wave_border_pulse = 0
     pattern_type = nil
+    pattern_type2 = nil
     pattern_timer = 0
+    pattern_timer2 = 0
     multiplier = 1.0
     max_multiplier = 1.0
     last_mult_milestone = 1.0
@@ -367,6 +384,16 @@ function get_mode_name()
   else return "normal" end
 end
 
+function get_pattern_name(p)
+  if p == 1 then return "convergence"
+  elseif p == 2 then return "scatter"
+  elseif p == 3 then return "zigzag"
+  elseif p == 4 then return "spiral"
+  elseif p == 5 then return "sweep"
+  elseif p == 6 then return "spread"
+  else return "normal" end
+end
+
 function spawn_meteor()
   -- determine meteor type based on difficulty
   -- types: 1=fast/red, 2=slow/blue, 3=normal/gray
@@ -415,20 +442,47 @@ function spawn_meteor()
   -- calculate spawn position and velocity based on pattern
   local spawn_x, vx = rnd(112) + 8, 0
   local vy = (1 + rnd(1 + difficulty * 0.3)) * speed_mult
+  local spawn_pattern = pattern_type
+  local spiral_angle = 0
+  local sweep_side = 0
 
-  if pattern_type == 1 then
+  -- choose pattern (if dual patterns active, pick one randomly)
+  if pattern_type2 and rnd(1) < 0.5 then
+    spawn_pattern = pattern_type2
+  end
+
+  if spawn_pattern == 1 then
     -- convergence: spawn wider, arc toward center
     spawn_x = rnd(128)
     local center_dir = sgn(64 - spawn_x)
     vx = center_dir * 0.3
-  elseif pattern_type == 2 then
+  elseif spawn_pattern == 2 then
     -- scatter: spawn center, spread outward
     spawn_x = 56 + rnd(16)
     vx = (spawn_x - 64) / 20
-  elseif pattern_type == 3 then
+  elseif spawn_pattern == 3 then
     -- zigzag: spawn offset, oscillate
     spawn_x = rnd(112) + 8
     -- oscillation handled in update
+  elseif spawn_pattern == 4 then
+    -- spiral: circular spiral formation
+    spiral_angle = rnd(1)
+    spawn_x = 64 + cos(spiral_angle) * 40
+    vx = cos(spiral_angle + 0.25) * 0.8  -- tangent motion
+  elseif spawn_pattern == 5 then
+    -- sweep: enter from sides, sweep across
+    sweep_side = flr(rnd(2))  -- 0=left, 1=right
+    if sweep_side == 0 then
+      spawn_x = -8
+      vx = 1.2
+    else
+      spawn_x = 136
+      vx = -1.2
+    end
+  elseif spawn_pattern == 6 then
+    -- spread: spread outward from center
+    spawn_x = 64
+    vx = (rnd(1) - 0.5) * 1.5
   end
 
   add(meteors, {
@@ -441,7 +495,9 @@ function spawn_meteor()
     crad = crad,
     near_player = false,
     near_miss_logged = false,
-    zigzag_phase = rnd(1)  -- for zigzag pattern
+    zigzag_phase = rnd(1),  -- for zigzag pattern
+    spiral_angle = spiral_angle,  -- for spiral pattern
+    sweep_side = sweep_side  -- for sweep pattern
   })
 
   local tname = "normal"
@@ -650,6 +706,11 @@ function update_play()
     multiplier_pulse -= 1
   end
 
+  -- update wave border pulse
+  if wave_border_pulse > 0 then
+    wave_border_pulse -= 1
+  end
+
   -- increase difficulty over time
   difficulty = 1 + flr(t() / 30)
   local base_rate = max(20, 60 - difficulty * 3)
@@ -667,8 +728,9 @@ function update_play()
 
     if wave_state == "idle" then
       -- clear pattern when not in wave
-      if pattern_type != nil then
+      if pattern_type != nil or pattern_type2 != nil then
         pattern_type = nil
+        pattern_type2 = nil
         _log("pattern:normal")
       end
 
@@ -687,6 +749,22 @@ function update_play()
       if wave_timer <= 0 then
         -- start wave
         wave_state = "active"
+        wave_count += 1
+
+        -- calculate wave intensity based on wave count and survival time
+        local survival = flr(t() - game_start_time)
+        if survival >= 90 or wave_count >= 6 then
+          wave_intensity = 3  -- critical
+        elseif survival >= 60 or wave_count >= 4 then
+          wave_intensity = 2  -- high
+        elseif survival >= 30 or wave_count >= 2 then
+          wave_intensity = 1  -- medium
+        else
+          wave_intensity = 0  -- low
+        end
+
+        -- border pulse on wave start
+        wave_border_pulse = 30
 
         -- hard mode: longer, more intense waves
         if difficulty_preset == 3 then
@@ -697,30 +775,64 @@ function update_play()
 
         wave_warning = 0
 
-        -- initialize pattern system
-        pattern_type = 1  -- start with convergence
+        -- select pattern based on survival time and intensity
+        local max_pattern = mid(1, 3 + flr(survival / 30), 6)
+        pattern_type = flr(rnd(max_pattern)) + 1
         pattern_timer = 240 + rnd(120)  -- 4-6 seconds
-        _log("wave_pattern:convergence")
+
+        -- hard mode: dual patterns
+        if difficulty_preset == 3 then
+          pattern_type2 = flr(rnd(max_pattern)) + 1
+          -- ensure different patterns
+          if pattern_type2 == pattern_type then
+            pattern_type2 = (pattern_type % max_pattern) + 1
+          end
+          pattern_timer2 = 300 + rnd(120)  -- 5-7 seconds
+          _log("wave_pattern:"..get_pattern_name(pattern_type).."+"..get_pattern_name(pattern_type2))
+        else
+          pattern_type2 = nil
+          _log("wave_pattern:"..get_pattern_name(pattern_type))
+        end
+
+        -- intensity-based screen flash
+        if wave_intensity >= 3 then
+          screen_flash = 15
+        elseif wave_intensity >= 2 then
+          screen_flash = 12
+        elseif wave_intensity >= 1 then
+          screen_flash = 8
+        end
 
         sfx(3)
-        _log("wave_start")
+        _log("wave_start:"..wave_count..":intensity="..wave_intensity)
       end
     elseif wave_state == "active" then
       -- wave is active - spawn meteors faster
 
       -- rotate patterns during wave
+      local survival = flr(t() - game_start_time)
+      local max_pattern = mid(1, 3 + flr(survival / 30), 6)
+
       pattern_timer -= 1
       if pattern_timer <= 0 then
         -- cycle to next pattern
-        pattern_type += 1
-        if pattern_type > 3 then pattern_type = 1 end
-
+        pattern_type = flr(rnd(max_pattern)) + 1
         pattern_timer = 240 + rnd(120)  -- 4-6 seconds
+        _log("wave_pattern:"..get_pattern_name(pattern_type))
+      end
 
-        local pname = "convergence"
-        if pattern_type == 2 then pname = "scatter"
-        elseif pattern_type == 3 then pname = "zigzag" end
-        _log("wave_pattern:"..pname)
+      -- rotate second pattern (hard mode only)
+      if pattern_type2 then
+        pattern_timer2 -= 1
+        if pattern_timer2 <= 0 then
+          pattern_type2 = flr(rnd(max_pattern)) + 1
+          -- ensure different from first pattern
+          if pattern_type2 == pattern_type then
+            pattern_type2 = (pattern_type % max_pattern) + 1
+          end
+          pattern_timer2 = 300 + rnd(120)  -- 5-7 seconds
+          _log("wave_pattern2:"..get_pattern_name(pattern_type2))
+        end
       end
 
       -- boss spawn logic
@@ -768,6 +880,7 @@ function update_play()
         boss_meteor = nil
         boss_warning = 0
         pattern_type = nil
+        pattern_type2 = nil
         _log("wave_end")
       end
     end
@@ -815,10 +928,17 @@ function update_play()
       m.x += m.vx
     end
 
-    -- zigzag pattern: oscillate left/right
-    if pattern_type == 3 then
+    -- pattern-specific movement updates
+    if pattern_type == 3 or pattern_type2 == 3 then
+      -- zigzag pattern: oscillate left/right
       m.zigzag_phase += 0.02
       m.x += cos(m.zigzag_phase) * 1.5
+    end
+
+    if (pattern_type == 4 or pattern_type2 == 4) and m.spiral_angle then
+      -- spiral pattern: rotate while descending
+      m.spiral_angle += 0.015
+      m.vx = cos(m.spiral_angle + 0.25) * 0.8
     end
 
     -- track if meteor gets near player (dodge zone)
@@ -1542,10 +1662,45 @@ function draw_play()
     end
   end
 
-  -- wave active indicator
+  -- wave border pulse on wave start
+  if wave_border_pulse > 0 then
+    local pulse_size = wave_border_pulse / 6
+    local col = 10  -- yellow
+    if wave_intensity >= 3 then col = 8  -- red
+    elseif wave_intensity >= 2 then col = 9 end  -- orange
+    rect(0, 0, 127, 127, col)
+    if pulse_size > 2 then
+      rect(1, 1, 126, 126, col)
+    end
+  end
+
+  -- wave intensity indicator
   if wave_state == "active" then
-    local pulse_col = 8 + flr(t() * 4) % 2
-    print("wave!", 2, 14, pulse_col)
+    local wave_text = "wave "..wave_count
+    local intensity_col = 10  -- yellow
+    if wave_intensity >= 3 then
+      wave_text = "critical!"
+      intensity_col = 8  -- red
+    elseif wave_intensity >= 2 then
+      wave_text = "danger!"
+      intensity_col = 9  -- orange
+    elseif wave_intensity >= 1 then
+      wave_text = "wave "..wave_count
+      intensity_col = 10  -- yellow
+    end
+
+    local pulse_col = intensity_col
+    if wave_intensity >= 2 then
+      pulse_col = intensity_col + (flr(t() * 8) % 2) * -1
+    end
+    print(wave_text, 2, 14, pulse_col)
+
+    -- pattern indicator (bottom-left)
+    local pattern_text = get_pattern_name(pattern_type)
+    if pattern_type2 then
+      pattern_text = get_pattern_name(pattern_type).."+"..get_pattern_name(pattern_type2)
+    end
+    print(pattern_text, 2, 120, 7)
   end
 
   -- draw player
