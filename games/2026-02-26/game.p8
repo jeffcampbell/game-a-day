@@ -40,6 +40,7 @@ difficulty = 1
 last_score_time = 0
 last_difficulty = 1
 pause_cooldown = 0
+gameover_timer = 0
 
 -- difficulty preset: 1=zen, 2=normal, 3=hard
 difficulty_preset = 2
@@ -582,6 +583,10 @@ function update_fade()
       -- switch state at peak fade
       if next_state then
         state = next_state
+        -- initialize gameover timer
+        if state == "gameover" then
+          gameover_timer = 0
+        end
         next_state = nil
         _log("state:"..state)
       end
@@ -1436,6 +1441,8 @@ function calculate_achievements()
 end
 
 function update_gameover()
+  gameover_timer += 1
+
   -- log achievements on first frame
   if not achievements_logged then
     for a in all(achievements) do
@@ -1884,48 +1891,130 @@ function draw_play()
 end
 
 function draw_gameover()
-  -- title
-  print("game over!", 36, 4, 8)
+  -- title with pulse on high scores
+  local title_col = 8
+  if score >= 10000 then
+    title_col = 8 + (flr(gameover_timer / 4) % 2)
+  end
+  print("game over!", 36, 4, title_col)
 
-  -- score section
-  print("final score: "..score, 3, 14, 7)
-  if score == highscore and score > 0 then
-    print("new high score!", 28, 20, 10)
-  else
-    print("high score: "..highscore, 3, 20, 10)
+  -- score section - animate in first (frames 0-8)
+  if gameover_timer >= 0 then
+    local score_col = 10
+    if score >= 10000 then score_col = 12
+    elseif score >= 5000 then score_col = 10
+    else score_col = 7 end
+
+    print("final score:", 30, 14, 7)
+    print(score, 64 - (#tostr(score) * 2), 20, score_col)
+
+    if score == highscore and score > 0 then
+      print("new high score!", 28, 28, 10)
+    end
   end
 
-  -- metrics section
-  print("--- stats ---", 32, 30, 13)
-  print("time: "..survival_time.."s", 3, 38, 6)
-  print("max combo: x"..max_combo, 3, 44, 6)
-
-  -- multiplier stats
-  local avg_mult = 1.0
-  if multiplier_sample_count > 0 then
-    avg_mult = flr((multiplier_samples / multiplier_sample_count) * 10) / 10
+  -- metrics section header (frame 8)
+  if gameover_timer >= 8 then
+    print("--- stats ---", 32, 38, 13)
   end
-  local max_mult_rounded = flr(max_multiplier * 10) / 10
-  print("max mult: "..max_mult_rounded.."x", 3, 50, 6)
-  print("avg mult: "..avg_mult.."x", 3, 56, 6)
 
-  print("bosses: "..boss_dodges, 3, 62, 6)
-  print("stars: "..total_stars, 3, 68, 6)
-  print("power-ups: "..total_powerups, 3, 74, 6)
+  local y = 46
+  local spacing = 6
 
-  -- achievements section
-  local ach_y = 84
-  if #achievements > 0 then
+  -- time (frame 12) - color based on survival
+  if gameover_timer >= 12 then
+    local time_col = 6
+    if survival_time >= 120 then time_col = 12
+    elseif survival_time >= 60 then time_col = 10
+    elseif survival_time >= 30 then time_col = 9 end
+    print("\139 time: "..survival_time.."s", 3, y, time_col)
+    _log("metric_display:time:"..survival_time)
+  end
+  y += spacing
+
+  -- max combo (frame 15)
+  if gameover_timer >= 15 then
+    local combo_col = 6
+    if max_combo >= 100 then combo_col = 12
+    elseif max_combo >= 50 then combo_col = 10
+    elseif max_combo >= 25 then combo_col = 9 end
+    print("\148 combo: x"..max_combo, 3, y, combo_col)
+    _log("metric_display:max_combo:"..max_combo)
+  end
+  y += spacing
+
+  -- max multiplier (frame 18)
+  if gameover_timer >= 18 then
+    local max_mult_rounded = flr(max_multiplier * 10) / 10
+    local mult_col = 6
+    if max_multiplier >= 5.0 then mult_col = 12
+    elseif max_multiplier >= 3.0 then mult_col = 10
+    elseif max_multiplier >= 2.0 then mult_col = 9 end
+    print("\151 mult: "..max_mult_rounded.."x", 3, y, mult_col)
+    _log("metric_display:max_multiplier:"..max_mult_rounded)
+  end
+  y += spacing
+
+  -- wave count (frame 21)
+  if gameover_timer >= 21 then
+    local wave_col = 6
+    if wave_count >= 10 then wave_col = 12
+    elseif wave_count >= 6 then wave_col = 10
+    elseif wave_count >= 3 then wave_col = 9 end
+    print("\131 waves: "..wave_count, 3, y, wave_col)
+    _log("metric_display:wave_count:"..wave_count)
+  end
+  y += spacing
+
+  -- stars (frame 24)
+  if gameover_timer >= 24 then
+    local star_col = 6
+    if total_stars >= 20 then star_col = 12
+    elseif total_stars >= 10 then star_col = 10
+    elseif total_stars >= 5 then star_col = 9 end
+    print("\143 stars: "..total_stars, 3, y, star_col)
+    _log("metric_display:total_stars:"..total_stars)
+  end
+  y += spacing
+
+  -- power-ups (frame 27)
+  if gameover_timer >= 27 then
+    local pwrup_col = 6
+    if total_powerups >= 10 then pwrup_col = 12
+    elseif total_powerups >= 5 then pwrup_col = 10
+    elseif total_powerups >= 3 then pwrup_col = 14 end
+    print("\014 power: "..total_powerups, 3, y, pwrup_col)
+    _log("metric_display:total_powerups:"..total_powerups)
+  end
+  y += spacing
+
+  -- bosses dodged (frame 30)
+  if gameover_timer >= 30 then
+    local boss_col = 6
+    if boss_dodges >= 5 then boss_col = 12
+    elseif boss_dodges >= 3 then boss_col = 10
+    elseif boss_dodges >= 1 then boss_col = 8 end
+    print("\007 bosses: "..boss_dodges, 3, y, boss_col)
+    _log("metric_display:boss_dodges:"..boss_dodges)
+  end
+
+  -- achievements section (frame 35)
+  if gameover_timer >= 35 and #achievements > 0 then
+    local ach_y = 96
     print("achievements:", 26, ach_y, 7)
     ach_y += 8
-    for a in all(achievements) do
-      print("\151 "..a.text, 20, ach_y, a.col)
+    for i, a in pairs(achievements) do
+      -- stagger achievement appearance
+      if gameover_timer >= 35 + (i * 3) then
+        print("\151 "..a.text, 20, ach_y, a.col)
+      end
       ach_y += 6
     end
   end
 
-  -- retry prompt
-  print("press z to retry", 22, 118, 11)
+  -- retry prompt (always visible, pulse)
+  local prompt_col = 11 + (flr(gameover_timer / 15) % 2)
+  print("press z to retry", 22, 118, prompt_col)
 end
 
 function draw_star(x, y)
