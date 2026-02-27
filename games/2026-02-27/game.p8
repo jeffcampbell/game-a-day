@@ -34,6 +34,9 @@ gametime = 0
 multiplier = 1.0
 diff_level = 1
 combo = 0
+difficulty = 2  -- 1=easy, 2=normal, 3=hard
+diff_selection = 2  -- current selection cursor
+input_cooldown = 0  -- navigation delay
 
 -- visual juice
 shake_time = 0
@@ -86,6 +89,8 @@ end
 function _update()
   if state == "menu" then
     update_menu()
+  elseif state == "difficulty_select" then
+    update_difficulty_select()
   elseif state == "play" then
     update_play()
   elseif state == "gameover" then
@@ -101,6 +106,8 @@ function _draw()
 
   if state == "menu" then
     draw_menu()
+  elseif state == "difficulty_select" then
+    draw_difficulty_select()
   elseif state == "play" then
     draw_play()
   elseif state == "gameover" then
@@ -144,9 +151,9 @@ end
 -- menu state
 function update_menu()
   if test_input() & 16 > 0 then
-    state = "play"
-    _log("state:play")
-    init_game()
+    state = "difficulty_select"
+    _log("state:difficulty_select")
+    diff_selection = difficulty  -- reset to last selected
   end
 end
 
@@ -159,6 +166,65 @@ function draw_menu()
   if highscore > 0 then
     print("high: "..highscore, 40, 110, 9)
   end
+end
+
+-- difficulty selection state
+function update_difficulty_select()
+  local input = test_input()
+
+  -- update cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+  end
+
+  -- navigation with cooldown
+  if input_cooldown == 0 then
+    if input & 4 > 0 then  -- up
+      diff_selection = max(1, diff_selection - 1)
+      sfx(1)
+      _log("difficulty_nav:up")
+      input_cooldown = 10
+    end
+    if input & 8 > 0 then  -- down
+      diff_selection = min(3, diff_selection + 1)
+      sfx(1)
+      _log("difficulty_nav:down")
+      input_cooldown = 10
+    end
+  end
+
+  -- confirm
+  if input & 16 > 0 then  -- O button
+    difficulty = diff_selection
+    local diff_names = {"easy", "normal", "hard"}
+    _log("difficulty_select:"..diff_names[difficulty])
+    state = "play"
+    _log("state:play")
+    init_game()
+  end
+end
+
+function draw_difficulty_select()
+  print("select difficulty", 22, 30, 7)
+
+  -- easy option
+  local col1 = diff_selection == 1 and 10 or 6
+  print("> easy", 38, 50, col1)
+  print("slower obstacles", 16, 58, 5)
+  print("more forgiving", 20, 64, 5)
+
+  -- normal option
+  local col2 = diff_selection == 2 and 10 or 6
+  print("> normal", 34, 76, col2)
+  print("balanced gameplay", 14, 84, 5)
+
+  -- hard option
+  local col3 = diff_selection == 3 and 10 or 6
+  print("> hard", 38, 96, col3)
+  print("faster obstacles", 16, 104, 5)
+  print("real challenge", 22, 110, 5)
+
+  print("up/down: choose", 18, 122, 13)
 end
 
 -- game initialization
@@ -182,10 +248,21 @@ function init_game()
   shield_time = 0
   slowmo_time = 0
   doublescore_time = 0
-  scroll_speed = 0.5
-  obs_interval = 60
+
+  -- set initial parameters based on difficulty
+  if difficulty == 1 then  -- easy
+    scroll_speed = 0.3
+    obs_interval = 80
+  elseif difficulty == 2 then  -- normal
+    scroll_speed = 0.5
+    obs_interval = 60
+  elseif difficulty == 3 then  -- hard
+    scroll_speed = 0.8
+    obs_interval = 40
+  end
+
   music(0)  -- start background music
-  _log("game_init")
+  _log("game_init:difficulty="..difficulty)
 end
 
 -- play state
