@@ -69,6 +69,9 @@ doublescore_time = 0
 -- particle effects
 particles = {}
 
+-- floating text
+floating_texts = {}
+
 function _init()
   _log("state:menu")
 end
@@ -173,6 +176,7 @@ function init_game()
   obstacles = {}
   powerups = {}
   particles = {}
+  floating_texts = {}
   obs_timer = 0
   pu_timer = 0
   shield_time = 0
@@ -317,6 +321,18 @@ function update_play()
       shake(3, 0.4)  -- small shake on dodge
       _log("dodge_bonus:"..bonus)
       add_particles(ball.x, ball.y, 15, 11)  -- larger particle burst
+
+      -- floating text for dodge bonus
+      if combo_mult > 1 then
+        add_floating_text(ball.x - 8, ball.y - 12, "+"..bonus.." x"..combo_mult, 11)
+      else
+        add_floating_text(ball.x - 6, ball.y - 12, "+"..bonus, 11)
+      end
+
+      -- combo milestone text
+      if combo == 5 or combo == 10 or (combo > 10 and combo % 5 == 0) then
+        add_floating_text(ball.x - 12, ball.y - 20, "combo x"..combo.."!", 10)
+      end
     end
 
     -- cleanup
@@ -358,6 +374,15 @@ function update_play()
       del(particles, pt)
     end
   end
+
+  -- update floating texts
+  for ft in all(floating_texts) do
+    ft.y += ft.vy
+    ft.lifetime -= 1
+    if ft.lifetime <= 0 then
+      del(floating_texts, ft)
+    end
+  end
 end
 
 function draw_play()
@@ -393,6 +418,18 @@ function draw_play()
   -- particles
   for pt in all(particles) do
     pset(pt.x, pt.y, pt.col)
+  end
+
+  -- floating texts
+  for ft in all(floating_texts) do
+    -- fade based on remaining lifetime (30 frames total)
+    local alpha_step = flr(ft.lifetime / 10)
+    if alpha_step >= 2 then
+      print(ft.text, ft.x, ft.y, ft.col)
+    elseif alpha_step == 1 then
+      -- dimmer color in middle fade
+      print(ft.text, ft.x, ft.y, 5)
+    end
   end
 
   -- ball with flash effect and combo color
@@ -501,6 +538,9 @@ function collect_powerup(p)
 
   shake(8, 1.0)  -- medium shake on powerup collection
 
+  -- floating text for score bonus
+  add_floating_text(p.x - 6, p.y - 10, "+"..bonus, 10)
+
   if p.type == "shield" then
     shield_time = 90
     sfx(2)  -- shield powerup
@@ -527,6 +567,19 @@ function add_particles(x, y, count, col)
       life = 15 + rnd(10)
     })
   end
+end
+
+-- floating text system
+function add_floating_text(x, y, text, col)
+  add(floating_texts, {
+    x = x,
+    y = y,
+    text = text,
+    col = col,
+    vy = -0.5,
+    lifetime = 30
+  })
+  _log("floating_text:"..text)
 end
 
 __gfx__
