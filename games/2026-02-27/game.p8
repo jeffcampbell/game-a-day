@@ -35,6 +35,7 @@ multiplier = 1.0
 diff_level = 1
 combo = 0
 last_milestone = 0  -- track combo milestones
+lives = 3  -- player lives (max 3)
 difficulty = 2  -- 1=easy, 2=normal, 3=hard
 diff_selection = 2  -- current selection cursor
 input_cooldown = 0  -- navigation delay
@@ -54,6 +55,7 @@ shake_y = 0
 screen_flash = 0
 ball_flash = 0
 wave_pulse = 0  -- wave counter pulse effect
+life_flash = 0  -- flash lives counter when life lost
 
 -- ball physics
 ball = {
@@ -164,6 +166,11 @@ function _draw()
   -- update ball flash
   if ball_flash > 0 then
     ball_flash -= 1
+  end
+
+  -- update life flash
+  if life_flash > 0 then
+    life_flash -= 1
   end
 
   -- update wave pulse
@@ -305,6 +312,8 @@ function init_game()
   diff_level = 1
   combo = 0
   last_milestone = 0
+  lives = 3  -- start with 3 lives
+  life_flash = 0
   obstacles = {}
   powerups = {}
   particles = {}
@@ -525,27 +534,40 @@ function update_play()
       end
 
       if collision then
+        -- lose a life
+        lives -= 1
+        life_flash = 10  -- flash lives counter
+        _log("life_lost")
+        _log("lives:"..lives)
+
+        -- collision feedback
         sfx(7)  -- collision impact sound
-        music(-1)  -- stop music on game over
-        shake(12, 1.5 + diff_level * 0.2)  -- large shake, scales with difficulty
-        screen_flash = 3  -- white flash for 3 frames
+        shake(8, 1.0)  -- medium shake
         ball_flash = 3  -- flash ball white
-        add_particles(ball.x, ball.y, 20, 7)  -- large particle burst
+        add_particles(ball.x, ball.y, 15, 7)  -- particle burst
         combo = 0
         last_milestone = 0
         _log("combo_reset")
-        state = "gameover"
-        _log("state:gameover")
-        _log("final_score:"..score)
-        _log("max_combo:"..max_combo)
-        _log("total_dodges:"..total_dodges)
-        _log("total_powerups:"..total_powerups)
-        _log("multiplier:"..multiplier)
-        local avg = total_dodges > 0 and flr(total_dodge_bonus / total_dodges) or 0
-        _log("avg_bonus:"..avg)
-        if score > highscore then
-          highscore = score
-          _log("new_highscore:"..highscore)
+
+        -- remove this obstacle
+        del(obstacles, o)
+
+        -- check if game over
+        if lives <= 0 then
+          music(-1)  -- stop music on game over
+          state = "gameover"
+          _log("state:gameover")
+          _log("final_score:"..score)
+          _log("max_combo:"..max_combo)
+          _log("total_dodges:"..total_dodges)
+          _log("total_powerups:"..total_powerups)
+          _log("multiplier:"..multiplier)
+          local avg = total_dodges > 0 and flr(total_dodge_bonus / total_dodges) or 0
+          _log("avg_bonus:"..avg)
+          if score > highscore then
+            highscore = score
+            _log("new_highscore:"..highscore)
+          end
         end
         return
       end
@@ -782,6 +804,9 @@ function draw_play()
   -- ui
   print("score:"..score, 2, 2, 7)
   print("time:"..flr(gametime/30).."s", 2, 9, 7)
+  -- lives counter with flash effect
+  local lives_col = life_flash > 0 and (life_flash % 4 < 2 and 7 or 8) or 8
+  print("lives:"..lives, 2, 16, lives_col)
   print("x"..multiplier, 100, 2, 9)
   -- combo counter with milestone colors
   local combo_col = 7  -- white default
@@ -848,26 +873,30 @@ function draw_gameover()
   -- powerups collected
   print("powerups: "..total_powerups, 28, 68, 11)
 
+  -- lives used
+  local lives_used = 3 - lives
+  print("lives used: "..lives_used.."/3", 22, 76, 8)
+
   -- final multiplier
-  print("multiplier: x"..multiplier, 24, 76, 10)
+  print("multiplier: x"..multiplier, 24, 84, 10)
 
   -- average dodge bonus
   local avg_bonus = 0
   if total_dodges > 0 then
     avg_bonus = flr(total_dodge_bonus / total_dodges)
   end
-  print("avg bonus: "..avg_bonus, 26, 84, 12)
+  print("avg bonus: "..avg_bonus, 26, 92, 12)
 
   -- survival time
-  print("time: "..flr(gametime/30).."s", 36, 94, 6)
+  print("time: "..flr(gametime/30).."s", 36, 102, 6)
 
   -- high score message
   if score == highscore and score > 0 then
-    print("new high score!", 26, 104, 10)
+    print("new high score!", 26, 112, 10)
   end
 
   -- retry prompt
-  print("press o to retry", 24, 118, 13)
+  print("press o to retry", 24, 122, 13)
 end
 
 -- obstacle spawning
@@ -1021,6 +1050,12 @@ function collect_powerup(p)
 
   if p.type == "shield" then
     shield_time = 90
+    -- restore 1 life (up to max 3)
+    if lives < 3 then
+      lives += 1
+      _log("life_restored")
+      _log("lives:"..lives)
+    end
     sfx(2)  -- shield powerup
   elseif p.type == "slowmo" then
     slowmo_time = 60
