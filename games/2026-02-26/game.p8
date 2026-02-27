@@ -56,6 +56,13 @@ combo_pulse = 0
 near_misses = 0
 near_miss_pulse = 0
 
+-- multiplier system
+multiplier = 1.0
+max_multiplier = 1.0
+multiplier_pulse = 0
+multiplier_samples = 0
+multiplier_sample_count = 0
+
 -- floating text
 float_texts = {}
 
@@ -196,6 +203,11 @@ function update_menu()
     wave_state = "idle"
     pattern_type = nil
     pattern_timer = 0
+    multiplier = 1.0
+    max_multiplier = 1.0
+    multiplier_pulse = 0
+    multiplier_samples = 0
+    multiplier_sample_count = 0
 
     -- set wave timing based on difficulty preset
     if difficulty_preset == 1 then
@@ -226,6 +238,11 @@ function update_menu()
     survival_time = 0
     px = 60
     py = 100
+    multiplier = 1.0
+    max_multiplier = 1.0
+    multiplier_pulse = 0
+    multiplier_samples = 0
+    multiplier_sample_count = 0
     music(1)  -- gameplay music
     _log("music:play")
     _log("state:play")
@@ -407,6 +424,19 @@ function draw_particles()
   end
 end
 
+function add_score(points)
+  -- apply multiplier to score
+  local actual = flr(points * multiplier)
+  score += actual
+
+  -- track for average calculation
+  multiplier_samples += multiplier
+  multiplier_sample_count += 1
+
+  _log("score_add:"..points.."x"..multiplier.."="..actual)
+  return actual
+end
+
 function update_float_texts()
   for ft in all(float_texts) do
     ft.y += ft.vy
@@ -487,6 +517,11 @@ function update_play()
   -- update near-miss pulse
   if near_miss_pulse > 0 then
     near_miss_pulse -= 1
+  end
+
+  -- update multiplier pulse
+  if multiplier_pulse > 0 then
+    multiplier_pulse -= 1
   end
 
   -- increase difficulty over time
@@ -624,7 +659,7 @@ function update_play()
 
   -- score increases every second
   if t() - last_score_time >= 1 then
-    score += 1
+    add_score(1)
     last_score_time = t()
     if score % 10 == 0 then
       _log("score:"..score)
@@ -675,9 +710,28 @@ function update_play()
       if dist >= 12 and dist < 15 and m.y >= py - 10 then
         m.near_miss_logged = true
         near_misses += 1
-        score += 10
+
+        -- increase multiplier
+        local old_mult = flr(multiplier * 10) / 10
+        multiplier = min(5.0, multiplier + 0.2)
+        local new_mult = flr(multiplier * 10) / 10
+        multiplier_pulse = 10
+
+        -- track max multiplier
+        if multiplier > max_multiplier then
+          max_multiplier = multiplier
+          _log("max_mult:"..multiplier)
+        end
+
+        -- play tier-up sound
+        if new_mult > old_mult and (new_mult == 1.5 or new_mult == 2.0 or new_mult == 3.0 or new_mult == 4.0 or new_mult == 5.0) then
+          sfx(2)
+          _log("mult_tier:"..new_mult)
+        end
+
+        local points = add_score(10)
         near_miss_pulse = 5
-        _log("near_miss:score="..score)
+        _log("near_miss:mult="..multiplier..":score="..score)
 
         -- spawn gold particles
         spawn_particles(m.x, m.y, 8, 10, 1.5)
@@ -689,7 +743,7 @@ function update_play()
         add(float_texts, {
           x = m.x,
           y = m.y,
-          text = "+10",
+          text = "+"..points,
           age = 0,
           max_age = 30,
           vy = -0.5,
@@ -712,6 +766,13 @@ function update_play()
         _log("combo_reset:"..combo)
         combo = 0
         combo_pulse = 0
+      end
+
+      -- reset multiplier on hit
+      if multiplier > 1.0 then
+        _log("mult_reset:was="..multiplier)
+        multiplier = 1.0
+        multiplier_pulse = 0
       end
 
       -- check shield first
@@ -770,7 +831,7 @@ function update_play()
         -- milestone bonuses
         if combo == 10 or combo == 25 or combo == 50 or combo == 100 then
           local bonus = combo * 10
-          score += bonus
+          add_score(bonus)
           _log("combo_bonus:"..combo.."="..bonus)
         end
 
@@ -813,9 +874,28 @@ function update_play()
       if dist >= 15 and dist < 18 and boss_meteor.y >= py - 10 then
         boss_meteor.near_miss_logged = true
         near_misses += 1
-        score += 10
+
+        -- increase multiplier
+        local old_mult = flr(multiplier * 10) / 10
+        multiplier = min(5.0, multiplier + 0.2)
+        local new_mult = flr(multiplier * 10) / 10
+        multiplier_pulse = 10
+
+        -- track max multiplier
+        if multiplier > max_multiplier then
+          max_multiplier = multiplier
+          _log("max_mult:"..multiplier)
+        end
+
+        -- play tier-up sound
+        if new_mult > old_mult and (new_mult == 1.5 or new_mult == 2.0 or new_mult == 3.0 or new_mult == 4.0 or new_mult == 5.0) then
+          sfx(2)
+          _log("mult_tier:"..new_mult)
+        end
+
+        local points = add_score(10)
         near_miss_pulse = 5
-        _log("near_miss:boss:score="..score)
+        _log("near_miss:boss:mult="..multiplier..":score="..score)
 
         -- spawn gold particles
         spawn_particles(boss_meteor.x, boss_meteor.y, 10, 10, 2)
@@ -827,7 +907,7 @@ function update_play()
         add(float_texts, {
           x = boss_meteor.x,
           y = boss_meteor.y,
-          text = "+10",
+          text = "+"..points,
           age = 0,
           max_age = 30,
           vy = -0.5,
@@ -850,6 +930,13 @@ function update_play()
         _log("combo_reset:"..combo)
         combo = 0
         combo_pulse = 0
+      end
+
+      -- reset multiplier on hit
+      if multiplier > 1.0 then
+        _log("mult_reset:was="..multiplier)
+        multiplier = 1.0
+        multiplier_pulse = 0
       end
 
       -- boss deals double damage
@@ -893,7 +980,7 @@ function update_play()
     if boss_meteor.y > 136 then
       if boss_meteor.near_player then
         boss_dodges += 1
-        score += 200  -- boss bonus
+        add_score(200)  -- boss bonus
         shake_time = 10
         _log("boss_dodge:score="..score)
 
@@ -927,7 +1014,7 @@ function update_play()
     -- check collision with player
     if abs(s.x - px) < 6 and
        abs(s.y - py) < 6 then
-      score += 50
+      add_score(50)
       total_stars += 1
 
       -- spawn star particles
@@ -961,7 +1048,7 @@ function update_play()
     -- check collision with player
     if abs(p.x - px) < 6 and
        abs(p.y - py) < 6 then
-      score += 25
+      add_score(25)
       total_powerups += 1
 
       -- apply power-up effect
@@ -1020,6 +1107,9 @@ function calculate_achievements()
   end
   if total_powerups >= 5 then
     add(achievements, {text="power player", col=14})
+  end
+  if max_multiplier >= 5.0 then
+    add(achievements, {text="max multiplier!", col=8})
   end
 end
 
@@ -1287,6 +1377,32 @@ function draw_play()
     print(combo_text, combo_x, combo_y, combo_col)
   end
 
+  -- draw multiplier (center-top, only if >1.0)
+  if multiplier > 1.0 then
+    local mult_text = flr(multiplier * 10) / 10 .. "x"
+    local text_width = #mult_text * 4
+    local mult_x = 64 - text_width / 2
+    local mult_y = 2
+
+    -- color based on multiplier tier (spec: yellow 1.5x, orange 3x, red 5x)
+    local mult_col = 10  -- yellow (default for 1.0-2.9x)
+    if multiplier >= 5.0 then
+      mult_col = 8  -- red
+    elseif multiplier >= 3.0 then
+      mult_col = 9  -- orange
+    end
+
+    -- pulsate effect when multiplier increases
+    if multiplier_pulse > 0 then
+      local scale = 1 + multiplier_pulse / 20
+      mult_y -= flr(multiplier_pulse / 3)
+      -- draw shadow for emphasis
+      print(mult_text, mult_x + 1, mult_y + 1, 1)
+    end
+
+    print(mult_text, mult_x, mult_y, mult_col)
+  end
+
   -- draw lives
   for i=1,lives do
     circfill(125 - i * 8, 13, 2, 8)
@@ -1319,12 +1435,22 @@ function draw_gameover()
   print("--- stats ---", 32, 30, 13)
   print("time: "..survival_time.."s", 3, 38, 6)
   print("max combo: x"..max_combo, 3, 44, 6)
-  print("bosses: "..boss_dodges, 3, 50, 6)
-  print("stars: "..total_stars, 3, 56, 6)
-  print("power-ups: "..total_powerups, 3, 62, 6)
+
+  -- multiplier stats
+  local avg_mult = 1.0
+  if multiplier_sample_count > 0 then
+    avg_mult = flr((multiplier_samples / multiplier_sample_count) * 10) / 10
+  end
+  local max_mult_rounded = flr(max_multiplier * 10) / 10
+  print("max mult: "..max_mult_rounded.."x", 3, 50, 6)
+  print("avg mult: "..avg_mult.."x", 3, 56, 6)
+
+  print("bosses: "..boss_dodges, 3, 62, 6)
+  print("stars: "..total_stars, 3, 68, 6)
+  print("power-ups: "..total_powerups, 3, 74, 6)
 
   -- achievements section
-  local ach_y = 72
+  local ach_y = 84
   if #achievements > 0 then
     print("achievements:", 26, ach_y, 7)
     ach_y += 8
