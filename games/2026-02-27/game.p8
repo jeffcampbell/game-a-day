@@ -58,11 +58,14 @@ last_entry_rank = 0  -- highlight player's last entry
 music_enabled = true  -- toggle music on/off
 sfx_enabled = true  -- toggle sfx on/off
 ball_skin = 1  -- ball appearance: 1=white, 2=gold, 3=cyan
+trail_effect = 1  -- trail style: 1=basic, 2=rainbow, 3=white
+color_theme = 1  -- color scheme: 1=default, 2=pink, 3=gold, 4=red, 5=blue
 spawn_rate = 2  -- 1=easy(slow), 2=normal, 3=hard(fast)
 diff_scaling = 2  -- 1=conservative(15s), 2=normal(10s), 3=aggressive(5s)
 combo_bonus = 2  -- 1=generous(1.5x), 2=normal(1.0x), 3=stingy(0.7x)
-settings_selection = 1  -- current settings menu cursor (1-7)
+settings_selection = 1  -- current settings menu cursor (1-9)
 skins_used = {}  -- track which skins have been selected
+cosmetics_unlocked = 0  -- bitmask: bit0=gold ball, bit1=cyan ball, bit2=rainbow trail, bit3=pink theme, bit4=gold theme, bit5=red theme, bit6=blue theme, bit7=white trail
 
 -- danger zones system
 danger_zones = {}
@@ -186,6 +189,9 @@ function _init()
   -- load settings (slots 1-3)
   load_settings()
 
+  -- load cosmetics (slots 58-59, 63)
+  load_cosmetics()
+
   -- load leaderboard (slots 4-43, 4 per entry)
   load_leaderboard()
 
@@ -236,6 +242,41 @@ function save_settings()
   _log("settings_saved")
 end
 
+-- cosmetic persistence (slots 58-59, 63)
+function load_cosmetics()
+  local te = dget(58)
+  local ct = dget(59)
+  local cu = dget(63)
+
+  trail_effect = te >= 1 and te <= 3 and te or 1
+  color_theme = ct >= 1 and ct <= 5 and ct or 1
+  cosmetics_unlocked = cu >= 0 and cu or 0
+
+  _log("cosmetics_loaded:te="..trail_effect..",ct="..color_theme..",cu="..cosmetics_unlocked)
+end
+
+function save_cosmetics()
+  dset(58, trail_effect)
+  dset(59, color_theme)
+  dset(63, cosmetics_unlocked)
+  _log("cosmetics_saved")
+end
+
+-- apply color theme overlay to a color
+function theme_color(col)
+  if color_theme == 1 then return col end  -- default
+  -- theme color mappings: pink=14, gold=10, red=8, blue=12
+  local theme_map = {
+    [7] = {14, 10, 8, 12},  -- white -> themed
+    [10] = {9, 9, 8, 12},   -- yellow -> themed
+    [9] = {14, 10, 8, 1}    -- orange -> themed
+  }
+  if theme_map[col] then
+    return theme_map[col][color_theme - 1]
+  end
+  return col
+end
+
 -- achievement persistence (slots 44-51)
 function load_achievements()
   achievements = {}
@@ -265,9 +306,11 @@ end
 -- daily challenge persistence (slots 54-63)
 -- slot 54: challenge_best
 -- slot 55: challenge_seed
--- slots 56-59: daily_history (2 entries: seed, score, seed, score)
+-- slots 56-57: daily_history (1 entry: seed, score)
+-- slot 58: trail_effect (cosmetic unlock)
+-- slot 59: color_theme (cosmetic unlock)
 -- slots 60-62: difficulty settings (spawn_rate, diff_scaling, combo_bonus)
--- slot 63: reserved
+-- slot 63: cosmetics_unlocked (bitmask)
 function load_daily_challenge()
   -- generate today's seed
   challenge_seed = flr(time() / 86400)  -- 86400 = 24*60*60 seconds per day
@@ -286,15 +329,12 @@ function load_daily_challenge()
     dset(54, 0)
   end
 
-  -- load daily history (last 2 days)
+  -- load daily history (last 1 day)
   daily_history = {}
-  for i = 1, 2 do
-    local slot_base = 54 + i * 2
-    local day_seed = dget(slot_base)
-    local day_score = dget(slot_base + 1)
-    if day_seed > 0 then
-      add(daily_history, {seed = day_seed, score = day_score})
-    end
+  local day_seed = dget(56)
+  local day_score = dget(57)
+  if day_seed > 0 then
+    add(daily_history, {seed = day_seed, score = day_score})
   end
 
   _log("challenge_loaded:seed="..challenge_seed..",best="..challenge_best)
@@ -319,22 +359,19 @@ function save_daily_challenge()
   -- if not found, add new entry
   if not found then
     add(daily_history, {seed = challenge_seed, score = challenge_score})
-    -- keep only last 2 days
-    while #daily_history > 2 do
+    -- keep only last 1 day
+    while #daily_history > 1 do
       del(daily_history, daily_history[1])
     end
   end
 
-  -- save history to cartdata
-  for i = 1, 2 do
-    local slot_base = 54 + i * 2
-    if i <= #daily_history then
-      dset(slot_base, daily_history[i].seed)
-      dset(slot_base + 1, daily_history[i].score)
-    else
-      dset(slot_base, 0)
-      dset(slot_base + 1, 0)
-    end
+  -- save history to cartdata (only 1 day)
+  if #daily_history > 0 then
+    dset(56, daily_history[1].seed)
+    dset(57, daily_history[1].score)
+  else
+    dset(56, 0)
+    dset(57, 0)
   end
 
   _log("challenge_saved:score="..challenge_score..",best="..challenge_best)
@@ -864,7 +901,7 @@ function update_settings()
       input_cooldown = 10
     end
     if input & 8 > 0 then  -- down
-      settings_selection = min(7, settings_selection + 1)
+      settings_selection = min(9, settings_selection + 1)
       play_sfx(1)
       _log("settings_nav:down")
       input_cooldown = 10
@@ -884,7 +921,10 @@ function update_settings()
         play_sfx(1)
         _log("toggle_sfx:"..tostr(sfx_enabled))
       elseif settings_selection == 3 then
-        ball_skin = ball_skin % 3 + 1  -- cycle 1->2->3->1
+        -- ball skin: 1=white (always), 2=gold (unlock bit 0), 3=cyan (unlock bit 1)
+        repeat
+          ball_skin = ball_skin % 3 + 1
+        until ball_skin == 1 or (ball_skin == 2 and (cosmetics_unlocked & 1) > 0) or (ball_skin == 3 and (cosmetics_unlocked & 2) > 0)
         skins_used[ball_skin] = true  -- track skin usage
         play_sfx(1)
         _log("ball_skin:"..ball_skin)
@@ -907,8 +947,23 @@ function update_settings()
         combo_bonus = combo_bonus % 3 + 1  -- cycle 1->2->3->1
         play_sfx(1)
         _log("combo_bonus:"..combo_bonus)
+      elseif settings_selection == 8 then
+        -- trail effect: 1=basic (always), 2=rainbow (unlock bit 2), 3=white (unlock bit 7)
+        repeat
+          trail_effect = trail_effect % 3 + 1
+        until trail_effect == 1 or (trail_effect == 2 and (cosmetics_unlocked & 4) > 0) or (trail_effect == 3 and (cosmetics_unlocked & 128) > 0)
+        play_sfx(1)
+        _log("trail_effect:"..trail_effect)
+      elseif settings_selection == 9 then
+        -- color theme: 1=default (always), 2=pink (bit 3), 3=gold (bit 4), 4=red (bit 5), 5=blue (bit 6)
+        repeat
+          color_theme = color_theme % 5 + 1
+        until color_theme == 1 or (color_theme == 2 and (cosmetics_unlocked & 8) > 0) or (color_theme == 3 and (cosmetics_unlocked & 16) > 0) or (color_theme == 4 and (cosmetics_unlocked & 32) > 0) or (color_theme == 5 and (cosmetics_unlocked & 64) > 0)
+        play_sfx(1)
+        _log("color_theme:"..color_theme)
       end
       save_settings()  -- persist changes
+      save_cosmetics()  -- save cosmetic selections
       input_cooldown = 10
     end
   end
@@ -939,7 +994,11 @@ function draw_settings()
   -- ball skin
   local col3 = settings_selection == 3 and 10 or 6
   local skin_names = {"white", "gold", "cyan"}
-  print("> ball: "..skin_names[ball_skin], 20, 36, col3)
+  local skin_str = skin_names[ball_skin]
+  if ball_skin > 1 and (cosmetics_unlocked & (ball_skin == 2 and 1 or 2)) == 0 then
+    skin_str = skin_str.." \x94"  -- locked
+  end
+  print("> ball: "..skin_str, 20, 36, col3)
 
   -- controls reference
   local col4 = settings_selection == 4 and 10 or 6
@@ -960,6 +1019,27 @@ function draw_settings()
   local bonus_names = {"generous", "normal", "stingy"}
   print("> bonus: "..bonus_names[combo_bonus], 20, 72, col7)
 
+  -- trail effect
+  local col8 = settings_selection == 8 and 10 or 6
+  local trail_names = {"basic", "rainbow", "white"}
+  local trail_str = trail_names[trail_effect]
+  if trail_effect > 1 and (cosmetics_unlocked & (trail_effect == 2 and 4 or 128)) == 0 then
+    trail_str = trail_str.." \x94"  -- locked
+  end
+  print("> trail: "..trail_str, 20, 80, col8)
+
+  -- color theme
+  local col9 = settings_selection == 9 and 10 or 6
+  local theme_names = {"default", "pink", "gold", "red", "blue"}
+  local theme_str = theme_names[color_theme]
+  if color_theme > 1 then
+    local bit_map = {0, 8, 16, 32, 64}  -- theme 1=always, 2=bit3, 3=bit4, 4=bit5, 5=bit6
+    if (cosmetics_unlocked & bit_map[color_theme]) == 0 then
+      theme_str = theme_str.." \x94"  -- locked
+    end
+  end
+  print("> theme: "..theme_str, 20, 88, col9)
+
   -- show details for current selection
   if settings_selection == 4 then
     print("arrows: move ball", 8, 86, 5)
@@ -977,6 +1057,12 @@ function draw_settings()
     print("dodge score bonus", 14, 86, 5)
     print("generous: 1.5x", 20, 92, 6)
     print("stingy: 0.7x", 22, 98, 6)
+  elseif settings_selection == 8 then
+    print("ball trail style", 18, 102, 5)
+    print("unlock via achievements", 6, 108, 6)
+  elseif settings_selection == 9 then
+    print("color theme overlay", 14, 102, 5)
+    print("unlock via achievements", 6, 108, 6)
   end
 
   print("up/down: navigate", 16, 110, 13)
@@ -1350,6 +1436,12 @@ function unlock_achievement(id)
 
   local ach = ach_definitions[id]
   _log("achievement:"..ach.name)
+
+  -- unlock corresponding cosmetic
+  local cosmetic_bit = id - 1  -- achievement 1 -> bit 0, etc
+  cosmetics_unlocked = cosmetics_unlocked | (1 << cosmetic_bit)
+  save_cosmetics()
+  _log("cosmetic_unlocked:bit="..cosmetic_bit)
 
   -- visual/audio feedback
   play_sfx(6)  -- achievement sound
@@ -1980,13 +2072,22 @@ function draw_play()
     if intensity > 0.2 then
       local trail_r = ball.r * fade
       local trail_col = 6  -- base trail color
-      -- match ball color states
-      if shield_time > 0 then
-        trail_col = 11
-      elseif combo >= 10 then
-        trail_col = 15
+      -- apply trail effect
+      if trail_effect == 2 then
+        -- rainbow: cycle colors
+        trail_col = 8 + (tr.age % 8)
+      elseif trail_effect == 3 then
+        -- white: light colors
+        trail_col = 7
       else
-        trail_col = 10
+        -- basic: match ball color states
+        if shield_time > 0 then
+          trail_col = 11
+        elseif combo >= 10 then
+          trail_col = 15
+        else
+          trail_col = 10
+        end
       end
       -- fade to darker color
       if fade < 0.5 then
@@ -2648,7 +2749,7 @@ function add_floating_text(x, y, text, col)
     x = x,
     y = y,
     text = text,
-    col = col,
+    col = theme_color(col),  -- apply color theme
     vy = -0.5,
     lifetime = 30
   })
@@ -3031,6 +3132,12 @@ function draw_practice_play()
   for i, t in pairs(ball_trail) do
     if t.life > 0 then
       local trail_col = (ball_skin == 1 and 6) or (ball_skin == 2 and 9) or 12
+      -- apply trail effect
+      if trail_effect == 2 then
+        trail_col = 8 + (i % 8)  -- rainbow
+      elseif trail_effect == 3 then
+        trail_col = 7  -- white
+      end
       circfill(t.x, t.y, 1, trail_col)
     end
   end
@@ -3486,6 +3593,12 @@ function draw_challenge()
   for i, t in pairs(ball_trail) do
     if t.life > 0 then
       local trail_col = (ball_skin == 1 and 6) or (ball_skin == 2 and 9) or 12
+      -- apply trail effect
+      if trail_effect == 2 then
+        trail_col = 8 + (i % 8)  -- rainbow
+      elseif trail_effect == 3 then
+        trail_col = 7  -- white
+      end
       circfill(t.x, t.y, 1, trail_col)
     end
   end
