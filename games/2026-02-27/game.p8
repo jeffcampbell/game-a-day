@@ -270,10 +270,17 @@ end
 function theme_color(col)
   if color_theme == 1 then return col end  -- default
   -- theme color mappings: pink=14, gold=10, red=8, blue=12
+  -- expanded to cover all obstacle colors (0,2,5,7,8,9,11,12,14)
   local theme_map = {
-    [7] = {14, 10, 8, 12},  -- white -> themed
-    [10] = {9, 9, 8, 12},   -- yellow -> themed
-    [9] = {14, 10, 8, 1}    -- orange -> themed
+    [0] = {1, 1, 1, 1},      -- black -> dark across themes
+    [2] = {14, 9, 8, 12},    -- purple -> pink/orange/red/blue
+    [5] = {13, 9, 2, 13},    -- gray -> light pink/orange/dark purple/light blue
+    [7] = {14, 10, 8, 12},   -- white -> pink/gold/red/blue
+    [8] = {14, 10, 8, 8},    -- red -> pink/gold/red/red (stays red for red theme)
+    [9] = {14, 10, 8, 1},    -- orange -> pink/gold/red/dark
+    [11] = {14, 9, 8, 13},   -- peach -> pink/orange/red/light blue
+    [12] = {14, 10, 2, 12},  -- light blue -> pink/gold/dark purple/blue (stays blue for blue theme)
+    [14] = {14, 10, 8, 12}   -- white -> pink/gold/red/blue
   }
   if theme_map[col] then
     return theme_map[col][color_theme - 1]
