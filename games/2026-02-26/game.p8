@@ -128,6 +128,10 @@ next_state = nil
 -- tutorial system
 tutorial_page = 0  -- 0-2 for different tutorial screens
 
+-- leaderboard system
+leaderboard_view_mode = 1  -- 1=zen, 2=normal, 3=hard, 4=insane
+leaderboards = {}  -- {[1]={{score, time},...}, [2]=...}
+
 -- parallax background
 stars_bg = {}  -- background stars (slower)
 
@@ -141,6 +145,8 @@ function _init()
   -- load insane mode unlock state
   insane_unlocked = dget(2) == 1
   _log("insane_unlocked:"..tostr(insane_unlocked))
+  -- load leaderboards
+  load_leaderboards()
   music(0)  -- menu music
   -- initialize parallax background
   for i=1,30 do
@@ -169,6 +175,8 @@ function _update()
     update_menu()
   elseif state == "tutorial" then
     update_tutorial()
+  elseif state == "leaderboard" then
+    update_leaderboard()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -191,6 +199,8 @@ function _draw()
     draw_menu()
   elseif state == "tutorial" then
     draw_tutorial()
+  elseif state == "leaderboard" then
+    draw_leaderboard()
   elseif state == "play" then
     draw_play()
   elseif state == "pause" then
@@ -234,6 +244,77 @@ function _draw()
   end
 end
 
+-- leaderboard functions
+function load_leaderboards()
+  -- load top 5 scores for each difficulty
+  -- storage: slots 3-42 (10 values per difficulty)
+  -- zen=3-12, normal=13-22, hard=23-32, insane=33-42
+  for diff=1,4 do
+    leaderboards[diff] = {}
+    local base = 3 + (diff - 1) * 10
+    for i=1,5 do
+      local slot = base + (i - 1) * 2
+      local s = dget(slot)
+      local t = dget(slot + 1)
+      if s > 0 then
+        add(leaderboards[diff], {score=s, time=t})
+      end
+    end
+  end
+  _log("leaderboards_loaded")
+end
+
+function save_to_leaderboard(diff, new_score, new_time)
+  -- insert new score into leaderboard if it qualifies
+  local board = leaderboards[diff] or {}
+  local inserted = false
+
+  -- find insertion position (sorted by score desc, then time asc)
+  for i=1,#board do
+    if new_score > board[i].score or (new_score == board[i].score and new_time > board[i].time) then
+      -- insert here
+      for j=#board,i,-1 do
+        board[j + 1] = board[j]
+      end
+      board[i] = {score=new_score, time=new_time}
+      inserted = true
+      break
+    end
+  end
+
+  -- if not inserted and board has space, add to end
+  if not inserted and #board < 5 then
+    add(board, {score=new_score, time=new_time})
+    inserted = true
+  end
+
+  -- keep only top 5
+  while #board > 5 do
+    del(board, board[6])
+  end
+
+  leaderboards[diff] = board
+
+  -- save to cartridge data
+  local base = 3 + (diff - 1) * 10
+  for i=1,5 do
+    local slot = base + (i - 1) * 2
+    if board[i] then
+      dset(slot, board[i].score)
+      dset(slot + 1, board[i].time)
+    else
+      dset(slot, 0)
+      dset(slot + 1, 0)
+    end
+  end
+
+  if inserted then
+    _log("leaderboard_updated:diff"..diff..",score:"..new_score)
+  end
+
+  return inserted
+end
+
 function update_menu()
   local buttons = test_input()
 
@@ -249,6 +330,15 @@ function update_menu()
     dset(1, difficulty_preset)
     sfx(4)  -- ui sound
     _log("mode_select:"..get_mode_name())
+  end
+
+  -- enter leaderboard with up arrow
+  if (buttons & 4) > 0 then
+    sfx(4)  -- ui sound
+    _log("sfx:ui_select")
+    state = "leaderboard"
+    leaderboard_view_mode = difficulty_preset
+    _log("state:leaderboard")
   end
 
   -- enter tutorial with X button
@@ -1476,6 +1566,11 @@ function update_gameover()
     achievements_logged = true
   end
 
+  -- save score to leaderboard on first frame
+  if gameover_timer == 1 then
+    save_to_leaderboard(difficulty_preset, score, survival_time)
+  end
+
   -- check for insane mode unlock (Normal mode, 5000+ score)
   if gameover_timer == 1 and not insane_unlocked and difficulty_preset == 2 and score >= 5000 then
     insane_unlocked = true
@@ -1543,8 +1638,9 @@ function draw_menu()
     print("arrows to select", 24, 84, 6)
   end
 
-  print("press z to start", 22, 102, 11)
-  print("press x for help", 22, 110, 13)
+  print("press z to start", 22, 98, 11)
+  print("press x for help", 22, 106, 13)
+  print("\139 for leaderboard", 20, 114, 10)
 
   -- draw example meteors
   -- fast red
@@ -1634,6 +1730,102 @@ function draw_tutorial()
 
   -- navigation hint
   print("up/down: change page", 14, 122, 13)
+end
+
+function update_leaderboard()
+  local buttons = test_input()
+
+  -- navigate between difficulties
+  if (buttons & 1) > 0 and leaderboard_view_mode > 1 then
+    leaderboard_view_mode -= 1
+    sfx(4)
+    _log("leaderboard_view:"..get_diff_name(leaderboard_view_mode))
+  elseif (buttons & 2) > 0 and leaderboard_view_mode < 4 then
+    leaderboard_view_mode += 1
+    sfx(4)
+    _log("leaderboard_view:"..get_diff_name(leaderboard_view_mode))
+  end
+
+  -- return to menu with X
+  if (buttons & 32) > 0 then
+    sfx(4)
+    _log("sfx:ui_select")
+    state = "menu"
+    _log("state:menu")
+  end
+end
+
+function draw_leaderboard()
+  -- draw background stars
+  for s in all(stars_bg) do
+    local c = s.bright == 1 and 6 or 5
+    pset(s.x, s.y, c)
+  end
+
+  -- title
+  print("leaderboards", 32, 8, 7)
+
+  -- difficulty tabs
+  local tab_x = {6, 38, 72, 98}
+  local tab_names = {"zen", "norm", "hard", "insn"}
+  for i=1,4 do
+    local col = leaderboard_view_mode == i and 10 or 5
+    print(tab_names[i], tab_x[i], 18, col)
+    if leaderboard_view_mode == i then
+      print("\139", tab_x[i] - 2, 26, 10)  -- down arrow
+    end
+  end
+
+  -- current difficulty leaderboard
+  local board = leaderboards[leaderboard_view_mode] or {}
+  print(get_diff_name(leaderboard_view_mode).." mode", 36, 36, 11)
+
+  if #board == 0 then
+    print("no scores yet!", 28, 64, 6)
+  else
+    for i=1,#board do
+      local entry = board[i]
+      local y = 46 + i * 12
+
+      -- rank indicator
+      local rank_col = 10
+      if i == 1 then rank_col = 10  -- gold
+      elseif i == 2 then rank_col = 9  -- silver
+      elseif i == 3 then rank_col = 8  -- bronze
+      else rank_col = 6 end
+      print(i..".", 8, y, rank_col)
+
+      -- score (color-coded by tier)
+      local score_col = 7
+      if entry.score >= 10000 then score_col = 10
+      elseif entry.score >= 5000 then score_col = 11
+      elseif entry.score >= 2000 then score_col = 12
+      else score_col = 6 end
+      print(entry.score, 22, y, score_col)
+
+      -- survival time
+      local mins = flr(entry.time / 60)
+      local secs = flr(entry.time % 60)
+      local time_str = mins.."m"..secs.."s"
+      print(time_str, 70, y, 13)
+
+      -- star indicator for top scores
+      if entry.score >= 5000 then
+        print("\139", 118, y, 10)
+      end
+    end
+  end
+
+  -- instructions
+  print("arrows: switch mode", 14, 116, 13)
+  print("x: return to menu", 18, 124, 13)
+end
+
+function get_diff_name(d)
+  if d == 1 then return "zen"
+  elseif d == 2 then return "normal"
+  elseif d == 3 then return "hard"
+  else return "insane" end
 end
 
 function draw_pause()
