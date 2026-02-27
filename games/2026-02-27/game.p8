@@ -46,6 +46,7 @@ shake_x = 0
 shake_y = 0
 screen_flash = 0
 ball_flash = 0
+wave_pulse = 0  -- wave counter pulse effect
 
 -- ball physics
 ball = {
@@ -156,6 +157,11 @@ function _draw()
   -- update ball flash
   if ball_flash > 0 then
     ball_flash -= 1
+  end
+
+  -- update wave pulse
+  if wave_pulse > 0 then
+    wave_pulse -= 1
   end
 end
 
@@ -344,7 +350,9 @@ function update_play()
     scroll_speed += 0.1
     obs_interval = max(20, obs_interval - 5)
     sfx(6)  -- difficulty increase fanfare
+    wave_pulse = 20  -- trigger wave counter pulse
     _log("difficulty:"..diff_level)
+    _log("wave:"..diff_level)
   end
 
   -- score multiplier every 30s
@@ -663,6 +671,15 @@ function draw_play()
   print("x"..multiplier, 100, 2, 9)
   local combo_col = combo >= 10 and 15 or 7
   print("combo:"..combo, 86, 9, combo_col)
+
+  -- wave counter with pulse effect
+  local wave_col = 10  -- yellow
+  local wave_y = 16
+  if wave_pulse > 0 then
+    wave_col = wave_pulse % 4 < 2 and 9 or 10  -- pulse between orange and yellow
+    wave_y = 16 + sin(wave_pulse / 4)  -- subtle bounce
+  end
+  print("wave:"..diff_level, 92, wave_y, wave_col)
 
   -- power-up indicators
   local ind_x = 2
