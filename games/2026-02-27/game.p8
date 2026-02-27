@@ -33,6 +33,7 @@ highscore = 0
 gametime = 0
 multiplier = 1.0
 diff_level = 1
+combo = 0
 
 -- visual juice
 shake_time = 0
@@ -168,6 +169,7 @@ function init_game()
   gametime = 0
   multiplier = 1.0
   diff_level = 1
+  combo = 0
   obstacles = {}
   powerups = {}
   particles = {}
@@ -289,6 +291,8 @@ function update_play()
         screen_flash = 3  -- white flash for 3 frames
         ball_flash = 3  -- flash ball white
         add_particles(ball.x, ball.y, 20, 7)  -- large particle burst
+        combo = 0
+        _log("combo_reset")
         state = "gameover"
         _log("state:gameover")
         _log("final_score:"..score)
@@ -303,7 +307,11 @@ function update_play()
     -- dodged obstacle bonus
     if not o.dodged and ball.y < o.y - 10 then
       o.dodged = true
-      local bonus = flr(10 * multiplier * (doublescore_time > 0 and 2 or 1))
+      combo += 1
+      _log("combo:"..combo)
+      local base_bonus = 10 * multiplier * (doublescore_time > 0 and 2 or 1)
+      local combo_mult = 1 + flr(combo / 5)
+      local bonus = flr(base_bonus * combo_mult)
       score += bonus
       sfx(5)  -- dodge bonus ascending notes
       shake(3, 0.4)  -- small shake on dodge
@@ -387,12 +395,14 @@ function draw_play()
     pset(pt.x, pt.y, pt.col)
   end
 
-  -- ball with flash effect
+  -- ball with flash effect and combo color
   local ball_col = 10
   if ball_flash > 0 then
     ball_col = 7  -- white flash on collision
   elseif shield_time > 0 then
     ball_col = 11  -- cyan shield color
+  elseif combo >= 10 then
+    ball_col = 15  -- white for high combo
   end
   circfill(ball.x, ball.y, ball.r, ball_col)
   circ(ball.x, ball.y, ball.r, 7)
@@ -401,6 +411,8 @@ function draw_play()
   print("score:"..score, 2, 2, 7)
   print("time:"..flr(gametime/30).."s", 2, 9, 7)
   print("x"..multiplier, 100, 2, 9)
+  local combo_col = combo >= 10 and 15 or 7
+  print("combo:"..combo, 86, 9, combo_col)
 
   -- power-up indicators
   local ind_x = 2
