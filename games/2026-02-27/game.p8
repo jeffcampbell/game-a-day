@@ -2183,6 +2183,69 @@ function check_cosmetic_unlocks()
   end
 end
 
+-- obstacle update helper (shared by normal game and gauntlet mode)
+function update_obstacle(o)
+  local speed_mod = slowmo_time > 0 and 0.5 or 1.0
+
+  -- freeze effect: skip movement when frozen
+  if not obstacles_frozen then
+    o.y += scroll_speed * speed_mod
+
+    if o.type == "moving" then
+      o.x += o.vx
+      if o.x < 0 or o.x > 128 then
+        o.vx *= -1
+      end
+    elseif o.type == "rotating" then
+      o.angle += 0.02
+      o.r = 8 + sin(o.angle) * 4
+    elseif o.type == "boss" then
+      -- boss evolution stages
+      if o.boss_stage == 1 then
+        -- stage 1: standard wave movement
+        o.wave_time += 0.03
+        o.x = o.base_x + sin(o.wave_time) * 30
+      elseif o.boss_stage == 2 then
+        -- stage 2: faster wave with increased amplitude
+        o.wave_time += 0.05
+        o.x = o.base_x + sin(o.wave_time) * 35
+      elseif o.boss_stage == 3 then
+        -- stage 3: compound movement (wave + vertical oscillation)
+        o.wave_time += 0.06
+        o.vertical_time += 0.04
+        o.x = o.base_x + sin(o.wave_time) * 40
+        -- add vertical oscillation for compound movement
+        local base_y = o.y
+        o.y = base_y + sin(o.vertical_time) * 3
+
+        -- spawn satellites periodically
+        o.satellite_timer += 1
+        if o.satellite_timer >= 90 then
+          o.satellite_timer = 0
+          spawn_satellite(o)
+        end
+      end
+    elseif o.type == "pendulum" then
+      o.swing_time += 0.04
+      o.x = o.base_x + sin(o.swing_time) * 25
+    elseif o.type == "zigzag" then
+      o.zig_time += 0.05
+      local amp = 15 + diff_level * 2
+      o.x += sin(o.zig_time) * amp * o.zig_dir * 0.1
+      if o.x < 10 or o.x > 118 then
+        o.zig_dir *= -1
+      end
+    elseif o.type == "orbiter" then
+      o.orbit_angle += 0.05
+    elseif o.type == "satellite" then
+      -- satellites orbit around their spawn point
+      o.orbit_angle += o.orbit_speed
+      o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius
+      o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius
+    end
+  end
+end
+
 -- play state
 function update_play()
   -- update pause cooldown
@@ -2342,65 +2405,8 @@ function update_play()
   end
 
   -- update obstacles
-  local speed_mod = slowmo_time > 0 and 0.5 or 1.0
   for o in all(obstacles) do
-    -- freeze effect: skip movement when frozen
-    if not obstacles_frozen then
-      o.y += scroll_speed * speed_mod
-
-      if o.type == "moving" then
-        o.x += o.vx
-        if o.x < 0 or o.x > 128 then
-          o.vx *= -1
-        end
-      elseif o.type == "rotating" then
-        o.angle += 0.02
-        o.r = 8 + sin(o.angle) * 4
-      elseif o.type == "boss" then
-        -- boss evolution stages
-        if o.boss_stage == 1 then
-          -- stage 1: standard wave movement
-          o.wave_time += 0.03
-          o.x = o.base_x + sin(o.wave_time) * 30
-        elseif o.boss_stage == 2 then
-          -- stage 2: faster wave with increased amplitude
-          o.wave_time += 0.05
-          o.x = o.base_x + sin(o.wave_time) * 35
-        elseif o.boss_stage == 3 then
-          -- stage 3: compound movement (wave + vertical oscillation)
-          o.wave_time += 0.06
-          o.vertical_time += 0.04
-          o.x = o.base_x + sin(o.wave_time) * 40
-          -- add vertical oscillation for compound movement
-          local base_y = o.y
-          o.y = base_y + sin(o.vertical_time) * 3
-
-          -- spawn satellites periodically
-          o.satellite_timer += 1
-          if o.satellite_timer >= 90 then
-            o.satellite_timer = 0
-            spawn_satellite(o)
-          end
-        end
-      elseif o.type == "pendulum" then
-        o.swing_time += 0.04
-        o.x = o.base_x + sin(o.swing_time) * 25
-      elseif o.type == "zigzag" then
-        o.zig_time += 0.05
-        local amp = 15 + diff_level * 2
-        o.x += sin(o.zig_time) * amp * o.zig_dir * 0.1
-        if o.x < 10 or o.x > 118 then
-          o.zig_dir *= -1
-        end
-      elseif o.type == "orbiter" then
-        o.orbit_angle += 0.05
-      elseif o.type == "satellite" then
-        -- satellites orbit around their spawn point
-        o.orbit_angle += o.orbit_speed
-        o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius
-        o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius
-      end
-    end
+    update_obstacle(o)
 
     -- check collision
     local collision = false
