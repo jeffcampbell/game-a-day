@@ -34,6 +34,14 @@ gametime = 0
 multiplier = 1.0
 diff_level = 1
 
+-- visual juice
+shake_time = 0
+shake_intensity = 0
+shake_x = 0
+shake_y = 0
+screen_flash = 0
+ball_flash = 0
+
 -- ball physics
 ball = {
   x = 64,
@@ -64,6 +72,13 @@ function _init()
   _log("state:menu")
 end
 
+-- visual juice functions
+function shake(duration, intensity)
+  shake_time = duration
+  shake_intensity = intensity
+  _log("shake:"..duration..":"..intensity)
+end
+
 function _update()
   if state == "menu" then
     update_menu()
@@ -76,12 +91,49 @@ end
 
 function _draw()
   cls(1)
+
+  -- apply screen shake
+  camera(shake_x, shake_y)
+
   if state == "menu" then
     draw_menu()
   elseif state == "play" then
     draw_play()
   elseif state == "gameover" then
     draw_gameover()
+  end
+
+  -- reset camera
+  camera()
+
+  -- screen flash effect
+  if screen_flash > 0 then
+    for i = 0, 127, 4 do
+      for j = 0, 127, 4 do
+        pset(i, j, 7)
+      end
+    end
+  end
+
+  -- update shake
+  if shake_time > 0 then
+    shake_time -= 1
+    local shake_amt = shake_intensity * (shake_time / 10)
+    shake_x = (rnd(2) - 1) * shake_amt
+    shake_y = (rnd(2) - 1) * shake_amt
+  else
+    shake_x = 0
+    shake_y = 0
+  end
+
+  -- update screen flash
+  if screen_flash > 0 then
+    screen_flash -= 1
+  end
+
+  -- update ball flash
+  if ball_flash > 0 then
+    ball_flash -= 1
   end
 end
 
@@ -183,6 +235,8 @@ function update_play()
       ball.vy = -3
     end
     sfx(0)  -- bounce sound
+    shake(6, 0.5 + diff_level * 0.1)  -- small shake, scales with difficulty
+    add_particles(ball.x, 122, 5, 13)  -- bounce particles
     _log("bounce")
   else
     ball.grounded = false
@@ -193,10 +247,14 @@ function update_play()
     ball.x = ball.r
     ball.vx *= -0.5
     sfx(1)  -- wall bounce sound
+    shake(4, 0.3)  -- small shake on wall bounce
+    add_particles(ball.x, ball.y, 3, 6)
   elseif ball.x > 128 - ball.r then
     ball.x = 128 - ball.r
     ball.vx *= -0.5
     sfx(1)  -- wall bounce sound
+    shake(4, 0.3)  -- small shake on wall bounce
+    add_particles(ball.x, ball.y, 3, 6)
   end
 
   -- spawn obstacles
@@ -227,6 +285,10 @@ function update_play()
       if dist < ball.r + o.r then
         sfx(7)  -- collision impact sound
         music(-1)  -- stop music on game over
+        shake(12, 1.5 + diff_level * 0.2)  -- large shake, scales with difficulty
+        screen_flash = 3  -- white flash for 3 frames
+        ball_flash = 3  -- flash ball white
+        add_particles(ball.x, ball.y, 20, 7)  -- large particle burst
         state = "gameover"
         _log("state:gameover")
         _log("final_score:"..score)
@@ -244,8 +306,9 @@ function update_play()
       local bonus = flr(10 * multiplier * (doublescore_time > 0 and 2 or 1))
       score += bonus
       sfx(5)  -- dodge bonus ascending notes
+      shake(3, 0.4)  -- small shake on dodge
       _log("dodge_bonus:"..bonus)
-      add_particles(ball.x, ball.y, 8, 11)
+      add_particles(ball.x, ball.y, 15, 11)  -- larger particle burst
     end
 
     -- cleanup
@@ -264,6 +327,7 @@ function update_play()
   -- update power-ups
   for p in all(powerups) do
     p.y += scroll_speed * speed_mod
+    p.spawn_time += 1  -- increment for pulse effect
 
     -- collect
     local dist = sqrt((ball.x - p.x)^2 + (ball.y - p.y)^2)
@@ -306,10 +370,16 @@ function draw_play()
     end
   end
 
-  -- power-ups
+  -- power-ups with pulse effect
   for p in all(powerups) do
-    circfill(p.x, p.y, 4, p.col)
-    circ(p.x, p.y, 4, 7)
+    local pulse = sin(p.spawn_time / 10) * 1.5
+    local r = 4 + pulse
+    circfill(p.x, p.y, r, p.col)
+    circ(p.x, p.y, r, 7)
+    -- outer ring for emphasis
+    if p.spawn_time < 30 then
+      circ(p.x, p.y, r + 2, 7)
+    end
   end
 
   -- particles
@@ -317,8 +387,14 @@ function draw_play()
     pset(pt.x, pt.y, pt.col)
   end
 
-  -- ball
-  circfill(ball.x, ball.y, ball.r, shield_time > 0 and 11 or 10)
+  -- ball with flash effect
+  local ball_col = 10
+  if ball_flash > 0 then
+    ball_col = 7  -- white flash on collision
+  elseif shield_time > 0 then
+    ball_col = 11  -- cyan shield color
+  end
+  circfill(ball.x, ball.y, ball.r, ball_col)
   circ(ball.x, ball.y, ball.r, 7)
 
   -- ui
@@ -396,7 +472,8 @@ function spawn_powerup()
     x = 20 + rnd(88),
     y = -10,
     type = t,
-    col = cols[t]
+    col = cols[t],
+    spawn_time = 0  -- for pulse effect
   }
 
   add(powerups, p)
@@ -410,6 +487,8 @@ function collect_powerup(p)
   _log("powerup_collected:"..p.type)
   _log("powerup_bonus:"..bonus)
 
+  shake(8, 1.0)  -- medium shake on powerup collection
+
   if p.type == "shield" then
     shield_time = 90
     sfx(2)  -- shield powerup
@@ -421,7 +500,7 @@ function collect_powerup(p)
     sfx(4)  -- doublescore powerup
   end
 
-  add_particles(p.x, p.y, 12, p.col)
+  add_particles(p.x, p.y, 20, p.col)  -- larger particle burst
 end
 
 -- particle system
