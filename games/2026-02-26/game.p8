@@ -26,6 +26,10 @@ function test_input()
   return btn()
 end
 
+function test_input2()
+  return testmode and 0 or btn(nil, 1)
+end
+
 -- game state
 state = "menu"
 score = 0
@@ -86,6 +90,14 @@ achievements_logged = false
 px = 60
 py = 100
 pspeed = 2
+
+-- co-op mode
+coop_mode = false
+p2x = 68
+p2y = 100
+p2_invincible = 0
+p2_near_misses = 0
+p2_dodges = 0
 
 -- meteors
 meteors = {}
@@ -338,6 +350,13 @@ function update_menu()
     _log("mode_select:"..get_mode_name())
   end
 
+  -- toggle co-op mode with down arrow
+  if (buttons & 8) > 0 then
+    coop_mode = not coop_mode
+    sfx(4)  -- ui sound
+    _log("coop_mode:"..tostr(coop_mode))
+  end
+
   -- enter leaderboard with up arrow
   if (buttons & 4) > 0 then
     sfx(4)  -- ui sound
@@ -361,9 +380,10 @@ function update_menu()
     sfx(4)  -- ui select
     _log("sfx:ui_select")
     _log("mode:"..get_mode_name())
+    _log("coop:"..tostr(coop_mode))
     state = "play"
     score = 0
-    lives = 3
+    lives = coop_mode and 5 or 3
     difficulty = 1
     last_difficulty = 1
     pause_cooldown = 0
@@ -431,6 +451,11 @@ function update_menu()
     survival_time = 0
     px = 60
     py = 100
+    p2x = 68
+    p2y = 100
+    p2_invincible = 0
+    p2_near_misses = 0
+    p2_dodges = 0
     multiplier = 1.0
     max_multiplier = 1.0
     last_mult_milestone = 1.0
@@ -781,7 +806,7 @@ function boss_take_damage()
   end
 end
 
-function player_hit_by_boss()
+function player_hit_by_boss(player_id)
   if combo > 0 then
     _log("combo_reset:"..combo)
     combo = 0
@@ -795,15 +820,17 @@ function player_hit_by_boss()
   end
   if shield_active then
     shield_active = false
-    invincible = 30
-    _log("shield_used:boss")
+    if player_id == 1 then invincible = 30 else p2_invincible = 30 end
+    _log("shield_used:boss:p"..player_id)
   else
     lives -= 1
-    invincible = 60
-    _log("collision:boss_attack:lives="..lives)
+    if player_id == 1 then invincible = 60 else p2_invincible = 60 end
+    _log("collision:boss_attack:p"..player_id..":lives="..lives)
   end
   shake_time = 20
-  spawn_particles(px, py, 12, 8, 3)
+  local hit_x = player_id == 1 and px or p2x
+  local hit_y = player_id == 1 and py or p2y
+  spawn_particles(hit_x, hit_y, 12, 8, 3)
   sfx(1)
   _log("sfx:boss_hit_player")
   if lives <= 0 then
@@ -855,10 +882,20 @@ function update_play()
     _log("move:"..px..","..py)
   end
 
-  -- update invincibility
-  if invincible > 0 then
-    invincible -= 1
+  -- player 2 movement (co-op)
+  if coop_mode then
+    local b2 = test_input2()
+    if (b2 & 1) > 0 then p2x -= pspeed end
+    if (b2 & 2) > 0 then p2x += pspeed end
+    if (b2 & 4) > 0 then p2y -= pspeed end
+    if (b2 & 8) > 0 then p2y += pspeed end
+    p2x = mid(4, p2x, 120)
+    p2y = mid(4, p2y, 120)
+    if p2_invincible > 0 then p2_invincible -= 1 end
   end
+
+  -- update invincibility
+  if invincible > 0 then invincible -= 1 end
 
   -- update slowtime
   if slowtime > 0 then
@@ -901,6 +938,11 @@ function update_play()
   -- insane mode: much faster spawn rate
   if difficulty_preset == 4 then
     base_rate = max(20, 40 - difficulty * 3)  -- starts faster, harder cap
+  end
+
+  -- co-op mode: 15% faster spawn rate (lower base_rate = faster)
+  if coop_mode then
+    base_rate = flr(base_rate * 0.85)
   end
 
   -- play sound on difficulty increase
@@ -1135,13 +1177,26 @@ function update_play()
       end
     end
 
-    -- near-miss detection: reward skillful dodging
+    -- near-miss detection
+    local tx, ty, nm = px, py, false
     if not m.near_miss_logged and invincible == 0 then
-      local dist = sqrt((m.x - px) * (m.x - px) + (m.y - py) * (m.y - py))
-      -- trigger when meteor is within 12-15 pixels and passing by player
-      if dist >= 12 and dist < 15 and m.y >= py - 10 then
+      local d = sqrt((m.x-px)*(m.x-px)+(m.y-py)*(m.y-py))
+      if d >= 12 and d < 15 and m.y >= py-10 then
         m.near_miss_logged = true
         near_misses += 1
+        nm = true
+      end
+    end
+    if not nm and coop_mode and not m.near_miss_logged_p2 and p2_invincible == 0 then
+      local d = sqrt((m.x-p2x)*(m.x-p2x)+(m.y-p2y)*(m.y-p2y))
+      if d >= 12 and d < 15 and m.y >= p2y-10 then
+        m.near_miss_logged_p2 = true
+        p2_near_misses += 1
+        tx, ty, nm = p2x, p2y, true
+      end
+    end
+
+    if nm then
 
         -- increase multiplier
         local old_mult = flr(multiplier * 10) / 10
@@ -1165,25 +1220,10 @@ function update_play()
             sfx(2)
             _log("mult_milestone:"..new_mult)
 
-            -- floating milestone text
-            add(float_texts, {
-              x = px,
-              y = py - 10,
-              text = new_mult.."x multiplier!",
-              age = 0,
-              max_age = 60,
-              vy = -0.3,
-              color = 10  -- gold/yellow
-            })
-
-            -- screen flash
+            add(float_texts, {x=tx, y=ty-10, text=new_mult.."x multiplier!", age=0, max_age=60, vy=-0.3, color=10})
             screen_flash = 10
-
-            -- stronger shake
             shake_time = 12
-
-            -- extra particles
-            spawn_particles(px, py, 20, 10, 2.5)
+            spawn_particles(tx, ty, 20, 10, 2.5)
           end
         end
 
@@ -1197,70 +1237,47 @@ function update_play()
         -- brief screen shake
         shake_time = 5
 
-        -- add floating text
-        add(float_texts, {
-          x = m.x,
-          y = m.y,
-          text = "+"..points,
-          age = 0,
-          max_age = 30,
-          vy = -0.5,
-          color = 10
-        })
-
-        -- play sound (reuse star pickup sound)
+        add(float_texts, {x=m.x, y=m.y, text="+"..points, age=0, max_age=30, vy=-0.5, color=10})
         sfx(2)
         _log("sfx:near_miss")
       end
     end
 
-    -- check collision with player
-    if invincible == 0 and
-       abs(m.x - px) < m.crad and
-       abs(m.y - py) < m.crad then
+    -- check collision with player 1
+    local p1_hit = invincible == 0 and abs(m.x - px) < m.crad and abs(m.y - py) < m.crad
 
-      -- reset combo on hit
+    -- check collision with player 2 (co-op mode)
+    local p2_hit = coop_mode and p2_invincible == 0 and abs(m.x - p2x) < m.crad and abs(m.y - p2y) < m.crad
+
+    if p1_hit or p2_hit then
       if combo > 0 then
         _log("combo_reset:"..combo)
-        combo = 0
-        combo_pulse = 0
+        combo, combo_pulse = 0, 0
       end
-
-      -- reset multiplier on hit
-      if multiplier > 1.0 then
+      if multiplier > 1 then
         _log("mult_reset:was="..multiplier)
-        multiplier = 1.0
-        last_mult_milestone = 1.0
-        multiplier_pulse = 0
+        multiplier, last_mult_milestone, multiplier_pulse = 1, 1, 0
       end
-
-      -- check shield first
       if shield_active then
         shield_active = false
-        invincible = 30  -- brief invincibility
+        if p1_hit then invincible = 30 else p2_invincible = 30 end
         _log("shield_used")
       else
         lives -= 1
-        invincible = 60
-        _log("collision:lives="..lives)
+        if p1_hit then invincible = 60 else p2_invincible = 60 end
+        _log("collision:"..(p1_hit and "p1" or "p2")..":lives="..lives)
       end
-
-      shake_time = 15  -- enhanced shake
-
-      -- spawn explosion particles
-      local pcol = 8  -- default gray
-      if m.type == 1 then pcol = 8  -- red meteor
-      elseif m.type == 2 then pcol = 12 end  -- blue meteor
-      spawn_particles(m.x, m.y, 5, pcol, 2)
-
+      shake_time = 15
+      local pc = m.type == 2 and 12 or 8
+      spawn_particles(m.x, m.y, 5, pc, 2)
       del(meteors, m)
-      sfx(1)  -- collision
+      sfx(1)
       _log("sfx:collision")
 
       if lives <= 0 then
         start_fade("gameover")
         survival_time = flr(t() - game_start_time)
-        music(-1)  -- stop music
+        music(-1)
         _log("music:stop")
         _log("survival_time:"..survival_time)
         if score > highscore then
@@ -1343,16 +1360,30 @@ function update_play()
       end
     end
 
+    -- boss collision with player 1
     if invincible == 0 and abs(boss_meteor.x-px) < boss_meteor.crad and abs(boss_meteor.y-py) < boss_meteor.crad then
-      player_hit_by_boss()
+      player_hit_by_boss(1)
+    end
+    -- boss collision with player 2
+    if coop_mode and p2_invincible == 0 and abs(boss_meteor.x-p2x) < boss_meteor.crad and abs(boss_meteor.y-p2y) < boss_meteor.crad then
+      player_hit_by_boss(2)
     end
   end
 
   for p in all(boss_attack_projectiles) do
     p.y += p.speed
     if p.vx then p.x += p.vx end
-    if invincible == 0 and abs(p.x-px) < 8 and abs(p.y-py) < 8 then
-      player_hit_by_boss()
+
+    -- boss projectile collision with player 1
+    local p1_boss_hit = invincible == 0 and abs(p.x-px) < 8 and abs(p.y-py) < 8
+    -- boss projectile collision with player 2
+    local p2_boss_hit = coop_mode and p2_invincible == 0 and abs(p.x-p2x) < 8 and abs(p.y-p2y) < 8
+
+    if p1_boss_hit then
+      player_hit_by_boss(1)
+      del(boss_attack_projectiles, p)
+    elseif p2_boss_hit then
+      player_hit_by_boss(2)
       del(boss_attack_projectiles, p)
     elseif p.y > 136 then
       multiplier = min(difficulty_preset==4 and 4 or 3, multiplier+0.1)
@@ -1384,9 +1415,11 @@ function update_play()
   for s in all(stars) do
     s.age += 1
 
-    -- check collision with player
-    if abs(s.x - px) < 6 and
-       abs(s.y - py) < 6 then
+    -- check collision with player 1 or player 2
+    local p1_star = abs(s.x - px) < 6 and abs(s.y - py) < 6
+    local p2_star = coop_mode and abs(s.x - p2x) < 6 and abs(s.y - p2y) < 6
+
+    if p1_star or p2_star then
       add_score(50)
       total_stars += 1
 
@@ -1418,57 +1451,34 @@ function update_play()
   for p in all(powerups) do
     p.age += 1
 
-    -- check collision with player
-    if abs(p.x - px) < 6 and
-       abs(p.y - py) < 6 then
+    -- check collision with player 1 or player 2
+    local p1_powerup = abs(p.x - px) < 6 and abs(p.y - py) < 6
+    local p2_powerup = coop_mode and abs(p.x - p2x) < 6 and abs(p.y - p2y) < 6
+
+    if p1_powerup or p2_powerup then
       add_score(25)
       total_powerups += 1
 
-      -- apply power-up effect
-      local pname, pcol, psfx = "", 12, 5
+      local trigger_x = p1_powerup and px or p2x
+      local trigger_y = p1_powerup and py or p2y
+
+      local pn, pc, ps = "", 12, 5
       if p.type == 1 then
-        -- shield
         shield_active = true
-        pname = "shield!"
-        pcol = 12  -- red
-        psfx = 2
+        pn, pc, ps = "shield!", 12, 2
         _log("pickup:shield")
       elseif p.type == 2 then
-        -- slow-time
-        slowtime = 480  -- 8 seconds
-        pname = "slowtime!"
-        pcol = 12  -- blue (will use 12 for now, matches shield)
-        psfx = 3
+        slowtime = 480
+        pn, pc, ps = "slowtime!", 12, 3
         _log("pickup:slowtime:480")
       elseif p.type == 3 then
-        -- invincibility boost
-        if invincible > 0 then
-          invincible += 300
-        else
-          invincible = 300
-        end
-        pname = "invincible!"
-        pcol = 10  -- yellow
-        psfx = 5
+        if p1_powerup then invincible = invincible > 0 and invincible+300 or 300 end
+        if p2_powerup then p2_invincible = p2_invincible > 0 and p2_invincible+300 or 300 end
+        pn, pc, ps = "invincible!", 10, 5
         _log("pickup:invincibility")
       end
-
-      -- enhanced visual feedback
-      -- 1. burst particles (15-20 particles)
-      spawn_particles(p.x, p.y, 18, pcol, 3)
-
-      -- 2. floating text with power-up name
-      add(float_texts, {
-        x = p.x,
-        y = p.y,
-        text = pname,
-        age = 0,
-        max_age = 40,
-        vy = -0.8,
-        color = pcol
-      })
-
-      -- 3. screen shake
+      spawn_particles(trigger_x, trigger_y, 18, pc, 3)
+      add(float_texts, {x=trigger_x, y=trigger_y, text=pn, age=0, max_age=40, vy=-0.8, color=pc})
       shake_time = 8
 
       -- 4. distinct sfx
@@ -1590,6 +1600,11 @@ function draw_menu()
   else
     print("arrows: select", 26, 84, 6)
   end
+
+  -- co-op mode indicator
+  local coop_text = coop_mode and "co-op" or "solo"
+  local coop_col = coop_mode and 10 or 6
+  print("\136: "..coop_text, 38, 92, coop_col)
 
   print("z: start", 42, 98, 11)
   print("x: help", 42, 106, 13)
@@ -1785,13 +1800,20 @@ function draw_pause()
     end
   end
 
-  -- draw player
+  -- draw player 1
   local pcol = 7
   if invincible > 0 and (invincible % 8 < 4) then
     pcol = 10
   end
   circfill(px, py, 3, pcol)
   circfill(px - 1, py - 1, 1, 12)
+
+  -- player 2 (co-op)
+  if coop_mode then
+    local c2 = p2_invincible > 0 and p2_invincible % 8 < 4 and 9 or 7
+    circfill(p2x, p2y, 3, c2)
+    circfill(p2x-1, p2y-1, 1, 8)
+  end
 
   -- semi-transparent overlay
   for y=0,127 do
@@ -1888,7 +1910,7 @@ function draw_play()
     print(pattern_text, 2, 120, 7)
   end
 
-  -- draw player
+  -- draw player 1
   if invincible == 0 or invincible % 4 < 2 then
     local body_col, inner_col, cockpit_col = 12, 7, 10
 
@@ -1907,6 +1929,17 @@ function draw_play()
     pset(px + 3, py + 1, 6)
   end
 
+  -- player 2 (co-op)
+  if coop_mode and (p2_invincible == 0 or p2_invincible % 4 < 2) then
+    local bc, ic, cc = 9, 7, 8
+    if p2_invincible > 54 then bc, ic, cc = 7, 7, 7 end
+    circfill(p2x, p2y, 3, bc)
+    circfill(p2x, p2y, 2, ic)
+    circfill(p2x, p2y-1, 1, cc)
+    pset(p2x-3, p2y+1, 6)
+    pset(p2x+3, p2y+1, 6)
+  end
+
   -- draw near-miss pulse ring
   if near_miss_pulse > 0 then
     local pulse_size = (5 - near_miss_pulse) * 1.5
@@ -1918,6 +1951,9 @@ function draw_play()
   if shield_active then
     local ring_offset = (t() * 4) % 8
     circ(px, py, 5 + ring_offset * 0.2, 12)
+    if coop_mode then
+      circ(p2x, p2y, 5 + ring_offset * 0.2, 12)
+    end
   end
 
   -- draw meteors
@@ -2198,6 +2234,14 @@ function draw_gameover()
     elseif boss_defeats >= 1 then boss_col = 8 end
     print("\007 bosses: "..boss_defeats, 3, y, boss_col)
     _log("metric_display:boss_defeats:"..boss_defeats)
+  end
+
+  -- co-op stats
+  if coop_mode and gameover_timer >= 33 then
+    y += spacing
+    print("--- co-op ---", 32, y, 13)
+    y += spacing+2
+    print("p1:"..near_misses.." p2:"..p2_near_misses, 3, y, 10)
   end
 
   -- insane mode unlock notification (frame 10)
