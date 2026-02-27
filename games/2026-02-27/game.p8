@@ -1823,7 +1823,7 @@ function draw_play()
       pal()
     elseif o.type == "boss" then
       -- sprite 3: boss face with pulsing rings
-      if o.in_danger then pal(8, 14) pal(2, 8) end
+      if o.in_danger then pal(8, 14); pal(2, 8) end
       spr(3, o.x - 4, o.y - 4)
       pal()
       -- pulsing ring effect
@@ -1843,13 +1843,13 @@ function draw_play()
       pal()
     elseif o.type == "zigzag" then
       -- sprite 5: zigzag wave
-      if o.in_danger then pal(11, 8) pal(12, 8) end  -- red in danger
-      if obstacles_frozen then pal(11, 12) pal(12, 12) end  -- cyan when frozen
+      if o.in_danger then pal(11, 8); pal(12, 8) end  -- red in danger
+      if obstacles_frozen then pal(11, 12); pal(12, 12) end  -- cyan when frozen
       spr(5, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "orbiter" then
       -- sprite 6: center core + orbit ring
-      if o.in_danger then pal(2, 8) pal(5, 8) end  -- red in danger
+      if o.in_danger then pal(2, 8); pal(5, 8) end  -- red in danger
       spr(6, o.x - 4, o.y - 4)
       pal()
       -- satellites (small sprites)
