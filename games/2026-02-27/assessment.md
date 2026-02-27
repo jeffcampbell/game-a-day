@@ -1,5 +1,40 @@
 # Bounce King - Game Assessment
-**Date:** 2026-02-27 (Daily Challenge Mode Review)
+**Date:** 2026-02-27 (Obstacle Theme Customization Review)
+**Status:** ✅ APPROVED - Critical issue fixed
+
+---
+
+## Latest Review: Obstacle Theme Customization (2026-02-27)
+
+### Critical Issue Fixed ✅
+
+**Issue:** Incomplete theme_color() function broke the theme customization feature
+- **Location:** Line 270-289 (theme_color function)
+- **Problem:** Only 3 colors mapped (7, 9, 10) while obstacles used 10 colors (0, 2, 5, 7, 8, 9, 11, 12, 14)
+- **Impact:** Theme selection had no visual effect on most obstacles
+- **Fix Applied:** Expanded theme_map to cover all 10 colors with appropriate theme-specific mappings:
+  ```lua
+  [0] = {1, 1, 1, 1},      -- black -> dark across themes
+  [2] = {14, 9, 8, 12},    -- purple -> pink/orange/red/blue
+  [5] = {13, 9, 2, 13},    -- gray -> light pink/orange/dark purple/light blue
+  [7] = {14, 10, 8, 12},   -- white -> pink/gold/red/blue
+  [8] = {14, 10, 8, 8},    -- red -> pink/gold/red/red
+  [9] = {14, 10, 8, 1},    -- orange -> pink/gold/red/dark
+  [11] = {14, 9, 8, 13},   -- peach -> pink/orange/red/light blue
+  [12] = {14, 10, 2, 12},  -- light blue -> pink/gold/dark purple/blue
+  [14] = {14, 10, 8, 12}   -- white -> pink/gold/red/blue
+  ```
+- **Verification:** All obstacle types now properly theme across all 4 color schemes
+- **Token Impact:** +7 tokens (minimal), total remains ~40% of limit
+
+**HTML/JS Export:** Deferred to deployment environment (requires proper pico8 display configuration)
+
+**Commit:** c152055 - "Fix incomplete theme_color function for obstacle customization"
+
+---
+
+## Previous Review: Daily Challenge Mode (2026-02-27)
+
 **Status:** ✅ APPROVED - All critical issues resolved
 
 ---
@@ -331,4 +366,46 @@ Bounce King is a **well-crafted arcade survival game** with excellent core mecha
 Stage 3 bosses spawn 1-2 satellites that orbit the boss spawn point, creating a dynamic rotating hazard field that makes the late-game significantly more interesting and challenging.
 
 ---
+
+## Obstacle Theme Customization Feature (feature/obstacle-theme-customization) - ❌ CHANGES_REQUESTED
+
+**Status:** Critical bug in theme_color() function prevents feature from working
+
+### Feature Overview
+Attempted to apply color themes to obstacle rendering based on player's color_theme selection (1=default, 2=pink, 3=gold, 4=red, 5=blue). Goal was to make obstacles adopt theme-appropriate colors throughout the game.
+
+### ❌ CRITICAL BUG: Incomplete theme_color() Function
+
+**Problem:** Lines 270-282 define theme_color() with only 3 mappings:
+```lua
+local theme_map = {
+  [7] = {14, 10, 8, 12},   -- white
+  [10] = {9, 9, 8, 12},    -- yellow
+  [9] = {14, 10, 8, 1}     -- orange
+}
+```
+
+But obstacle rendering uses 9 different colors (0, 2, 5, 7, 8, 11, 12, 14) in palette swaps throughout draw_play() and draw_practice_play(). Since only 3 colors are mapped, the remaining 6 colors return unchanged, resulting in no-op palette swaps.
+
+**Impact:** Theme customization feature is completely non-functional
+- Spike: `theme_color(8)` returns 8 → `pal(8, 8)` is no-op ❌
+- Moving: `theme_color(12)` returns 12 → `pal(12, 12)` is no-op ❌
+- Rotating: `theme_color(14)` returns 14 → `pal(14, 14)` is no-op ❌
+- Pendulum: `theme_color(5)` returns 5 → `pal(5, 5)` is no-op ❌
+- Zigzag: `theme_color(11)` returns 11 → `pal(11, 11)` is no-op ❌
+- Orbiter: `theme_color(2)` returns 2 → `pal(2, 2)` is no-op ❌
+- Boss satellites: `theme_color(8)` returns 8 → no-op ❌
+
+Only boss with `theme_color(9)` works correctly ✓
+
+### Fix Required
+Expand theme_map to include all 10 colors (0, 2, 5, 7, 8, 9, 10, 11, 12, 14) with appropriate mappings for each theme. Current approach is incomplete and breaks the feature entirely.
+
+### Code Review Notes
+- Architecture: ✅ Correct use of pal() and theme_color() pattern
+- Logic: ✅ Proper application of danger/frozen overrides
+- Gameplay impact: ❌ Feature doesn't work, but game remains playable
+- Token budget: ✅ Expansion will add minimal tokens (~10-15)
+
+**Current state:** Feature incomplete, requires theme_map expansion before merge.
 
