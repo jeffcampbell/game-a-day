@@ -106,6 +106,19 @@ practice_speed_values = {0.5, 1.0, 1.5}
 tutorial_page = 1  -- current tutorial page (1-5)
 tutorial_completed = false  -- track if player has seen tutorial
 
+-- menu cursor state
+menu_cursor = 1  -- 1=play, 2=challenge, 3=practice, 4=tutorial, 5=leaderboard, 6=achievements, 7=settings
+menu_items = {"play", "challenge", "practice", "tutorial", "leaderboard", "achievements", "settings"}
+
+-- daily challenge state
+challenge_time_left = 90  -- 90 second time limit
+challenge_active = false  -- flag for challenge mode
+challenge_seed = 0  -- daily seed
+challenge_score = 0  -- current challenge score
+challenge_best = 0  -- today's personal best
+daily_history = {}  -- last 7 days: {day_seed, best_score}
+challenge_pulse = 0  -- urgency pulse effect
+
 -- visual juice
 shake_time = 0
 shake_intensity = 0
@@ -178,6 +191,9 @@ function _init()
   local t = dget(53)
   tutorial_completed = t == 1
 
+  -- load daily challenge data (slots 54-63)
+  load_daily_challenge()
+
   _log("state:menu")
 end
 
@@ -229,6 +245,82 @@ function save_achievements()
   -- save persistent danger zone pickups
   dset(52, danger_zone_pickups)
   _log("achievements_saved")
+end
+
+-- daily challenge persistence (slots 54-63)
+-- slot 54: challenge_best
+-- slot 55: challenge_seed
+-- slots 56-63: daily_history (4 entries: seed, score, seed, score...)
+function load_daily_challenge()
+  -- generate today's seed
+  challenge_seed = flr(time() / 86400)  -- 86400 = 24*60*60 seconds per day
+
+  -- load stored seed and best
+  local stored_seed = dget(55)
+  local stored_best = dget(54)
+
+  -- if stored seed matches today, load the best score
+  if stored_seed == challenge_seed then
+    challenge_best = stored_best
+  else
+    -- new day, reset best score
+    challenge_best = 0
+    dset(55, challenge_seed)
+    dset(54, 0)
+  end
+
+  -- load daily history (last 4 days)
+  daily_history = {}
+  for i = 1, 4 do
+    local slot_base = 54 + i * 2
+    local day_seed = dget(slot_base)
+    local day_score = dget(slot_base + 1)
+    if day_seed > 0 then
+      add(daily_history, {seed = day_seed, score = day_score})
+    end
+  end
+
+  _log("challenge_loaded:seed="..challenge_seed..",best="..challenge_best)
+end
+
+function save_daily_challenge()
+  -- save current day's best
+  dset(54, challenge_best)
+  dset(55, challenge_seed)
+
+  -- update daily history
+  -- check if today already in history
+  local found = false
+  for i = 1, #daily_history do
+    if daily_history[i].seed == challenge_seed then
+      daily_history[i].score = max(daily_history[i].score, challenge_score)
+      found = true
+      break
+    end
+  end
+
+  -- if not found, add new entry
+  if not found then
+    add(daily_history, {seed = challenge_seed, score = challenge_score})
+    -- keep only last 4 days
+    while #daily_history > 4 do
+      del(daily_history, daily_history[1])
+    end
+  end
+
+  -- save history to cartdata
+  for i = 1, 4 do
+    local slot_base = 54 + i * 2
+    if i <= #daily_history then
+      dset(slot_base, daily_history[i].seed)
+      dset(slot_base + 1, daily_history[i].score)
+    else
+      dset(slot_base, 0)
+      dset(slot_base + 1, 0)
+    end
+  end
+
+  _log("challenge_saved:score="..challenge_score..",best="..challenge_best)
 end
 
 -- leaderboard persistence (slots 4-43)
@@ -347,6 +439,10 @@ function _update()
     update_practice_speed_select()
   elseif state == "practice_play" then
     update_practice_play()
+  elseif state == "challenge" then
+    update_challenge()
+  elseif state == "challenge_summary" then
+    update_challenge_summary()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -382,6 +478,10 @@ function _draw()
     draw_practice_speed_select()
   elseif state == "practice_play" then
     draw_practice_play()
+  elseif state == "challenge" then
+    draw_challenge()
+  elseif state == "challenge_summary" then
+    draw_challenge_summary()
   elseif state == "play" then
     draw_play()
   elseif state == "pause" then
@@ -440,60 +540,98 @@ end
 function update_menu()
   local input = test_input()
 
-  if input & 16 > 0 then  -- O button
-    state = "difficulty_select"
-    _log("state:difficulty_select")
-    diff_selection = difficulty  -- reset to last selected
+  -- cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
   end
 
-  if input & 32 > 0 then  -- X button
-    state = "settings"
-    _log("state:settings")
-    settings_selection = 1  -- reset cursor
-    input_cooldown = 10
-  end
+  -- menu navigation with cooldown
+  if input_cooldown == 0 then
+    if input & 4 > 0 then  -- up
+      menu_cursor = max(1, menu_cursor - 1)
+      play_sfx(1)
+      _log("menu_nav:up:"..menu_cursor)
+      input_cooldown = 10
+    end
 
-  if input & 4 > 0 then  -- up button
-    state = "leaderboard"
-    _log("state:leaderboard")
-    input_cooldown = 10
-  end
+    if input & 8 > 0 then  -- down
+      menu_cursor = min(7, menu_cursor + 1)
+      play_sfx(1)
+      _log("menu_nav:down:"..menu_cursor)
+      input_cooldown = 10
+    end
 
-  if input & 8 > 0 then  -- down button
-    state = "achievements"
-    _log("state:achievements")
-    ach_scroll = 0  -- reset scroll
-    input_cooldown = 10
-  end
-
-  if input & 1 > 0 then  -- left button
-    state = "practice_obstacle_select"
-    _log("state:practice_obstacle_select")
-    practice_obstacle_selection = 1  -- reset cursor
-    input_cooldown = 10
-  end
-
-  if input & 2 > 0 then  -- right button
-    state = "tutorial"
-    _log("state:tutorial")
-    tutorial_page = 1  -- reset to first page
-    input_cooldown = 10
+    if input & 16 > 0 then  -- O button - select
+      local selection = menu_items[menu_cursor]
+      if selection == "play" then
+        state = "difficulty_select"
+        _log("state:difficulty_select")
+        diff_selection = difficulty
+        input_cooldown = 10
+      elseif selection == "challenge" then
+        init_challenge()
+        state = "challenge"
+        _log("state:challenge")
+        input_cooldown = 10
+      elseif selection == "practice" then
+        state = "practice_obstacle_select"
+        _log("state:practice_obstacle_select")
+        practice_obstacle_selection = 1
+        input_cooldown = 10
+      elseif selection == "tutorial" then
+        state = "tutorial"
+        _log("state:tutorial")
+        tutorial_page = 1
+        input_cooldown = 10
+      elseif selection == "leaderboard" then
+        state = "leaderboard"
+        _log("state:leaderboard")
+        input_cooldown = 10
+      elseif selection == "achievements" then
+        state = "achievements"
+        _log("state:achievements")
+        ach_scroll = 0
+        input_cooldown = 10
+      elseif selection == "settings" then
+        state = "settings"
+        _log("state:settings")
+        settings_selection = 1
+        input_cooldown = 10
+      end
+    end
   end
 end
 
 function draw_menu()
-  print("bounce king", 38, 40, 7)
-  print("survive the fall!", 26, 52, 6)
-  print("press o to start", 22, 68, 10)
-  print("right: tutorial", 28, 76, 14)
-  print("press x for settings", 14, 84, 13)
-  print("left: practice mode", 18, 92, 11)
-  print("up: leaderboard", 26, 100, 12)
-  print("down: achievements", 18, 108, 11)
+  print("bounce king", 38, 30, 7)
+  print("survive the fall!", 26, 42, 6)
+
+  -- menu items
+  local menu_y = 56
+  local menu_labels = {
+    "play",
+    "daily challenge",
+    "practice mode",
+    "tutorial",
+    "leaderboard",
+    "achievements",
+    "settings"
+  }
+
+  for i = 1, 7 do
+    local col = 6
+    local prefix = "  "
+    if i == menu_cursor then
+      col = 10
+      prefix = "> "
+    end
+    print(prefix..menu_labels[i], 24, menu_y + (i - 1) * 8, col)
+  end
+
   -- show top score from leaderboard
   if #leaderboard > 0 then
     local top = leaderboard[1]
-    print("best: "..top.score.." ("..top.initials..")", 24, 118, 10)
+    print("best: "..top.score.." ("..top.initials..")", 20, 118, 10)
   end
 end
 
@@ -998,6 +1136,67 @@ function init_game()
 
   play_music(0)  -- start background music
   _log("game_init:difficulty="..difficulty)
+end
+
+-- daily challenge initialization
+function init_challenge()
+  -- reuse init_game logic
+  ball.x = 64
+  ball.y = 100
+  ball.vx = 0
+  ball.vy = 0
+  ball.grounded = false
+  challenge_score = 0
+  challenge_active = true
+  challenge_time_left = 90 * 30  -- 90 seconds in frames (30fps)
+  challenge_pulse = 0
+  gametime = 0
+  multiplier = 1.0
+  diff_level = 1
+  combo = 0
+  last_milestone = 0
+  lives = 3
+  life_flash = 0
+  obstacles = {}
+  powerups = {}
+  particles = {}
+  floating_texts = {}
+  ball_trail = {}
+  obs_timer = 0
+  boss_timer = 0
+  pu_timer = 0
+  shield_time = 0
+  slowmo_time = 0
+  doublescore_time = 0
+  magnet_time = 0
+  freeze_time = 0
+  obstacles_frozen = false
+
+  -- seed-based difficulty (use challenge_seed for deterministic behavior)
+  srand(challenge_seed)
+  local seed_mod = challenge_seed % 3
+  if seed_mod == 0 then
+    scroll_speed = 0.6
+    obs_interval = 50
+  elseif seed_mod == 1 then
+    scroll_speed = 0.7
+    obs_interval = 45
+  else
+    scroll_speed = 0.8
+    obs_interval = 40
+  end
+
+  -- initialize danger zones
+  danger_zones = {
+    {x_min=0, x_max=42, active=false, pulse=0},
+    {x_min=43, x_max=85, active=false, pulse=0},
+    {x_min=86, x_max=128, active=false, pulse=0}
+  }
+  zone_timer = 0
+  zone_interval = 450 + rnd(150)
+
+  play_music(0)
+  _log("challenge_init:seed="..challenge_seed..",scroll="..scroll_speed..",interval="..obs_interval)
 end
 
 -- achievement checking
@@ -2645,6 +2844,458 @@ function draw_practice_play()
   if practice_pause_timer > 0 then
     print("resetting...", 36, 64, 7)
   end
+end
+
+-- daily challenge state
+function update_challenge()
+  -- countdown timer
+  if challenge_time_left > 0 then
+    challenge_time_left -= 1
+  else
+    -- time's up, end challenge
+    challenge_active = false
+    if challenge_score > challenge_best then
+      challenge_best = challenge_score
+    end
+    save_daily_challenge()
+    state = "challenge_summary"
+    _log("state:challenge_summary:score="..challenge_score..",best="..challenge_best)
+    return
+  end
+
+  -- update pulse effect (increases urgency as time runs out)
+  if challenge_time_left < 30 * 30 then  -- last 30 seconds
+    challenge_pulse = (challenge_pulse + 1) % 30
+  end
+
+  -- reuse play logic
+  gametime += 1
+
+  -- update pause cooldown
+  if pause_cooldown > 0 then
+    pause_cooldown -= 1
+  end
+
+  -- check for X button to quit (with cooldown)
+  local input = test_input()
+  if input & 32 > 0 and pause_cooldown == 0 then  -- X button
+    challenge_active = false
+    state = "menu"
+    _log("state:menu:challenge_quit")
+    pause_cooldown = 15
+    return
+  end
+
+  -- ball physics
+  local b_input = test_input()
+  if b_input & 1 > 0 then  -- left
+    ball.vx = max(ball.vx - 0.5, -2.5)
+  end
+  if b_input & 2 > 0 then  -- right
+    ball.vx = min(ball.vx + 0.5, 2.5)
+  end
+
+  -- apply friction
+  ball.vx *= 0.85
+
+  -- apply gravity
+  if not ball.grounded then
+    ball.vy += 0.4
+  end
+
+  -- update position
+  ball.x += ball.vx
+  ball.y += ball.vy
+
+  -- floor collision
+  if ball.y >= 120 then
+    ball.y = 120
+    ball.vy = -ball.vy * 0.7
+    ball.grounded = abs(ball.vy) < 0.5
+  else
+    ball.grounded = false
+  end
+
+  -- wall collision
+  if ball.x <= ball.r then
+    ball.x = ball.r
+    ball.vx = -ball.vx * 0.7
+  elseif ball.x >= 128 - ball.r then
+    ball.x = 128 - ball.r
+    ball.vx = -ball.vx * 0.7
+  end
+
+  -- spawn obstacles (use challenge difficulty)
+  obs_timer += 1
+  if obs_timer >= obs_interval then
+    spawn_obstacle()
+    obs_timer = 0
+  end
+
+  -- spawn power-ups
+  pu_timer += 1
+  if pu_timer >= 240 then
+    spawn_powerup()
+    pu_timer = 0
+  end
+
+  -- update obstacles
+  for o in all(obstacles) do
+    o.y += scroll_speed
+    if o.type == "moving" then
+      o.x += o.vx
+      if o.x <= o.r or o.x >= 128 - o.r then
+        o.vx = -o.vx
+      end
+    elseif o.type == "rotating" then
+      o.angle += 0.05
+    elseif o.type == "pendulum" then
+      o.swing_time += 0.04
+      o.x = o.base_x + sin(o.swing_time) * 25
+    elseif o.type == "zigzag" then
+      o.x += o.dir * 0.8
+      if o.x <= 10 or o.x >= 118 then
+        o.dir = -o.dir
+      end
+    elseif o.type == "orbiter" then
+      o.orbit_angle += 0.05
+    elseif o.type == "boss" then
+      o.move_time += 0.03
+      o.x = o.base_x + sin(o.move_time) * 30
+    end
+
+    -- remove off-screen obstacles
+    if o.y > 140 then
+      del(obstacles, o)
+      -- dodge bonus (2x for challenge mode)
+      local bonus = flr(10 * multiplier * 2)
+      challenge_score += bonus
+      combo += 1
+      max_combo = max(max_combo, combo)
+      total_dodges += 1
+      total_dodge_bonus += bonus
+      add_floating_text("+"..bonus, ball.x, ball.y - 10, 10)
+      -- increase multiplier (3x growth for challenge mode)
+      multiplier = min(multiplier + 0.15, 5.0)
+      spawn_particles(ball.x, ball.y, 15, 10)
+      play_sfx(0)
+      _log("dodge:combo="..combo..",mult="..multiplier..",bonus="..bonus)
+
+      -- check combo milestones
+      local milestone = 0
+      if combo == 5 then milestone = 5
+      elseif combo == 10 then milestone = 10
+      elseif combo == 15 then milestone = 15
+      elseif combo == 20 then milestone = 20
+      elseif combo == 25 then milestone = 25
+      elseif combo >= 30 then milestone = 30 end
+
+      if milestone > 0 and milestone > last_milestone then
+        last_milestone = milestone
+        local m_col = (milestone <= 10 and 10) or (milestone <= 20 and 9) or 14
+        add_floating_text("combo "..milestone.."!", 46, 50, m_col)
+        shake_screen(3, 0.25)
+        play_sfx(7)
+        _log("milestone:"..milestone)
+      end
+    end
+  end
+
+  -- update power-ups
+  for pu in all(powerups) do
+    pu.y += scroll_speed * 0.8
+    if pu.y > 130 then
+      del(powerups, pu)
+    end
+
+    -- check collision with ball
+    local dx = pu.x - ball.x
+    local dy = pu.y - ball.y
+    local dist = sqrt(dx * dx + dy * dy)
+    if dist < ball.r + 3 then
+      collect_powerup(pu)
+      del(powerups, pu)
+    end
+  end
+
+  -- update power-up timers
+  if shield_time > 0 then shield_time -= 1 end
+  if slowmo_time > 0 then slowmo_time -= 1 end
+  if doublescore_time > 0 then doublescore_time -= 1 end
+  if magnet_time > 0 then magnet_time -= 1 end
+  if freeze_time > 0 then freeze_time -= 1 end
+
+  -- magnet effect
+  if magnet_time > 0 then
+    for pu in all(powerups) do
+      local dx = ball.x - pu.x
+      local dy = ball.y - pu.y
+      local dist = sqrt(dx * dx + dy * dy)
+      if dist > 0 and dist < 40 then
+        pu.x += (dx / dist) * 1.5
+        pu.y += (dy / dist) * 1.5
+      end
+    end
+  end
+
+  -- check obstacle collision
+  for o in all(obstacles) do
+    local collision = false
+
+    if o.type == "orbiter" then
+      -- check center
+      local dx = o.x - ball.x
+      local dy = o.y - ball.y
+      local dist = sqrt(dx * dx + dy * dy)
+      if dist < ball.r + 3 then collision = true end
+
+      -- check satellites
+      if not collision then
+        for angle_offset = 0, 1, 0.5 do
+          local sat_x = o.x + cos(o.orbit_angle + angle_offset) * o.orbit_radius
+          local sat_y = o.y + sin(o.orbit_angle + angle_offset) * o.orbit_radius
+          local sdx = sat_x - ball.x
+          local sdy = sat_y - ball.y
+          local sdist = sqrt(sdx * sdx + sdy * sdy)
+          if sdist < ball.r + 3 then
+            collision = true
+            break
+          end
+        end
+      end
+    else
+      -- standard collision
+      local dx = o.x - ball.x
+      local dy = o.y - ball.y
+      local dist = sqrt(dx * dx + dy * dy)
+      if dist < ball.r + o.r then
+        collision = true
+      end
+    end
+
+    if collision and shield_time == 0 then
+      -- collision detected
+      lives -= 1
+      life_flash = 20
+      combo = 0
+      last_milestone = 0
+      multiplier = max(1.0, multiplier - 0.5)
+      shake_screen(10, 1.5)
+      spawn_particles(ball.x, ball.y, 20, 8)
+      play_sfx(4)
+      _log("collision:lives="..lives..",mult="..multiplier)
+      del(obstacles, o)
+
+      if lives <= 0 then
+        -- game over
+        challenge_active = false
+        if challenge_score > challenge_best then
+          challenge_best = challenge_score
+        end
+        save_daily_challenge()
+        state = "challenge_summary"
+        _log("state:challenge_summary:death:score="..challenge_score..",best="..challenge_best)
+        return
+      end
+    end
+  end
+
+  -- update ball trail
+  if gametime % 3 == 0 then
+    add(ball_trail, {x = ball.x, y = ball.y, life = 5})
+    if #ball_trail > max_trail_length then
+      del(ball_trail, ball_trail[1])
+    end
+  end
+  for t in all(ball_trail) do
+    t.life -= 1
+    if t.life <= 0 then
+      del(ball_trail, t)
+    end
+  end
+
+  -- update particles
+  for p in all(particles) do
+    p.x += p.vx
+    p.y += p.vy
+    p.vy += 0.1
+    p.life -= 1
+    if p.life <= 0 then
+      del(particles, p)
+    end
+  end
+
+  -- update floating texts
+  for ft in all(floating_texts) do
+    ft.y -= 0.5
+    ft.life -= 1
+    if ft.life <= 0 then
+      del(floating_texts, ft)
+    end
+  end
+
+  -- difficulty progression
+  if gametime % 300 == 0 and gametime > 0 then
+    diff_level = min(diff_level + 1, 10)
+    wave_pulse = 20
+    _log("difficulty_up:"..diff_level)
+  end
+end
+
+function draw_challenge()
+  -- draw ball trail
+  for i, t in pairs(ball_trail) do
+    if t.life > 0 then
+      local trail_col = (ball_skin == 1 and 6) or (ball_skin == 2 and 9) or 12
+      circfill(t.x, t.y, 1, trail_col)
+    end
+  end
+
+  -- draw ball
+  local ball_col = (ball_skin == 1 and 7) or (ball_skin == 2 and 10) or 12
+  if ball_flash > 0 then ball_col = 7 end
+  circfill(ball.x, ball.y, ball.r, ball_col)
+
+  -- draw obstacles (same as normal play)
+  for o in all(obstacles) do
+    if o.type == "spike" then
+      circfill(o.x, o.y, o.r, 8)
+    elseif o.type == "moving" then
+      circfill(o.x, o.y, o.r, 14)
+    elseif o.type == "rotating" then
+      circfill(o.x, o.y, o.r, 12)
+      local rx = o.x + cos(o.angle) * 6
+      local ry = o.y + sin(o.angle) * 6
+      line(o.x, o.y, rx, ry, 7)
+    elseif o.type == "pendulum" then
+      line(o.base_x, 0, o.x, o.y, 6)
+      circfill(o.x, o.y, o.r, 13)
+    elseif o.type == "zigzag" then
+      circfill(o.x, o.y, o.r, 11)
+    elseif o.type == "orbiter" then
+      circfill(o.x, o.y, 3, 9)
+      circ(o.x, o.y, o.orbit_radius, 5)
+      for angle_offset = 0, 1, 0.5 do
+        local sat_x = o.x + cos(o.orbit_angle + angle_offset) * o.orbit_radius
+        local sat_y = o.y + sin(o.orbit_angle + angle_offset) * o.orbit_radius
+        circfill(sat_x, sat_y, 3, 10)
+      end
+    elseif o.type == "boss" then
+      circfill(o.x, o.y, o.r, 8)
+      circ(o.x, o.y, o.r + 2, 2)
+    end
+  end
+
+  -- draw power-ups
+  for pu in all(powerups) do
+    local pu_col = pu.type == "shield" and 11 or pu.type == "slowmo" and 12 or pu.type == "doublescore" and 10 or pu.type == "magnet" and 9 or pu.type == "bomb" and 8 or 14
+    circfill(pu.x, pu.y, 3, pu_col)
+    if pu.type == "magnet" and magnet_time > 0 then
+      circ(pu.x, pu.y, 5 + sin(gametime * 0.1) * 2, pu_col)
+    end
+  end
+
+  -- draw particles
+  for p in all(particles) do
+    pset(p.x, p.y, p.col)
+  end
+
+  -- draw floating texts
+  for ft in all(floating_texts) do
+    print(ft.text, ft.x, ft.y, ft.col)
+  end
+
+  -- draw UI with urgency theme
+  local time_sec = flr(challenge_time_left / 30)
+  local time_col = 7
+  if time_sec <= 10 then
+    time_col = (challenge_pulse < 15) and 8 or 9  -- pulse red/orange
+  elseif time_sec <= 30 then
+    time_col = 9  -- orange
+  end
+
+  print("challenge", 2, 2, 8)
+  print("time: "..time_sec.."s", 2, 9, time_col)
+  print("score: "..challenge_score, 2, 16, 10)
+
+  -- combo counter
+  if combo > 0 then
+    local combo_col = (combo >= 20 and 14) or (combo >= 10 and 9) or 10
+    print("x"..combo, 100, 2, combo_col)
+  end
+
+  -- multiplier
+  local mult_text = multiplier.."x"
+  local mult_col = (multiplier >= 3.0 and 14) or (multiplier >= 2.0 and 9) or 10
+  print(mult_text, 100, 9, mult_col)
+
+  -- lives
+  for i = 1, lives do
+    local life_col = life_flash > 0 and 8 or 11
+    circfill(2 + (i - 1) * 6, 120, 2, life_col)
+  end
+
+  -- power-up indicators
+  local pu_y = 110
+  if shield_time > 0 then
+    print("shield", 2, pu_y, 11)
+    pu_y -= 6
+  end
+  if slowmo_time > 0 then
+    print("slow", 2, pu_y, 12)
+    pu_y -= 6
+  end
+  if doublescore_time > 0 then
+    print("2x", 2, pu_y, 10)
+    pu_y -= 6
+  end
+  if magnet_time > 0 then
+    print("magnet", 2, pu_y, 9)
+    pu_y -= 6
+  end
+  if freeze_time > 0 then
+    print("freeze", 2, pu_y, 14)
+  end
+
+  print("x: quit", 88, 120, 5)
+end
+
+-- challenge summary state
+function update_challenge_summary()
+  local input = test_input()
+
+  -- cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+  end
+
+  if input_cooldown == 0 and (input & 16 > 0 or input & 32 > 0) then  -- O or X
+    state = "menu"
+    _log("state:menu:challenge_summary_exit")
+    input_cooldown = 10
+  end
+end
+
+function draw_challenge_summary()
+  print("challenge complete!", 22, 30, 7)
+
+  print("your score: "..challenge_score, 28, 50, 10)
+  print("today's best: "..challenge_best, 22, 60, challenge_score == challenge_best and 10 or 6)
+
+  -- show previous days
+  if #daily_history > 0 then
+    print("recent history:", 28, 75, 14)
+    local y = 85
+    for i = 1, min(3, #daily_history) do
+      local entry = daily_history[#daily_history - i + 1]
+      local days_ago = challenge_seed - entry.seed
+      local label = days_ago == 0 and "today" or (days_ago == 1 and "yesterday" or (days_ago.." days ago"))
+      print(label..": "..entry.score, 20, y, 6)
+      y += 8
+    end
+  end
+
+  print("press o or x to return", 12, 115, 5)
 end
 
 __gfx__
