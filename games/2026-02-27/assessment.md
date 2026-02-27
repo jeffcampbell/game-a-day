@@ -409,3 +409,89 @@ Expand theme_map to include all 10 colors (0, 2, 5, 7, 8, 9, 10, 11, 12, 14) wit
 
 **Current state:** Feature incomplete, requires theme_map expansion before merge.
 
+---
+
+## Cosmetic Unlock System Feature (feature/cosmetic-unlock-system) - ✅ FIXED & READY FOR RE-REVIEW
+
+**Status:** Critical bug fixed - White trail gametime threshold corrected
+
+### Feature Overview
+Achievement-based cosmetic unlock system that provides 8 cosmetics (2 ball skins, 2 trail styles, 4 color themes) unlocked through gameplay milestones:
+- **Gold ball:** score ≥ 300
+- **Cyan ball:** max_combo ≥ 15
+- **Rainbow trail:** total_powerups ≥ 15
+- **Pink theme:** danger_zone_pickups ≥ 5
+- **Gold theme:** max_multiplier ≥ 1.5
+- **Red theme:** diff_level ≥ 5
+- **Blue theme:** total_dodges ≥ 20
+- **White trail:** gametime ≥ 60 (seconds)
+
+### ✅ FIXED: Gametime Threshold Corrected (Line 1682)
+
+**Fix Applied (commit ae4b0c3):** The white trail cosmetic threshold has been corrected
+
+**Before:**
+```lua
+if gametime >= 60 and (cosmetics_unlocked & 128) == 0 then  -- WRONG: 2 seconds
+```
+
+**After:**
+```lua
+if gametime >= 1800 and (cosmetics_unlocked & 128) == 0 then  -- CORRECT: 60 seconds
+```
+
+**Details:**
+- PICO-8 runs at 30 FPS, so `gametime` is in frames
+- Fixed condition: `gametime >= 1800` = 60 seconds (1800 frames ÷ 30 fps)
+- Matches UI text: "white: survive 60s" (line 1091)
+- Aligns with other time-based checks (e.g., "survivor" achievement uses `gametime >= 900` for 30 seconds)
+- White trail now correctly unlocks after 60 seconds of survival, not 2 seconds
+
+### What Works Excellently ✅
+
+**Architecture:**
+- ✅ Cosmetics checked once per gameover (line 2470 inside correct conditional block)
+- ✅ Bitmask design is clean and consistent (8 bits for 8 cosmetics)
+- ✅ All bit assignments consistent between unlock checks (check_cosmetic_unlocks) and usage (draw_settings)
+- ✅ Duplicate unlock prevention with `(cosmetics_unlocked & bit) == 0` guards
+- ✅ Persistent storage via cartdata slot 63
+
+**Variable Tracking:**
+- ✅ `max_combo` properly initialized (init_game:1288) and updated (update_play:2019)
+- ✅ `total_dodges` properly initialized (init_game:1289) and incremented (update_play:2022)
+- ✅ `total_powerups` properly initialized (init_game:1290) and incremented (collect_powerup:2932)
+- ✅ `max_multiplier` properly initialized (init_game:1292) and updated (update_play:1757)
+- ✅ `danger_zone_pickups` persistent (not reset in init_game) and tracked (collect_powerup:2943)
+
+**User Feedback:**
+- ✅ Floating text on unlock ("unlocked!" + cosmetic name) at proper y-coords
+- ✅ SFX 6 and screen shake match achievement unlock feedback
+- ✅ Settings menu displays unlock requirements for locked cosmetics only
+- ✅ Display y-coordinates within bounds (max y=120 in 128×128 display)
+
+**Code Quality:**
+- ✅ Test infrastructure intact (_log calls present for all unlocks)
+- ✅ No nil dereferences (all variables initialized before use)
+- ✅ save_cosmetics() called correctly when any unlock occurs
+- ✅ Settings menu prevents toggling locked cosmetics (repeat until unlocked)
+- ✅ Token budget healthy (~120 tokens added, well within limits)
+
+### Production Ready ✅
+
+The cosmetic unlock system is now **production-ready** with all issues resolved:
+- ✅ All 8 cosmetics unlock at correct thresholds
+- ✅ Proper gametime conversion (frames → seconds at 30 FPS)
+- ✅ Clean bitmask architecture with duplicate prevention
+- ✅ Comprehensive variable tracking and persistence
+- ✅ Clear user feedback on unlock and in settings menu
+- ✅ Token budget healthy (~120 tokens added)
+
+**Note:** HTML/JS export deferred to deployment environment (requires proper PICO-8 display configuration)
+
+### Integration Assessment
+- ✅ Properly separated from achievement system (removed achievement-based unlocks)
+- ✅ Settings menu provides clear visual feedback on unlock requirements
+- ✅ No impact on existing game mechanics or balance
+- ✅ Enhances progression through clear cosmetic reward milestones
+- ✅ Integrates cleanly with existing persistence system
+
