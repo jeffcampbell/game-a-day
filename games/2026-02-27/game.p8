@@ -57,6 +57,10 @@ ball = {
   grounded = false
 }
 
+-- ball trail effect
+ball_trail = {}
+max_trail_length = 5
+
 -- obstacles
 obstacles = {}
 obs_timer = 0
@@ -291,6 +295,7 @@ function init_game()
   powerups = {}
   particles = {}
   floating_texts = {}
+  ball_trail = {}
   obs_timer = 0
   boss_timer = 0
   pu_timer = 0
@@ -371,6 +376,20 @@ function update_play()
   ball.vy += 0.4  -- gravity
   ball.x += ball.vx
   ball.y += ball.vy
+
+  -- update ball trail
+  local vel = sqrt(ball.vx^2 + ball.vy^2)
+  add(ball_trail, {x=ball.x, y=ball.y, vel=vel, age=0})
+  for tr in all(ball_trail) do
+    tr.age += 1
+    if tr.age > 8 then
+      del(ball_trail, tr)
+    end
+  end
+  -- limit trail length
+  while #ball_trail > max_trail_length do
+    del(ball_trail, ball_trail[1])
+  end
 
   -- bounce off floor
   if ball.y >= 122 then
@@ -599,6 +618,30 @@ function draw_play()
     elseif alpha_step == 1 then
       -- dimmer color in middle fade
       print(ft.text, ft.x, ft.y, 5)
+    end
+  end
+
+  -- ball trail effect (draw before ball)
+  for tr in all(ball_trail) do
+    local fade = 1 - (tr.age / 8)
+    local vel_factor = min(1, tr.vel / 5)
+    local intensity = fade * vel_factor
+    if intensity > 0.2 then
+      local trail_r = ball.r * fade
+      local trail_col = 6  -- base trail color
+      -- match ball color states
+      if shield_time > 0 then
+        trail_col = 11
+      elseif combo >= 10 then
+        trail_col = 15
+      else
+        trail_col = 10
+      end
+      -- fade to darker color
+      if fade < 0.5 then
+        trail_col = 5
+      end
+      circfill(tr.x, tr.y, trail_r, trail_col)
     end
   end
 
