@@ -206,9 +206,9 @@ function load_settings()
   local m = dget(1)
   local s = dget(2)
   local b = dget(3)
-  local sr = dget(56)
-  local ds = dget(57)
-  local cb = dget(58)
+  local sr = dget(60)
+  local ds = dget(61)
+  local cb = dget(62)
 
   -- default to enabled if not set
   music_enabled = m == 0 or m == 1
@@ -228,9 +228,9 @@ function save_settings()
   dset(1, music_enabled and 1 or 0)
   dset(2, sfx_enabled and 1 or 0)
   dset(3, ball_skin)
-  dset(56, spawn_rate)
-  dset(57, diff_scaling)
-  dset(58, combo_bonus)
+  dset(60, spawn_rate)
+  dset(61, diff_scaling)
+  dset(62, combo_bonus)
   _log("settings_saved")
 end
 
@@ -263,7 +263,9 @@ end
 -- daily challenge persistence (slots 54-63)
 -- slot 54: challenge_best
 -- slot 55: challenge_seed
--- slots 56-63: daily_history (4 entries: seed, score, seed, score...)
+-- slots 56-59: daily_history (2 entries: seed, score, seed, score)
+-- slots 60-62: difficulty settings (spawn_rate, diff_scaling, combo_bonus)
+-- slot 63: reserved
 function load_daily_challenge()
   -- generate today's seed
   challenge_seed = flr(time() / 86400)  -- 86400 = 24*60*60 seconds per day
@@ -282,9 +284,9 @@ function load_daily_challenge()
     dset(54, 0)
   end
 
-  -- load daily history (last 4 days)
+  -- load daily history (last 2 days)
   daily_history = {}
-  for i = 1, 4 do
+  for i = 1, 2 do
     local slot_base = 54 + i * 2
     local day_seed = dget(slot_base)
     local day_score = dget(slot_base + 1)
@@ -315,14 +317,14 @@ function save_daily_challenge()
   -- if not found, add new entry
   if not found then
     add(daily_history, {seed = challenge_seed, score = challenge_score})
-    -- keep only last 4 days
-    while #daily_history > 4 do
+    -- keep only last 2 days
+    while #daily_history > 2 do
       del(daily_history, daily_history[1])
     end
   end
 
   -- save history to cartdata
-  for i = 1, 4 do
+  for i = 1, 2 do
     local slot_base = 54 + i * 2
     if i <= #daily_history then
       dset(slot_base, daily_history[i].seed)
