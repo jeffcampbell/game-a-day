@@ -1320,17 +1320,13 @@ function update_play()
             local a=i/8
             add(boss_attack_projectiles, {x=boss_meteor.x, y=boss_meteor.y, speed=0.8+sin(a)*0.2, vx=cos(a)*1.2})
           end
-        elseif boss_attack_type == 2 then
+        else
           local dx,dy=px-boss_meteor.x, py-boss_meteor.y
           local d=sqrt(dx*dx+dy*dy)
-          if d == 0 then d = 0.1 end  -- prevent division by zero
+          if d == 0 then d = 0.1 end
           local vx,vy=dx/d*0.8, dy/d*1.5
           for i=0,4 do
             add(boss_attack_projectiles, {x=boss_meteor.x+vx*i*8, y=boss_meteor.y+vy*i*8, speed=vy, vx=vx})
-          end
-        else
-          for i=0,5 do
-            add(boss_attack_projectiles, {x=boss_meteor.x+(i-2.5)*4, y=boss_meteor.y, speed=2+rnd(0.5), vx=0})
           end
         end
         if boss_attack_type > 0 then sfx(boss_attack_type-1) end
@@ -1340,7 +1336,7 @@ function update_play()
     elseif boss_attack_timer > 0 then
       boss_attack_timer -= 1
       if boss_attack_timer == 0 then
-        boss_attack_type = flr(rnd(3)) + 1
+        boss_attack_type = flr(rnd(2)) + 1
         boss_attack_warning = 60
         _log("boss_attack_warning:type="..boss_attack_type)
         sfx(3)
@@ -1589,17 +1585,15 @@ function draw_menu()
     print("\151", 94, 66, 10)  -- arrow
   end
 
-  -- unlock hint
   if not insane_unlocked then
-    print("unlock: 5000pts", 28, 84, 13)
-    print("in normal mode", 30, 90, 13)
+    print("unlock: 5k norm", 28, 84, 13)
   else
-    print("arrows to select", 24, 84, 6)
+    print("arrows: select", 26, 84, 6)
   end
 
-  print("press z to start", 22, 98, 11)
-  print("press x for help", 22, 106, 13)
-  print("\139 for leaderboard", 20, 114, 10)
+  print("z: start", 42, 98, 11)
+  print("x: help", 42, 106, 13)
+  print("\139: leaderboard", 32, 114, 10)
 
   -- draw example meteors
   -- fast red
@@ -1624,67 +1618,43 @@ function draw_tutorial()
   print("page "..(tutorial_page+1).."/3", 44, 4, 6)
 
   if tutorial_page == 0 then
-    -- page 1: core mechanics
     print("how to play", 34, 14, 7)
-
     print("controls:", 4, 26, 11)
-    print("arrows: move ship", 4, 34, 6)
-    print("z: select/advance", 4, 42, 6)
-    print("x: back/pause", 4, 50, 6)
-
+    print("arrows: move", 4, 34, 6)
+    print("z: select", 4, 42, 6)
+    print("x: pause", 4, 50, 6)
     print("objective:", 4, 62, 11)
     print("dodge meteors!", 4, 70, 6)
-    print("survive as long", 4, 78, 6)
-    print("as possible", 4, 86, 6)
-
-    print("score:", 4, 98, 11)
-    print("near-miss: +10pts", 4, 106, 10)
-    print("combo bonus!", 4, 114, 10)
+    print("survive!", 4, 78, 6)
+    print("score:", 4, 90, 11)
+    print("near-miss: +10", 4, 98, 10)
+    print("combo bonus!", 4, 106, 10)
 
   elseif tutorial_page == 1 then
-    -- page 2: difficulty modes & multiplier
-    print("difficulty modes", 22, 14, 7)
-
-    print("zen mode:", 4, 22, 10)
-    print("relaxed, no waves", 4, 28, 6)
-
-    print("normal mode:", 4, 36, 11)
-    print("balanced gameplay", 4, 42, 6)
-
-    print("hard mode:", 4, 50, 8)
-    print("waves start fast!", 4, 56, 6)
-
-    print("insane mode:", 4, 64, 9)
-    print("unlock via normal", 4, 70, 13)
-
-    print("multiplier:", 4, 82, 11)
-    print("boost via near-miss", 4, 88, 6)
-    print("max: 3.0x-4.0x", 4, 94, 10)
-    print("by difficulty", 4, 100, 6)
+    print("difficulty", 38, 14, 7)
+    print("zen: relaxed", 4, 26, 10)
+    print("normal: balanced", 4, 34, 11)
+    print("hard: fast waves", 4, 42, 8)
+    print("insane: unlock", 4, 50, 9)
+    print("via normal 5k+", 4, 58, 13)
+    print("multiplier:", 4, 74, 11)
+    print("near-miss boost", 4, 82, 6)
+    print("max: 3x-4x", 4, 90, 10)
 
   elseif tutorial_page == 2 then
-    -- page 3: power-ups & advanced
     print("power-ups", 36, 14, 7)
-
-    -- shield
     rectfill(4, 26, 12, 34, 11)
     print("shield", 18, 28, 11)
     print("blocks 1 hit", 18, 36, 6)
-
-    -- slowtime
     rectfill(4, 46, 12, 54, 14)
     print("slow-time", 18, 48, 14)
     print("slows meteors", 18, 56, 6)
-
-    -- invincibility
     rectfill(4, 66, 12, 74, 10)
     print("invincible", 18, 68, 10)
-    print("immune to hits", 18, 76, 6)
-
-    print("wave patterns:", 4, 88, 11)
-    print("meteors spawn in", 4, 96, 6)
-    print("coordinated waves", 4, 104, 6)
-    print("with boss meteors!", 4, 112, 8)
+    print("immune", 18, 76, 6)
+    print("waves:", 4, 88, 11)
+    print("meteor patterns", 4, 96, 6)
+    print("+ boss fights!", 4, 104, 8)
   end
 
   -- navigation hint
@@ -2029,7 +1999,7 @@ function draw_play()
 
     -- attack warning
     if boss_attack_warning > 0 then
-      local attack_names = {"ring!", "beam!", "rapid!"}
+      local attack_names = {"ring!", "beam!"}
       local warn_col = 8 + flr(boss_attack_warning / 8) % 2
       print(attack_names[boss_attack_type], 48, 18, warn_col)
     end
