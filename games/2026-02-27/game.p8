@@ -1679,7 +1679,7 @@ function check_cosmetic_unlocks()
   end
 
   -- bit 7: white trail (60+ seconds survival)
-  if gametime >= 60 and (cosmetics_unlocked & 128) == 0 then
+  if gametime >= 1800 and (cosmetics_unlocked & 128) == 0 then
     cosmetics_unlocked = cosmetics_unlocked | 128
     add_floating_text(64, 50, "unlocked!", 10)
     add_floating_text(64, 60, "white trail", 7)
