@@ -43,6 +43,12 @@ diff_selection = 2  -- current selection cursor
 input_cooldown = 0  -- navigation delay
 pause_cooldown = 0  -- pause button cooldown
 
+-- settings state
+music_enabled = true  -- toggle music on/off
+sfx_enabled = true  -- toggle sfx on/off
+ball_skin = 1  -- ball appearance: 1=white, 2=gold, 3=cyan
+settings_selection = 1  -- current settings menu cursor (1-4)
+
 -- danger zones system
 danger_zones = {}
 zone_timer = 0
@@ -109,7 +115,47 @@ function _init()
   -- load saved high score (slot 0)
   highscore = dget(0)
   _log("highscore_loaded:"..highscore)
+
+  -- load settings (slots 1-3)
+  load_settings()
+
   _log("state:menu")
+end
+
+-- settings persistence
+function load_settings()
+  local m = dget(1)
+  local s = dget(2)
+  local b = dget(3)
+
+  -- default to enabled if not set
+  music_enabled = m == 0 or m == 1
+  sfx_enabled = s == 0 or s == 1
+  ball_skin = b >= 1 and b <= 3 and b or 1
+
+  _log("settings_loaded:m="..tostr(music_enabled)..",s="..tostr(sfx_enabled)..",b="..ball_skin)
+end
+
+function save_settings()
+  dset(1, music_enabled and 1 or 0)
+  dset(2, sfx_enabled and 1 or 0)
+  dset(3, ball_skin)
+  _log("settings_saved")
+end
+
+-- audio wrapper functions
+function play_sfx(n, ch, off)
+  if sfx_enabled then
+    sfx(n, ch, off)
+  end
+end
+
+function play_music(n, fade, mask)
+  if music_enabled then
+    music(n, fade, mask)
+  else
+    music(-1)  -- stop music if disabled
+  end
 end
 
 -- visual juice functions
@@ -119,11 +165,24 @@ function shake(duration, intensity)
   _log("shake:"..duration..":"..intensity)
 end
 
+function get_ball_skin_color()
+  -- return base color based on skin selection
+  if ball_skin == 2 then
+    return 9  -- gold/orange
+  elseif ball_skin == 3 then
+    return 12  -- cyan
+  else
+    return 10  -- white/yellow (default)
+  end
+end
+
 function _update()
   if state == "menu" then
     update_menu()
   elseif state == "difficulty_select" then
     update_difficulty_select()
+  elseif state == "settings" then
+    update_settings()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -143,6 +202,8 @@ function _draw()
     draw_menu()
   elseif state == "difficulty_select" then
     draw_difficulty_select()
+  elseif state == "settings" then
+    draw_settings()
   elseif state == "play" then
     draw_play()
   elseif state == "pause" then
@@ -197,10 +258,19 @@ end
 
 -- menu state
 function update_menu()
-  if test_input() & 16 > 0 then
+  local input = test_input()
+
+  if input & 16 > 0 then  -- O button
     state = "difficulty_select"
     _log("state:difficulty_select")
     diff_selection = difficulty  -- reset to last selected
+  end
+
+  if input & 32 > 0 then  -- X button
+    state = "settings"
+    _log("state:settings")
+    settings_selection = 1  -- reset cursor
+    input_cooldown = 10
   end
 end
 
@@ -210,8 +280,9 @@ function draw_menu()
   print("left/right: steer", 20, 70, 13)
   print("collect power-ups", 18, 78, 11)
   print("press o to start", 22, 96, 10)
+  print("press x for settings", 14, 104, 13)
   if highscore > 0 then
-    print("best: "..highscore, 40, 110, 10)
+    print("best: "..highscore, 40, 116, 10)
   end
 end
 
@@ -228,13 +299,13 @@ function update_difficulty_select()
   if input_cooldown == 0 then
     if input & 4 > 0 then  -- up
       diff_selection = max(1, diff_selection - 1)
-      sfx(1)
+      play_sfx(1)
       _log("difficulty_nav:up")
       input_cooldown = 10
     end
     if input & 8 > 0 then  -- down
       diff_selection = min(3, diff_selection + 1)
-      sfx(1)
+      play_sfx(1)
       _log("difficulty_nav:down")
       input_cooldown = 10
     end
@@ -274,6 +345,103 @@ function draw_difficulty_select()
   print("up/down: choose", 18, 122, 13)
 end
 
+-- settings state
+function update_settings()
+  local input = test_input()
+
+  -- update cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+  end
+
+  -- navigation with cooldown
+  if input_cooldown == 0 then
+    if input & 4 > 0 then  -- up
+      settings_selection = max(1, settings_selection - 1)
+      play_sfx(1)
+      _log("settings_nav:up")
+      input_cooldown = 10
+    end
+    if input & 8 > 0 then  -- down
+      settings_selection = min(4, settings_selection + 1)
+      play_sfx(1)
+      _log("settings_nav:down")
+      input_cooldown = 10
+    end
+
+    -- toggle options with O button
+    if input & 16 > 0 then  -- O button
+      if settings_selection == 1 then
+        music_enabled = not music_enabled
+        play_sfx(1)
+        _log("toggle_music:"..tostr(music_enabled))
+        if not music_enabled then
+          music(-1)  -- stop music immediately
+        end
+      elseif settings_selection == 2 then
+        sfx_enabled = not sfx_enabled
+        play_sfx(1)
+        _log("toggle_sfx:"..tostr(sfx_enabled))
+      elseif settings_selection == 3 then
+        ball_skin = ball_skin % 3 + 1  -- cycle 1->2->3->1
+        play_sfx(1)
+        _log("ball_skin:"..ball_skin)
+      end
+      save_settings()  -- persist changes
+      input_cooldown = 10
+    end
+  end
+
+  -- back to menu with X button
+  if input & 32 > 0 then
+    state = "menu"
+    _log("state:menu")
+    save_settings()  -- ensure settings saved
+    input_cooldown = 10
+  end
+end
+
+function draw_settings()
+  print("settings", 44, 20, 7)
+
+  -- music toggle
+  local col1 = settings_selection == 1 and 10 or 6
+  local check1 = music_enabled and "\x8e" or "\x83"  -- checkmark or X
+  print("> music: "..check1, 28, 36, col1)
+
+  -- sfx toggle
+  local col2 = settings_selection == 2 and 10 or 6
+  local check2 = sfx_enabled and "\x8e" or "\x83"
+  print("> sfx: "..check2, 28, 46, col2)
+
+  -- ball skin
+  local col3 = settings_selection == 3 and 10 or 6
+  local skin_names = {"white", "gold", "cyan"}
+  print("> ball: "..skin_names[ball_skin], 28, 56, col3)
+
+  -- ball preview with current skin
+  local prev_x = 90
+  local prev_y = 58
+  local skin_col = get_ball_skin_color()
+  circfill(prev_x, prev_y, 3, skin_col)
+  circ(prev_x, prev_y, 3, 7)
+
+  -- controls reference
+  local col4 = settings_selection == 4 and 10 or 6
+  print("> controls", 28, 66, col4)
+
+  -- show controls if selected
+  if settings_selection == 4 then
+    print("arrows: move ball", 12, 78, 5)
+    print("o: confirm/toggle", 12, 84, 5)
+    print("x: pause/back", 18, 90, 5)
+  end
+
+  print("up/down: navigate", 16, 106, 13)
+  print("o: toggle option", 18, 112, 13)
+  print("x: back to menu", 18, 118, 13)
+end
+
 -- pause state
 function update_pause()
   -- update pause cooldown
@@ -285,7 +453,7 @@ function update_pause()
   local input = test_input()
   if pause_cooldown == 0 and input & 32 > 0 then
     state = "play"
-    music(0)  -- resume music
+    play_music(0)  -- resume music
     _log("state:resume")
     pause_cooldown = 15
   end
@@ -375,7 +543,7 @@ function init_game()
   zone_interval = 450 + rnd(150)  -- 15-20 seconds
   _log("zones_init")
 
-  music(0)  -- start background music
+  play_music(0)  -- start background music
   _log("game_init:difficulty="..difficulty)
 end
 
@@ -390,7 +558,7 @@ function update_play()
   local input = test_input()
   if pause_cooldown == 0 and input & 32 > 0 then
     state = "pause"
-    music(-1)  -- stop music when paused
+    play_music(-1)  -- stop music when paused
     _log("state:pause")
     pause_cooldown = 15
     return
@@ -403,7 +571,7 @@ function update_play()
     diff_level += 1
     scroll_speed += 0.1
     obs_interval = max(20, obs_interval - 5)
-    sfx(6)  -- difficulty increase fanfare
+    play_sfx(6)  -- difficulty increase fanfare
     wave_pulse = 20  -- trigger wave counter pulse
     _log("difficulty:"..diff_level)
     _log("wave:"..diff_level)
@@ -488,7 +656,7 @@ function update_play()
     if abs(ball.vy) < 0.5 then
       ball.vy = -3
     end
-    sfx(0)  -- bounce sound
+    play_sfx(0)  -- bounce sound
     shake(6, 0.5 + diff_level * 0.1)  -- small shake, scales with difficulty
     add_particles(ball.x, 122, 5, 13)  -- bounce particles
     _log("bounce")
@@ -500,13 +668,13 @@ function update_play()
   if ball.x < ball.r then
     ball.x = ball.r
     ball.vx *= -0.5
-    sfx(1)  -- wall bounce sound
+    play_sfx(1)  -- wall bounce sound
     shake(4, 0.3)  -- small shake on wall bounce
     add_particles(ball.x, ball.y, 3, 6)
   elseif ball.x > 128 - ball.r then
     ball.x = 128 - ball.r
     ball.vx *= -0.5
-    sfx(1)  -- wall bounce sound
+    play_sfx(1)  -- wall bounce sound
     shake(4, 0.3)  -- small shake on wall bounce
     add_particles(ball.x, ball.y, 3, 6)
   end
@@ -602,7 +770,7 @@ function update_play()
         _log("lives:"..lives)
 
         -- collision feedback
-        sfx(7)  -- collision impact sound
+        play_sfx(7)  -- collision impact sound
         shake(8, 1.0)  -- medium shake
         ball_flash = 3  -- flash ball white
         add_particles(ball.x, ball.y, 15, 7)  -- particle burst
@@ -615,7 +783,7 @@ function update_play()
 
         -- check if game over
         if lives <= 0 then
-          music(-1)  -- stop music on game over
+          play_music(-1)  -- stop music on game over
           state = "gameover"
           _log("state:gameover")
           _log("final_score:"..score)
@@ -630,7 +798,7 @@ function update_play()
             new_record = true
             new_record_flash = 60  -- flash for 2 seconds
             dset(0, highscore)  -- save to cartridge data
-            sfx(6)  -- celebratory sound
+            play_sfx(6)  -- celebratory sound
             shake(20, 0.5)  -- screen shake
             _log("new_highscore:"..highscore)
             _log("highscore_saved")
@@ -671,7 +839,7 @@ function update_play()
       score += bonus
       total_dodge_bonus += bonus
 
-      sfx(5)  -- dodge bonus ascending notes
+      play_sfx(5)  -- dodge bonus ascending notes
       local shake_amt = o.is_boss and 6 or 3
       shake(shake_amt, o.is_boss and 0.8 or 0.4)
       if o.is_boss then
@@ -703,7 +871,7 @@ function update_play()
       if milestone > 0 and milestone > last_milestone then
         last_milestone = milestone
         _log("milestone:"..milestone)
-        sfx(7)  -- celebratory milestone sound
+        play_sfx(7)  -- celebratory milestone sound
         shake(3, 0.25)  -- gentle shake for milestone
         -- milestone floating text with color
         local m_col = 10  -- yellow
@@ -923,8 +1091,8 @@ function draw_play()
     end
   end
 
-  -- ball with flash effect and combo color
-  local ball_col = 10
+  -- ball with flash effect, combo color, and skin
+  local ball_col = get_ball_skin_color()  -- default to selected skin
   if ball_flash > 0 then
     ball_col = 7  -- white flash on collision
   elseif shield_time > 0 then
@@ -1202,7 +1370,7 @@ function spawn_boss()
 
   add(obstacles, o)
   _log("spawn_obstacle:boss"..(o.in_danger and ":danger" or ""))
-  sfx(6)  -- boss spawn sound
+  play_sfx(6)  -- boss spawn sound
   shake(8, 1.0)  -- screen shake on boss spawn
 end
 
@@ -1261,19 +1429,19 @@ function collect_powerup(p)
       _log("life_restored")
       _log("lives:"..lives)
     end
-    sfx(2)  -- shield powerup
+    play_sfx(2)  -- shield powerup
     add_floating_text(p.x - 12, p.y - 20, "shield!", 11)
   elseif p.type == "slowmo" then
     slowmo_time = 60
-    sfx(3)  -- slowmo powerup
+    play_sfx(3)  -- slowmo powerup
     add_floating_text(p.x - 12, p.y - 20, "slowmo!", 12)
   elseif p.type == "doublescore" then
     doublescore_time = 150
-    sfx(4)  -- doublescore powerup
+    play_sfx(4)  -- doublescore powerup
     add_floating_text(p.x - 18, p.y - 20, "double score!", 10)
   elseif p.type == "magnet" then
     magnet_time = 240  -- 8 seconds at 30fps
-    sfx(2)  -- magnet powerup
+    play_sfx(2)  -- magnet powerup
     add_floating_text(p.x - 12, p.y - 20, "magnet!", 13)
     _log("powerup:magnet")
   elseif p.type == "bomb" then
@@ -1287,14 +1455,14 @@ function collect_powerup(p)
         cleared += 1
       end
     end
-    sfx(5)  -- bomb powerup (explosion sound)
+    play_sfx(5)  -- bomb powerup (explosion sound)
     shake(12, 1.5)  -- strong shake on bomb
     screen_flash = 8  -- flash screen
     add_floating_text(p.x - 10, p.y - 20, "bomb!", 8)
     _log("powerup:bomb:cleared="..cleared)
   elseif p.type == "freeze" then
     freeze_time = 180  -- 6 seconds at 30fps
-    sfx(3)  -- freeze powerup
+    play_sfx(3)  -- freeze powerup
     add_floating_text(p.x - 12, p.y - 20, "freeze!", 12)
     _log("powerup:freeze")
   end
