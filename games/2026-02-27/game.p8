@@ -1262,6 +1262,7 @@ function init_game()
   new_record = false  -- reset new record flag
   new_record_flash = 0
   leaderboard_rank = 0  -- reset rank
+  cosmetics_checked_this_gameover = false  -- reset cosmetic check flag
   gametime = 0
   multiplier = 1.0
   diff_level = 1
@@ -2465,9 +2466,13 @@ function update_gameover()
       shake(20, 0.5)
       _log("leaderboard_rank:"..rank)
     end
+  end
 
-    -- check for cosmetic unlocks (once per gameover)
+  -- check for cosmetic unlocks (once per gameover, regardless of new record)
+  if not cosmetics_checked_this_gameover then
     check_cosmetic_unlocks()
+    cosmetics_checked_this_gameover = true
+    _log("cosmetics_checked")
   end
 
   -- if ranked, wait for O button to enter initials
