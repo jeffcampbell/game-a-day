@@ -194,6 +194,7 @@ function _init()
   -- load daily challenge data (slots 54-63)
   load_daily_challenge()
 
+  play_music(2)  -- start menu music
   _log("state:menu")
 end
 
@@ -664,6 +665,7 @@ function update_tutorial()
   if input & 16 > 0 then  -- O button
     tutorial_completed = true
     dset(53, 1)  -- save completion flag
+    play_music(2)  -- menu music
     state = "menu"
     _log("tutorial_complete")
     _log("state:menu")
@@ -883,6 +885,7 @@ function update_settings()
 
   -- back to menu with X button
   if input & 32 > 0 then
+    play_music(2)  -- menu music
     state = "menu"
     _log("state:menu")
     save_settings()  -- ensure settings saved
@@ -937,6 +940,7 @@ function update_leaderboard()
 
   -- back to menu with X button
   if input & 32 > 0 then
+    play_music(2)  -- menu music
     state = "menu"
     _log("state:menu")
     input_cooldown = 10
@@ -1039,6 +1043,7 @@ function update_achievements()
 
   -- return to menu
   if input_cooldown == 0 and input & 32 > 0 then  -- X button
+    play_music(2)  -- menu music
     state = "menu"
     _log("state:menu")
     input_cooldown = 10
@@ -1213,7 +1218,7 @@ function init_challenge()
   zone_timer = 0
   zone_interval = 450 + rnd(150)
 
-  play_music(0)
+  play_music(1)  -- challenge mode music (more intense)
   _log("challenge_init:seed="..challenge_seed..",scroll="..scroll_speed..",interval="..obs_interval)
 end
 
@@ -1307,7 +1312,7 @@ function update_play()
     diff_level += 1
     scroll_speed += 0.1
     obs_interval = max(20, obs_interval - 5)
-    play_sfx(6)  -- difficulty increase fanfare
+    play_sfx(2)  -- difficulty increase ascending tone
     wave_pulse = 20  -- trigger wave counter pulse
     _log("difficulty:"..diff_level)
     _log("wave:"..diff_level)
@@ -1467,36 +1472,37 @@ function update_play()
     end
 
     -- check collision
-    if shield_time == 0 then
-      local collision = false
+    local collision = false
 
-      -- standard collision for most types
-      if o.type != "orbiter" then
-        local dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
-        if dist < ball.r + o.r then
-          collision = true
-        end
-      else
-        -- orbiter: check collision with center and two satellites
-        local center_dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
-        if center_dist < ball.r + 3 then
-          collision = true
-        end
-        -- satellite 1
-        local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
-        local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
-        local sat1_dist = sqrt((ball.x - sat1_x)^2 + (ball.y - sat1_y)^2)
-        if sat1_dist < ball.r + 3 then
-          collision = true
-        end
-        -- satellite 2
-        local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
-        local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
-        local sat2_dist = sqrt((ball.x - sat2_x)^2 + (ball.y - sat2_y)^2)
-        if sat2_dist < ball.r + 3 then
-          collision = true
-        end
+    -- standard collision for most types
+    if o.type != "orbiter" then
+      local dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
+      if dist < ball.r + o.r then
+        collision = true
       end
+    else
+      -- orbiter: check collision with center and two satellites
+      local center_dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
+      if center_dist < ball.r + 3 then
+        collision = true
+      end
+      -- satellite 1
+      local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
+      local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
+      local sat1_dist = sqrt((ball.x - sat1_x)^2 + (ball.y - sat1_y)^2)
+      if sat1_dist < ball.r + 3 then
+        collision = true
+      end
+      -- satellite 2
+      local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
+      local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
+      local sat2_dist = sqrt((ball.x - sat2_x)^2 + (ball.y - sat2_y)^2)
+      if sat2_dist < ball.r + 3 then
+        collision = true
+      end
+    end
+
+    if shield_time == 0 then
 
       if collision then
         -- lose a life
@@ -1507,7 +1513,7 @@ function update_play()
         _log("lives:"..lives)
 
         -- collision feedback
-        play_sfx(7)  -- collision impact sound
+        play_sfx(3)  -- collision/damage harsh buzz
         shake(8, 1.0)  -- medium shake
         ball_flash = 3  -- flash ball white
         add_particles(ball.x, ball.y, 15, 7)  -- particle burst
@@ -1520,7 +1526,8 @@ function update_play()
 
         -- check if game over
         if lives <= 0 then
-          play_music(-1)  -- stop music on game over
+          play_sfx(7)  -- game over descending tone
+          play_music(3, 500)  -- game over music with fade
           state = "gameover"
           _log("state:gameover")
           _log("final_score:"..score)
@@ -1535,12 +1542,22 @@ function update_play()
             new_record = true
             new_record_flash = 60  -- flash for 2 seconds
             dset(0, highscore)  -- save to cartridge data
-            play_sfx(6)  -- celebratory sound
             shake(20, 0.5)  -- screen shake
             _log("new_highscore:"..highscore)
             _log("highscore_saved")
           end
         end
+        return
+      end
+    else
+      -- shield active: absorb collision
+      if collision then
+        play_sfx(6)  -- shield absorb ping
+        shield_time = 0  -- consume shield
+        shake(4, 0.5)  -- light shake
+        add_particles(ball.x, ball.y, 10, 11)  -- cyan particles
+        del(obstacles, o)  -- remove obstacle
+        _log("shield_absorb")
         return
       end
     end
@@ -1576,7 +1593,7 @@ function update_play()
       score += bonus
       total_dodge_bonus += bonus
 
-      play_sfx(5)  -- dodge bonus ascending notes
+      play_sfx(4)  -- dodge/safe milestone sparkle
       local shake_amt = o.is_boss and 6 or 3
       shake(shake_amt, o.is_boss and 0.8 or 0.4)
       if o.is_boss then
@@ -2375,19 +2392,19 @@ function collect_powerup(p)
       _log("life_restored")
       _log("lives:"..lives)
     end
-    play_sfx(2)  -- shield powerup
+    play_sfx(5, -1, 0)  -- shield powerup (base pitch)
     add_floating_text(p.x - 12, p.y - 20, "shield!", 11)
   elseif p.type == "slowmo" then
     slowmo_time = 60
-    play_sfx(3)  -- slowmo powerup
+    play_sfx(5, -1, 4)  -- slowmo powerup (higher pitch)
     add_floating_text(p.x - 12, p.y - 20, "slowmo!", 12)
   elseif p.type == "doublescore" then
     doublescore_time = 150
-    play_sfx(4)  -- doublescore powerup
+    play_sfx(5, -1, 8)  -- doublescore powerup (even higher pitch)
     add_floating_text(p.x - 18, p.y - 20, "double score!", 10)
   elseif p.type == "magnet" then
     magnet_time = 240  -- 8 seconds at 30fps
-    play_sfx(2)  -- magnet powerup
+    play_sfx(5, -1, 2)  -- magnet powerup (slightly higher pitch)
     add_floating_text(p.x - 12, p.y - 20, "magnet!", 13)
     _log("powerup:magnet")
   elseif p.type == "bomb" then
@@ -2401,14 +2418,14 @@ function collect_powerup(p)
         cleared += 1
       end
     end
-    play_sfx(5)  -- bomb powerup (explosion sound)
+    play_sfx(5, -1, 12)  -- bomb powerup (explosion sound, highest pitch)
     shake(12, 1.5)  -- strong shake on bomb
     screen_flash = 8  -- flash screen
     add_floating_text(p.x - 10, p.y - 20, "bomb!", 8)
     _log("powerup:bomb:cleared="..cleared)
   elseif p.type == "freeze" then
     freeze_time = 180  -- 6 seconds at 30fps
-    play_sfx(3)  -- freeze powerup
+    play_sfx(5, -1, 6)  -- freeze powerup (mid-high pitch)
     add_floating_text(p.x - 12, p.y - 20, "freeze!", 12)
     _log("powerup:freeze")
   end
@@ -2479,6 +2496,7 @@ function update_practice_obstacle_select()
 
   -- back to menu
   if input & 32 > 0 then  -- X button
+    play_music(2)  -- menu music
     state = "menu"
     _log("state:menu")
     input_cooldown = 10
@@ -2640,6 +2658,7 @@ function update_practice_play()
 
   -- exit to menu
   if input & 32 > 0 then  -- X button
+    play_music(2)  -- menu music
     state = "menu"
     _log("state:menu")
     return
@@ -2898,6 +2917,7 @@ function update_challenge()
   local input = test_input()
   if input & 32 > 0 and pause_cooldown == 0 then  -- X button
     challenge_active = false
+    play_music(2)  -- menu music
     state = "menu"
     _log("state:menu:challenge_quit")
     pause_cooldown = 15
@@ -3123,29 +3143,41 @@ function update_challenge()
       end
     end
 
-    if collision and shield_time == 0 then
-      -- collision detected
-      lives -= 1
-      life_flash = 20
-      combo = 0
-      last_milestone = 0
-      multiplier = max(1.0, multiplier - 0.5)
-      shake_screen(10, 1.5)
-      spawn_particles(ball.x, ball.y, 20, 8)
-      play_sfx(4)
-      _log("collision:lives="..lives..",mult="..multiplier)
-      del(obstacles, o)
+    if collision then
+      if shield_time == 0 then
+        -- collision detected
+        lives -= 1
+        life_flash = 20
+        combo = 0
+        last_milestone = 0
+        multiplier = max(1.0, multiplier - 0.5)
+        shake_screen(10, 1.5)
+        spawn_particles(ball.x, ball.y, 20, 8)
+        play_sfx(3)  -- collision/damage harsh buzz
+        _log("collision:lives="..lives..",mult="..multiplier)
+        del(obstacles, o)
 
-      if lives <= 0 then
-        -- game over
-        challenge_active = false
-        if challenge_score > challenge_best then
-          challenge_best = challenge_score
+        if lives <= 0 then
+          -- game over
+          challenge_active = false
+          if challenge_score > challenge_best then
+            challenge_best = challenge_score
+          end
+          save_daily_challenge()
+          play_sfx(7)  -- game over descending tone
+          play_music(3, 500)  -- game over music with fade
+          state = "challenge_summary"
+          _log("state:challenge_summary:death:score="..challenge_score..",best="..challenge_best)
+          return
         end
-        save_daily_challenge()
-        state = "challenge_summary"
-        _log("state:challenge_summary:death:score="..challenge_score..",best="..challenge_best)
-        return
+      else
+        -- shield active: absorb collision
+        play_sfx(6)  -- shield absorb ping
+        shield_time = 0  -- consume shield
+        shake_screen(4, 0.5)  -- light shake
+        spawn_particles(ball.x, ball.y, 10, 11)  -- cyan particles
+        del(obstacles, o)
+        _log("shield_absorb")
       end
     end
   end
@@ -3320,6 +3352,7 @@ function update_challenge_summary()
   end
 
   if input_cooldown == 0 and (input & 16 > 0 or input & 32 > 0) then  -- O or X
+    play_music(2)  -- menu music
     state = "menu"
     _log("state:menu:challenge_summary_exit")
     input_cooldown = 10
