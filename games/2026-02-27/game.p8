@@ -1801,80 +1801,79 @@ function draw_play()
     end
   end
 
-  -- obstacles
+  -- obstacles (sprite-based)
   for o in all(obstacles) do
-    -- brighter colors for danger zone obstacles
-    local danger_boost = o.in_danger and 1 or 0
     if o.type == "spike" then
-      local col = o.in_danger and 14 or 8  -- pink in danger, red normal
-      circfill(o.x, o.y, o.r, col)
-      circ(o.x, o.y, o.r, obstacles_frozen and 12 or 2)  -- cyan outline when frozen
+      -- sprite 0: spike
+      if o.in_danger then pal(8, 14) end  -- pink in danger
+      if obstacles_frozen then pal(2, 12) end  -- cyan outline when frozen
+      spr(0, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "moving" then
-      local col = o.in_danger and 8 or 12  -- red in danger, blue normal
-      rectfill(o.x - o.r, o.y - 3, o.x + o.r, o.y + 3, col)
-      if obstacles_frozen then
-        rect(o.x - o.r, o.y - 3, o.x + o.r, o.y + 3, 12)  -- cyan border when frozen
-      end
+      -- sprite 1: moving horizontal bar
+      if o.in_danger then pal(12, 8) end  -- red in danger
+      if obstacles_frozen then pal(12, 12) end  -- cyan when frozen
+      spr(1, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "rotating" then
-      local col = o.in_danger and 15 or 14  -- white in danger, pink normal
-      circfill(o.x, o.y, o.r, col)
-      if obstacles_frozen then
-        circ(o.x, o.y, o.r, 12)  -- cyan outline when frozen
-      end
+      -- sprite 2: rotating gear
+      if o.in_danger then pal(14, 15) end  -- white in danger
+      if obstacles_frozen then pal(7, 12) end  -- cyan tint when frozen
+      spr(2, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "boss" then
+      -- sprite 3: boss face with pulsing rings
+      if o.in_danger then pal(8, 14) pal(2, 8) end
+      spr(3, o.x - 4, o.y - 4)
+      pal()
       -- pulsing ring effect
-      local pulse = sin(gametime / 15) * 2
-      local col1 = o.in_danger and 8 or 2
-      local col2 = obstacles_frozen and 12 or (o.in_danger and 14 or 8)
-      circfill(o.x, o.y, o.r, col1)
-      circ(o.x, o.y, o.r, col2)
       if not obstacles_frozen then
+        local pulse = sin(gametime / 15) * 2
         circ(o.x, o.y, o.r - 2 + pulse, 14)
         circ(o.x, o.y, o.r + 2 + pulse, 9)
+      else
+        circ(o.x, o.y, o.r, 12)  -- cyan ring when frozen
       end
     elseif o.type == "pendulum" then
-      -- hanging pendulum with chain
-      local col = o.in_danger and 8 or 9
+      -- sprite 4: pendulum weight with chain
       line(o.base_x, 0, o.x, o.y, 5)
-      circfill(o.x, o.y, o.r, col)
-      circ(o.x, o.y, o.r, obstacles_frozen and 12 or 2)
+      if o.in_danger then pal(9, 8) end  -- red in danger
+      if obstacles_frozen then pal(9, 12) end  -- cyan when frozen
+      spr(4, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "zigzag" then
-      -- zigzag with motion trail
-      local col = o.in_danger and 8 or 12
-      circfill(o.x, o.y, o.r, col)
-      circ(o.x, o.y, o.r, obstacles_frozen and 12 or 1)
+      -- sprite 5: zigzag wave
+      if o.in_danger then pal(11, 8) pal(12, 8) end  -- red in danger
+      if obstacles_frozen then pal(11, 12) pal(12, 12) end  -- cyan when frozen
+      spr(5, o.x - 4, o.y - 4)
+      pal()
     elseif o.type == "orbiter" then
-      -- center core
-      local col = o.in_danger and 8 or 2
-      circfill(o.x, o.y, 3, col)
-      circ(o.x, o.y, 3, obstacles_frozen and 12 or 8)
-      -- satellite 1
+      -- sprite 6: center core + orbit ring
+      if o.in_danger then pal(2, 8) pal(5, 8) end  -- red in danger
+      spr(6, o.x - 4, o.y - 4)
+      pal()
+      -- satellites (small sprites)
       local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
       local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
-      local sat_col = o.in_danger and 14 or 9
-      circfill(sat1_x, sat1_y, 3, sat_col)
-      if obstacles_frozen then
-        circ(sat1_x, sat1_y, 3, 12)
-      end
-      -- satellite 2
+      circfill(sat1_x, sat1_y, 2, o.in_danger and 14 or 9)
+      if obstacles_frozen then circ(sat1_x, sat1_y, 2, 12) end
       local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
-      circfill(sat2_x, sat2_y, 3, sat_col)
-      if obstacles_frozen then
-        circ(sat2_x, sat2_y, 3, 12)
-      end
-      -- orbit lines
-      circ(o.x, o.y, o.orbit_radius, 5)
+      circfill(sat2_x, sat2_y, 2, o.in_danger and 14 or 9)
+      if obstacles_frozen then circ(sat2_x, sat2_y, 2, 12) end
     end
   end
 
-  -- power-ups with pulse effect
+  -- power-ups with pulse effect (sprite-based)
   for p in all(powerups) do
     local pulse = sin(p.spawn_time / 10) * 1.5
+    -- map power-up type to sprite id
+    local sprite_map = {shield=7, slowmo=8, doublescore=9, magnet=10, bomb=11, freeze=12}
+    local spr_id = sprite_map[p.type]
+    spr(spr_id, p.x - 4, p.y - 4)
+    -- pulse ring for emphasis
     local r = 4 + pulse
-    circfill(p.x, p.y, r, p.col)
     circ(p.x, p.y, r, 7)
-    -- outer ring for emphasis
     if p.spawn_time < 30 then
       circ(p.x, p.y, r + 2, 7)
     end
@@ -2903,32 +2902,30 @@ function draw_practice_play()
   local ball_col = (ball_skin == 1 and 7) or (ball_skin == 2 and 10) or 12
   circfill(ball.x, ball.y, ball.r, ball_col)
 
-  -- draw obstacles (same as normal play)
+  -- draw obstacles (sprite-based)
   for o in all(obstacles) do
     if o.type == "spike" then
-      circfill(o.x, o.y, o.r, 8)
+      spr(0, o.x - 4, o.y - 4)
     elseif o.type == "moving" then
-      circfill(o.x, o.y, o.r, 14)
+      spr(1, o.x - 4, o.y - 4)
     elseif o.type == "rotating" then
-      circfill(o.x, o.y, o.r, 12)
-      local rx = o.x + cos(o.angle) * 6
-      local ry = o.y + sin(o.angle) * 6
-      line(o.x, o.y, rx, ry, 7)
+      spr(2, o.x - 4, o.y - 4)
     elseif o.type == "pendulum" then
       line(o.base_x, 0, o.x, o.y, 6)
-      circfill(o.x, o.y, o.r, 13)
+      spr(4, o.x - 4, o.y - 4)
     elseif o.type == "zigzag" then
-      circfill(o.x, o.y, o.r, 11)
+      spr(5, o.x - 4, o.y - 4)
     elseif o.type == "orbiter" then
-      circfill(o.x, o.y, 3, 9)
-      circ(o.x, o.y, o.orbit_radius, 5)
-      for angle_offset = 0, 1, 0.5 do
-        local sat_x = o.x + cos(o.orbit_angle + angle_offset) * o.orbit_radius
-        local sat_y = o.y + sin(o.orbit_angle + angle_offset) * o.orbit_radius
-        circfill(sat_x, sat_y, 3, 10)
-      end
+      spr(6, o.x - 4, o.y - 4)
+      -- satellites
+      local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
+      local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
+      circfill(sat1_x, sat1_y, 2, 10)
+      local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
+      local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
+      circfill(sat2_x, sat2_y, 2, 10)
     elseif o.type == "boss" then
-      circfill(o.x, o.y, o.r, 8)
+      spr(3, o.x - 4, o.y - 4)
       circ(o.x, o.y, o.r + 2, 2)
     end
   end
@@ -3320,42 +3317,40 @@ function draw_challenge()
   if ball_flash > 0 then ball_col = 7 end
   circfill(ball.x, ball.y, ball.r, ball_col)
 
-  -- draw obstacles (same as normal play)
+  -- draw obstacles (sprite-based)
   for o in all(obstacles) do
     if o.type == "spike" then
-      circfill(o.x, o.y, o.r, 8)
+      spr(0, o.x - 4, o.y - 4)
     elseif o.type == "moving" then
-      circfill(o.x, o.y, o.r, 14)
+      spr(1, o.x - 4, o.y - 4)
     elseif o.type == "rotating" then
-      circfill(o.x, o.y, o.r, 12)
-      local rx = o.x + cos(o.angle) * 6
-      local ry = o.y + sin(o.angle) * 6
-      line(o.x, o.y, rx, ry, 7)
+      spr(2, o.x - 4, o.y - 4)
     elseif o.type == "pendulum" then
       line(o.base_x, 0, o.x, o.y, 6)
-      circfill(o.x, o.y, o.r, 13)
+      spr(4, o.x - 4, o.y - 4)
     elseif o.type == "zigzag" then
-      circfill(o.x, o.y, o.r, 11)
+      spr(5, o.x - 4, o.y - 4)
     elseif o.type == "orbiter" then
-      circfill(o.x, o.y, 3, 9)
-      circ(o.x, o.y, o.orbit_radius, 5)
-      for angle_offset = 0, 1, 0.5 do
-        local sat_x = o.x + cos(o.orbit_angle + angle_offset) * o.orbit_radius
-        local sat_y = o.y + sin(o.orbit_angle + angle_offset) * o.orbit_radius
-        circfill(sat_x, sat_y, 3, 10)
-      end
+      spr(6, o.x - 4, o.y - 4)
+      -- satellites
+      local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
+      local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
+      circfill(sat1_x, sat1_y, 2, 10)
+      local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
+      local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
+      circfill(sat2_x, sat2_y, 2, 10)
     elseif o.type == "boss" then
-      circfill(o.x, o.y, o.r, 8)
+      spr(3, o.x - 4, o.y - 4)
       circ(o.x, o.y, o.r + 2, 2)
     end
   end
 
-  -- draw power-ups
+  -- draw power-ups (sprite-based)
   for pu in all(powerups) do
-    local pu_col = pu.type == "shield" and 11 or pu.type == "slowmo" and 12 or pu.type == "doublescore" and 10 or pu.type == "magnet" and 9 or pu.type == "bomb" and 8 or 14
-    circfill(pu.x, pu.y, 3, pu_col)
+    local sprite_map = {shield=7, slowmo=8, doublescore=9, magnet=10, bomb=11, freeze=12}
+    spr(sprite_map[pu.type], pu.x - 4, pu.y - 4)
     if pu.type == "magnet" and magnet_time > 0 then
-      circ(pu.x, pu.y, 5 + sin(gametime * 0.1) * 2, pu_col)
+      circ(pu.x, pu.y, 5 + sin(gametime * 0.1) * 2, 9)
     end
   end
 
@@ -3464,14 +3459,14 @@ function draw_challenge_summary()
 end
 
 __gfx__
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000880000000000000eeee00008888000006600000bbb0000005550000bbbb0000cccc000aa00aa0dd0000dd00002000000cc00000077000000000000000000
+0088880000cccc000ee77ee00882288000066000bbbbb00055225500bb77bb00cc77cc0a00a0a0add0000dd00022000c0cc0c00077770000000000000000000
+0888888000ccccccee7777ee8882288800999000bbbb0005222225bb7777bbcc7777ccc00a0a0add0000dd00888800cccccc0077777700000000000000000000
+8888888800ccccccee777777e88000088999999000bbbbb52222225b777777bc777c77ca0a00a00dd0000dd08888880cccccccc07777770000000000000000000
+888282880ccccccce777777782888828999999990bbbbbb52222225b777777bc77777c7a00a0a00dd0000dd88788788cccccc0007777770000000000000000000
+8822228800ccccccee7777ee8822228899999999bbbbb005222225bb7777bbcc7777ccc0a0a0a0d0dd00dd088888880c0cc0c00077777000000000000000000
+8222222800cccc000ee77ee00828828009999900bbbb00005522550bb77bb00cc77cc0a0a00a0a0dddddd00888888000cc00000077770000000000000000000
+0022220000000000000eeee000088880000999000bbbb0000055500000bbbb00000cccc0000000000dddd000088880000000000000770000000000000000000
 __sfx__
 000100003305035050330502e0502e0502a0502805023050200501d0501805014050100500c050090500605004050030500205001050000500005000050000500005000050000500005000050000500005000050
 000100001c3501c3501c3501a3501a3501735015350123501035000300003000030000300003000030000300003000030000300003000030000300003000030000300003000030000300003000030000300003000
