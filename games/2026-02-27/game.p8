@@ -61,6 +61,8 @@ ball = {
 obstacles = {}
 obs_timer = 0
 obs_interval = 60
+boss_timer = 0
+boss_interval = 150
 scroll_speed = 0.5
 
 -- power-ups
@@ -290,6 +292,7 @@ function init_game()
   particles = {}
   floating_texts = {}
   obs_timer = 0
+  boss_timer = 0
   pu_timer = 0
   shield_time = 0
   slowmo_time = 0
@@ -407,6 +410,17 @@ function update_play()
     spawn_obstacle()
   end
 
+  -- spawn boss obstacles (diff_level >= 3)
+  if diff_level >= 3 then
+    boss_timer += 1
+    if boss_timer >= boss_interval then
+      boss_timer = 0
+      if rnd(1) < 0.33 then
+        spawn_boss()
+      end
+    end
+  end
+
   -- update obstacles
   local speed_mod = slowmo_time > 0 and 0.5 or 1.0
   for o in all(obstacles) do
@@ -420,6 +434,9 @@ function update_play()
     elseif o.type == "rotating" then
       o.angle += 0.02
       o.r = 8 + sin(o.angle) * 4
+    elseif o.type == "boss" then
+      o.wave_time += 0.03
+      o.x = o.base_x + sin(o.wave_time) * 30
     end
 
     -- check collision
@@ -451,13 +468,22 @@ function update_play()
       combo += 1
       _log("combo:"..combo)
       local base_bonus = 10 * multiplier * (doublescore_time > 0 and 2 or 1)
+      if o.is_boss then
+        base_bonus *= 2  -- double points for boss dodges
+      end
       local combo_mult = 1 + flr(combo / 5)
       local bonus = flr(base_bonus * combo_mult)
       score += bonus
       sfx(5)  -- dodge bonus ascending notes
-      shake(3, 0.4)  -- small shake on dodge
-      _log("dodge_bonus:"..bonus)
-      add_particles(ball.x, ball.y, 15, 11)  -- larger particle burst
+      local shake_amt = o.is_boss and 6 or 3
+      shake(shake_amt, o.is_boss and 0.8 or 0.4)
+      if o.is_boss then
+        _log("boss_dodge:"..bonus)
+        add_particles(ball.x, ball.y, 25, 9)  -- extra particles for boss
+      else
+        _log("dodge_bonus:"..bonus)
+        add_particles(ball.x, ball.y, 15, 11)
+      end
 
       -- floating text for dodge bonus
       if combo_mult > 1 then
@@ -537,6 +563,13 @@ function draw_play()
       rectfill(o.x - o.r, o.y - 3, o.x + o.r, o.y + 3, 12)
     elseif o.type == "rotating" then
       circfill(o.x, o.y, o.r, 14)
+    elseif o.type == "boss" then
+      -- pulsing ring effect
+      local pulse = sin(gametime / 15) * 2
+      circfill(o.x, o.y, o.r, 2)
+      circ(o.x, o.y, o.r, 8)
+      circ(o.x, o.y, o.r - 2 + pulse, 14)
+      circ(o.x, o.y, o.r + 2 + pulse, 9)
     end
   end
 
@@ -630,7 +663,8 @@ function spawn_obstacle()
     x = 20 + rnd(88),
     y = -10,
     type = t,
-    dodged = false
+    dodged = false,
+    is_boss = false
   }
 
   if t == "spike" then
@@ -646,6 +680,25 @@ function spawn_obstacle()
 
   add(obstacles, o)
   _log("spawn_obstacle:"..t)
+end
+
+-- boss obstacle spawning
+function spawn_boss()
+  local o = {
+    x = 64,
+    base_x = 64,
+    y = -10,
+    type = "boss",
+    r = 13,
+    dodged = false,
+    is_boss = true,
+    wave_time = 0
+  }
+
+  add(obstacles, o)
+  _log("spawn_obstacle:boss")
+  sfx(6)  -- boss spawn sound
+  shake(8, 1.0)  -- screen shake on boss spawn
 end
 
 -- power-up spawning
