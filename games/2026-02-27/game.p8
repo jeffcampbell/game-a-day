@@ -41,6 +41,11 @@ diff_selection = 2  -- current selection cursor
 input_cooldown = 0  -- navigation delay
 pause_cooldown = 0  -- pause button cooldown
 
+-- danger zones system
+danger_zones = {}
+zone_timer = 0
+zone_interval = 450  -- ~15 seconds
+
 -- performance stats
 max_combo = 0
 total_dodges = 0
@@ -344,6 +349,16 @@ function init_game()
     obs_interval = 40
   end
 
+  -- initialize danger zones
+  danger_zones = {
+    {x_min=0, x_max=42, active=false, pulse=0},     -- left
+    {x_min=43, x_max=85, active=false, pulse=0},    -- center
+    {x_min=86, x_max=128, active=false, pulse=0}    -- right
+  }
+  zone_timer = 0
+  zone_interval = 450 + rnd(150)  -- 15-20 seconds
+  _log("zones_init")
+
   music(0)  -- start background music
   _log("game_init:difficulty="..difficulty)
 end
@@ -376,6 +391,26 @@ function update_play()
     wave_pulse = 20  -- trigger wave counter pulse
     _log("difficulty:"..diff_level)
     _log("wave:"..diff_level)
+  end
+
+  -- update danger zones
+  zone_timer += 1
+  if zone_timer >= zone_interval then
+    zone_timer = 0
+    zone_interval = 450 + rnd(150)  -- randomize next interval
+    -- toggle random zone
+    local z = danger_zones[flr(rnd(3)) + 1]
+    z.active = not z.active
+    local zone_idx = z == danger_zones[1] and "L" or (z == danger_zones[2] and "C" or "R")
+    _log("zone_toggle:"..zone_idx..":"..tostr(z.active))
+  end
+  -- update zone pulse animations
+  for z in all(danger_zones) do
+    if z.active then
+      z.pulse = (z.pulse + 0.08) % 1
+    else
+      z.pulse = 0
+    end
   end
 
   -- score multiplier every 30s
@@ -590,6 +625,15 @@ function update_play()
       if o.is_boss then
         base_bonus *= 2  -- double points for boss dodges
       end
+
+      -- danger zone bonus: check if player is in active zone
+      local ball_zone = get_zone(ball.x)
+      local in_danger_zone = ball_zone > 0 and danger_zones[ball_zone].active
+      if in_danger_zone then
+        base_bonus *= 1.5  -- 1.5x multiplier for danger zone dodges
+        _log("danger_dodge:zone"..ball_zone)
+      end
+
       local combo_mult = 1 + flr(combo / 5)
       local bonus = flr(base_bonus * combo_mult)
       score += bonus
@@ -603,14 +647,16 @@ function update_play()
         add_particles(ball.x, ball.y, 25, 9)  -- extra particles for boss
       else
         _log("dodge_bonus:"..bonus)
-        add_particles(ball.x, ball.y, 15, 11)
+        local pcol = in_danger_zone and 8 or 11  -- red for danger zone
+        add_particles(ball.x, ball.y, 15, pcol)
       end
 
       -- floating text for dodge bonus
+      local text_col = in_danger_zone and 8 or 11  -- red for danger
       if combo_mult > 1 then
-        add_floating_text(ball.x - 8, ball.y - 12, "+"..bonus.." x"..combo_mult, 11)
+        add_floating_text(ball.x - 8, ball.y - 12, "+"..bonus.." x"..combo_mult, text_col)
       else
-        add_floating_text(ball.x - 6, ball.y - 12, "+"..bonus, 11)
+        add_floating_text(ball.x - 6, ball.y - 12, "+"..bonus, text_col)
       end
 
       -- check for combo milestones
@@ -694,43 +740,74 @@ function draw_play()
     line(0, i * 8 + (gametime % 8), 127, i * 8 + (gametime % 8), 5)
   end
 
+  -- danger zones (subtle pulsing tint + borders)
+  for i = 1, 3 do
+    local z = danger_zones[i]
+    if z.active then
+      -- pulsing background tint (checkerboard for subtlety)
+      local pulse_alpha = 0.5 + sin(z.pulse) * 0.3
+      if pulse_alpha > 0.5 then
+        for x = z.x_min, z.x_max - 1, 3 do
+          for y = 0, 127, 3 do
+            pset(x, y, 8)  -- red tint
+          end
+        end
+      end
+      -- glowing borders
+      local border_col = sin(z.pulse) > 0.5 and 8 or 2  -- pulse red/dark
+      line(z.x_min, 0, z.x_min, 127, border_col)
+      line(z.x_max - 1, 0, z.x_max - 1, 127, border_col)
+    end
+  end
+
   -- obstacles
   for o in all(obstacles) do
+    -- brighter colors for danger zone obstacles
+    local danger_boost = o.in_danger and 1 or 0
     if o.type == "spike" then
-      circfill(o.x, o.y, o.r, 8)
+      local col = o.in_danger and 14 or 8  -- pink in danger, red normal
+      circfill(o.x, o.y, o.r, col)
       circ(o.x, o.y, o.r, 2)
     elseif o.type == "moving" then
-      rectfill(o.x - o.r, o.y - 3, o.x + o.r, o.y + 3, 12)
+      local col = o.in_danger and 8 or 12  -- red in danger, blue normal
+      rectfill(o.x - o.r, o.y - 3, o.x + o.r, o.y + 3, col)
     elseif o.type == "rotating" then
-      circfill(o.x, o.y, o.r, 14)
+      local col = o.in_danger and 15 or 14  -- white in danger, pink normal
+      circfill(o.x, o.y, o.r, col)
     elseif o.type == "boss" then
       -- pulsing ring effect
       local pulse = sin(gametime / 15) * 2
-      circfill(o.x, o.y, o.r, 2)
-      circ(o.x, o.y, o.r, 8)
+      local col1 = o.in_danger and 8 or 2
+      local col2 = o.in_danger and 14 or 8
+      circfill(o.x, o.y, o.r, col1)
+      circ(o.x, o.y, o.r, col2)
       circ(o.x, o.y, o.r - 2 + pulse, 14)
       circ(o.x, o.y, o.r + 2 + pulse, 9)
     elseif o.type == "pendulum" then
       -- hanging pendulum with chain
+      local col = o.in_danger and 8 or 9
       line(o.base_x, 0, o.x, o.y, 5)
-      circfill(o.x, o.y, o.r, 9)
+      circfill(o.x, o.y, o.r, col)
       circ(o.x, o.y, o.r, 2)
     elseif o.type == "zigzag" then
       -- zigzag with motion trail
-      circfill(o.x, o.y, o.r, 12)
+      local col = o.in_danger and 8 or 12
+      circfill(o.x, o.y, o.r, col)
       circ(o.x, o.y, o.r, 1)
     elseif o.type == "orbiter" then
       -- center core
-      circfill(o.x, o.y, 3, 2)
+      local col = o.in_danger and 8 or 2
+      circfill(o.x, o.y, 3, col)
       circ(o.x, o.y, 3, 8)
       -- satellite 1
       local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
       local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
-      circfill(sat1_x, sat1_y, 3, 9)
+      local sat_col = o.in_danger and 14 or 9
+      circfill(sat1_x, sat1_y, 3, sat_col)
       -- satellite 2
       local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
-      circfill(sat2_x, sat2_y, 3, 9)
+      circfill(sat2_x, sat2_y, 3, sat_col)
       -- orbit lines
       circ(o.x, o.y, o.orbit_radius, 5)
     end
@@ -828,6 +905,15 @@ function draw_play()
   end
   print("wave:"..diff_level, 92, wave_y, wave_col)
 
+  -- danger zone indicator
+  local zone_str = "danger:"
+  if danger_zones[1].active then zone_str = zone_str.."l" end
+  if danger_zones[2].active then zone_str = zone_str.."c" end
+  if danger_zones[3].active then zone_str = zone_str.."r" end
+  if zone_str != "danger:" then
+    print(zone_str, 2, 24, 8)
+  end
+
   -- power-up indicators
   local ind_x = 2
   if shield_time > 0 then
@@ -899,6 +985,16 @@ function draw_gameover()
   print("press o to retry", 24, 122, 13)
 end
 
+-- helper: get zone index for x position
+function get_zone(x)
+  for i = 1, 3 do
+    if x >= danger_zones[i].x_min and x < danger_zones[i].x_max then
+      return i
+    end
+  end
+  return 0
+end
+
 -- obstacle spawning
 function spawn_obstacle()
   -- build available types based on difficulty level
@@ -944,8 +1040,12 @@ function spawn_obstacle()
     o.angle = 0
   end
 
+  -- assign zone
+  o.zone = get_zone(o.x)
+  o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
+
   add(obstacles, o)
-  _log("spawn_obstacle:"..t)
+  _log("spawn_obstacle:"..t..(o.in_danger and ":danger" or ""))
 end
 
 -- pendulum obstacle
@@ -961,8 +1061,10 @@ function spawn_pendulum()
     base_x = 0
   }
   o.base_x = o.x
+  o.zone = get_zone(o.x)
+  o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
   add(obstacles, o)
-  _log("spawn_obstacle:pendulum")
+  _log("spawn_obstacle:pendulum"..(o.in_danger and ":danger" or ""))
 end
 
 -- zigzag obstacle
@@ -977,8 +1079,10 @@ function spawn_zigzag()
     zig_time = 0,
     zig_dir = rnd(1) > 0.5 and 1 or -1
   }
+  o.zone = get_zone(o.x)
+  o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
   add(obstacles, o)
-  _log("spawn_obstacle:zigzag")
+  _log("spawn_obstacle:zigzag"..(o.in_danger and ":danger" or ""))
 end
 
 -- orbiter obstacle
@@ -993,8 +1097,10 @@ function spawn_orbiter()
     orbit_angle = 0,
     orbit_radius = 8
   }
+  o.zone = get_zone(o.x)
+  o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
   add(obstacles, o)
-  _log("spawn_obstacle:orbiter")
+  _log("spawn_obstacle:orbiter"..(o.in_danger and ":danger" or ""))
 end
 
 -- boss obstacle spawning
@@ -1010,8 +1116,11 @@ function spawn_boss()
     wave_time = 0
   }
 
+  o.zone = get_zone(o.x)
+  o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
+
   add(obstacles, o)
-  _log("spawn_obstacle:boss")
+  _log("spawn_obstacle:boss"..(o.in_danger and ":danger" or ""))
   sfx(6)  -- boss spawn sound
   shake(8, 1.0)  -- screen shake on boss spawn
 end
@@ -1022,8 +1131,23 @@ function spawn_powerup()
   local t = types[flr(rnd(3)) + 1]
   local cols = {shield = 11, slowmo = 12, doublescore = 10}
 
+  local x = 20 + rnd(88)
+
+  -- 75% chance to avoid active danger zones
+  if rnd(1) > 0.25 then
+    local attempts = 0
+    while attempts < 10 do
+      x = 20 + rnd(88)
+      local zone = get_zone(x)
+      if zone == 0 or not danger_zones[zone].active then
+        break  -- safe zone found
+      end
+      attempts += 1
+    end
+  end
+
   local p = {
-    x = 20 + rnd(88),
+    x = x,
     y = -10,
     type = t,
     col = cols[t],
