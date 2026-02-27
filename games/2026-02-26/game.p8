@@ -108,6 +108,9 @@ boss_defeats = 0
 boss_warning = 0
 boss_hp = 0
 boss_attack_timer = 0
+boss_attack_projectiles = {}
+boss_attack_warning = 0
+boss_attack_type = 0
 
 -- stars
 stars = {}
@@ -413,6 +416,9 @@ function update_menu()
     boss_warning = 0
     boss_hp = 0
     boss_attack_timer = 0
+    boss_attack_projectiles = {}
+    boss_attack_warning = 0
+    boss_attack_type = 0
     combo = 0
     last_combo_time = 0
     combo_pulse = 0
@@ -1317,6 +1323,7 @@ function update_play()
         elseif boss_attack_type == 2 then
           local dx,dy=px-boss_meteor.x, py-boss_meteor.y
           local d=sqrt(dx*dx+dy*dy)
+          if d == 0 then d = 0.1 end  -- prevent division by zero
           local vx,vy=dx/d*0.8, dy/d*1.5
           for i=0,4 do
             add(boss_attack_projectiles, {x=boss_meteor.x+vx*i*8, y=boss_meteor.y+vy*i*8, speed=vy, vx=vx})
@@ -1326,7 +1333,7 @@ function update_play()
             add(boss_attack_projectiles, {x=boss_meteor.x+(i-2.5)*4, y=boss_meteor.y, speed=2+rnd(0.5), vx=0})
           end
         end
-        sfx(boss_attack_type-1)
+        if boss_attack_type > 0 then sfx(boss_attack_type-1) end
         boss_attack_timer = boss_hp==3 and 180 or boss_hp==2 and 120 or 90
         boss_attack_type = 0
       end
