@@ -110,6 +110,14 @@ slowtime_mult = 0.4
 -- particles
 particles = {}
 
+-- fade system
+fade_alpha = 0
+fade_dir = 0  -- 0=none, 1=fade out, -1=fade in
+next_state = nil
+
+-- parallax background
+stars_bg = {}  -- background stars (slower)
+
 function _init()
   cartdata("meteor_dodge_v1")
   highscore = dget(0)
@@ -118,11 +126,29 @@ function _init()
     difficulty_preset = 2  -- default to normal
   end
   music(0)  -- menu music
+  -- initialize parallax background
+  for i=1,30 do
+    add(stars_bg, {
+      x=rnd(128),
+      y=rnd(128),
+      spd=0.3+rnd(0.4),
+      bright=flr(rnd(2))
+    })
+  end
   _log("music:menu")
   _log("init")
 end
 
 function _update()
+  -- update parallax background
+  for s in all(stars_bg) do
+    s.y += s.spd
+    if s.y > 128 then
+      s.y = 0
+      s.x = rnd(128)
+    end
+  end
+
   if state == "menu" then
     update_menu()
   elseif state == "play" then
@@ -132,6 +158,9 @@ function _update()
   elseif state == "gameover" then
     update_gameover()
   end
+
+  -- update fade effect
+  update_fade()
 end
 
 function _draw()
@@ -151,6 +180,9 @@ function _draw()
   end
 
   camera()
+
+  -- draw fade overlay (on top of everything)
+  draw_fade()
 
   -- update shake
   if shake_time > 0 then
@@ -266,11 +298,10 @@ function update_pause()
 
   -- quit to menu with Z (O button)
   if (buttons & 16) > 0 then
-    state = "menu"
+    start_fade("menu")
     pause_cooldown = 0
     music(-1)
     _log("pause:quit")
-    _log("state:menu")
   end
 end
 
@@ -420,6 +451,45 @@ function draw_particles()
     local s = p.size * fade
     if s > 0.5 then
       circfill(p.x, p.y, s, p.color)
+    end
+  end
+end
+
+function start_fade(target_state)
+  fade_dir = 1
+  next_state = target_state
+  _log("fade_out_to:"..target_state)
+end
+
+function update_fade()
+  if fade_dir == 1 then
+    fade_alpha += 8
+    if fade_alpha >= 128 then
+      fade_alpha = 128
+      fade_dir = -1
+      -- switch state at peak fade
+      if next_state then
+        state = next_state
+        next_state = nil
+        _log("state:"..state)
+      end
+    end
+  elseif fade_dir == -1 then
+    fade_alpha -= 8
+    if fade_alpha <= 0 then
+      fade_alpha = 0
+      fade_dir = 0
+    end
+  end
+end
+
+function draw_fade()
+  if fade_alpha > 0 then
+    -- draw fade overlay
+    for i=0,fade_alpha,8 do
+      local col = 0
+      if i % 16 < 8 then col = 1 end
+      rectfill(0, i, 127, i, col)
     end
   end
 end
@@ -799,7 +869,7 @@ function update_play()
       _log("sfx:collision")
 
       if lives <= 0 then
-        state = "gameover"
+        start_fade("gameover")
         survival_time = flr(t() - game_start_time)
         music(-1)  -- stop music
         _log("music:stop")
@@ -961,7 +1031,7 @@ function update_play()
       _log("sfx:boss_collision")
 
       if lives <= 0 then
-        state = "gameover"
+        start_fade("gameover")
         survival_time = flr(t() - game_start_time)
         music(-1)
         _log("music:stop")
@@ -1125,10 +1195,9 @@ function update_gameover()
   if (test_input() & 16) > 0 then
     sfx(4)  -- ui select
     _log("sfx:ui_select")
-    state = "menu"
+    start_fade("menu")
     music(0)  -- menu music
     _log("music:menu")
-    _log("state:menu")
   end
 end
 
@@ -1242,7 +1311,13 @@ function draw_pause()
 end
 
 function draw_play()
-  -- draw starfield background
+  -- draw parallax background (slower stars)
+  for s in all(stars_bg) do
+    local col = s.bright == 1 and 1 or 0
+    pset(s.x, s.y, col)
+  end
+
+  -- draw starfield background (faster stars)
   for i=0,20 do
     local sx = (i * 37) % 128
     local sy = (i * 53 + t() * 10) % 128
@@ -1284,6 +1359,13 @@ function draw_play()
     pset(px + 3, py + 1, 6)
   end
 
+  -- draw near-miss pulse ring
+  if near_miss_pulse > 0 then
+    local pulse_size = (5 - near_miss_pulse) * 1.5
+    circ(px, py, 4 + pulse_size, 10)
+    circ(px, py, 5 + pulse_size, 9)
+  end
+
   -- draw shield ring
   if shield_active then
     local ring_offset = (t() * 4) % 8
@@ -1306,6 +1388,16 @@ function draw_play()
       col1 = 8
       col2 = 2
     end
+
+    -- draw trail
+    for i=1,3 do
+      local trail_y = m.y - i * 2
+      local trail_size = m.size - i * 0.5
+      if trail_size > 0 then
+        circ(m.x, trail_y, trail_size, col2)
+      end
+    end
+
     circfill(m.x, m.y, m.size, col1)
     circfill(m.x, m.y, m.size - 2, col2)
     circfill(m.x - 1, m.y - 1, 1, 5)
@@ -1313,6 +1405,15 @@ function draw_play()
 
   -- draw boss meteor
   if boss_meteor then
+    -- draw trail
+    for i=1,5 do
+      local trail_y = boss_meteor.y - i * 3
+      local trail_size = boss_meteor.size - i * 0.8
+      if trail_size > 1 then
+        circ(boss_meteor.x, trail_y, trail_size, 9)
+      end
+    end
+
     -- pulsing ring effect
     local pulse = sin(t() * 2) * 2
     circ(boss_meteor.x, boss_meteor.y, boss_meteor.size + 2 + pulse, 10)
@@ -1479,21 +1580,30 @@ end
 
 function draw_powerup(x, y, ptype)
   local spin = t() * 3
-  local c, border_c
+  local c, border_c, glow_c
 
   if ptype == 1 then
     -- shield (blue with border)
     c = 12
     border_c = 1
+    glow_c = 6
   elseif ptype == 2 then
     -- slow-time (purple)
     c = 14
     border_c = 2
+    glow_c = 13
   else
     -- invincibility (gold)
     c = 10
     border_c = 9
+    glow_c = 9
   end
+
+  -- pulsing glow effect
+  local pulse = 1 + sin(t() * 4) * 0.5
+  local glow_radius = 5 + pulse * 2
+  circ(x, y, glow_radius, glow_c)
+  circ(x, y, glow_radius - 1, glow_c)
 
   -- draw star shape
   for i=0,3 do
