@@ -1460,6 +1460,13 @@ function draw_play()
     end
   end
 
+  -- magnet glow effect (draw before ball)
+  if magnet_time > 0 then
+    local pulse = sin(gametime / 8) * 1.5
+    circ(ball.x, ball.y, ball.r + 4 + pulse, 11)  -- lime glow ring
+    circ(ball.x, ball.y, ball.r + 6 + pulse, 3)  -- outer green ring
+  end
+
   -- ball with flash effect, combo color, and skin
   local ball_col = get_ball_skin_color()  -- default to selected skin
   if ball_flash > 0 then
