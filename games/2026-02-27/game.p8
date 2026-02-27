@@ -123,7 +123,7 @@ challenge_active = false  -- flag for challenge mode
 challenge_seed = 0  -- daily seed
 challenge_score = 0  -- current challenge score
 challenge_best = 0  -- today's personal best
-daily_history = {}  -- last 7 days: {day_seed, best_score}
+daily_history = {}  -- last 3 days: {day_seed, best_score}
 challenge_pulse = 0  -- urgency pulse effect
 summary_page = 1  -- summary screen page (1-3)
 challenge_variant = 1  -- 1=time_attack, 2=survival, 3=combo_master, 4=powerup_gauntlet
@@ -214,21 +214,28 @@ function _init()
 end
 
 -- settings persistence
+-- difficulty settings packed in slot 62: spawn_rate + diff_scaling*10 + combo_bonus*100
 function load_settings()
   local m = dget(1)
   local s = dget(2)
   local b = dget(3)
-  local sr = dget(60)
-  local ds = dget(61)
-  local cb = dget(62)
+  local packed_diff = dget(62)
 
   -- default to enabled if not set
   music_enabled = m == 0 or m == 1
   sfx_enabled = s == 0 or s == 1
   ball_skin = b >= 1 and b <= 3 and b or 1
-  spawn_rate = sr >= 1 and sr <= 3 and sr or 2
-  diff_scaling = ds >= 1 and ds <= 3 and ds or 2
-  combo_bonus = cb >= 1 and cb <= 3 and cb or 2
+
+  -- unpack difficulty settings (default 222 = all normal)
+  if packed_diff >= 111 and packed_diff <= 333 then
+    spawn_rate = flr(packed_diff % 10)
+    diff_scaling = flr((packed_diff / 10) % 10)
+    combo_bonus = flr(packed_diff / 100)
+  else
+    spawn_rate = 2
+    diff_scaling = 2
+    combo_bonus = 2
+  end
 
   -- track current skin as used
   skins_used[ball_skin] = true
@@ -240,29 +247,32 @@ function save_settings()
   dset(1, music_enabled and 1 or 0)
   dset(2, sfx_enabled and 1 or 0)
   dset(3, ball_skin)
-  dset(60, spawn_rate)
-  dset(61, diff_scaling)
-  dset(62, combo_bonus)
+  -- pack difficulty settings into single slot
+  local packed_diff = spawn_rate + diff_scaling * 10 + combo_bonus * 100
+  dset(62, packed_diff)
   _log("settings_saved")
 end
 
--- cosmetic persistence (slots 58-59, 63)
+-- cosmetic persistence (slot 63)
+-- packed: cosmetics_unlocked + (trail_effect-1)*256 + (color_theme-1)*1024
 function load_cosmetics()
-  local te = dget(58)
-  local ct = dget(59)
-  local cu = dget(63)
+  local packed = dget(63)
 
-  trail_effect = te >= 1 and te <= 3 and te or 1
-  color_theme = ct >= 1 and ct <= 5 and ct or 1
-  cosmetics_unlocked = cu >= 0 and cu or 0
+  cosmetics_unlocked = flr(packed % 256)
+  trail_effect = flr((packed / 256) % 4) + 1
+  color_theme = flr(packed / 1024) + 1
+
+  -- validate ranges
+  if trail_effect < 1 or trail_effect > 3 then trail_effect = 1 end
+  if color_theme < 1 or color_theme > 5 then color_theme = 1 end
+  if cosmetics_unlocked < 0 then cosmetics_unlocked = 0 end
 
   _log("cosmetics_loaded:te="..trail_effect..",ct="..color_theme..",cu="..cosmetics_unlocked)
 end
 
 function save_cosmetics()
-  dset(58, trail_effect)
-  dset(59, color_theme)
-  dset(63, cosmetics_unlocked)
+  local packed = cosmetics_unlocked + (trail_effect - 1) * 256 + (color_theme - 1) * 1024
+  dset(63, packed)
   _log("cosmetics_saved")
 end
 
@@ -317,11 +327,9 @@ end
 -- daily challenge persistence (slots 54-63)
 -- slot 54: challenge_best
 -- slot 55: challenge_seed
--- slots 56-57: daily_history (1 entry: seed, score)
--- slot 58: trail_effect (cosmetic unlock)
--- slot 59: color_theme (cosmetic unlock)
--- slots 60-62: difficulty settings (spawn_rate, diff_scaling, combo_bonus)
--- slot 63: cosmetics_unlocked (bitmask)
+-- slots 56-61: daily_history (3 days: seed1,score1,seed2,score2,seed3,score3)
+-- slot 62: difficulty_settings (packed: spawn_rate + diff_scaling*10 + combo_bonus*100)
+-- slot 63: cosmetics_packed (cosmetics_unlocked + trail_effect*256 + color_theme*1024)
 function load_daily_challenge()
   -- generate today's seed
   challenge_seed = flr(time() / 86400)  -- 86400 = 24*60*60 seconds per day
@@ -340,15 +348,17 @@ function load_daily_challenge()
     dset(54, 0)
   end
 
-  -- load daily history (last 1 day)
+  -- load daily history (last 3 days)
   daily_history = {}
-  local day_seed = dget(56)
-  local day_score = dget(57)
-  if day_seed > 0 then
-    add(daily_history, {seed = day_seed, score = day_score})
+  for i = 0, 2 do
+    local day_seed = dget(56 + i * 2)
+    local day_score = dget(57 + i * 2)
+    if day_seed > 0 then
+      add(daily_history, {seed = day_seed, score = day_score})
+    end
   end
 
-  _log("challenge_loaded:seed="..challenge_seed..",best="..challenge_best)
+  _log("challenge_loaded:seed="..challenge_seed..",best="..challenge_best..",history="..#daily_history)
 end
 
 function save_daily_challenge()
@@ -370,22 +380,24 @@ function save_daily_challenge()
   -- if not found, add new entry
   if not found then
     add(daily_history, {seed = challenge_seed, score = challenge_score})
-    -- keep only last 1 day
-    while #daily_history > 1 do
+    -- keep only last 3 days
+    while #daily_history > 3 do
       del(daily_history, daily_history[1])
     end
   end
 
-  -- save history to cartdata (only 1 day)
-  if #daily_history > 0 then
-    dset(56, daily_history[1].seed)
-    dset(57, daily_history[1].score)
-  else
-    dset(56, 0)
-    dset(57, 0)
+  -- save history to cartdata (up to 3 days)
+  for i = 1, 3 do
+    if i <= #daily_history then
+      dset(56 + (i - 1) * 2, daily_history[i].seed)
+      dset(57 + (i - 1) * 2, daily_history[i].score)
+    else
+      dset(56 + (i - 1) * 2, 0)
+      dset(57 + (i - 1) * 2, 0)
+    end
   end
 
-  _log("challenge_saved:score="..challenge_score..",best="..challenge_best)
+  _log("challenge_saved:score="..challenge_score..",best="..challenge_best..",history="..#daily_history)
 end
 
 -- leaderboard persistence (slots 4-43)
