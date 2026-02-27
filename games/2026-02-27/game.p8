@@ -98,6 +98,42 @@ power_types_collected = {}  -- set of collected types this game
 last_damage_time = 0  -- time since last damage
 danger_zone_pickups = 0  -- total across all games (persistent)
 
+-- player statistics (persistent career tracking)
+stats_total_games = 0  -- total games played (all difficulties)
+stats_total_time = 0  -- total time played (seconds)
+stats_total_dodges = 0  -- total dodges across all games
+stats_total_powerups = 0  -- total power-ups collected
+stats_total_score = 0  -- cumulative score for average calculation
+stats_career_max_combo = 0  -- highest combo ever
+stats_career_max_mult = 0  -- highest multiplier ever (stored as mult*100)
+
+-- per-difficulty statistics
+stats_easy_games = 0
+stats_normal_games = 0
+stats_hard_games = 0
+stats_easy_total_score = 0
+stats_normal_total_score = 0
+stats_hard_total_score = 0
+stats_easy_max_combo = 0
+stats_normal_max_combo = 0
+stats_hard_max_combo = 0
+
+-- power-up usage tracking
+stats_shield_count = 0
+stats_slowmo_count = 0
+stats_doublescore_count = 0
+stats_magnet_count = 0
+stats_bomb_count = 0
+stats_freeze_count = 0
+
+-- streak tracking
+stats_current_streak = 0  -- consecutive games without quitting
+stats_longest_streak = 0  -- career best streak
+
+-- statistics UI state
+stats_scroll = 0  -- scroll offset for statistics page
+stats_page = 1  -- current stats page (1=overview, 2=detailed, 3=power-ups)
+
 -- practice mode state
 practice_obstacle_type = "spike"  -- selected obstacle type
 practice_speed_modifier = 1.0  -- 0.5=slow, 1.0=normal, 1.5=fast
@@ -114,8 +150,8 @@ tutorial_page = 1  -- current tutorial page (1-5)
 tutorial_completed = false  -- track if player has seen tutorial
 
 -- menu cursor state
-menu_cursor = 1  -- 1=play, 2=challenge, 3=practice, 4=tutorial, 5=leaderboard, 6=achievements, 7=settings
-menu_items = {"play", "challenge", "practice", "tutorial", "leaderboard", "achievements", "settings"}
+menu_cursor = 1  -- 1=play, 2=challenge, 3=practice, 4=tutorial, 5=leaderboard, 6=achievements, 7=statistics, 8=settings
+menu_items = {"play", "challenge", "practice", "tutorial", "leaderboard", "achievements", "statistics", "settings"}
 
 -- daily challenge state
 challenge_time_left = 90  -- 90 second time limit
@@ -201,6 +237,9 @@ function _init()
 
   -- load achievements (slots 44-51)
   load_achievements()
+
+  -- load player statistics (slots 64-88)
+  load_statistics()
 
   -- load tutorial flag (slot 53)
   local t = dget(53)
@@ -322,6 +361,84 @@ function save_achievements()
   -- save persistent danger zone pickups
   dset(52, danger_zone_pickups)
   _log("achievements_saved")
+end
+
+-- player statistics persistence (slots 64-87)
+function load_statistics()
+  stats_total_games = dget(64) or 0
+  stats_total_time = dget(65) or 0
+  stats_total_dodges = dget(66) or 0
+  stats_total_powerups = dget(67) or 0
+  -- total_score split across 2 slots for large values
+  local score_low = dget(68) or 0
+  local score_high = dget(69) or 0
+  stats_total_score = score_low + score_high * 100000
+  stats_career_max_combo = dget(70) or 0
+  stats_career_max_mult = dget(71) or 0
+
+  -- per-difficulty stats
+  stats_easy_games = dget(72) or 0
+  stats_normal_games = dget(73) or 0
+  stats_hard_games = dget(74) or 0
+  stats_easy_total_score = dget(75) or 0
+  stats_normal_total_score = dget(76) or 0
+  stats_hard_total_score = dget(77) or 0
+  stats_easy_max_combo = dget(78) or 0
+  stats_normal_max_combo = dget(79) or 0
+  stats_hard_max_combo = dget(80) or 0
+
+  -- power-up counts
+  stats_shield_count = dget(81) or 0
+  stats_slowmo_count = dget(82) or 0
+  stats_doublescore_count = dget(83) or 0
+  stats_magnet_count = dget(84) or 0
+  stats_bomb_count = dget(85) or 0
+  stats_freeze_count = dget(86) or 0
+
+  -- streak stats
+  stats_current_streak = dget(87) or 0
+  stats_longest_streak = dget(88) or 0
+
+  _log("statistics_loaded:games="..stats_total_games)
+end
+
+function save_statistics()
+  dset(64, stats_total_games)
+  dset(65, stats_total_time)
+  dset(66, stats_total_dodges)
+  dset(67, stats_total_powerups)
+  -- split total_score into two slots
+  local score_low = stats_total_score % 100000
+  local score_high = flr(stats_total_score / 100000)
+  dset(68, score_low)
+  dset(69, score_high)
+  dset(70, stats_career_max_combo)
+  dset(71, stats_career_max_mult)
+
+  -- per-difficulty stats
+  dset(72, stats_easy_games)
+  dset(73, stats_normal_games)
+  dset(74, stats_hard_games)
+  dset(75, stats_easy_total_score)
+  dset(76, stats_normal_total_score)
+  dset(77, stats_hard_total_score)
+  dset(78, stats_easy_max_combo)
+  dset(79, stats_normal_max_combo)
+  dset(80, stats_hard_max_combo)
+
+  -- power-up counts
+  dset(81, stats_shield_count)
+  dset(82, stats_slowmo_count)
+  dset(83, stats_doublescore_count)
+  dset(84, stats_magnet_count)
+  dset(85, stats_bomb_count)
+  dset(86, stats_freeze_count)
+
+  -- streak stats
+  dset(87, stats_current_streak)
+  dset(88, stats_longest_streak)
+
+  _log("statistics_saved:games="..stats_total_games)
 end
 
 -- daily challenge persistence (slots 54-63)
@@ -510,6 +627,8 @@ function _update()
     update_leaderboard()
   elseif state == "achievements" then
     update_achievements()
+  elseif state == "statistics" then
+    update_statistics()
   elseif state == "practice_obstacle_select" then
     update_practice_obstacle_select()
   elseif state == "practice_speed_select" then
@@ -551,6 +670,8 @@ function _draw()
     draw_leaderboard()
   elseif state == "achievements" then
     draw_achievements()
+  elseif state == "statistics" then
+    draw_statistics()
   elseif state == "practice_obstacle_select" then
     draw_practice_obstacle_select()
   elseif state == "practice_speed_select" then
@@ -637,7 +758,7 @@ function update_menu()
     end
 
     if input & 8 > 0 then  -- down
-      menu_cursor = min(7, menu_cursor + 1)
+      menu_cursor = min(8, menu_cursor + 1)
       play_sfx(1)
       _log("menu_nav:down:"..menu_cursor)
       _log("sfx_menu_nav")
@@ -675,6 +796,12 @@ function update_menu()
         _log("state:achievements")
         ach_scroll = 0
         input_cooldown = 10
+      elseif selection == "statistics" then
+        state = "statistics"
+        _log("state:statistics")
+        stats_scroll = 0
+        stats_page = 1
+        input_cooldown = 10
       elseif selection == "settings" then
         state = "settings"
         _log("state:settings")
@@ -690,7 +817,7 @@ function draw_menu()
   print("survive the fall!", 26, 42, 6)
 
   -- menu items
-  local menu_y = 56
+  local menu_y = 50
   local menu_labels = {
     "play",
     "daily challenge",
@@ -698,10 +825,11 @@ function draw_menu()
     "tutorial",
     "leaderboard",
     "achievements",
+    "statistics",
     "settings"
   }
 
-  for i = 1, 7 do
+  for i = 1, 8 do
     local col = 6
     local prefix = "  "
     if i == menu_cursor then
@@ -1261,6 +1389,214 @@ function draw_achievements()
   end
 
   print("press x to return", 24, 118, 13)
+end
+
+-- statistics state
+function update_statistics()
+  local input = test_input()
+
+  -- cooldown
+  if input_cooldown > 0 then
+    input_cooldown -= 1
+  end
+
+  -- page navigation with cooldown
+  if input_cooldown == 0 then
+    if input & 4 > 0 then  -- up - previous page
+      stats_page = max(1, stats_page - 1)
+      play_sfx(1)
+      _log("stats_nav:up:page="..stats_page)
+      input_cooldown = 10
+    end
+
+    if input & 8 > 0 then  -- down - next page
+      stats_page = min(3, stats_page + 1)
+      play_sfx(1)
+      _log("stats_nav:down:page="..stats_page)
+      input_cooldown = 10
+    end
+
+    -- reset statistics (X button + confirmation)
+    if input & 32 > 0 then  -- X button
+      -- confirm reset (set all stats to 0)
+      stats_total_games = 0
+      stats_total_time = 0
+      stats_total_dodges = 0
+      stats_total_powerups = 0
+      stats_total_score = 0
+      stats_career_max_combo = 0
+      stats_career_max_mult = 0
+      stats_easy_games = 0
+      stats_normal_games = 0
+      stats_hard_games = 0
+      stats_easy_total_score = 0
+      stats_normal_total_score = 0
+      stats_hard_total_score = 0
+      stats_easy_max_combo = 0
+      stats_normal_max_combo = 0
+      stats_hard_max_combo = 0
+      stats_shield_count = 0
+      stats_slowmo_count = 0
+      stats_doublescore_count = 0
+      stats_magnet_count = 0
+      stats_bomb_count = 0
+      stats_freeze_count = 0
+      stats_current_streak = 0
+      stats_longest_streak = 0
+      save_statistics()
+      play_sfx(7)
+      shake(15, 0.5)
+      _log("stats_reset")
+      input_cooldown = 30
+    end
+
+    -- return to menu (Z button)
+    if input & 16 > 0 then  -- Z button
+      state = "menu"
+      play_music(2)  -- menu music
+      _log("state:menu")
+      input_cooldown = 10
+    end
+  end
+end
+
+function draw_statistics()
+  print("player statistics", 20, 8, 7)
+
+  -- page indicator
+  print("page "..stats_page.."/3", 46, 18, 13)
+
+  if stats_page == 1 then
+    -- career overview page
+    print("career overview", 28, 28, 10)
+
+    local y = 38
+    -- total games
+    print("games played: "..stats_total_games, 8, y, 6)
+    y += 8
+
+    -- total time (format as MM:SS)
+    local mins = flr(stats_total_time / 60)
+    local secs = stats_total_time % 60
+    print("time played: "..mins.."m "..secs.."s", 8, y, 6)
+    y += 8
+
+    -- average score
+    local avg_score = stats_total_games > 0 and flr(stats_total_score / stats_total_games) or 0
+    print("avg score: "..avg_score, 8, y, 6)
+    y += 8
+
+    -- career max combo
+    print("best combo: "..stats_career_max_combo, 8, y, 6)
+    y += 8
+
+    -- career max multiplier
+    local max_mult_display = stats_career_max_mult / 100
+    print("max multiplier: "..max_mult_display.."x", 8, y, 6)
+    y += 8
+
+    -- total dodges
+    print("total dodges: "..stats_total_dodges, 8, y, 6)
+    y += 8
+
+    -- total power-ups
+    print("power-ups: "..stats_total_powerups, 8, y, 6)
+    y += 8
+
+    -- streaks
+    print("streak: "..stats_current_streak.." (best: "..stats_longest_streak..")", 8, y, 6)
+
+  elseif stats_page == 2 then
+    -- per-difficulty breakdown
+    print("difficulty stats", 28, 28, 10)
+
+    local y = 38
+    -- easy stats
+    print("easy mode:", 8, y, 9)
+    y += 8
+    print("  games: "..stats_easy_games, 8, y, 6)
+    y += 6
+    local easy_avg = stats_easy_games > 0 and flr(stats_easy_total_score / stats_easy_games) or 0
+    print("  avg: "..easy_avg, 8, y, 6)
+    y += 6
+    print("  max combo: "..stats_easy_max_combo, 8, y, 6)
+    y += 10
+
+    -- normal stats
+    print("normal mode:", 8, y, 12)
+    y += 8
+    print("  games: "..stats_normal_games, 8, y, 6)
+    y += 6
+    local normal_avg = stats_normal_games > 0 and flr(stats_normal_total_score / stats_normal_games) or 0
+    print("  avg: "..normal_avg, 8, y, 6)
+    y += 6
+    print("  max combo: "..stats_normal_max_combo, 8, y, 6)
+    y += 10
+
+    -- hard stats
+    print("hard mode:", 8, y, 8)
+    y += 8
+    print("  games: "..stats_hard_games, 8, y, 6)
+    y += 6
+    local hard_avg = stats_hard_games > 0 and flr(stats_hard_total_score / stats_hard_games) or 0
+    print("  avg: "..hard_avg, 8, y, 6)
+    y += 6
+    print("  max combo: "..stats_hard_max_combo, 8, y, 6)
+
+  elseif stats_page == 3 then
+    -- power-up usage
+    print("power-up usage", 28, 28, 10)
+
+    local y = 38
+    local powerup_names = {"shield", "slowmo", "2x score", "magnet", "bomb", "freeze"}
+    local powerup_counts = {
+      stats_shield_count,
+      stats_slowmo_count,
+      stats_doublescore_count,
+      stats_magnet_count,
+      stats_bomb_count,
+      stats_freeze_count
+    }
+
+    -- find most and least collected
+    local max_count = 0
+    local max_idx = 1
+    local min_count = 999999
+    local min_idx = 1
+    for i = 1, 6 do
+      if powerup_counts[i] > max_count then
+        max_count = powerup_counts[i]
+        max_idx = i
+      end
+      if powerup_counts[i] < min_count then
+        min_count = powerup_counts[i]
+        min_idx = i
+      end
+    end
+
+    -- display power-up counts
+    for i = 1, 6 do
+      local col = 6
+      local marker = ""
+      if i == max_idx and max_count > 0 then
+        col = 10  -- gold for most collected
+        marker = " \x8e"
+      elseif i == min_idx and stats_total_powerups > 0 then
+        col = 13  -- light blue for least collected
+        marker = " \x97"
+      end
+
+      print(powerup_names[i]..": "..powerup_counts[i]..marker, 8, y, col)
+      y += 10
+    end
+
+    -- total
+    print("total: "..stats_total_powerups, 8, y + 4, 7)
+  end
+
+  -- controls
+  print("arrows: navigate", 20, 108, 13)
+  print("x: reset  z: back", 18, 116, 13)
 end
 
 -- game initialization
@@ -1992,6 +2328,37 @@ function update_play()
           _log("multiplier:"..multiplier)
           local avg = total_dodges > 0 and flr(total_dodge_bonus / total_dodges) or 0
           _log("avg_bonus:"..avg)
+
+          -- accumulate player statistics
+          stats_total_games += 1
+          stats_total_time += flr(gametime / 30)  -- convert frames to seconds
+          stats_total_dodges += total_dodges
+          stats_total_powerups += total_powerups
+          stats_total_score += score
+          stats_career_max_combo = max(stats_career_max_combo, max_combo)
+          stats_career_max_mult = max(stats_career_max_mult, flr(multiplier * 100))
+          stats_current_streak += 1
+          stats_longest_streak = max(stats_longest_streak, stats_current_streak)
+
+          -- per-difficulty stats
+          if difficulty == 1 then
+            stats_easy_games += 1
+            stats_easy_total_score += score
+            stats_easy_max_combo = max(stats_easy_max_combo, max_combo)
+          elseif difficulty == 2 then
+            stats_normal_games += 1
+            stats_normal_total_score += score
+            stats_normal_max_combo = max(stats_normal_max_combo, max_combo)
+          elseif difficulty == 3 then
+            stats_hard_games += 1
+            stats_hard_total_score += score
+            stats_hard_max_combo = max(stats_hard_max_combo, max_combo)
+          end
+
+          -- save statistics
+          save_statistics()
+          _log("stats_updated:games="..stats_total_games)
+
           if score > highscore then
             highscore = score
             new_record = true
@@ -2968,6 +3335,7 @@ function collect_powerup(p)
 
   if p.type == "shield" then
     shield_time = 90
+    stats_shield_count += 1
     -- restore 1 life (up to max 3)
     if lives < 3 then
       lives += 1
@@ -2979,21 +3347,25 @@ function collect_powerup(p)
     add_floating_text(p.x - 12, p.y - 20, "shield!", 11)
   elseif p.type == "slowmo" then
     slowmo_time = 60
+    stats_slowmo_count += 1
     play_sfx(5, -1, 4)  -- slowmo powerup (higher pitch)
     _log("sfx_powerup:slowmo:pitch=4")
     add_floating_text(p.x - 12, p.y - 20, "slowmo!", 12)
   elseif p.type == "doublescore" then
     doublescore_time = 150
+    stats_doublescore_count += 1
     play_sfx(5, -1, 8)  -- doublescore powerup (even higher pitch)
     _log("sfx_powerup:doublescore:pitch=8")
     add_floating_text(p.x - 18, p.y - 20, "double score!", 10)
   elseif p.type == "magnet" then
     magnet_time = 240  -- 8 seconds at 30fps
+    stats_magnet_count += 1
     play_sfx(5, -1, 2)  -- magnet powerup (slightly higher pitch)
     _log("sfx_powerup:magnet:pitch=2")
     add_floating_text(p.x - 12, p.y - 20, "magnet!", 13)
     _log("powerup:magnet")
   elseif p.type == "bomb" then
+    stats_bomb_count += 1
     -- clear obstacles within radius
     local cleared = 0
     for o in all(obstacles) do
@@ -3012,6 +3384,7 @@ function collect_powerup(p)
     _log("powerup:bomb:cleared="..cleared)
   elseif p.type == "freeze" then
     freeze_time = 180  -- 6 seconds at 30fps
+    stats_freeze_count += 1
     play_sfx(5, -1, 6)  -- freeze powerup (mid-high pitch)
     _log("sfx_powerup:freeze:pitch=6")
     add_floating_text(p.x - 12, p.y - 20, "freeze!", 12)
