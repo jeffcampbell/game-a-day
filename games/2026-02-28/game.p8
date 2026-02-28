@@ -59,6 +59,7 @@ best_combo_session = 0
 last_milestone = 0
 milestone_texts = {}
 flash_timer = 0
+shield_flash_timer = 0  -- countdown when shield blocks damage
 
 -- tiered achievement system
 achievements = {} -- all-time unlocked (bitfield)
@@ -973,6 +974,9 @@ function hit_player(dmg)
   if player.has_shield then
     player.has_shield = false
     player.flash = 4  -- flash effect
+    shield_flash_timer = 8  -- trigger flash animation
+    shake_frames = 6  -- screen shake on block
+    shake_intensity = 1.5  -- moderate shake
     sfx(5)
     _log("shield_block")
 
@@ -1451,9 +1455,29 @@ function draw_play()
     end
     circfill(player.x, player.y, 4, player_col)
 
-    -- shield
+    -- shield with pulsing glow
     if player.has_shield then
-      circ(player.x, player.y, 6, 12)
+      -- pulsing animation (oscillate radius)
+      local pulse = sin(t() * 2) * 1.5  -- smooth pulse
+      local base_radius = 6
+      local radius = base_radius + pulse
+
+      -- alternating bright colors for visibility
+      local shield_col = flr(t() * 4) % 2 == 0 and 7 or 12
+
+      -- outer glow ring (faint)
+      circ(player.x, player.y, radius + 2, 12)
+      -- main shield ring (bright)
+      circ(player.x, player.y, radius, shield_col)
+    end
+
+    -- shield block flash effect
+    if shield_flash_timer > 0 then
+      -- expanding white flash ring
+      local flash_radius = 8 + (8 - shield_flash_timer) * 2
+      local flash_col = shield_flash_timer > 4 and 7 or 6  -- fade from white to gray
+      circ(player.x, player.y, flash_radius, flash_col)
+      shield_flash_timer -= 1
     end
 
     -- facing indicator
