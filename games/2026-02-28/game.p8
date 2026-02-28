@@ -384,7 +384,8 @@ function init_play()
     dash_cd = 0,
     invuln = 0,
     shoot_cd = 0,
-    has_shield = false
+    has_shield = false,
+    flash = 0
   }
 
   music(1) -- gameplay theme
@@ -958,8 +959,22 @@ function hit_player(dmg)
 
   if player.has_shield then
     player.has_shield = false
+    player.flash = 4  -- flash effect
     sfx(5)
     _log("shield_block")
+
+    -- shield block particle burst
+    for i=1,10 do
+      local angle = i / 10
+      add(particles, {
+        x = player.x,
+        y = player.y,
+        vx = cos(angle) * 1.5,
+        vy = sin(angle) * 1.5,
+        life = 10,
+        col = 10  -- bright cyan
+      })
+    end
     return
   end
 
@@ -1301,7 +1316,13 @@ function draw_play()
 
   -- player
   if player.invuln % 4 < 2 then
-    circfill(player.x, player.y, 4, 11)
+    -- flash effect when shield blocks
+    local player_col = 11
+    if player.flash > 0 then
+      player_col = 7  -- white flash
+      player.flash -= 1
+    end
+    circfill(player.x, player.y, 4, player_col)
 
     -- shield
     if player.has_shield then
