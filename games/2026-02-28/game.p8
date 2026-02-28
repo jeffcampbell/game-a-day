@@ -1207,6 +1207,88 @@ function dist(x1, y1, x2, y2)
   return sqrt(dx*dx + dy*dy)
 end
 
+function draw_edge_indicators()
+  -- track nearest enemy per edge for deduplication
+  local nearest = {top={}, bottom={}, left={}, right={}}
+
+  for e in all(enemies) do
+    -- check if enemy is off-screen
+    if e.x < 0 or e.x > 128 or e.y < 0 or e.y > 128 then
+      -- calculate distance to each edge
+      local d_top = abs(e.y - 0)
+      local d_bottom = abs(e.y - 128)
+      local d_left = abs(e.x - 0)
+      local d_right = abs(e.x - 128)
+
+      -- find nearest edge
+      local min_d = min(d_top, d_bottom, d_left, d_right)
+      local edge = ""
+
+      if min_d == d_top then
+        edge = "top"
+      elseif min_d == d_bottom then
+        edge = "bottom"
+      elseif min_d == d_left then
+        edge = "left"
+      else
+        edge = "right"
+      end
+
+      -- track only nearest enemy per edge+type combo
+      local key = e.type
+      if not nearest[edge][key] or min_d < nearest[edge][key].dist then
+        nearest[edge][key] = {e=e, dist=min_d}
+      end
+    end
+  end
+
+  -- draw indicators for tracked enemies
+  for edge, types in pairs(nearest) do
+    for typ, data in pairs(types) do
+      local e = data.e
+      local ix, iy = 0, 0
+
+      if edge == "top" then
+        ix = mid(8, e.x, 120)
+        iy = 2
+      elseif edge == "bottom" then
+        ix = mid(8, e.x, 120)
+        iy = 125
+      elseif edge == "left" then
+        ix = 2
+        iy = mid(8, e.y, 120)
+      else -- right
+        ix = 125
+        iy = mid(8, e.y, 120)
+      end
+
+      -- color matches enemy type
+      local col = e.col
+      if e.type == "heavy" and e.phase2 then
+        col = 9 -- orange for phase 2 boss
+      end
+
+      -- boss gets larger indicator
+      if e.type == "heavy" then
+        circfill(ix, iy, 2, col)
+        circ(ix, iy, 3, 7) -- white outline
+        -- small hp bar for boss
+        if e.max_hp > 1 then
+          local frac = e.hp / e.max_hp
+          local w = 6
+          rectfill(ix - w/2, iy - 5, ix - w/2 + w * frac, iy - 4, 11)
+        end
+      else
+        -- regular enemy: small triangle pointing inward
+        circfill(ix, iy, 1, col)
+        pset(ix, iy, 7) -- white center
+      end
+
+      _log("indicator:"..edge..":"..e.type)
+    end
+  end
+end
+
 function draw_play()
   -- apply screen shake
   if shake_frames > 0 then
@@ -1335,6 +1417,9 @@ function draw_play()
          player.x + dir[1] * 6,
          player.y + dir[2] * 6, 7)
   end
+
+  -- edge indicators for off-screen enemies
+  draw_edge_indicators()
 
   -- ui
   print("score:"..score, 2, 2, 7)
