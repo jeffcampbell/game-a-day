@@ -2212,6 +2212,62 @@ function check_cosmetic_unlocks()
   end
 end
 
+-- ball physics helper (shared by normal game, gauntlet mode, and boss rush)
+function update_ball()
+  -- physics
+  ball.vx *= 0.9
+  ball.vy += 0.4  -- gravity
+  ball.x += ball.vx
+  ball.y += ball.vy
+
+  -- bounce off floor
+  if ball.y >= 122 then
+    ball.y = 122
+    ball.vy *= -0.7
+    ball.grounded = true
+    if abs(ball.vy) < 0.5 then
+      ball.vy = -3
+    end
+    play_sfx(0)  -- bounce sound
+    shake(6, 0.5 + diff_level * 0.1)  -- small shake, scales with difficulty
+    add_particles(ball.x, 122, 5, 13)  -- bounce particles
+    _log("bounce")
+  else
+    ball.grounded = false
+  end
+
+  -- wall bounce
+  if ball.x < ball.r then
+    ball.x = ball.r
+    ball.vx *= -0.5
+    play_sfx(1)  -- wall bounce sound
+    shake(4, 0.3)  -- small shake on wall bounce
+    add_particles(ball.x, ball.y, 3, 6)
+  elseif ball.x > 128 - ball.r then
+    ball.x = 128 - ball.r
+    ball.vx *= -0.5
+    play_sfx(1)  -- wall bounce sound
+    shake(4, 0.3)  -- small shake on wall bounce
+    add_particles(ball.x, ball.y, 3, 6)
+  end
+end
+
+-- ball trail helper (shared by normal game, gauntlet mode, and boss rush)
+function update_ball_trail()
+  local vel = sqrt(ball.vx^2 + ball.vy^2)
+  add(ball_trail, {x=ball.x, y=ball.y, vel=vel, age=0})
+  for tr in all(ball_trail) do
+    tr.age += 1
+    if tr.age > 8 then
+      del(ball_trail, tr)
+    end
+  end
+  -- limit trail length
+  while #ball_trail > max_trail_length do
+    del(ball_trail, ball_trail[1])
+  end
+end
+
 -- obstacle update helper (shared by normal game and gauntlet mode)
 function update_obstacle(o)
   local speed_mod = slowmo_time > 0 and 0.5 or 1.0
@@ -2364,56 +2420,11 @@ function update_play()
     _log("steer_right")
   end
 
-  -- physics
-  ball.vx *= 0.9
-  ball.vy += 0.4  -- gravity
-  ball.x += ball.vx
-  ball.y += ball.vy
+  -- update ball physics
+  update_ball()
 
   -- update ball trail
-  local vel = sqrt(ball.vx^2 + ball.vy^2)
-  add(ball_trail, {x=ball.x, y=ball.y, vel=vel, age=0})
-  for tr in all(ball_trail) do
-    tr.age += 1
-    if tr.age > 8 then
-      del(ball_trail, tr)
-    end
-  end
-  -- limit trail length
-  while #ball_trail > max_trail_length do
-    del(ball_trail, ball_trail[1])
-  end
-
-  -- bounce off floor
-  if ball.y >= 122 then
-    ball.y = 122
-    ball.vy *= -0.7
-    ball.grounded = true
-    if abs(ball.vy) < 0.5 then
-      ball.vy = -3
-    end
-    play_sfx(0)  -- bounce sound
-    shake(6, 0.5 + diff_level * 0.1)  -- small shake, scales with difficulty
-    add_particles(ball.x, 122, 5, 13)  -- bounce particles
-    _log("bounce")
-  else
-    ball.grounded = false
-  end
-
-  -- wall bounce
-  if ball.x < ball.r then
-    ball.x = ball.r
-    ball.vx *= -0.5
-    play_sfx(1)  -- wall bounce sound
-    shake(4, 0.3)  -- small shake on wall bounce
-    add_particles(ball.x, ball.y, 3, 6)
-  elseif ball.x > 128 - ball.r then
-    ball.x = 128 - ball.r
-    ball.vx *= -0.5
-    play_sfx(1)  -- wall bounce sound
-    shake(4, 0.3)  -- small shake on wall bounce
-    add_particles(ball.x, ball.y, 3, 6)
-  end
+  update_ball_trail()
 
   -- spawn obstacles
   obs_timer += 1
@@ -4277,7 +4288,7 @@ function update_challenge()
       end
       multiplier = min(multiplier + 0.15, mult_cap)
       max_multiplier = max(max_multiplier, multiplier)
-      spawn_particles(ball.x, ball.y, 15, 10)
+      add_particles(ball.x, ball.y, 15, 10)
       -- dodge sound with combo-based pitch variation
       local pitch_offset = min(flr(combo / 5) * 2, 12)
       play_sfx(8, -1, pitch_offset)
@@ -4394,7 +4405,7 @@ function update_challenge()
           last_milestone = 0
           multiplier = max(1.0, multiplier - 0.3)
           shake_screen(6, 1.0)
-          spawn_particles(ball.x, ball.y, 15, 8)
+          add_particles(ball.x, ball.y, 15, 8)
           play_sfx(3)  -- collision/damage harsh buzz
           _log("collision:combo_reset:combo=0,mult="..multiplier)
           del(obstacles, o)
@@ -4406,7 +4417,7 @@ function update_challenge()
           last_milestone = 0
           multiplier = max(1.0, multiplier - 0.5)
           shake_screen(10, 1.5)
-          spawn_particles(ball.x, ball.y, 20, 8)
+          add_particles(ball.x, ball.y, 20, 8)
           play_sfx(3)  -- collision/damage harsh buzz
           _log("collision:lives="..challenge_lives..",mult="..multiplier)
           del(obstacles, o)
@@ -4434,7 +4445,7 @@ function update_challenge()
           last_milestone = 0
           multiplier = max(1.0, multiplier - 0.5)
           shake_screen(10, 1.5)
-          spawn_particles(ball.x, ball.y, 20, 8)
+          add_particles(ball.x, ball.y, 20, 8)
           play_sfx(3)  -- collision/damage harsh buzz
           _log("collision:lives="..lives..",mult="..multiplier)
           del(obstacles, o)
@@ -4460,7 +4471,7 @@ function update_challenge()
         play_sfx(6)  -- shield absorb ping
         shield_time = 0  -- consume shield
         shake_screen(4, 0.5)  -- light shake
-        spawn_particles(ball.x, ball.y, 10, 11)  -- cyan particles
+        add_particles(ball.x, ball.y, 10, 11)  -- cyan particles
         -- cleanup satellites if boss was absorbed
         if o.type == "boss" and o.boss_id then
           cleanup_satellites(o.boss_id)
@@ -4954,7 +4965,7 @@ function update_gauntlet()
           play_sfx(6)
           shake(8, 1.2)
           del(obstacles, o)
-          spawn_particles(o.x, o.y, 15, 11)
+          add_particles(o.x, o.y, 15, 11)
           _log("shield_absorbed")
         else
           -- take damage
@@ -4964,7 +4975,7 @@ function update_gauntlet()
           last_milestone = 0
           play_sfx(3)
           shake(15, 1.5)
-          spawn_particles(ball.x, ball.y, 20, 8)
+          add_particles(ball.x, ball.y, 20, 8)
           _log("gauntlet_damage:lives="..lives)
 
           del(obstacles, o)  -- delete obstacle to prevent dodge detection
@@ -4997,7 +5008,7 @@ function update_gauntlet()
       total_dodge_bonus += dodge_points
 
       play_sfx(4)
-      spawn_particles(ball.x, ball.y, 15, 10)
+      add_particles(ball.x, ball.y, 15, 10)
       add_floating_text("+"..dodge_points, ball.x, ball.y - 5, 10)
       _log("gauntlet_dodge:combo="..combo..",score="..gauntlet_score)
 
@@ -5043,7 +5054,7 @@ function update_gauntlet()
 
         play_sfx(7)
         shake(10, 1.0)
-        spawn_particles(o.x, o.y, 25, 9)
+        add_particles(o.x, o.y, 25, 9)
         add_floating_text("boss defeated! +50", 24, 60, 10)
         _log("gauntlet_boss_defeated:"..gauntlet_bosses_defeated..",score="..gauntlet_score)
       end
@@ -5382,7 +5393,7 @@ function update_bossrush()
           play_sfx(6)
           shake(8, 1.2)
           del(obstacles, o)
-          spawn_particles(o.x, o.y, 15, 11)
+          add_particles(o.x, o.y, 15, 11)
           _log("bossrush_shield_absorbed")
         else
           -- take damage
@@ -5392,7 +5403,7 @@ function update_bossrush()
           last_milestone = 0
           play_sfx(3)
           shake(15, 1.5)
-          spawn_particles(ball.x, ball.y, 20, 8)
+          add_particles(ball.x, ball.y, 20, 8)
           _log("bossrush_damage:lives="..bossrush_lives)
 
           del(obstacles, o)
@@ -5429,7 +5440,7 @@ function update_bossrush()
       total_dodge_bonus += dodge_points
 
       play_sfx(4)
-      spawn_particles(ball.x, ball.y, 15, 10)
+      add_particles(ball.x, ball.y, 15, 10)
       add_floating_text("+"..dodge_points, ball.x, ball.y - 5, 10)
       _log("bossrush_dodge:combo="..combo..",score="..bossrush_score)
 
@@ -5501,7 +5512,7 @@ function update_bossrush()
 
         play_sfx(7)
         shake(10, 1.0)
-        spawn_particles(o.x, o.y, 25, 9)
+        add_particles(o.x, o.y, 25, 9)
         add_floating_text("+"..final_points, o.x, o.y - 5, 10)
         _log("bossrush_boss_defeated:"..bossrush_bosses_defeated..",stage="..bossrush_stage..",score="..bossrush_score)
       end
