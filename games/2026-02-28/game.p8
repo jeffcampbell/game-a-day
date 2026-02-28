@@ -48,6 +48,10 @@ start_time = 0
 shake_frames = 0
 shake_intensity = 0
 
+-- difficulty settings
+difficulty = "normal" -- easy, normal, hard
+difficulty_cursor = 2 -- 1=easy, 2=normal, 3=hard
+
 -- achievement tracking
 boss_kills = 0
 best_combo = 0
@@ -201,6 +205,8 @@ end
 function _update()
   if state == "menu" then
     update_menu()
+  elseif state == "difficulty_select" then
+    update_difficulty_select()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -214,6 +220,8 @@ function _draw()
   cls(0)
   if state == "menu" then
     draw_menu()
+  elseif state == "difficulty_select" then
+    draw_difficulty_select()
   elseif state == "play" then
     draw_play()
   elseif state == "pause" then
@@ -227,7 +235,16 @@ end
 function init_menu()
   state = "menu"
   _log("state:menu")
-  high_score = dget(0)
+
+  -- load last difficulty (default to normal)
+  local last_diff = dget(9) or 2
+  difficulty_cursor = last_diff
+  difficulty = ({"easy","normal","hard"})[difficulty_cursor]
+
+  -- load difficulty-specific high score
+  local diff_slot = 5 + difficulty_cursor -- 6=easy, 7=normal, 8=hard
+  high_score = dget(diff_slot) or 0
+
   boss_kills = dget(1)
   best_combo = dget(2)
   music(0) -- menu theme
@@ -237,7 +254,7 @@ end
 function update_menu()
   local input = test_input()
   if input & 16 > 0 then -- O button
-    init_play()
+    init_difficulty_select()
   end
 end
 
@@ -245,7 +262,10 @@ function draw_menu()
   -- title
   print("neon-slinger", 32, 40, 11)
   print("press o to start", 24, 60, 7)
-  print("high score: "..high_score, 24, 80, 10)
+
+  -- high score with difficulty
+  local diff_col = difficulty == "easy" and 12 or (difficulty == "hard" and 8 or 10)
+  print("high: "..high_score.." ("..difficulty..")", 20, 80, diff_col)
 
   -- achievements
   local ach_count = count_achievements()
@@ -255,6 +275,73 @@ function draw_menu()
   print("l/r: rotate", 32, 100, 6)
   print("o: shoot", 36, 108, 6)
   print("x: dash", 36, 116, 6)
+end
+
+-- difficulty select state
+function init_difficulty_select()
+  state = "difficulty_select"
+  _log("state:difficulty_select")
+  music(-1) -- fade music
+end
+
+function update_difficulty_select()
+  local input = test_input()
+
+  -- cursor navigation
+  if test_inputp(2) and difficulty_cursor > 1 then -- up
+    difficulty_cursor -= 1
+    _log("diff_cursor:"..difficulty_cursor)
+  end
+  if test_inputp(3) and difficulty_cursor < 3 then -- down
+    difficulty_cursor += 1
+    _log("diff_cursor:"..difficulty_cursor)
+  end
+
+  -- confirm selection
+  if test_inputp(4) then -- O button
+    difficulty = ({"easy","normal","hard"})[difficulty_cursor]
+    dset(9, difficulty_cursor) -- save last difficulty
+    _log("difficulty:"..difficulty)
+    sfx(0) -- transition sound
+    init_play()
+  end
+end
+
+function draw_difficulty_select()
+  -- title
+  print("select difficulty", 24, 20, 11)
+
+  -- difficulty options
+  local y = 45
+  for i=1,3 do
+    local diff_name = ({"easy","normal","hard"})[i]
+    local col = i == 1 and 12 or (i == 3 and 8 or 10)
+
+    -- cursor
+    if i == difficulty_cursor then
+      print(">", 20, y, 7)
+    end
+
+    -- difficulty name
+    print(diff_name, 30, y, col)
+
+    -- stats
+    if i == 1 then -- easy
+      print("fewer enemies, slower", 8, y+8, 6)
+      print("spawn rate", 8, y+14, 6)
+    elseif i == 2 then -- normal
+      print("standard progression", 8, y+8, 6)
+    else -- hard
+      print("more enemies, faster", 8, y+8, 6)
+      print("spawn, aggressive bosses", 8, y+14, 6)
+    end
+
+    y += 30
+  end
+
+  -- controls
+  print("up/down: select", 24, 108, 6)
+  print("o: confirm", 32, 116, 6)
 end
 
 -- play state
@@ -821,13 +908,18 @@ function spawn_wave()
   wave += 1
   _log("wave:"..wave)
 
-  local count = 3 + wave
+  -- difficulty scaling
+  local count_mult = difficulty == "easy" and 0.7 or (difficulty == "hard" and 1.3 or 1.0)
+  local shooter_wave = difficulty == "easy" and 5 or (difficulty == "hard" and 2 or 3)
+  local speedy_wave = difficulty == "easy" and 8 or (difficulty == "hard" and 3 or 5)
+
+  local count = flr((3 + wave) * count_mult)
   local boss_wave = wave % 5 == 0
 
   if boss_wave then
     -- boss wave: 1 heavy + minions
     spawn_enemy("heavy")
-    count = 4
+    count = flr(4 * count_mult)
     music(2) -- boss theme
     _log("music:boss")
   else
@@ -838,9 +930,9 @@ function spawn_wave()
   for i=1,count do
     local enemy_type = "minion"
 
-    if wave >= 3 and rnd(100) < 30 then
+    if wave >= shooter_wave and rnd(100) < 30 then
       enemy_type = "shooter"
-    elseif wave >= 5 and rnd(100) < 20 then
+    elseif wave >= speedy_wave and rnd(100) < 20 then
       enemy_type = "speedy"
     end
 
@@ -888,8 +980,10 @@ function spawn_enemy(typ)
     e.score = 25
     e.col = 10
   elseif typ == "heavy" then
-    e.hp = 3
-    e.max_hp = 3
+    -- boss HP scaling by difficulty
+    local boss_hp = difficulty == "easy" and 2 or (difficulty == "hard" and 4 or 3)
+    e.hp = boss_hp
+    e.max_hp = boss_hp
     e.speed = 0.3
     e.score = 50
     e.col = 8 -- boss color: light gray
@@ -974,8 +1068,15 @@ function add_score(pts)
   _log("score:"..score)
   if score > high_score then
     high_score = score
-    dset(0, high_score)
-    _log("new_high_score:"..high_score)
+    -- save to difficulty-specific slot
+    local diff_slot = 5 + difficulty_cursor -- 6=easy, 7=normal, 8=hard
+    dset(diff_slot, high_score)
+    -- also save to overall high score (slot 0)
+    local overall = dget(0) or 0
+    if high_score > overall then
+      dset(0, high_score)
+    end
+    _log("new_high_score:"..high_score.."("..difficulty..")")
   end
 end
 
@@ -1262,27 +1363,31 @@ function draw_gameover()
   print("kills: "..enemies_killed, 38, 58, 7)
   print("time: "..time_survived.."s", 36, 66, 7)
 
+  -- difficulty
+  local diff_col = difficulty == "easy" and 12 or (difficulty == "hard" and 8 or 10)
+  print("mode: "..difficulty, 34, 74, diff_col)
+
   -- session achievements
   local session_count = count_session_achievements()
   if session_count > 0 then
-    print("new achievements: "..session_count, 16, 76, 12)
+    print("new achievements: "..session_count, 16, 82, 12)
     -- show which ones
-    local y = 84
+    local y = 90
     for i=1,12 do
       if session_achievements[i] then
         local def = achievement_defs[i]
         print("\x97 "..def.name, 8, y, 10)
         y += 6
-        if y > 104 then break end -- prevent overflow
+        if y > 106 then break end -- prevent overflow
       end
     end
   else
-    print("no new achievements", 20, 76, 5)
+    print("no new achievements", 20, 82, 5)
   end
 
   -- total achievements
   local total = count_achievements()
-  print("total: "..total.."/12", 42, 108, 14)
+  print("total: "..total.."/12", 42, 112, 14)
 
   print("o:retry x:menu", 28, 120, 6)
 end
