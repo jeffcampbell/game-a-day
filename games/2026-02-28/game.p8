@@ -186,6 +186,7 @@ function unlock_achievement(id)
     text = "achievement!",
     y = 50,
     life = 40,
+    initial_life = 40,
     col = 12
   })
 end
@@ -869,39 +870,43 @@ function kill_enemy(e)
   enemies_killed += 1
   _log("combo:"..combo)
 
-  -- combo milestone celebration (tiered)
-  if combo >= 10 and combo % 10 == 0 and combo > last_milestone then
+  -- combo milestone celebration (specific milestones: 10, 20, 30, 50+)
+  local is_milestone = (combo == 10 or combo == 20 or combo == 30 or
+                        (combo >= 50 and combo % 25 == 0)) and combo > last_milestone
+
+  if is_milestone then
     last_milestone = combo
     _log("combo_milestone:"..combo)
 
-    -- determine tier-based effects
-    local tier_col, tier_particles, tier_shake, tier_sfx_offset = 10, 8, 2, 0
+    -- determine tier-based effects (gold/cyan colors per spec)
+    local tier_col, tier_particles, tier_shake, tier_sfx_offset = 10, 8, 3, 0
     if combo >= 100 then
-      tier_col, tier_particles, tier_shake, tier_sfx_offset = 7, 24, 5, 16
+      tier_col, tier_particles, tier_shake, tier_sfx_offset = 7, 12, 4, 16
     elseif combo >= 50 then
-      tier_col, tier_particles, tier_shake, tier_sfx_offset = 8, 20, 4, 12
+      tier_col, tier_particles, tier_shake, tier_sfx_offset = 12, 10, 4, 12
     elseif combo >= 30 then
-      tier_col, tier_particles, tier_shake, tier_sfx_offset = 14, 16, 3, 8
+      tier_col, tier_particles, tier_shake, tier_sfx_offset = 9, 10, 3, 8
     elseif combo >= 20 then
-      tier_col, tier_particles, tier_shake, tier_sfx_offset = 9, 12, 3, 4
+      tier_col, tier_particles, tier_shake, tier_sfx_offset = 10, 8, 3, 4
     end
 
     -- screen flash
     flash_timer = 3
 
-    -- screen shake (tiered intensity)
+    -- screen shake (3-4 frames per spec)
     shake_frames = tier_shake
     shake_intensity = tier_shake * 0.5
 
-    -- floating text (tier-colored)
+    -- floating celebratory text (centered at y=40, fades over 60 frames)
     add(milestone_texts, {
       text = "combo x"..combo.."!",
-      y = 64,
-      life = 30,
+      y = 40,
+      life = 60,
+      initial_life = 60,
       col = tier_col
     })
 
-    -- radial particle burst (tier-sized)
+    -- radial particle burst (8-12 particles with gold/cyan)
     for i=1,tier_particles do
       local angle = i / tier_particles
       add(particles, {
@@ -914,7 +919,7 @@ function kill_enemy(e)
       })
     end
 
-    -- victory chime sfx (tier-pitched)
+    -- distinct fanfare sfx for each tier
     sfx(6, -1, tier_sfx_offset)
   end
 
@@ -931,6 +936,7 @@ function kill_enemy(e)
       text = "boss down!",
       y = 50,
       life = 45,  -- 1.5s display
+      initial_life = 45,
       col = 10  -- yellow/gold for victory
     })
     _log("boss_fanfare")
@@ -1009,6 +1015,7 @@ function hit_player(dmg)
       text = "combo lost!",
       y = player.y - 10,
       life = 45,
+      initial_life = 45,
       col = 8  -- red
     })
 
@@ -1179,6 +1186,7 @@ function spawn_enemy(typ)
       text = "boss wave!",
       y = 32,
       life = 60,
+      initial_life = 60,
       col = 7  -- yellow
     })
     _log("boss_announce")
@@ -1524,7 +1532,7 @@ function draw_play()
 
   -- milestone floating text
   for mt in all(milestone_texts) do
-    local fade = mt.life / 30
+    local fade = mt.life / (mt.initial_life or 60)
     local col = mt.col
     if fade < 0.3 then col = 5 end
     print(mt.text, 36, mt.y, col)
