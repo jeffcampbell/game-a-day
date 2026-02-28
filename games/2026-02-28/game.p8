@@ -733,7 +733,6 @@ function draw_play()
 
     -- dash warning indicator
     if e.dash_warn and e.dash_warn > 0 then
-      e.dash_warn -= 1
       line(e.x, e.y, e.dash_target_x, e.dash_target_y, 8)
       -- pulsing outline
       if e.dash_warn % 8 < 4 then
