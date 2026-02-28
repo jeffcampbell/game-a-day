@@ -48,6 +48,14 @@ start_time = 0
 shake_frames = 0
 shake_intensity = 0
 
+-- achievement tracking
+boss_kills = 0
+best_combo = 0
+best_combo_session = 0
+last_milestone = 0
+milestone_texts = {}
+flash_timer = 0
+
 -- player
 player = {}
 -- enemies, projectiles, powerups, particles
@@ -109,6 +117,8 @@ function init_menu()
   state = "menu"
   _log("state:menu")
   high_score = dget(0)
+  boss_kills = dget(1)
+  best_combo = dget(2)
 end
 
 function update_menu()
@@ -140,6 +150,12 @@ function init_play()
   combo = 0
   enemies_killed = 0
   start_time = time()
+
+  -- reset achievement tracking
+  best_combo_session = 0
+  last_milestone = 0
+  milestone_texts = {}
+  flash_timer = 0
 
   -- reset collections
   enemies = {}
@@ -255,6 +271,19 @@ function update_play()
     pt.life -= 1
     if pt.life <= 0 then
       del(particles, pt)
+    end
+  end
+
+  -- update milestone effects
+  if flash_timer > 0 then
+    flash_timer -= 1
+  end
+
+  for mt in all(milestone_texts) do
+    mt.y -= 0.5
+    mt.life -= 1
+    if mt.life <= 0 then
+      del(milestone_texts, mt)
     end
   end
 
@@ -512,8 +541,43 @@ function kill_enemy(e)
   enemies_killed += 1
   _log("combo:"..combo)
 
+  -- combo milestone celebration
+  if combo >= 10 and combo % 10 == 0 and combo > last_milestone then
+    last_milestone = combo
+    _log("combo_milestone:"..combo)
+
+    -- screen flash
+    flash_timer = 3
+
+    -- floating text
+    add(milestone_texts, {
+      text = "combo x"..combo.."!",
+      y = 64,
+      life = 30,
+      col = 10
+    })
+
+    -- corner particle burst
+    for i=1,8 do
+      local angle = i / 8
+      add(particles, {
+        x = 64,
+        y = 64,
+        vx = cos(angle) * 3,
+        vy = sin(angle) * 3,
+        life = 30,
+        col = 10
+      })
+    end
+
+    -- victory chime sfx
+    sfx(6)
+  end
+
   -- boss enhanced death feedback
   if e.type == "heavy" then
+    boss_kills += 1
+    _log("boss_kill:"..boss_kills)
     shake_frames = 4
     shake_intensity = 5
     -- spiral particles
@@ -862,6 +926,28 @@ function draw_play()
     local frac = player.dash_cd / 60
     rectfill(2, 110, 2 + 20 * (1 - frac), 113, 6)
   end
+
+  -- milestone floating text
+  for mt in all(milestone_texts) do
+    local fade = mt.life / 30
+    local col = mt.col
+    if fade < 0.3 then col = 5 end
+    print(mt.text, 36, mt.y, col)
+  end
+
+  -- screen flash for milestone
+  if flash_timer > 0 then
+    local intensity = flash_timer / 3
+    rectfill(0, 0, 127, 127, 7)
+    -- fade effect by alternating pixels
+    if flash_timer == 1 then
+      for i=0,127,2 do
+        for j=0,127,2 do
+          pset(i, j, 0)
+        end
+      end
+    end
+  end
 end
 
 -- pause state
@@ -906,6 +992,21 @@ function init_gameover()
   _log("waves:"..wave)
   _log("kills:"..enemies_killed)
   _log("time:"..time_survived)
+
+  -- track session best combo
+  best_combo_session = max(best_combo_session, combo)
+  _log("best_combo_session:"..best_combo_session)
+
+  -- update and save achievements
+  if best_combo_session > best_combo then
+    best_combo = best_combo_session
+    dset(2, best_combo)
+    _log("new_best_combo:"..best_combo)
+  end
+
+  -- save boss kills
+  dset(1, boss_kills)
+  _log("total_boss_kills:"..boss_kills)
 end
 
 function update_gameover()
@@ -921,16 +1022,20 @@ end
 function draw_gameover()
   print("game over", 40, 30, 8)
 
-  print("final score: "..score, 28, 50, 7)
-  print("waves cleared: "..wave, 24, 60, 7)
-  print("enemies killed: "..enemies_killed, 16, 70, 7)
-  print("time survived: "..time_survived.."s", 16, 80, 7)
+  print("final score: "..score, 28, 44, 7)
+  print("waves cleared: "..wave, 24, 54, 7)
+  print("enemies killed: "..enemies_killed, 16, 64, 7)
+  print("time survived: "..time_survived.."s", 16, 74, 7)
 
   local mult = get_score_multiplier()
-  print("final multiplier: "..flr(mult*10)/10, 12, 90, 10)
+  print("final multiplier: "..flr(mult*10)/10, 12, 84, 10)
 
-  print("press o to retry", 24, 108, 11)
-  print("press x for menu", 24, 116, 6)
+  -- achievement stats
+  print("best combo: "..best_combo_session, 24, 94, 11)
+  print("bosses defeated: "..boss_kills, 16, 102, 14)
+
+  print("press o to retry", 24, 114, 11)
+  print("press x for menu", 24, 122, 6)
 end
 
 __gfx__
