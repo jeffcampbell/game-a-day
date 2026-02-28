@@ -1098,6 +1098,7 @@ function spawn_enemy(typ)
     _log("sfx:boss_spawn")
     shake_frames = 3
     shake_intensity = 1
+    flash_timer = 15  -- screen flash
 
     -- spawn particle burst
     for i=1,10 do
@@ -1111,6 +1112,15 @@ function spawn_enemy(typ)
         col = 8 + flr(rnd(4))
       })
     end
+
+    -- "boss wave!" announcement text
+    add(milestone_texts, {
+      text = "boss wave!",
+      y = 32,
+      life = 60,
+      col = 7  -- yellow
+    })
+    _log("boss_announce")
   end
 end
 
