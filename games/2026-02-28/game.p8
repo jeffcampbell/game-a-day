@@ -783,11 +783,6 @@ function update_boss_attacks(e)
   -- handle dash warning countdown
   if e.dash_warn and e.dash_warn > 0 then
     e.dash_warn -= 1
-  end
-
-  -- handle aim warning countdown
-  if e.aim_warn and e.aim_warn > 0 then
-    e.aim_warn -= 1
     -- play repeating warning sound every 8 frames
     if e.dash_warn % 8 == 0 then
       sfx(12)
@@ -801,6 +796,12 @@ function update_boss_attacks(e)
       e.dash_timer = 60
       e.speed = 0.6
     end
+  end
+
+  -- handle aim warning countdown
+  if e.aim_warn and e.aim_warn > 0 then
+    e.aim_warn -= 1
+    -- no additional logic needed; aim_warn is visual only
   end
 
   local elapsed = time() - e.spawn_time
