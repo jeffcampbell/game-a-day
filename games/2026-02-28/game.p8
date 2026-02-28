@@ -914,8 +914,8 @@ function boss_ring_attack(e)
   shake_frames = 3
   shake_intensity = 2.0  -- strongest shake
 
-  -- phase 2: +2 projectiles (10 vs 8)
-  local proj_count = e.phase2 and 10 or 12  -- phase 2 gets 12 (more intense)
+  -- phase 2: +2 projectiles (12 vs 10)
+  local proj_count = e.phase2 and 12 or 10  -- phase 2 gets 12 (more intense)
   for i=0,proj_count-1 do
     local angle = i / proj_count
     local vx = cos(angle) * e.speed * 3
