@@ -388,7 +388,8 @@ function init_play()
     invuln = 0,
     shoot_cd = 0,
     has_shield = false,
-    flash = 0
+    flash = 0,
+    flash_red = 0
   }
 
   music(1) -- gameplay theme
@@ -992,6 +993,35 @@ function hit_player(dmg)
 
   player.lives -= dmg
   player.invuln = 60
+
+  -- combo reset feedback (distinct from normal hit)
+  if combo > 0 then
+    player.flash_red = 6  -- red flash effect
+    sfx(18)  -- low-pitched buzz/error sound
+    _log("combo_reset_feedback")
+
+    -- floating "combo lost!" text
+    add(milestone_texts, {
+      text = "combo lost!",
+      y = player.y - 10,
+      life = 45,
+      col = 8  -- red
+    })
+
+    -- red particle burst
+    for i=1,14 do
+      local angle = i / 14
+      add(particles, {
+        x = player.x,
+        y = player.y,
+        vx = cos(angle) * 1.2,
+        vy = sin(angle) * 1.2,
+        life = 15,
+        col = 8  -- red
+      })
+    end
+  end
+
   combo = 0
   sfx(7)
   _log("hit:lives="..player.lives..",dmg="..dmg)
@@ -1410,10 +1440,13 @@ function draw_play()
 
   -- player
   if player.invuln % 4 < 2 then
-    -- flash effect when shield blocks
+    -- flash effects (red for combo reset, white for shield block)
     local player_col = 11
-    if player.flash > 0 then
-      player_col = 7  -- white flash
+    if player.flash_red > 0 then
+      player_col = 8  -- red flash (combo reset)
+      player.flash_red -= 1
+    elseif player.flash > 0 then
+      player_col = 7  -- white flash (shield block)
       player.flash -= 1
     end
     circfill(player.x, player.y, 4, player_col)
@@ -1644,6 +1677,7 @@ __sfx__
 00100000240502405027050270502905029050270502705024050240502405024050270502705027050270500000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0010000006050060500805008050090500905008050080500605006050060500605010050100501005010050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0008000020050220502405027050290502a0502a0502a05029050270502405020050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300001c0501a05017050140501105010050100500f0500d0500c0500a05009050080500705006050050500405000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
 00 0b0c0d0e
 01 0f100809
