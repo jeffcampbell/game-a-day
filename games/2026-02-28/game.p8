@@ -9,6 +9,8 @@ testmode = false
 test_log = {}
 test_inputs = {}
 test_input_idx = 0
+test_inputsp = {}
+test_inputp_idx = 0
 
 function _log(msg)
   if testmode then add(test_log, msg) end
@@ -24,6 +26,14 @@ function test_input(b)
     return test_inputs[test_input_idx] or 0
   end
   return btn()
+end
+
+function test_inputp(b)
+  if testmode and test_inputp_idx < #test_inputsp then
+    test_inputp_idx += 1
+    return test_inputsp[test_inputp_idx] or 0
+  end
+  return btnp(b)
 end
 
 -- globals
@@ -159,7 +169,7 @@ end
 
 function update_play()
   -- check for pause (X button press)
-  if btnp(5) then
+  if test_inputp(5) then
     init_pause()
     return
   end
@@ -683,11 +693,11 @@ function init_pause()
 end
 
 function update_pause()
-  if btnp(5) then -- X to resume
+  if test_inputp(5) then -- X to resume
     state = "play"
     _log("state:play")
   end
-  if btnp(4) then -- O to menu
+  if test_inputp(4) then -- O to menu
     init_menu()
   end
 end
