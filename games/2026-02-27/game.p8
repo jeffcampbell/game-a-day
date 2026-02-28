@@ -136,7 +136,7 @@ mc5 = 1
 mc6 = false
 
 mc1 = 1
-mc2 = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "ui6", "ad2", "statistics", "settings"}
+mc2 = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "variant_leaderboards", "ad2", "statistics", "settings"}
 
 ct1 = 90
 ct2 = false
@@ -169,6 +169,8 @@ br5 = 5
 br6 = 90
 br7 = 1
 br8 = 0
+
+vl1 = 0
 
 fx2 = 0
 fx1 = 0
@@ -478,14 +480,17 @@ function load_leaderboard()
     if sc > 0 then
       local c1 = dget(slot_base + 1)
       local c2 = dget(slot_base + 2)
-      local c3 = dget(slot_base + 3)
+      local c3_packed = dget(slot_base + 3)
+      local variant = flr(c3_packed / 32) % 8
+      local c3 = c3_packed % 32
       local init1 = c1 >= 1 and c1 <= 26 and sub(alph, c1, c1) or "a"
       local init2 = c2 >= 1 and c2 <= 26 and sub(alph, c2, c2) or "a"
       local init3 = c3 >= 1 and c3 <= 26 and sub(alph, c3, c3) or "a"
       add(ui6, {
         score = sc,
         initials = init1..init2..init3,
-        timestamp = 0
+        timestamp = 0,
+        variant = variant
       })
     end
   end
@@ -494,7 +499,8 @@ function load_leaderboard()
     add(ui6, {
       score = gm2,
       initials = "cpu",
-      timestamp = 0
+      timestamp = 0,
+      variant = 0
     })
     save_leaderboard()
     _log("migrated_highscore:"..gm2)
@@ -515,7 +521,9 @@ function save_leaderboard()
       local c3 = sub(init, 3, 3)
       dset(slot_base + 1, ord(c1) - 96)
       dset(slot_base + 2, ord(c2) - 96)
-      dset(slot_base + 3, ord(c3) - 96)
+      local variant = entry.variant or 0
+      local c3_code = ord(c3) - 96
+      dset(slot_base + 3, variant * 32 + c3_code)
     else
       dset(slot_base, 0)
       dset(slot_base + 1, 0)
@@ -583,8 +591,8 @@ function _update()
     update_settings()
   elseif state == "difficulty_customize" then
     update_difficulty_customize()
-  elseif state == "ui6" then
-    update_leaderboard()
+  elseif state == "variant_leaderboards" then
+    update_variant_leaderboards()
   elseif state == "ad2" then
     update_achievements()
   elseif state == "statistics" then
@@ -635,8 +643,8 @@ function _draw()
     draw_settings()
   elseif state == "difficulty_customize" then
     draw_difficulty_customize()
-  elseif state == "ui6" then
-    draw_leaderboard()
+  elseif state == "variant_leaderboards" then
+    draw_variant_leaderboards()
   elseif state == "ad2" then
     draw_achievements()
   elseif state == "statistics" then
@@ -769,9 +777,10 @@ function update_menu()
         _log("state:tutorial")
         mc5 = 1
         ic1 = 10
-      elseif selection == "ui6" then
-        state = "ui6"
-        _log("state:ui6")
+      elseif selection == "variant_leaderboards" then
+        state = "variant_leaderboards"
+        _log("state:variant_leaderboards")
+        vl1 = 0
         ic1 = 10
       elseif selection == "ad2" then
         state = "ad2"
@@ -806,7 +815,7 @@ function draw_menu()
     "boss gauntlet",
     "tutorial",
     "boss rush \x8e",
-    "ui6",
+    "variant boards",
     "ad2",
     "statistics",
     "settings"
@@ -1317,6 +1326,100 @@ function draw_leaderboard()
   end
 
   print("x: back to menu", 20, 122, 5)
+end
+
+function update_variant_leaderboards()
+  local input = test_input()
+
+  if ic1 > 0 then
+    ic1 -= 1
+  end
+
+  if ic1 == 0 then
+    if input & 1 > 0 then
+      vl1 = max(0, vl1 - 1)
+      play_sfx(1)
+      _log("variant_tab:"..vl1)
+      ic1 = 10
+    end
+
+    if input & 2 > 0 then
+      vl1 = min(6, vl1 + 1)
+      play_sfx(1)
+      _log("variant_tab:"..vl1)
+      ic1 = 10
+    end
+
+    if input & 32 > 0 then
+      play_music(2)
+      state = "menu"
+      _log("state:menu")
+      ic1 = 10
+    end
+  end
+end
+
+function draw_variant_leaderboards()
+  local tab_names = {"all-time", "time attack", "survival", "speed run", "combo master", "power-up party", "boss slayer"}
+
+  print("variant leaderboards", 16, 4, 7)
+
+  local tab_x = 4
+  for i = 0, 6 do
+    local col = (i == vl1) and 10 or 6
+    local name = tab_names[i + 1]
+    if i == vl1 then
+      print(name, tab_x, 12, col)
+    end
+    tab_x += #name * 4 + 2
+    if tab_x > 100 then break end
+  end
+
+  print("<   >", 52, 12, 5)
+
+  local filtered = {}
+  for i = 1, #ui6 do
+    local entry = ui6[i]
+    if vl1 == 0 or entry.variant == vl1 then
+      add(filtered, entry)
+    end
+  end
+
+  if #filtered == 0 then
+    print("no scores yet!", 30, 60, 13)
+    print("play to set a record!", 14, 70, 11)
+  else
+    local y = 28
+    for i = 1, min(10, #filtered) do
+      local entry = filtered[i]
+      local col = 13
+      if i == 1 then
+        col = 10
+      elseif i == 2 then
+        col = 12
+      elseif i == 3 then
+        col = 14
+      end
+
+      local rank_str = i < 10 and " "..i or tostr(i)
+      print(rank_str, 8, y, col)
+      print(entry.initials, 22, y, col)
+      print(entry.score, 46, y, col)
+
+      local var_name = ""
+      if entry.variant > 0 and vl1 == 0 then
+        local short_names = {"TA", "SV", "SR", "CM", "PP", "BS"}
+        var_name = short_names[entry.variant]
+        print(var_name, 80, y, 5)
+      end
+
+      y += 9
+      if y > 110 then break end
+    end
+  end
+
+  print("arrows: switch tabs", 14, 118, 5)
+  print("x: back", 40, 124, 5)
 end
 
 function update_pause()
@@ -2822,7 +2925,8 @@ function update_enter_initials()
       local new_entry = {
         score = score,
         initials = initials_str,
-        timestamp = 0
+        timestamp = 0,
+        variant = ct2 and ct9 or 0
       }
 
       local inserted = false
