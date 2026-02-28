@@ -1,10 +1,7 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
--- neon-slinger
--- top-down shooter
 
--- test infrastructure
 testmode = false
 test_log = {}
 test_inputs = {}
@@ -36,99 +33,89 @@ function test_inputp(b)
   return btnp(b)
 end
 
--- globals
 state = "menu"
 score = 0
-high_score = 0
+hsc = 0
 wave = 0
 combo = 0
-enemies_killed = 0
-time_survived = 0
-start_time = 0
-shake_frames = 0
-shake_intensity = 0
+ekl = 0
+tsv = 0
+st = 0
+shf = 0
+shi = 0
 
--- difficulty settings
-difficulty = "normal" -- easy, normal, hard
-difficulty_cursor = 2 -- 1=easy, 2=normal, 3=hard
+df = "normal"
+dfc = 2
 
--- achievement tracking
-boss_kills = 0
-best_combo = 0
-best_combo_session = 0
-last_milestone = 0
-milestone_texts = {}
-flash_timer = 0
-shield_flash_timer = 0  -- countdown when shield blocks damage
+bks = 0
+bco = 0
+bcs = 0
+lms = 0
+mts = {}
+flt = 0
+sft = 0
 
--- tiered achievement system
-achievements = {} -- all-time unlocked (bitfield)
-session_achievements = {} -- unlocked this session
-powerups_collected = {} -- track power-ups this run
-quick_kill_flag = false -- track boss kill in phase 1
+as = {}
+sas = {}
+pcs = {}
+qkf = false
 
--- achievement definitions
-achievement_defs = {
-  {id=1, name="first blood", desc="defeat first enemy", check=function() return enemies_killed >= 1 end},
+ads = {
+  {id=1, name="first blood", desc="defeat first enemy", check=function() return ekl >= 1 end},
   {id=2, name="slinger", desc="reach wave 5", check=function() return wave >= 5 end},
   {id=3, name="wave veteran", desc="reach wave 10", check=function() return wave >= 10 end},
-  {id=4, name="endurance", desc="survive 60s", check=function() return time_survived >= 60 end},
-  {id=5, name="sharpshooter", desc="kill 50 enemies", check=function() return enemies_killed >= 50 end},
-  {id=6, name="demolition", desc="kill 100 enemies", check=function() return enemies_killed >= 100 end},
+  {id=4, name="endurance", desc="survive 60s", check=function() return tsv >= 60 end},
+  {id=5, name="sharpshooter", desc="kill 50 es", check=function() return ekl >= 50 end},
+  {id=6, name="demolition", desc="kill 100 es", check=function() return ekl >= 100 end},
   {id=7, name="combo king", desc="25-hit combo", check=function() return combo >= 25 end},
   {id=8, name="unstoppable", desc="50-hit combo", check=function() return combo >= 50 end},
-  {id=9, name="boss slayer", desc="defeat a boss", check=function() return boss_kills >= 1 end},
-  {id=10, name="quick kill", desc="kill boss in phase 1", check=function() return quick_kill_flag end},
-  {id=11, name="time master", desc="survive 180s", check=function() return time_survived >= 180 end},
+  {id=9, name="boss slayer", desc="defeat a boss", check=function() return bks >= 1 end},
+  {id=10, name="quick kill", desc="kill boss in phase 1", check=function() return qkf end},
+  {id=11, name="time master", desc="survive 180s", check=function() return tsv >= 180 end},
   {id=12, name="arsenal master", desc="collect all 4 power-ups", check=function()
-    return powerups_collected["RR"] and powerups_collected["BS"] and powerups_collected["SH"] and powerups_collected["2X"]
+    return pcs["RR"] and pcs["BS"] and pcs["SH"] and pcs["2X"]
   end}
 }
 
--- player
-player = {}
--- enemies, projectiles, powerups, particles
-enemies = {}
-projectiles = {}
-powerups = {}
-particles = {}
-spawn_queue = {} -- telegraph queue for incoming enemies
+p = {}
+es = {}
+ps = {}
+pups = {}
+pts = {}
+sqe = {}
 
--- power-up timers
-rapid_fire_t = 0
-big_shot_t = 0
-score_mult_t = 0
+rft = 0
+bst = 0
+smt = 0
 
--- direction vectors (8-way)
 dirs = {
-  {1,0},   -- 0: right
-  {0.7,0.7}, -- 1: down-right
-  {0,1},   -- 2: down
-  {-0.7,0.7}, -- 3: down-left
-  {-1,0},  -- 4: left
-  {-0.7,-0.7}, -- 5: up-left
-  {0,-1},  -- 6: up
-  {0.7,-0.7}  -- 7: up-right
+  {1,0},
+  {0.7,0.7},
+  {0,1},
+  {-0.7,0.7},
+  {-1,0},
+  {-0.7,-0.7},
+  {0,-1},
+  {0.7,-0.7}
 }
 
--- wave intensity modifiers
-function wave_intensity_mod()
-  -- enemy speed scaling: +15% per 5 waves
+function wim()
+
   return 1.0 + flr(wave / 5) * 0.15
 end
 
-function spawn_delay_factor()
-  -- spawn rate acceleration: +20% per 3 waves, capped at 50%
+function sdf()
+
   return max(0.5, 1 - 0.2 * flr(wave / 3))
 end
 
-function particle_density_factor()
-  -- particle density scaling: +10% per 5 waves
+function pdf()
+
   return 1.0 + flr(wave / 5) * 0.1
 end
 
-function baseline_shake()
-  -- baseline screen shake intensity by wave tier
+function bsh()
+
   if wave < 5 then
     return 0
   elseif wave < 10 then
@@ -143,36 +130,35 @@ end
 function _init()
   _log("init")
   cartdata("neon-slinger-v1")
-  load_achievements()
-  init_menu()
+  lda()
+  inm()
 end
 
--- achievement system
-function load_achievements()
-  -- load achievements from cartdata (3 slots for 12 bits)
+function lda()
+
   local a1 = dget(3) or 0
   local a2 = dget(4) or 0
   local a3 = dget(5) or 0
 
-  achievements = {}
-  -- decode bitfield (12 achievements)
+  as = {}
+
   for i=1,12 do
     local slot = i <= 4 and a1 or (i <= 8 and a2 or a3)
     local bit = ((i - 1) % 4)
     if slot & (1 << bit) > 0 then
-      achievements[i] = true
+      as[i] = true
     end
   end
 
-  _log("loaded_achievements:"..count_achievements())
+  _log("loaded_achievements:"..cna())
 end
 
-function save_achievements()
-  -- encode achievements into 3 slots (4 bits each)
+function sva()
+
   local a1, a2, a3 = 0, 0, 0
 
   for i=1,12 do
-    if achievements[i] then
+    if as[i] then
       local bit = (i - 1) % 4
       if i <= 4 then
         a1 = a1 | (1 << bit)
@@ -187,32 +173,32 @@ function save_achievements()
   dset(3, a1)
   dset(4, a2)
   dset(5, a3)
-  _log("saved_achievements:"..count_achievements())
+  _log("saved_achievements:"..cna())
 end
 
-function check_achievements()
-  for _, def in pairs(achievement_defs) do
-    if not achievements[def.id] and def.check() then
-      unlock_achievement(def.id)
+function cka()
+  for _, def in pairs(ads) do
+    if not as[def.id] and def.check() then
+      una(def.id)
     end
   end
 end
 
-function unlock_achievement(id)
-  achievements[id] = true
-  session_achievements[id] = true
+function una(id)
+  as[id] = true
+  sas[id] = true
   _log("achievement:"..id)
 
-  -- immediately save to cartdata
-  save_achievements()
 
-  -- visual feedback
+  sva()
+
+
   sfx(6)
-  shake_frames = 2
-  shake_intensity = 0.5
+  shf = 2
+  shi = 0.5
 
-  -- floating text
-  add(milestone_texts, {
+
+  add(mts, {
     text = "achievement!",
     y = 50,
     life = 40,
@@ -221,90 +207,89 @@ function unlock_achievement(id)
   })
 end
 
-function count_achievements()
+function cna()
   local count = 0
   for i=1,12 do
-    if achievements[i] then count += 1 end
+    if as[i] then count += 1 end
   end
   return count
 end
 
-function count_session_achievements()
+function csa()
   local count = 0
   for i=1,12 do
-    if session_achievements[i] then count += 1 end
+    if sas[i] then count += 1 end
   end
   return count
 end
 
 function _update()
   if state == "menu" then
-    update_menu()
+    upm()
   elseif state == "difficulty_select" then
-    update_difficulty_select()
+    uds()
   elseif state == "play" then
-    update_play()
+    upp()
   elseif state == "pause" then
-    update_pause()
+    upau()
   elseif state == "gameover" then
-    update_gameover()
+    ugo()
   end
 end
 
 function _draw()
   cls(0)
   if state == "menu" then
-    draw_menu()
+    drm()
   elseif state == "difficulty_select" then
-    draw_difficulty_select()
+    dds()
   elseif state == "play" then
-    draw_play()
+    drp()
   elseif state == "pause" then
-    draw_pause()
+    drpau()
   elseif state == "gameover" then
-    draw_gameover()
+    dgo()
   end
 end
 
--- menu state
-function init_menu()
+function inm()
   state = "menu"
   _log("state:menu")
 
-  -- load last difficulty (default to normal)
+
   local last_diff = dget(9) or 2
-  difficulty_cursor = last_diff
-  difficulty = ({"easy","normal","hard"})[difficulty_cursor]
+  dfc = last_diff
+  df = ({"easy","normal","hard"})[dfc]
 
-  -- load difficulty-specific high score
-  local diff_slot = 5 + difficulty_cursor -- 6=easy, 7=normal, 8=hard
-  high_score = dget(diff_slot) or 0
 
-  boss_kills = dget(1)
-  best_combo = dget(2)
-  music(0) -- menu theme
+  local diff_slot = 5 + dfc -- 6=easy, 7=normal, 8=hard
+  hsc = dget(diff_slot) or 0
+
+  bks = dget(1)
+  bco = dget(2)
+  music(0)
   _log("music:menu")
 end
 
-function update_menu()
+function upm()
   local input = test_input()
-  if input & 16 > 0 then -- O button
-    init_difficulty_select()
+  if input & 16 > 0 then
+    ids()
   end
 end
 
-function draw_menu()
-  -- title
+function drm()
+
   print("neon-slinger", 32, 40, 11)
   print("press o to start", 24, 60, 7)
 
-  -- high score with difficulty
-  local diff_col = difficulty == "easy" and 12 or (difficulty == "hard" and 8 or 10)
-  print("high: "..high_score.." ("..difficulty..")", 20, 80, diff_col)
 
-  -- achievements
-  local ach_count = count_achievements()
-  print("achievements: "..ach_count.."/12", 20, 90, 12)
+  local diff_col = df == "easy" and 12 or (df == "hard" and 8 or 10)
+  print("high: "..hsc.." ("..df..")", 20, 80, diff_col)
+
+  -- as
+  local ach_count = cna()
+  print("as: "..ach_count.."/12", 20, 90, 12)
 
   -- controls
   print("l/r: rotate", 32, 100, 6)
@@ -312,62 +297,61 @@ function draw_menu()
   print("x: dash", 36, 116, 6)
 end
 
--- difficulty select state
-function init_difficulty_select()
+function ids()
   state = "difficulty_select"
   _log("state:difficulty_select")
   music(-1) -- fade music
 end
 
-function update_difficulty_select()
+function uds()
   local input = test_input()
 
   -- cursor navigation
-  if test_inputp(2) and difficulty_cursor > 1 then -- up
-    difficulty_cursor -= 1
-    _log("diff_cursor:"..difficulty_cursor)
+  if test_inputp(2) and dfc > 1 then -- up
+    dfc -= 1
+    _log("diff_cursor:"..dfc)
   end
-  if test_inputp(3) and difficulty_cursor < 3 then -- down
-    difficulty_cursor += 1
-    _log("diff_cursor:"..difficulty_cursor)
+  if test_inputp(3) and dfc < 3 then -- down
+    dfc += 1
+    _log("diff_cursor:"..dfc)
   end
 
   -- confirm selection
-  if test_inputp(4) then -- O button
-    difficulty = ({"easy","normal","hard"})[difficulty_cursor]
-    dset(9, difficulty_cursor) -- save last difficulty
-    _log("difficulty:"..difficulty)
+  if test_inputp(4) then
+    df = ({"easy","normal","hard"})[dfc]
+    dset(9, dfc) -- save last df
+    _log("df:"..df)
     sfx(0) -- transition sound
     init_play()
   end
 end
 
-function draw_difficulty_select()
-  -- title
-  print("select difficulty", 24, 20, 11)
+function dds()
 
-  -- difficulty options
+  print("select df", 24, 20, 11)
+
+  -- df options
   local y = 45
   for i=1,3 do
     local diff_name = ({"easy","normal","hard"})[i]
     local col = i == 1 and 12 or (i == 3 and 8 or 10)
 
     -- cursor
-    if i == difficulty_cursor then
+    if i == dfc then
       print(">", 20, y, 7)
     end
 
-    -- difficulty name
+    -- df name
     print(diff_name, 30, y, col)
 
-    -- stats
+
     if i == 1 then -- easy
-      print("fewer enemies, slower", 8, y+8, 6)
+      print("fewer es, slower", 8, y+8, 6)
       print("spawn rate", 8, y+14, 6)
     elseif i == 2 then -- normal
       print("standard progression", 8, y+8, 6)
     else -- hard
-      print("more enemies, faster", 8, y+8, 6)
+      print("more es, faster", 8, y+8, 6)
       print("spawn, aggressive bosses", 8, y+14, 6)
     end
 
@@ -379,7 +363,6 @@ function draw_difficulty_select()
   print("o: confirm", 32, 116, 6)
 end
 
--- play state
 function init_play()
   state = "play"
   _log("state:play")
@@ -387,32 +370,32 @@ function init_play()
   score = 0
   wave = 0
   combo = 0
-  enemies_killed = 0
-  start_time = time()
+  ekl = 0
+  st = time()
 
   -- reset achievement tracking
-  best_combo_session = 0
-  last_milestone = 0
-  milestone_texts = {}
-  flash_timer = 0
-  session_achievements = {}
-  powerups_collected = {}
-  quick_kill_flag = false
+  bcs = 0
+  lms = 0
+  mts = {}
+  flt = 0
+  sas = {}
+  pcs = {}
+  qkf = false
 
   -- reset collections
-  enemies = {}
-  projectiles = {}
-  powerups = {}
-  particles = {}
-  spawn_queue = {}
+  es = {}
+  ps = {}
+  pups = {}
+  pts = {}
+  sqe = {}
 
   -- reset power-ups
-  rapid_fire_t = 0
-  big_shot_t = 0
-  score_mult_t = 0
+  rft = 0
+  bst = 0
+  smt = 0
 
-  -- init player
-  player = {
+
+  p = {
     x = 64,
     y = 64,
     rot = 0, -- 0-7
@@ -427,177 +410,177 @@ function init_play()
 
   music(1) -- gameplay theme
   _log("music:gameplay")
-  spawn_wave()
+  spw()
 end
 
-function update_play()
-  -- check for pause (X button press)
+function upp()
+
   if test_inputp(5) then
-    init_pause()
+    inp()
     return
   end
 
   local input = test_input()
 
-  -- update timers
-  time_survived = flr(time() - start_time)
 
-  -- update shake (with wave-based baseline)
-  if shake_frames > 0 then
-    shake_frames -= 1
+  tsv = flr(time() - st)
+
+
+  if shf > 0 then
+    shf -= 1
   else
     -- add baseline screen shake that scales with wave
-    shake_intensity = baseline_shake()
+    shi = bsh()
   end
 
-  -- power-up decay
-  if rapid_fire_t > 0 then rapid_fire_t -= 1 end
-  if big_shot_t > 0 then big_shot_t -= 1 end
-  if score_mult_t > 0 then score_mult_t -= 1 end
 
-  -- update spawn queue (telegraph system)
+  if rft > 0 then rft -= 1 end
+  if bst > 0 then bst -= 1 end
+  if smt > 0 then smt -= 1 end
+
+
   update_spawn_queue()
 
-  -- player input
-  if player.invuln > 0 then
-    player.invuln -= 1
+  -- p input
+  if p.invuln > 0 then
+    p.invuln -= 1
   end
 
-  if player.dash_cd > 0 then
-    player.dash_cd -= 1
+  if p.dash_cd > 0 then
+    p.dash_cd -= 1
   end
 
-  if player.shoot_cd > 0 then
-    player.shoot_cd -= 1
+  if p.shoot_cd > 0 then
+    p.shoot_cd -= 1
   end
 
   -- rotation
   if input & 1 > 0 then -- left
-    player.rot = (player.rot - 1) % 8
-    _log("rot:"..player.rot)
+    p.rot = (p.rot - 1) % 8
+    _log("rot:"..p.rot)
   end
   if input & 2 > 0 then -- right
-    player.rot = (player.rot + 1) % 8
-    _log("rot:"..player.rot)
+    p.rot = (p.rot + 1) % 8
+    _log("rot:"..p.rot)
   end
 
   -- shoot
-  if input & 16 > 0 and player.shoot_cd == 0 then
-    local fire_rate = rapid_fire_t > 0 and 4 or 8
-    player.shoot_cd = fire_rate
-    shoot_player()
+  if input & 16 > 0 and p.shoot_cd == 0 then
+    local fire_rate = rft > 0 and 4 or 8
+    p.shoot_cd = fire_rate
+    shp()
   end
 
   -- dash
-  if input & 32 > 0 and player.dash_cd == 0 then
-    player.dash_cd = 60 -- 1 second cooldown
-    player.invuln = 10 -- brief invuln
-    dash_player()
+  if input & 32 > 0 and p.dash_cd == 0 then
+    p.dash_cd = 60 -- 1 second cooldown
+    p.invuln = 10 -- brief invuln
+    dap()
   end
 
-  -- update enemies
-  for e in all(enemies) do
-    update_enemy(e)
+
+  for e in all(es) do
+    upe(e)
   end
 
-  -- update projectiles
-  for p in all(projectiles) do
-    update_projectile(p)
+
+  for p in all(ps) do
+    upr(p)
   end
 
-  -- update powerups
-  for pu in all(powerups) do
+
+  for pu in all(pups) do
     pu.y += 0.3
-    if dist(player.x, player.y, pu.x, pu.y) < 6 then
-      collect_powerup(pu)
-      del(powerups, pu)
+    if dist(p.x, p.y, pu.x, pu.y) < 6 then
+      cpu(pu)
+      del(pups, pu)
     end
     if pu.y > 140 then
-      del(powerups, pu)
+      del(pups, pu)
     end
   end
 
-  -- update particles
-  for pt in all(particles) do
+
+  for pt in all(pts) do
     pt.x += pt.vx
     pt.y += pt.vy
     pt.life -= 1
     if pt.life <= 0 then
-      del(particles, pt)
+      del(pts, pt)
     end
   end
 
-  -- update milestone effects
-  if flash_timer > 0 then
-    flash_timer -= 1
+
+  if flt > 0 then
+    flt -= 1
   end
 
-  for mt in all(milestone_texts) do
+  for mt in all(mts) do
     mt.y -= 0.5
     mt.life -= 1
     if mt.life <= 0 then
-      del(milestone_texts, mt)
+      del(mts, mt)
     end
   end
 
-  -- wave progression
-  if #enemies == 0 and enemies_killed > 0 then
-    add_score(100)
+
+  if #es == 0 and ekl > 0 then
+    asc(100)
     _log("wave_complete:"..wave)
-    shake_frames = 2
-    shake_intensity = 1
-    spawn_wave()
+    shf = 2
+    shi = 1
+    spw()
   end
 
-  -- check achievements
-  check_achievements()
 
-  -- game over check
-  if player.lives <= 0 then
-    init_gameover()
+  cka()
+
+
+  if p.lives <= 0 then
+    igo()
   end
 end
 
-function shoot_player()
+function shp()
   _log("shoot")
   sfx(0)
 
-  local dir = dirs[player.rot + 1]
-  local size = big_shot_t > 0 and 2 or 1
+  local dir = dirs[p.rot + 1]
+  local size = bst > 0 and 2 or 1
 
-  add(projectiles, {
-    x = player.x + dir[1] * 8,
-    y = player.y + dir[2] * 8,
+  add(ps, {
+    x = p.x + dir[1] * 8,
+    y = p.y + dir[2] * 8,
     vx = dir[1] * 3,
     vy = dir[2] * 3,
-    owner = "player",
+    owner = "p",
     size = size,
-    dmg = big_shot_t > 0 and 2 or 1,
-    col = 10 -- player projectiles are yellow
+    dmg = bst > 0 and 2 or 1,
+    col = 10 -- p ps are yellow
   })
 end
 
-function dash_player()
+function dap()
   _log("dash")
   sfx(3)
 
-  local dir = dirs[player.rot + 1]
-  player.x += dir[1] * 15
-  player.y += dir[2] * 15
+  local dir = dirs[p.rot + 1]
+  p.x += dir[1] * 15
+  p.y += dir[2] * 15
 
-  -- clamp to arena
-  player.x = mid(8, player.x, 120)
-  player.y = mid(8, player.y, 120)
 
-  -- damage nearby enemies
-  for e in all(enemies) do
-    if dist(player.x, player.y, e.x, e.y) < 12 then
-      damage_enemy(e, 1)
+  p.x = mid(8, p.x, 120)
+  p.y = mid(8, p.y, 120)
+
+
+  for e in all(es) do
+    if dist(p.x, p.y, e.x, e.y) < 12 then
+      dme(e, 1)
     end
   end
 end
 
-function update_enemy(e)
+function upe(e)
   -- apply knockback velocity
   e.x += e.vx
   e.y += e.vy
@@ -606,20 +589,20 @@ function update_enemy(e)
   e.vx *= 0.85
   e.vy *= 0.85
 
-  -- clamp to screen bounds
+
   e.x = mid(4, e.x, 124)
   e.y = mid(4, e.y, 124)
 
-  -- boss special attacks
+
   if e.type == "heavy" then
-    update_boss_attacks(e)
+    uba(e)
   elseif e.type == "seeker" then
     update_seeker_attacks(e)
   elseif e.type == "summoner" then
     update_summoner_attacks(e)
   end
 
-  -- handle dashing
+
   if e.dashing then
     e.dash_timer -= 1
     if e.dash_timer <= 0 then
@@ -637,9 +620,9 @@ function update_enemy(e)
       end
     end
   else
-    -- normal movement toward player
-    local dx = player.x - e.x
-    local dy = player.y - e.y
+    -- normal movement toward p
+    local dx = p.x - e.x
+    local dy = p.y - e.y
     local d = sqrt(dx*dx + dy*dy)
 
     if d > 0 then
@@ -665,20 +648,20 @@ function update_enemy(e)
       end
     end
 
-    -- burst second shot (5 frames after first)
+
     if e.burst_pending and e.shoot_timer == 5 then
       enemy_shoot(e)
       e.burst_pending = false
     end
   end
 
-  -- collision with player
-  if player.invuln == 0 and dist(player.x, player.y, e.x, e.y) < 6 then
+  -- collision with p
+  if p.invuln == 0 and dist(p.x, p.y, e.x, e.y) < 6 then
     -- extra damage during dash
-    -- difficulty scaling: hard mode increases dash damage
+    -- df scaling: hard mode increases dash damage
     local dmg = 1
     if e.dashing and (e.type == "heavy" or e.type == "seeker" or e.type == "summoner") then
-      if difficulty == "hard" then
+      if df == "hard" then
         dmg = e.phase2 and 4 or 3  -- hard: 3x (phase1), 4x (phase2/3)
       else
         dmg = e.phase2 and 3 or 2  -- easy/normal: 2x (phase1), 3x (phase2/3)
@@ -687,14 +670,14 @@ function update_enemy(e)
     end
     hit_player(dmg)
     if not e.dashing then
-      del(enemies, e)
+      del(es, e)
     end
   end
 end
 
 function enemy_shoot(e)
-  local dx = player.x - e.x
-  local dy = player.y - e.y
+  local dx = p.x - e.x
+  local dy = p.y - e.y
   local d = sqrt(dx*dx + dy*dy)
 
   if d == 0 then return end
@@ -702,8 +685,8 @@ function enemy_shoot(e)
   local pattern = e.attack_pattern or "single"
 
   if pattern == "single" then
-    -- single projectile towards player (orange)
-    add(projectiles, {
+
+    add(ps, {
       x = e.x,
       y = e.y,
       vx = (dx / d) * 1.5,
@@ -715,12 +698,12 @@ function enemy_shoot(e)
     })
     _log("shoot:single")
   elseif pattern == "spread" then
-    -- 3 projectiles in spread pattern (yellow)
-    -- calculate base angle to player
+    -- 3 ps in spread pattern (yellow)
+
     local base_angle = atan2(dy, dx)
     for i = -1, 1 do
       local angle = base_angle + (i * 0.06) -- ~22 degrees spread
-      add(projectiles, {
+      add(ps, {
         x = e.x,
         y = e.y,
         vx = cos(angle) * 1.5,
@@ -733,8 +716,8 @@ function enemy_shoot(e)
     end
     _log("shoot:spread")
   elseif pattern == "aimed" then
-    -- aimed shot directly at player, slower (cyan)
-    add(projectiles, {
+
+    add(ps, {
       x = e.x,
       y = e.y,
       vx = (dx / d) * 1.2,
@@ -746,8 +729,8 @@ function enemy_shoot(e)
     })
     _log("shoot:aimed")
   elseif pattern == "burst" then
-    -- burst fire (white)
-    add(projectiles, {
+
+    add(ps, {
       x = e.x,
       y = e.y,
       vx = (dx / d) * 1.5,
@@ -761,16 +744,16 @@ function enemy_shoot(e)
   end
 end
 
-function spawn_minion(x, y)
-  -- spawn a minion enemy near the given position
+function spm(x, y)
+
   local offset_x = rnd(30) - 15
   local offset_y = rnd(30) - 15
-  spawn_enemy("minion", x + offset_x, y + offset_y)
+  spe("minion", x + offset_x, y + offset_y)
   _log("spawn:minion")
 end
 
-function update_boss_attacks(e)
-  -- initialize timers if needed
+function uba(e)
+
   if not e.spawn_time then
     e.spawn_time = time()
     e.burst_cd = 0
@@ -778,38 +761,38 @@ function update_boss_attacks(e)
     e.burst_used = false
   end
 
-  -- update cooldowns and effects
+
   if e.burst_cd > 0 then e.burst_cd -= 1 end
   if e.dash_cd > 0 then e.dash_cd -= 1 end
-  if e.flash_timer and e.flash_timer > 0 then e.flash_timer -= 1 end
+  if e.flt and e.flt > 0 then e.flt -= 1 end
   if e.spin_timer and e.spin_timer > 0 then
     e.spin_timer -= 1
     if e.spin_timer == 0 then _log("spin_end") end
   end
   if e.spawn_flash and e.spawn_flash > 0 then e.spawn_flash -= 1 end
-  -- phase 3: faster glow pulse (2x speed)
+
   if e.glow_t then
     local glow_speed = e.phase3 and 2 or 1
     e.glow_t = (e.glow_t + glow_speed) % 12
   end
   if e.spawn_timer and e.spawn_timer > 0 then e.spawn_timer -= 1 end
 
-  -- boss pulse expansion effect
+
   if e.pulse_timer and e.pulse_timer > 0 then
     e.pulse_timer -= 1
-    e.pulse_radius = (20 - e.pulse_timer) * 0.7  -- expands to ~14 pixels
+    e.pulse_radius = (20 - e.pulse_timer) * 0.7
   end
 
-  -- handle dash warning countdown
+
   if e.dash_warn and e.dash_warn > 0 then
     e.dash_warn -= 1
-    -- play repeating warning sound every 8 frames
+
     if e.dash_warn % 8 == 0 then
       sfx(12)
       _log("sfx:dash_warn_tick")
     end
     if e.dash_warn == 0 then
-      -- warning over, start actual dash
+
       _log("boss_dash")
       sfx(3)
       e.dashing = true
@@ -818,46 +801,46 @@ function update_boss_attacks(e)
     end
   end
 
-  -- handle aim warning countdown
+
   if e.aim_warn and e.aim_warn > 0 then
     e.aim_warn -= 1
-    -- no additional logic needed; aim_warn is visual only
+
   end
 
   local elapsed = time() - e.spawn_time
   local hp_pct = e.hp / e.max_hp
 
-  -- phase 2/3 cooldown adjustments
-  -- difficulty-based cooldowns: easy (slower), normal (baseline), hard (faster)
-  local burst_base = difficulty == "easy" and 180 or (difficulty == "hard" and 90 or 120)
-  local dash_base = difficulty == "easy" and 270 or (difficulty == "hard" and 135 or 180)
 
-  -- phase 3 enrage: ~33% of base; phase 2: ~60% of base
+  -- df-based cooldowns: easy (slower), normal (baseline), hard (faster)
+  local burst_base = df == "easy" and 180 or (df == "hard" and 90 or 120)
+  local dash_base = df == "easy" and 270 or (df == "hard" and 135 or 180)
+
+
   local burst_cooldown = e.phase3 and flr(burst_base / 3) or (e.phase2 and flr(burst_base * 0.6) or burst_base)
   local dash_cooldown = e.phase3 and flr(dash_base / 3) or (e.phase2 and flr(dash_base * 0.53) or dash_base)
 
-  -- burst attack (once at 50% hp or 5s, repeats in phase 2)
+
   if (not e.burst_used and (hp_pct <= 0.5 or elapsed >= 5) and e.burst_cd == 0) or (e.phase2 and e.burst_cd == 0) then
-    boss_burst_attack(e)
+    bba(e)
     e.burst_used = true
     e.burst_cd = burst_cooldown
   end
 
-  -- dash attack (when player in range)
-  local d = dist(player.x, player.y, e.x, e.y)
+  -- dash attack (when p in range)
+  local d = dist(p.x, p.y, e.x, e.y)
   if not e.dashing and not e.dash_warn and d < 60 and d > 10 and e.dash_cd == 0 then
-    boss_dash_attack(e, dash_cooldown)
+    bda(e, dash_cooldown)
   end
 end
 
-function boss_burst_attack(e)
+function bba(e)
   -- randomly select attack pattern based on phase
   local patterns
   if e.phase2 then
-    -- phase 2: spiral, ring, aimed (high difficulty)
+
     patterns = {"spiral", "ring", "aimed"}
   else
-    -- phase 1: burst, ring (medium difficulty)
+
     patterns = {"burst", "ring"}
   end
 
@@ -879,18 +862,18 @@ function boss_burst_pattern(e)
   _log("spin_start:30")
   sfx(6)
   _log("sfx:burst")
-  e.flash_timer = 10
+  e.flt = 10
   e.spin_timer = 30
 
-  -- difficulty-based bullet count: 6-way (easy), 8-way (normal), 12-way (hard)
-  local bullet_count = difficulty == "easy" and 6 or (difficulty == "hard" and 12 or 8)
+  -- df-based bullet count: 6-way (easy), 8-way (normal), 12-way (hard)
+  local bullet_count = df == "easy" and 6 or (df == "hard" and 12 or 8)
   _log("burst_bullets:"..bullet_count)
 
   for i=0,bullet_count-1 do
     local angle = i / bullet_count
     local vx = cos(angle) * e.speed * 3
     local vy = sin(angle) * e.speed * 3
-    add(projectiles, {
+    add(ps, {
       x = e.x,
       y = e.y,
       vx = vx,
@@ -908,14 +891,14 @@ function boss_spiral_pattern(e)
   _log("spin_start:30")
   sfx(6, -1, 4)  -- pitch variation for spiral
   _log("sfx:spiral")
-  e.flash_timer = 10
+  e.flt = 10
   e.spin_timer = 30
-  shake_frames = 2
-  shake_intensity = 1.5  -- medium shake
+  shf = 2
+  shi = 1.5  -- medium shake
 
-  -- difficulty scaling: easy (-4), normal (baseline), hard (+4)
-  local diff_mod = difficulty == "easy" and -4 or (difficulty == "hard" and 4 or 0)
-  -- phase 3: 16-way spiral, phase 2+: 14-way spiral
+  -- df scaling: easy (-4), normal (baseline), hard (+4)
+  local diff_mod = df == "easy" and -4 or (df == "hard" and 4 or 0)
+
   local proj_count = (e.phase3 and 16 or 14) + diff_mod
   _log("spiral_bullets:"..proj_count)
 
@@ -923,7 +906,7 @@ function boss_spiral_pattern(e)
     local angle = i / proj_count
     local vx = cos(angle) * e.speed * 3
     local vy = sin(angle) * e.speed * 3
-    add(projectiles, {
+    add(ps, {
       x = e.x,
       y = e.y,
       vx = vx,
@@ -931,7 +914,7 @@ function boss_spiral_pattern(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 9  -- orange for spiral
+      col = 9 for spiral
     })
   end
 end
@@ -939,16 +922,16 @@ end
 function boss_ring_attack(e)
   _log("boss_ring")
   _log("spin_start:30")
-  sfx(6, -1, 8)  -- higher pitch for ring
+  sfx(6, -1, 8)
   _log("sfx:ring")
-  e.flash_timer = 10
+  e.flt = 10
   e.spin_timer = 30
-  shake_frames = 3
-  shake_intensity = 2.0  -- strongest shake
+  shf = 3
+  shi = 2.0  -- strongest shake
 
-  -- difficulty scaling: easy (-3), normal (baseline), hard (+3)
-  local diff_mod = difficulty == "easy" and -3 or (difficulty == "hard" and 3 or 0)
-  -- phase 3: 14 projectiles, phase 2: 12, phase 1: 10
+  -- df scaling: easy (-3), normal (baseline), hard (+3)
+  local diff_mod = df == "easy" and -3 or (df == "hard" and 3 or 0)
+
   local proj_count = (e.phase3 and 14 or (e.phase2 and 12 or 10)) + diff_mod
   _log("ring_bullets:"..proj_count)
 
@@ -956,7 +939,7 @@ function boss_ring_attack(e)
     local angle = i / proj_count
     local vx = cos(angle) * e.speed * 3
     local vy = sin(angle) * e.speed * 3
-    add(projectiles, {
+    add(ps, {
       x = e.x,
       y = e.y,
       vx = vx,
@@ -964,35 +947,35 @@ function boss_ring_attack(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 12  -- cyan for ring
+      col = 12 for ring
     })
   end
 end
 
 function boss_aimed_burst_attack(e)
   _log("boss_aimed")
-  sfx(9)  -- warning sound (same as dash)
+  sfx(9)
   _log("sfx:aimed_warn")
-  e.flash_timer = 15  -- longer warning flash
+  e.flt = 15  -- longer warning flash
   e.aim_warn = 20  -- targeting indicator frames
-  e.aim_target_x = player.x
-  e.aim_target_y = player.y
-  shake_frames = 1
-  shake_intensity = 1.0  -- light shake
+  e.aim_target_x = p.x
+  e.aim_target_y = p.y
+  shf = 1
+  shi = 1.0  -- light shake
 
-  -- calculate angle to player
-  local dx = player.x - e.x
-  local dy = player.y - e.y
+
+  local dx = p.x - e.x
+  local dy = p.y - e.y
   local base_angle = atan2(dy, dx)
 
-  -- fire 5 projectiles: at player + 4 offset angles
+  -- fire 5 ps: at p + 4 offset angles
   -- offsets: 0°, ±45°, ±90° in turns (1 turn = 360°)
   local offsets = {0, -0.125, 0.125, -0.25, 0.25}
   for i=1,5 do
     local angle = base_angle + offsets[i]
     local vx = cos(angle) * e.speed * 3
     local vy = sin(angle) * e.speed * 3
-    add(projectiles, {
+    add(ps, {
       x = e.x,
       y = e.y,
       vx = vx,
@@ -1000,22 +983,22 @@ function boss_aimed_burst_attack(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 10  -- yellow for aimed
+      col = 10 for aimed
     })
   end
 end
 
-function boss_dash_attack(e, cooldown)
+function bda(e, cooldown)
   _log("boss_dash_warn")
   sfx(9) -- dash warning sound
   _log("sfx:dash_warn")
 
   e.dash_cd = cooldown or 180
-  -- difficulty scaling: easy mode gets extra warning time
-  e.dash_warn = difficulty == "easy" and 40 or 30
+  -- df scaling: easy mode gets extra warning time
+  e.dash_warn = df == "easy" and 40 or 30
   _log("dash_warn_frames:"..e.dash_warn)
-  e.dash_target_x = player.x
-  e.dash_target_y = player.y
+  e.dash_target_x = p.x
+  e.dash_target_y = p.y
 end
 
 function update_seeker_attacks(e)
@@ -1031,7 +1014,7 @@ function update_seeker_attacks(e)
     if e.charge_timer<=0 then
       e.charging=false e.charge_cd=60 _log("seeker_pause")
     else
-      local dx,dy=player.x-e.x,player.y-e.y
+      local dx,dy=p.x-e.x,p.y-e.y
       local d=sqrt(dx*dx+dy*dy)
       if d>0 then
         local s=e.phase3 and 3 or(e.phase2 and 2.5 or 2)
@@ -1044,7 +1027,7 @@ function update_seeker_attacks(e)
 
   if e.phase2 and e.minion_cd==0 then
     local c=e.phase3 and 3 or 2
-    for i=1,c do spawn_minion(e.x,e.y) end
+    for i=1,c do spm(e.x,e.y) end
     e.minion_cd=e.phase3 and 120 or 180
     sfx(11) _log("seeker_spawn_minions:"..c)
   end
@@ -1059,24 +1042,24 @@ function update_summoner_attacks(e)
   update_boss_timers(e)
 
   if e.burst_cd==0 then
-    _log("summoner_burst") sfx(6) e.flash_timer=5
+    _log("summoner_burst") sfx(6) e.flt=5
     for i=0,7 do
       local a=i/8
-      add(projectiles,{x=e.x,y=e.y,vx=cos(a)*1.5,vy=sin(a)*1.5,owner="enemy",size=1,dmg=1,col=14})
+      add(ps,{x=e.x,y=e.y,vx=cos(a)*1.5,vy=sin(a)*1.5,owner="enemy",size=1,dmg=1,col=14})
     end
     e.burst_cd=e.phase3 and 30 or(e.phase2 and 45 or 60)
   end
 
   if e.minion_cd==0 then
     local c=e.phase3 and 3 or(e.phase2 and 2 or 1)
-    for i=1,c do spawn_minion(e.x,e.y) end
+    for i=1,c do spm(e.x,e.y) end
     e.minion_cd=e.phase3 and 90 or(e.phase2 and 120 or 150)
     sfx(11) _log("summoner_spawn_minions:"..c)
   end
 end
 
 function update_boss_timers(e)
-  if e.flash_timer and e.flash_timer>0 then e.flash_timer-=1 end
+  if e.flt and e.flt>0 then e.flt-=1 end
   if e.spawn_flash and e.spawn_flash>0 then e.spawn_flash-=1 end
   if e.glow_t then e.glow_t=(e.glow_t+(e.phase3 and 2 or 1))%12 end
   if e.spawn_timer and e.spawn_timer>0 then e.spawn_timer-=1 end
@@ -1085,14 +1068,14 @@ function update_boss_timers(e)
   end
 end
 
-function update_projectile(p)
+function upr(p)
   -- seeking projectile behavior
   if p.seeking then
-    local dx = player.x - p.x
-    local dy = player.y - p.y
+    local dx = p.x - p.x
+    local dy = p.y - p.y
     local d = sqrt(dx*dx + dy*dy)
     if d > 0 then
-      -- gradually turn toward player
+      -- gradually turn toward p
       local target_vx = (dx / d) * 1.2
       local target_vy = (dy / d) * 1.2
       p.vx = p.vx + (target_vx - p.vx) * p.turn_rate
@@ -1105,29 +1088,29 @@ function update_projectile(p)
 
   -- bounds check
   if p.x < 0 or p.x > 128 or p.y < 0 or p.y > 128 then
-    del(projectiles, p)
+    del(ps, p)
     return
   end
 
-  if p.owner == "player" then
-    -- check enemy collision
-    for e in all(enemies) do
+  if p.owner == "p" then
+
+    for e in all(es) do
       if dist(p.x, p.y, e.x, e.y) < 5 then
-        damage_enemy(e, p.dmg, p)
-        del(projectiles, p)
+        dme(e, p.dmg, p)
+        del(ps, p)
         break
       end
     end
   elseif p.owner == "enemy" then
-    -- check player collision
-    if player.invuln == 0 and dist(p.x, p.y, player.x, player.y) < 5 then
+
+    if p.invuln == 0 and dist(p.x, p.y, p.x, p.y) < 5 then
       hit_player()
-      del(projectiles, p)
+      del(ps, p)
     end
   end
 end
 
-function damage_enemy(e, dmg, proj)
+function dme(e, dmg, proj)
   e.hp -= dmg
   sfx(1)
 
@@ -1140,7 +1123,7 @@ function damage_enemy(e, dmg, proj)
     if d > 0 then
       local force = 2.5
 
-      -- boss resistance: 1/3 knockback
+
       if e.type == "heavy" or e.type == "seeker" or e.type == "summoner" then
         force = force / 3
         _log("knockback:boss:"..e.type)
@@ -1153,25 +1136,25 @@ function damage_enemy(e, dmg, proj)
     end
   end
 
-  -- phase 2 trigger for bosses
+
   if (e.type == "heavy" or e.type == "seeker" or e.type == "summoner") and not e.phase2 and e.hp <= 2 then
     e.phase2 = true
     _log("boss:phase2:"..e.type)
-    -- visual flash for phase change
-    e.flash_timer = 15
-    shake_frames = 2
-    shake_intensity = 1
+
+    e.flt = 15
+    shf = 2
+    shi = 1
     sfx(6)
   end
 
-  -- phase 3 trigger for bosses (final enrage)
+
   if (e.type == "heavy" or e.type == "seeker" or e.type == "summoner") and not e.phase3 and e.hp <= 1 then
     e.phase3 = true
     _log("boss:phase3:"..e.type)
     -- dramatic phase 3 entrance
-    e.flash_timer = 20
-    shake_frames = 2
-    shake_intensity = 2.0
+    e.flt = 20
+    shf = 2
+    shi = 2.0
     sfx(11)  -- distinct sound for phase 3
   end
 
@@ -1183,23 +1166,23 @@ end
 function kill_enemy(e)
   _log("enemy_kill:"..e.type)
 
-  -- boss death gets special fanfare
+
   if e.type == "heavy" then
     sfx(10)
     _log("sfx:boss_death:heavy")
 
     -- track quick kill (killed before phase 2)
     if not e.phase2 then
-      quick_kill_flag = true
+      qkf = true
       _log("quick_kill")
     end
   elseif e.type == "seeker" then
-    sfx(11)  -- higher pitch for seeker death
+    sfx(11)
     _log("sfx:boss_death:seeker")
 
     -- track quick kill (killed before phase 2)
     if not e.phase2 then
-      quick_kill_flag = true
+      qkf = true
       _log("quick_kill")
     end
   elseif e.type == "summoner" then
@@ -1208,7 +1191,7 @@ function kill_enemy(e)
 
     -- track quick kill (killed before phase 2)
     if not e.phase2 then
-      quick_kill_flag = true
+      qkf = true
       _log("quick_kill")
     end
   else
@@ -1218,18 +1201,18 @@ function kill_enemy(e)
   -- score
   local base_score = e.score or 10
   local mult = get_score_multiplier()
-  add_score(flr(base_score * mult) + combo)
+  asc(flr(base_score * mult) + combo)
 
   combo += 1
-  enemies_killed += 1
+  ekl += 1
   _log("combo:"..combo)
 
-  -- combo milestone celebration (specific milestones: 10, 20, 30, 50+)
+
   local is_milestone = (combo == 10 or combo == 20 or combo == 30 or
-                        (combo >= 50 and combo % 25 == 0)) and combo > last_milestone
+                        (combo >= 50 and combo % 25 == 0)) and combo > lms
 
   if is_milestone then
-    last_milestone = combo
+    lms = combo
     _log("combo_milestone:"..combo)
 
     -- determine tier-based effects (gold/cyan colors per spec)
@@ -1244,15 +1227,15 @@ function kill_enemy(e)
       tier_col, tier_particles, tier_shake, tier_sfx_offset = 10, 8, 3, 4
     end
 
-    -- screen flash
-    flash_timer = 3
 
-    -- screen shake (3-4 frames per spec)
-    shake_frames = tier_shake
-    shake_intensity = tier_shake * 0.5
+    flt = 3
 
-    -- floating celebratory text (centered at y=40, fades over 60 frames)
-    add(milestone_texts, {
+
+    shf = tier_shake
+    shi = tier_shake * 0.5
+
+
+    add(mts, {
       text = "combo x"..combo.."!",
       y = 40,
       life = 60,
@@ -1260,11 +1243,11 @@ function kill_enemy(e)
       col = tier_col
     })
 
-    -- radial particle burst (8-12 particles with gold/cyan, scaled by wave)
-    local scaled_particles = flr(tier_particles * particle_density_factor())
+    -- radial particle burst (8-12 pts with gold/cyan, scaled by wave)
+    local scaled_particles = flr(tier_particles * pdf())
     for i=1,scaled_particles do
       local angle = i / scaled_particles
-      add(particles, {
+      add(pts, {
         x = 64,
         y = 64,
         vx = cos(angle) * 3,
@@ -1278,24 +1261,24 @@ function kill_enemy(e)
     sfx(6, -1, tier_sfx_offset)
   end
 
-  -- boss enhanced death feedback
+
   if e.type == "heavy" or e.type == "seeker" or e.type == "summoner" then
-    boss_kills += 1
-    _log("boss_kill:"..e.type..":"..boss_kills)
-    shake_frames = 4
-    shake_intensity = 5
-    flash_timer = 12  -- extended flash for boss victory
+    bks += 1
+    _log("boss_kill:"..e.type..":"..bks)
+    shf = 4
+    shi = 5
+    flt = 12  -- extended flash for boss victory
 
     local txt=e.type=="seeker" and "seeker down!" or(e.type=="summoner" and "summoner down!" or "boss down!")
     local tcol=e.type=="seeker" and 12 or(e.type=="summoner" and 14 or 10)
-    add(milestone_texts,{text=txt,y=50,life=45,initial_life=45,col=tcol})
+    add(mts,{text=txt,y=50,life=45,initial_life=45,col=tcol})
     _log("boss_fanfare:"..e.type)
     -- enhanced spiral particle burst (color matches boss type)
     local particle_col = e.type == "seeker" and 12 or (e.type == "summoner" and 14 or 8)
-    local boss_particles = flr(18 * particle_density_factor())
+    local boss_particles = flr(18 * pdf())
     for i=1,boss_particles do
       local angle = i / boss_particles
-      add(particles, {
+      add(pts, {
         x = e.x,
         y = e.y,
         vx = cos(angle) * 2.5,  -- travel further
@@ -1305,10 +1288,10 @@ function kill_enemy(e)
       })
     end
   else
-    -- normal explosion particles (scaled by wave)
-    local explosion_particles = flr(15 * particle_density_factor())
+    -- normal explosion pts (scaled by wave)
+    local explosion_particles = flr(15 * pdf())
     for i=1,explosion_particles do
-      add(particles, {
+      add(pts, {
         x = e.x,
         y = e.y,
         vx = rnd(3) - 1.5,
@@ -1324,28 +1307,28 @@ function kill_enemy(e)
     spawn_powerup(e.x, e.y)
   end
 
-  del(enemies, e)
+  del(es, e)
 end
 
 function hit_player(dmg)
   dmg = dmg or 1
 
-  if player.has_shield then
-    player.has_shield = false
-    player.flash = 4  -- flash effect
-    shield_flash_timer = 8  -- trigger flash animation
-    shake_frames = 6  -- screen shake on block
-    shake_intensity = 1.5  -- moderate shake
+  if p.has_shield then
+    p.has_shield = false
+    p.flash = 4  -- flash effect
+    sft = 8  -- trigger flash animation
+    shf = 6
+    shi = 1.5  -- moderate shake
     sfx(5)
     _log("shield_block")
 
     -- shield block particle burst (scaled by wave)
-    local shield_particles = flr(10 * particle_density_factor())
+    local shield_particles = flr(10 * pdf())
     for i=1,shield_particles do
       local angle = i / shield_particles
-      add(particles, {
-        x = player.x,
-        y = player.y,
+      add(pts, {
+        x = p.x,
+        y = p.y,
         vx = cos(angle) * 1.5,
         vy = sin(angle) * 1.5,
         life = 10,
@@ -1355,19 +1338,19 @@ function hit_player(dmg)
     return
   end
 
-  player.lives -= dmg
-  player.invuln = 60
+  p.lives -= dmg
+  p.invuln = 60
 
-  -- combo reset feedback (distinct from normal hit)
+
   if combo > 0 then
-    player.flash_red = 6  -- red flash effect
+    p.flash_red = 6  -- red flash effect
     sfx(18)  -- low-pitched buzz/error sound
     _log("combo_reset_feedback")
 
-    -- floating "combo lost!" text
-    add(milestone_texts, {
+
+    add(mts, {
       text = "combo lost!",
-      y = player.y - 10,
+      y = p.y - 10,
       life = 45,
       initial_life = 45,
       col = 8  -- red
@@ -1376,9 +1359,9 @@ function hit_player(dmg)
     -- red particle burst
     for i=1,14 do
       local angle = i / 14
-      add(particles, {
-        x = player.x,
-        y = player.y,
+      add(pts, {
+        x = p.x,
+        y = p.y,
         vx = cos(angle) * 1.2,
         vy = sin(angle) * 1.2,
         life = 15,
@@ -1389,18 +1372,18 @@ function hit_player(dmg)
 
   combo = 0
   sfx(7)
-  _log("hit:lives="..player.lives..",dmg="..dmg)
+  _log("hit:lives="..p.lives..",dmg="..dmg)
   _log("combo_reset")
 
-  -- screen shake (stronger for higher damage)
-  shake_frames = 3 + dmg
-  shake_intensity = 2 + dmg * 0.5
 
-  -- particles
+  shf = 3 + dmg
+  shi = 2 + dmg * 0.5
+
+  -- pts
   for i=1,10 do
-    add(particles, {
-      x = player.x,
-      y = player.y,
+    add(pts, {
+      x = p.x,
+      y = p.y,
       vx = rnd(3) - 1.5,
       vy = rnd(3) - 1.5,
       life = 20,
@@ -1410,11 +1393,11 @@ function hit_player(dmg)
 end
 
 function queue_spawn(typ, delay)
-  -- telegraph delay: 60-90 frames (1-1.5 seconds), scaled by wave intensity
-  local base_delay = delay or (60 + flr(rnd(30)))
-  local spawn_delay = flr(base_delay * spawn_delay_factor())
 
-  -- calculate spawn position
+  local base_delay = delay or (60 + flr(rnd(30)))
+  local spawn_delay = flr(base_delay * sdf())
+
+
   local x, y = 0, 0
   local side = flr(rnd(4))
 
@@ -1432,7 +1415,7 @@ function queue_spawn(typ, delay)
     y = rnd(128)
   end
 
-  add(spawn_queue, {
+  add(sqe, {
     type = typ,
     x = x,
     y = y,
@@ -1443,33 +1426,33 @@ function queue_spawn(typ, delay)
   _log("queue_spawn:"..typ..":"..x..","..y)
 end
 
-function spawn_wave()
+function spw()
   wave += 1
   _log("wave:"..wave)
 
   -- log intensity scaling milestones
-  local boss_interval = difficulty == "easy" and 6 or (difficulty == "hard" and 4 or 5)
+  local boss_interval = df == "easy" and 6 or (df == "hard" and 4 or 5)
   if wave % boss_interval == 0 then
-    _log("intensity_mod:"..wave_intensity_mod())
+    _log("intensity_mod:"..wim())
     _log("boss_interval:"..boss_interval)
   end
   if wave % 3 == 0 then
-    _log("spawn_delay_factor:"..spawn_delay_factor())
+    _log("sdf:"..sdf())
   end
 
-  -- difficulty scaling
-  local count_mult = difficulty == "easy" and 0.7 or (difficulty == "hard" and 1.3 or 1.0)
-  local shooter_wave = difficulty == "easy" and 5 or (difficulty == "hard" and 2 or 3)
-  local speedy_wave = difficulty == "easy" and 8 or (difficulty == "hard" and 3 or 5)
+  -- df scaling
+  local count_mult = df == "easy" and 0.7 or (df == "hard" and 1.3 or 1.0)
+  local shooter_wave = df == "easy" and 5 or (df == "hard" and 2 or 3)
+  local speedy_wave = df == "easy" and 8 or (df == "hard" and 3 or 5)
 
-  -- boss spawn frequency varies by difficulty
-  local boss_interval = difficulty == "easy" and 6 or (difficulty == "hard" and 4 or 5)
+
+  local boss_interval = df == "easy" and 6 or (df == "hard" and 4 or 5)
 
   local count = flr((3 + wave) * count_mult)
   local boss_wave = wave % boss_interval == 0
 
   if boss_wave then
-    -- boss rotation: spinner -> seeker -> summoner
+
     -- cycle index: (wave / 5 - 1) % 3
     local boss_idx = flr(wave / 5 - 1) % 3
     local boss_type = "heavy"  -- default SPINNER
@@ -1482,7 +1465,7 @@ function spawn_wave()
 
     queue_spawn(boss_type, 90) -- longer telegraph for boss
     count = flr(4 * count_mult)
-    music(2) -- boss theme
+    music(2)
     _log("music:boss")
     _log("boss_type:"..boss_type)
   else
@@ -1503,7 +1486,7 @@ function spawn_wave()
   end
 end
 
-function spawn_enemy(typ, spawn_x, spawn_y)
+function spe(typ, spawn_x, spawn_y)
   -- use provided position or generate random edge position
   local x, y = spawn_x, spawn_y
 
@@ -1525,7 +1508,7 @@ function spawn_enemy(typ, spawn_x, spawn_y)
   end
 
   -- apply wave intensity scaling to base speed
-  local base_speed = 0.5 * wave_intensity_mod()
+  local base_speed = 0.5 * wim()
 
   local e = {
     type = typ,
@@ -1560,31 +1543,31 @@ function spawn_enemy(typ, spawn_x, spawn_y)
   elseif typ == "speedy" then
     e.hp = 2
     e.max_hp = 2
-    e.speed = 1.2 * wave_intensity_mod()
+    e.speed = 1.2 * wim()
     e.score = 25
     e.col = 10
   elseif typ == "heavy" then
-    -- boss HP scaling by difficulty
-    local boss_hp = difficulty == "easy" and 2 or (difficulty == "hard" and 4 or 3)
+
+    local boss_hp = df == "easy" and 2 or (df == "hard" and 4 or 3)
     e.hp = boss_hp
     e.max_hp = boss_hp
-    e.speed = 0.3 * wave_intensity_mod()
+    e.speed = 0.3 * wim()
     e.score = 50
-    e.col = 8 -- boss color: light gray
+    e.col = 8
     e.glow_t = 0 -- pulsing glow timer
-    e.spawn_flash = 3 -- spawn announcement flash
+    e.spawn_flash = 3
     e.pulse_radius = 0 -- expanding pulse effect
     e.pulse_timer = 20 -- frames for pulse expansion
     e.spawn_timer = 60 -- entrance glow + scale animation
-    e.phase2 = false -- phase 2 flag
-    e.phase3 = false -- phase 3 enrage flag
+    e.phase2 = false
+    e.phase3 = false
   elseif typ == "seeker" then
     -- seeker boss: aggressive charging + minion spawning
     e.hp = 4
     e.max_hp = 4
-    e.speed = 0.4 * wave_intensity_mod()
+    e.speed = 0.4 * wim()
     e.score = 60
-    e.col = 12 -- cyan/light blue
+    e.col = 12/light blue
     e.glow_t = 0
     e.spawn_flash = 3
     e.pulse_radius = 0
@@ -1600,7 +1583,7 @@ function spawn_enemy(typ, spawn_x, spawn_y)
     -- summoner boss: ranged bombardment + minion army
     e.hp = 3
     e.max_hp = 3
-    e.speed = 0.3 * wave_intensity_mod()
+    e.speed = 0.3 * wim()
     e.score = 60
     e.col = 14 -- magenta/pink
     e.glow_t = 0
@@ -1614,45 +1597,45 @@ function spawn_enemy(typ, spawn_x, spawn_y)
     e.phase3 = false
   end
 
-  add(enemies, e)
+  add(es, e)
   _log("spawn:"..typ)
 
-  -- boss spawn announcement
+
   if typ == "heavy" or typ == "seeker" or typ == "summoner" then
-    sfx(6) -- boss entrance alert sound
+    sfx(6)
     _log("sfx:boss_alert:"..typ)
-    shake_frames = 3
-    shake_intensity = 1
-    flash_timer = 15  -- screen flash
+    shf = 3
+    shi = 1
+    flt = 15
 
     local pc=typ=="seeker" and 12 or(typ=="summoner" and 14 or 8)
     for i=1,10 do
       local a=i/10
-      add(particles,{x=e.x,y=e.y,vx=cos(a)*1.5,vy=sin(a)*1.5,life=20,col=pc+flr(rnd(2))})
+      add(pts,{x=e.x,y=e.y,vx=cos(a)*1.5,vy=sin(a)*1.5,life=20,col=pc+flr(rnd(2))})
     end
 
     local nm=typ=="seeker" and "seeker!" or(typ=="summoner" and "summoner!" or "boss wave!")
     local bc=typ=="seeker" and 12 or(typ=="summoner" and 14 or 7)
-    add(milestone_texts,{text=nm,y=32,life=60,initial_life=60,col=bc})
+    add(mts,{text=nm,y=32,life=60,initial_life=60,col=bc})
     _log("boss_announce:"..typ)
   end
 end
 
 function update_spawn_queue()
-  for sq in all(spawn_queue) do
+  for sq in all(sqe) do
     sq.timer -= 1
 
     -- play telegraph SFX at 60 frames (1 second before spawn)
     if not sq.sfx_played and sq.timer <= 60 then
-      sfx(8) -- telegraph warning sound
+      sfx(8)
       sq.sfx_played = true
       _log("telegraph_sfx:"..sq.type)
     end
 
-    -- spawn enemy when timer expires
+
     if sq.timer <= 0 then
-      spawn_enemy(sq.type, sq.x, sq.y)
-      del(spawn_queue, sq)
+      spe(sq.type, sq.x, sq.y)
+      del(sqe, sq)
     end
   end
 end
@@ -1661,7 +1644,7 @@ function spawn_powerup(x, y)
   local types = {"RR", "BS", "SH", "2X"}
   local typ = types[flr(rnd(4)) + 1]
 
-  add(powerups, {
+  add(pups, {
     type = typ,
     x = x,
     y = y
@@ -1670,21 +1653,21 @@ function spawn_powerup(x, y)
   _log("powerup_spawn:"..typ)
 end
 
-function collect_powerup(pu)
+function cpu(pu)
   _log("powerup_collect:"..pu.type)
   sfx(4)
 
   -- track for arsenal master achievement
-  powerups_collected[pu.type] = true
+  pcs[pu.type] = true
 
   if pu.type == "RR" then
-    rapid_fire_t = 180 -- 3 seconds
+    rft = 180 -- 3 seconds
   elseif pu.type == "BS" then
-    big_shot_t = 300 -- 5 seconds
+    bst = 300 -- 5 seconds
   elseif pu.type == "SH" then
-    player.has_shield = true
+    p.has_shield = true
   elseif pu.type == "2X" then
-    score_mult_t = 600 -- 10 seconds
+    smt = 600 -- 10 seconds
   end
 end
 
@@ -1692,30 +1675,30 @@ function get_score_multiplier()
   local base = 1.0
 
   -- time multiplier (0.5x per 30s, max 2.0x at 120s)
-  base += min(flr(time_survived / 30) * 0.5, 1.0)
+  base += min(flr(tsv / 30) * 0.5, 1.0)
 
-  -- power-up multiplier
-  if score_mult_t > 0 then
+
+  if smt > 0 then
     base *= 2
   end
 
   return base
 end
 
-function add_score(pts)
+function asc(pts)
   score += pts
   _log("score:"..score)
-  if score > high_score then
-    high_score = score
-    -- save to difficulty-specific slot
-    local diff_slot = 5 + difficulty_cursor -- 6=easy, 7=normal, 8=hard
-    dset(diff_slot, high_score)
+  if score > hsc then
+    hsc = score
+    -- save to df-specific slot
+    local diff_slot = 5 + dfc -- 6=easy, 7=normal, 8=hard
+    dset(diff_slot, hsc)
     -- also save to overall high score (slot 0)
     local overall = dget(0) or 0
-    if high_score > overall then
-      dset(0, high_score)
+    if hsc > overall then
+      dset(0, hsc)
     end
-    _log("new_high_score:"..high_score.."("..difficulty..")")
+    _log("new_high_score:"..hsc.."("..df..")")
   end
 end
 
@@ -1729,10 +1712,10 @@ function draw_edge_indicators()
   -- track nearest enemy per edge for deduplication
   local nearest = {top={}, bottom={}, left={}, right={}}
 
-  for e in all(enemies) do
-    -- check if enemy is off-screen
+  for e in all(es) do
+
     if e.x < 0 or e.x > 128 or e.y < 0 or e.y > 128 then
-      -- calculate distance to each edge
+
       local d_top = abs(e.y - 0)
       local d_bottom = abs(e.y - 128)
       local d_left = abs(e.x - 0)
@@ -1760,7 +1743,7 @@ function draw_edge_indicators()
     end
   end
 
-  -- draw indicators for tracked enemies
+
   for edge, types in pairs(nearest) do
     for typ, data in pairs(types) do
       local e = data.e
@@ -1785,21 +1768,21 @@ function draw_edge_indicators()
       if e.type == "heavy" and e.phase3 then
         col = 8 -- bright red for phase 3 heavy boss
       elseif e.type == "heavy" and e.phase2 then
-        col = 9 -- orange for phase 2 heavy boss
+        col = 9 for phase 2 heavy boss
       elseif e.type == "seeker" and e.phase3 then
         col = 7 -- bright white for phase 3 seeker
       elseif e.type == "seeker" and e.phase2 then
-        col = 12 -- cyan for phase 2 seeker
+        col = 12 for phase 2 seeker
       elseif e.type == "summoner" and e.phase3 then
         col = 13 -- bright magenta for phase 3 summoner
       elseif e.type == "summoner" and e.phase2 then
         col = 14 -- magenta for phase 2 summoner
       end
 
-      -- boss gets larger indicator
+
       if e.type == "heavy" or e.type == "seeker" or e.type == "summoner" then
         circfill(ix, iy, 2, col)
-        circ(ix, iy, 3, 7) -- white outline
+        circ(ix, iy, 3, 7) outline
         -- small hp bar for boss
         if e.max_hp > 1 then
           local frac = e.hp / e.max_hp
@@ -1809,7 +1792,7 @@ function draw_edge_indicators()
       else
         -- regular enemy: small triangle pointing inward
         circfill(ix, iy, 1, col)
-        pset(ix, iy, 7) -- white center
+        pset(ix, iy, 7) center
       end
 
       _log("indicator:"..edge..":"..e.type)
@@ -1817,11 +1800,11 @@ function draw_edge_indicators()
   end
 end
 
-function draw_play()
+function drp()
   -- apply screen shake
-  if shake_frames > 0 then
-    local dx = rnd(shake_intensity * 2) - shake_intensity
-    local dy = rnd(shake_intensity * 2) - shake_intensity
+  if shf > 0 then
+    local dx = rnd(shi * 2) - shi
+    local dy = rnd(shi * 2) - shi
     camera(dx, dy)
   else
     camera(0, 0)
@@ -1830,27 +1813,27 @@ function draw_play()
   -- arena border
   rect(4, 4, 123, 123, 5)
 
-  -- particles
-  for pt in all(particles) do
+  -- pts
+  for pt in all(pts) do
     pset(pt.x, pt.y, pt.col)
   end
 
-  -- powerups
-  for pu in all(powerups) do
+  -- pups
+  for pu in all(pups) do
     rectfill(pu.x - 2, pu.y - 2, pu.x + 2, pu.y + 2, 12)
     print(pu.type, pu.x - 4, pu.y - 8, 7)
   end
 
-  -- spawn telegraphs (warning indicators)
-  for sq in all(spawn_queue) do
+
+  for sq in all(sqe) do
     -- only show telegraph when timer <= 60 (1 second warning)
     if sq.timer <= 60 then
       -- color based on enemy type
       local tel_col = 10 -- default yellow
       if sq.type == "shooter" then
-        tel_col = 9 -- orange
+        tel_col = 9
       elseif sq.type == "speedy" then
-        tel_col = 12 -- cyan
+        tel_col = 12
       elseif sq.type == "heavy" or sq.type == "seeker" or sq.type == "summoner" then
         tel_col = 8 -- red/magenta for bosses
       end
@@ -1870,8 +1853,8 @@ function draw_play()
     end
   end
 
-  -- enemies
-  for e in all(enemies) do
+  -- es
+  for e in all(es) do
     local r = e.type == "heavy" and 5 or (e.type == "seeker" and 6 or (e.type == "summoner" and 5 or (e.type == "speedy" and 2 or 3)))
 
     -- apply entrance scale animation (30 frame scale up)
@@ -1881,10 +1864,10 @@ function draw_play()
       draw_r = r * scale
     end
 
-    -- boss spawn pulse effect (expanding circle)
+
     if e.pulse_timer and e.pulse_timer > 0 and e.pulse_radius then
       local alpha = e.pulse_timer / 20  -- fade out as pulse expands
-      local pulse_col = (e.pulse_timer % 4 < 2) and 7 or 12  -- white/cyan alternate
+      local pulse_col = (e.pulse_timer % 4 < 2) and 7 or 12/cyan alternate
       circ(e.x, e.y, e.pulse_radius, pulse_col)
       if e.pulse_radius > 3 then
         circ(e.x, e.y, e.pulse_radius - 1, pulse_col)
@@ -1900,37 +1883,37 @@ function draw_play()
       if e.spawn_timer>40 then circ(e.x,e.y,br+p+1,gc) end
     end
 
-    -- boss spawn flash
+
     local col = e.col
     if e.spawn_flash and e.spawn_flash > 0 then
       col = (e.spawn_flash % 2 == 0) and 15 or 8
-    elseif e.flash_timer and e.flash_timer > 0 then
-      col = (e.flash_timer % 4 < 2) and 7 or e.col
+    elseif e.flt and e.flt > 0 then
+      col = (e.flt % 4 < 2) and 7 or e.col
     end
 
-    -- phase 2/3 color change for bosses
+
     if e.type == "heavy" and e.phase3 then
       col = 8 -- bright red (phase 3 enrage)
     elseif e.type == "heavy" and e.phase2 then
-      col = 9 -- orange (aggression color)
+      col = 9 (aggression color)
     elseif e.type == "seeker" and e.phase3 then
       col = 7 -- bright white for phase 3 seeker
     elseif e.type == "seeker" and e.phase2 then
-      col = 12 -- cyan for phase 2 seeker
+      col = 12 for phase 2 seeker
     elseif e.type == "summoner" and e.phase3 then
       col = 13 -- bright magenta for phase 3 summoner
     elseif e.type == "summoner" and e.phase2 then
       col = 14 -- magenta for phase 2 summoner
     end
 
-    -- wave intensity visual: shift non-boss enemies warmer at high waves
+    -- wave intensity visual: shift non-boss es warmer at high waves
     if e.type ~= "heavy" and e.type ~= "seeker" and e.type ~= "summoner" and wave >= 10 then
       if wave >= 20 then
         col = 8  -- red at wave 20+
       elseif wave >= 15 then
-        col = 9  -- orange at wave 15+
+        col = 9 at wave 15+
       else
-        col = 10 -- yellow at wave 10+
+        col = 10 at wave 10+
       end
     end
 
@@ -1944,25 +1927,25 @@ function draw_play()
       end
     end
 
-    -- aim warning indicator (yellow crosshair on player)
+    -- aim warning indicator (yellow crosshair on p)
     if e.aim_warn and e.aim_warn > 0 then
       -- pulsing crosshair on targeted position
       if e.aim_warn % 6 < 3 then
         local tx = e.aim_target_x
         local ty = e.aim_target_y
         local size = 6
-        line(tx - size, ty, tx + size, ty, 10)  -- yellow horizontal
-        line(tx, ty - size, tx, ty + size, 10)  -- yellow vertical
+        line(tx - size, ty, tx + size, ty, 10) horizontal
+        line(tx, ty - size, tx, ty + size, 10) vertical
         circ(tx, ty, 4, 10)  -- targeting circle
       end
     end
 
     circfill(e.x, e.y, draw_r, col)
 
-    -- boss pulsing glow
+
     if (e.type == "heavy" or e.type == "seeker" or e.type == "summoner") and e.glow_t and not e.spawn_flash then
       local glow_col = (e.glow_t < 6) and 8 or 3
-      -- phase 3: brightest glow
+
       if e.phase3 then
         if e.type == "heavy" then
           glow_col = (e.glow_t < 6) and 8 or 2  -- bright red/dark red
@@ -1971,7 +1954,7 @@ function draw_play()
         end
         circ(e.x, e.y, draw_r + 2, glow_col) -- extra ring for phase 3
         circ(e.x, e.y, draw_r + 3, glow_col) -- double extra ring for phase 3
-      -- phase 2: different glow for each boss type
+
       elseif e.phase2 then
         if e.type == "heavy" then
           glow_col = (e.glow_t < 6) and 9 or 8  -- red/orange
@@ -1983,7 +1966,7 @@ function draw_play()
       circ(e.x, e.y, draw_r + 1, glow_col)
     end
 
-    -- boss spinning effect during burst
+
     if e.spin_timer and e.spin_timer > 0 then
       local angle = (30 - e.spin_timer) * 0.1
       local orbit_r = 9
@@ -1995,7 +1978,7 @@ function draw_play()
         local oy = sin(orb_angle) * orbit_r
         local orb_col = e.phase3 and 8 or (e.phase2 and 9 or 10) -- red/orange/yellow
         circfill(e.x + ox, e.y + oy, 2, orb_col)
-        circ(e.x + ox, e.y + oy, 2, 7) -- white outline
+        circ(e.x + ox, e.y + oy, 2, 7) outline
       end
 
       -- crosshairs overlay for extra detail
@@ -2008,12 +1991,12 @@ function draw_play()
       line(e.x - vx, e.y - vy, e.x + vx, e.y + vy, 7)
     end
 
-    -- boss outline during dash
+
     if e.dashing then
       circ(e.x, e.y, draw_r + 1, 10)
     end
 
-    -- hp bar for multi-hp enemies
+    -- hp bar for multi-hp es
     if e.max_hp > 1 then
       local w = 8
       local frac = e.hp / e.max_hp
@@ -2021,10 +2004,10 @@ function draw_play()
     end
   end
 
-  -- projectiles
-  for p in all(projectiles) do
-    local col = p.col or (p.owner == "player" and 10 or 8)
-    -- seeking projectiles get magenta color
+  -- ps
+  for p in all(ps) do
+    local col = p.col or (p.owner == "p" and 10 or 8)
+    -- seeking ps get magenta color
     if p.seeking then
       col = 14
       -- add trail effect
@@ -2033,21 +2016,21 @@ function draw_play()
     circfill(p.x, p.y, p.size, col)
   end
 
-  -- player
-  if player.invuln % 4 < 2 then
+  -- p
+  if p.invuln % 4 < 2 then
     -- flash effects (red for combo reset, white for shield block)
     local player_col = 11
-    if player.flash_red > 0 then
+    if p.flash_red > 0 then
       player_col = 8  -- red flash (combo reset)
-      player.flash_red -= 1
-    elseif player.flash > 0 then
-      player_col = 7  -- white flash (shield block)
-      player.flash -= 1
+      p.flash_red -= 1
+    elseif p.flash > 0 then
+      player_col = 7 flash (shield block)
+      p.flash -= 1
     end
-    circfill(player.x, player.y, 4, player_col)
+    circfill(p.x, p.y, 4, player_col)
 
     -- shield with pulsing glow
-    if player.has_shield then
+    if p.has_shield then
       -- pulsing animation (oscillate radius)
       local pulse = sin(t() * 2) * 1.5  -- smooth pulse
       local base_radius = 6
@@ -2057,76 +2040,76 @@ function draw_play()
       local shield_col = flr(t() * 4) % 2 == 0 and 7 or 12
 
       -- outer glow ring (faint)
-      circ(player.x, player.y, radius + 2, 12)
+      circ(p.x, p.y, radius + 2, 12)
       -- main shield ring (bright)
-      circ(player.x, player.y, radius, shield_col)
+      circ(p.x, p.y, radius, shield_col)
     end
 
     -- shield block flash effect
-    if shield_flash_timer > 0 then
+    if sft > 0 then
       -- expanding white flash ring
-      local flash_radius = 8 + (8 - shield_flash_timer) * 2
-      local flash_col = shield_flash_timer > 4 and 7 or 6  -- fade from white to gray
-      circ(player.x, player.y, flash_radius, flash_col)
-      shield_flash_timer -= 1
+      local flash_radius = 8 + (8 - sft) * 2
+      local flash_col = sft > 4 and 7 or 6  -- fade from white to gray
+      circ(p.x, p.y, flash_radius, flash_col)
+      sft -= 1
     end
 
     -- facing indicator
-    local dir = dirs[player.rot + 1]
-    line(player.x, player.y,
-         player.x + dir[1] * 6,
-         player.y + dir[2] * 6, 7)
+    local dir = dirs[p.rot + 1]
+    line(p.x, p.y,
+         p.x + dir[1] * 6,
+         p.y + dir[2] * 6, 7)
   end
 
-  -- edge indicators for off-screen enemies
+  -- edge indicators for off-screen es
   draw_edge_indicators()
 
   -- ui
   print("score:"..score, 2, 2, 7)
   print("wave:"..wave, 48, 2, 10)
-  print("time:"..time_survived, 90, 2, 9)
+  print("time:"..tsv, 90, 2, 9)
   print("combo:"..combo, 2, 120, 14)
 
   -- lives
-  for i=1,player.lives do
+  for i=1,p.lives do
     circfill(118 - i * 6, 120, 2, 8)
   end
 
-  -- power-up indicators
+
   local py = 10
-  if rapid_fire_t > 0 then
+  if rft > 0 then
     print("RR", 2, py, 10)
     py += 8
   end
-  if big_shot_t > 0 then
+  if bst > 0 then
     print("BS", 2, py, 14)
     py += 8
   end
-  if score_mult_t > 0 then
+  if smt > 0 then
     print("2X", 2, py, 12)
     py += 8
   end
 
   -- dash cooldown
-  if player.dash_cd > 0 then
-    local frac = player.dash_cd / 60
+  if p.dash_cd > 0 then
+    local frac = p.dash_cd / 60
     rectfill(2, 110, 2 + 20 * (1 - frac), 113, 6)
   end
 
   -- milestone floating text
-  for mt in all(milestone_texts) do
+  for mt in all(mts) do
     local fade = mt.life / (mt.initial_life or 60)
     local col = mt.col
     if fade < 0.3 then col = 5 end
     print(mt.text, 36, mt.y, col)
   end
 
-  -- screen flash for milestone
-  if flash_timer > 0 then
-    local intensity = flash_timer / 3
+
+  if flt > 0 then
+    local intensity = flt / 3
     rectfill(0, 0, 127, 127, 7)
     -- fade effect by alternating pixels
-    if flash_timer == 1 then
+    if flt == 1 then
       for i=0,127,2 do
         for j=0,127,2 do
           pset(i, j, 0)
@@ -2136,21 +2119,20 @@ function draw_play()
   end
 end
 
--- pause state
-function init_pause()
+function inp()
   state = "pause"
   _log("state:pause")
   music(-1) -- stop music
   _log("music:stop")
 end
 
-function update_pause()
+function upau()
   if test_inputp(5) then -- X to resume
     state = "play"
     _log("state:play")
-    -- resume appropriate music
+
     if wave % 10 == 5 or wave % 10 == 0 then
-      music(2) -- boss theme
+      music(2)
       _log("music:boss")
     else
       music(1) -- gameplay theme
@@ -2158,13 +2140,13 @@ function update_pause()
     end
   end
   if test_inputp(4) then -- O to menu
-    init_menu()
+    inm()
   end
 end
 
-function draw_pause()
-  -- draw game state underneath
-  draw_play()
+function drpau()
+
+  drp()
 
   -- darken overlay
   rectfill(0, 0, 127, 127, 0)
@@ -2180,85 +2162,84 @@ function draw_pause()
   print("press o for menu", 22, 80, 6)
 end
 
--- gameover state
-function init_gameover()
+function igo()
   state = "gameover"
   _log("state:gameover")
   _log("final_score:"..score)
   _log("waves:"..wave)
-  _log("kills:"..enemies_killed)
-  _log("time:"..time_survived)
+  _log("kills:"..ekl)
+  _log("time:"..tsv)
   music(3) -- gameover theme
   _log("music:gameover")
 
-  -- final achievement check
-  check_achievements()
+
+  cka()
 
   -- track session best combo
-  best_combo_session = max(best_combo_session, combo)
-  _log("best_combo_session:"..best_combo_session)
+  bcs = max(bcs, combo)
+  _log("bcs:"..bcs)
 
-  -- update and save achievements
-  if best_combo_session > best_combo then
-    best_combo = best_combo_session
-    dset(2, best_combo)
-    _log("new_best_combo:"..best_combo)
+
+  if bcs > bco then
+    bco = bcs
+    dset(2, bco)
+    _log("new_best_combo:"..bco)
   end
 
   -- save boss kills
-  dset(1, boss_kills)
-  _log("total_boss_kills:"..boss_kills)
+  dset(1, bks)
+  _log("total_boss_kills:"..bks)
 
-  -- save achievements
-  save_achievements()
+  -- save as
+  sva()
 
-  -- log session achievements
-  local session_count = count_session_achievements()
-  _log("session_achievements:"..session_count)
+  -- log session as
+  local session_count = csa()
+  _log("sas:"..session_count)
 end
 
-function update_gameover()
+function ugo()
   local input = test_input()
   if input & 16 > 0 then -- O to restart
     init_play()
   end
   if input & 32 > 0 then -- X to menu
-    init_menu()
+    inm()
   end
 end
 
-function draw_gameover()
+function dgo()
   print("game over", 40, 30, 8)
 
   print("score: "..score, 36, 42, 7)
   print("waves: "..wave, 38, 50, 7)
-  print("kills: "..enemies_killed, 38, 58, 7)
-  print("time: "..time_survived.."s", 36, 66, 7)
+  print("kills: "..ekl, 38, 58, 7)
+  print("time: "..tsv.."s", 36, 66, 7)
 
-  -- difficulty
-  local diff_col = difficulty == "easy" and 12 or (difficulty == "hard" and 8 or 10)
-  print("mode: "..difficulty, 34, 74, diff_col)
+  -- df
+  local diff_col = df == "easy" and 12 or (df == "hard" and 8 or 10)
+  print("mode: "..df, 34, 74, diff_col)
 
-  -- session achievements
-  local session_count = count_session_achievements()
+
+  local session_count = csa()
   if session_count > 0 then
-    print("new achievements: "..session_count, 16, 82, 12)
+    print("new as: "..session_count, 16, 82, 12)
     -- show which ones
     local y = 90
     for i=1,12 do
-      if session_achievements[i] then
-        local def = achievement_defs[i]
+      if sas[i] then
+        local def = ads[i]
         print("\x97 "..def.name, 8, y, 10)
         y += 6
         if y > 106 then break end -- prevent overflow
       end
     end
   else
-    print("no new achievements", 20, 82, 5)
+    print("no new as", 20, 82, 5)
   end
 
-  -- total achievements
-  local total = count_achievements()
+  -- total as
+  local total = cna()
   print("total: "..total.."/12", 42, 112, 14)
 
   print("o:retry x:menu", 28, 120, 6)
