@@ -1019,8 +1019,7 @@ function bba(e)
   -- randomly select attack pattern based on phase
   local patterns
   if e.phase2 then
-
-    patterns = {"spiral", "ring", "aimed"}
+    patterns = {"burst", "spiral", "ring", "aimed"}
   else
 
     patterns = {"burst", "ring"}
