@@ -1321,10 +1321,9 @@ function dme(e, dmg, proj)
   if (e.type == "heavy" or e.type == "seeker" or e.type == "summoner") and not e.phase2 and e.hp <= 2 then
     e.phase2 = true
     _log("boss:phase2:"..e.type)
-
-    e.flt = 15
-    shf = 2
-    shi = 1
+    e.flt = 18
+    shf = 3
+    shi = 1.5
     sfx(6)
   end
 
@@ -2292,7 +2291,7 @@ function drp()
     local s = r % 60
     print(flr(r/60)..":"..(s<10 and "0"..s or s), 48, 2, r < 10 and 8 or 10)
   else
-    print("wave:"..wave, 48, 2, 10)
+    print("wave:"..wave, 48, 2, wave>=10 and 8 or 10)
   end
 
   print("time:"..tsv, 90, 2, 9)
