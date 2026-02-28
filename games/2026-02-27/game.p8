@@ -4931,6 +4931,8 @@ function update_gauntlet()
           spawn_particles(ball.x, ball.y, 20, 8)
           _log("gauntlet_damage:lives="..lives)
 
+          del(obstacles, o)  -- delete obstacle to prevent dodge detection
+
           if lives <= 0 then
             state = "gauntlet_gameover"
             play_music(3)
