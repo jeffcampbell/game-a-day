@@ -919,7 +919,16 @@ function kill_enemy(e)
     _log("boss_kill:"..boss_kills)
     shake_frames = 4
     shake_intensity = 5
-    flash_timer = 2  -- brief white flash
+    flash_timer = 12  -- extended gold flash for boss victory
+
+    -- floating "BOSS DOWN!" text
+    add(milestone_texts, {
+      text = "boss down!",
+      y = 50,
+      life = 45,  -- 1.5s display
+      col = 10  -- yellow/gold for victory
+    })
+    _log("boss_fanfare")
     -- enhanced spiral particle burst
     for i=1,18 do
       local angle = i / 18
