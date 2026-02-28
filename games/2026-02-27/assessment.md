@@ -1,5 +1,84 @@
 # Bounce King - Game Assessment
-**Date:** 2026-02-27 (Boss Gauntlet Mode Review - FIXED)
+**Date:** 2026-02-27 (Cartdata Documentation Update)
+**Status:** ✅ APPROVED - Documentation corrected
+
+---
+
+## Latest Update: Cartdata Documentation Correction (2026-02-27)
+
+**Status:** ✅ APPROVED - Documentation now accurate
+
+### Changes Made
+- Updated outdated comments referencing slot 62 as "difficulty_settings (packed)"
+- Slot 62 is now correctly documented as UNUSED and available for future features
+- Added note that difficulty settings use individual slots 89-92
+- Corrected daily challenge persistence comment to reflect actual slot usage (54-61, 63)
+
+### Current Cartdata Allocation (Verified)
+
+**Slots 0-3: Core Settings**
+- Slot 0: Legacy highscore (migration only, unused after startup)
+- Slot 1: music_enabled flag
+- Slot 2: sfx_enabled flag
+- Slot 3: ball_skin selection
+
+**Slots 4-43: Leaderboard (40 slots)**
+- Top 10 scores, 4 values per entry (score, initial1, initial2, initial3)
+
+**Slots 44-52: Achievements & Counters**
+- Slots 44-51: Achievement unlock flags (8 achievements)
+- Slot 52: danger_zone_pickups counter
+
+**Slot 53: Tutorial**
+- Tutorial completion flag
+
+**Slots 54-61, 63: Daily Challenge**
+- Slot 54: challenge_best score
+- Slot 55: challenge_seed (current day)
+- Slots 56-61: daily_history (3 days × 2 values = 6 slots)
+- **Slot 62: UNUSED (FREE for future features)** ✅
+- Slot 63: cosmetics_packed (bitfield: unlocks + trail + theme)
+
+**Slots 64-88: Player Statistics (25 slots)**
+- Games played, total time, dodges, power-ups collected
+- Score totals (low/high 32-bit split for large numbers)
+- Per-difficulty stats (easy/normal/hard game counts, scores, combos)
+- Power-up usage counts (shield, slowmo, doublescore, magnet, bomb, freeze)
+- Win streaks (current, longest)
+
+**Slots 89-92: Difficulty Customization**
+- Slot 89: spawn_rate (1-4)
+- Slot 90: diff_scaling (1-4)
+- Slot 91: combo_bonus (1-3)
+- Slot 92: lives_preset (1-3)
+
+**Slot 93: Boss Gauntlet**
+- gauntlet_unlocked flag
+
+**Total Usage: 94 slots (0-93)**
+- PICO-8 supports 256 cartdata slots (0-255)
+- **162 slots remain available** for future expansion
+- No slot capacity issues
+
+### Historical Context
+- **Commit f462dd0** consolidated daily challenge history from 1-day to 3-day tracking
+- **Commit 23f63d1** moved difficulty settings from packed slot 62 to individual slots 89-92
+- Slot 62 has been unused since difficulty customization menu was added
+- Previous documentation was outdated and has now been corrected
+
+### Verification
+- ✅ All dget/dset calls verified against slot allocation
+- ✅ No slot conflicts or overlaps
+- ✅ Slot 62 confirmed unused (no dget/dset references)
+- ✅ Daily history uses 3-day tracking (slots 56-61)
+- ✅ All persistence functions working correctly
+
+**Commit:** Documentation-only change, no functional modifications
+
+---
+
+## Previous Review: Boss Gauntlet Mode (2026-02-27 - FIXED)
+
 **Status:** ✅ READY FOR RE-REVIEW - Critical collision bug fixed
 
 ---
