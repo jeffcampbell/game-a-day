@@ -111,6 +111,35 @@ dirs = {
   {0.7,-0.7}  -- 7: up-right
 }
 
+-- wave intensity modifiers
+function wave_intensity_mod()
+  -- enemy speed scaling: +15% per 5 waves
+  return 1.0 + flr(wave / 5) * 0.15
+end
+
+function spawn_delay_factor()
+  -- spawn rate acceleration: +20% per 3 waves, capped at 50%
+  return max(0.5, 1 - 0.2 * flr(wave / 3))
+end
+
+function particle_density_factor()
+  -- particle density scaling: +10% per 5 waves
+  return 1.0 + flr(wave / 5) * 0.1
+end
+
+function baseline_shake()
+  -- baseline screen shake intensity by wave tier
+  if wave < 5 then
+    return 0
+  elseif wave < 10 then
+    return 0.1
+  elseif wave < 15 then
+    return 0.2
+  else
+    return 0.3
+  end
+end
+
 function _init()
   _log("init")
   cartdata("neon-slinger-v1")
@@ -413,9 +442,12 @@ function update_play()
   -- update timers
   time_survived = flr(time() - start_time)
 
-  -- update shake
+  -- update shake (with wave-based baseline)
   if shake_frames > 0 then
     shake_frames -= 1
+  else
+    -- add baseline screen shake that scales with wave
+    shake_intensity = baseline_shake()
   end
 
   -- power-up decay
@@ -770,8 +802,9 @@ function update_boss_attacks(e)
   local hp_pct = e.hp / e.max_hp
 
   -- phase 2 cooldown adjustments
-  local burst_cooldown = e.phase2 and 90 or 120  -- 3s vs 5s (at 30fps: 2s=60, but keeping 90 for 3s)
-  local dash_cooldown = e.phase2 and 120 or 180  -- 2s vs 3s
+  -- phase 2 aggression: 20% faster attacks (72 vs 90, 96 vs 120)
+  local burst_cooldown = e.phase2 and 72 or 120  -- intensified phase 2: 2.4s vs 4s
+  local dash_cooldown = e.phase2 and 96 or 180  -- intensified phase 2: 3.2s vs 6s
 
   -- burst attack (once at 50% hp or 5s, repeats in phase 2)
   if (not e.burst_used and (hp_pct <= 0.5 or elapsed >= 5) and e.burst_cd == 0) or (e.phase2 and e.burst_cd == 0) then
@@ -843,9 +876,10 @@ function boss_spiral_pattern(e)
   e.flash_timer = 10
   e.spin_timer = 30
 
-  -- 12-way spiral
-  for i=0,11 do
-    local angle = i / 12
+  -- phase 2 enhanced: 14-way spiral (vs 12)
+  local proj_count = 14
+  for i=0,proj_count-1 do
+    local angle = i / proj_count
     local vx = cos(angle) * e.speed * 3
     local vy = sin(angle) * e.speed * 3
     add(projectiles, {
@@ -868,9 +902,10 @@ function boss_ring_attack(e)
   e.flash_timer = 10
   e.spin_timer = 30
 
-  -- 8 projectiles equally spaced in full circle
-  for i=0,7 do
-    local angle = i / 8
+  -- phase 2: +2 projectiles (10 vs 8)
+  local proj_count = e.phase2 and 10 or 8
+  for i=0,proj_count-1 do
+    local angle = i / proj_count
     local vx = cos(angle) * e.speed * 3
     local vy = sin(angle) * e.speed * 3
     add(projectiles, {
@@ -973,8 +1008,9 @@ function update_specter_attacks(e)
   local hp_pct = e.hp / e.max_hp
 
   -- phase 2 cooldown adjustments
-  local seek_cooldown = e.phase2 and 90 or 120  -- faster seeking in phase 2
-  local teleport_cooldown = e.phase2 and 90 or 180  -- faster teleports in phase 2
+  -- phase 2 aggression: 20% faster attacks
+  local seek_cooldown = e.phase2 and 72 or 120  -- intensified phase 2: 2.4s vs 4s
+  local teleport_cooldown = e.phase2 and 72 or 180  -- intensified phase 2: 2.4s vs 6s
 
   -- seeking projectile attack (5 shots total)
   if e.seek_cd == 0 and e.seek_count < 5 then
@@ -1210,9 +1246,10 @@ function kill_enemy(e)
       col = tier_col
     })
 
-    -- radial particle burst (8-12 particles with gold/cyan)
-    for i=1,tier_particles do
-      local angle = i / tier_particles
+    -- radial particle burst (8-12 particles with gold/cyan, scaled by wave)
+    local scaled_particles = flr(tier_particles * particle_density_factor())
+    for i=1,scaled_particles do
+      local angle = i / scaled_particles
       add(particles, {
         x = 64,
         y = 64,
@@ -1248,8 +1285,9 @@ function kill_enemy(e)
     _log("boss_fanfare:"..e.type)
     -- enhanced spiral particle burst (cyan for specter, gray for heavy)
     local particle_col = e.type == "specter" and 12 or 8
-    for i=1,18 do
-      local angle = i / 18
+    local boss_particles = flr(18 * particle_density_factor())
+    for i=1,boss_particles do
+      local angle = i / boss_particles
       add(particles, {
         x = e.x,
         y = e.y,
@@ -1260,8 +1298,9 @@ function kill_enemy(e)
       })
     end
   else
-    -- normal explosion particles
-    for i=1,15 do
+    -- normal explosion particles (scaled by wave)
+    local explosion_particles = flr(15 * particle_density_factor())
+    for i=1,explosion_particles do
       add(particles, {
         x = e.x,
         y = e.y,
@@ -1293,9 +1332,10 @@ function hit_player(dmg)
     sfx(5)
     _log("shield_block")
 
-    -- shield block particle burst
-    for i=1,10 do
-      local angle = i / 10
+    -- shield block particle burst (scaled by wave)
+    local shield_particles = flr(10 * particle_density_factor())
+    for i=1,shield_particles do
+      local angle = i / shield_particles
       add(particles, {
         x = player.x,
         y = player.y,
@@ -1363,8 +1403,9 @@ function hit_player(dmg)
 end
 
 function queue_spawn(typ, delay)
-  -- telegraph delay: 60-90 frames (1-1.5 seconds)
-  local spawn_delay = delay or (60 + flr(rnd(30)))
+  -- telegraph delay: 60-90 frames (1-1.5 seconds), scaled by wave intensity
+  local base_delay = delay or (60 + flr(rnd(30)))
+  local spawn_delay = flr(base_delay * spawn_delay_factor())
 
   -- calculate spawn position
   local x, y = 0, 0
@@ -1398,6 +1439,14 @@ end
 function spawn_wave()
   wave += 1
   _log("wave:"..wave)
+
+  -- log intensity scaling milestones
+  if wave % 5 == 0 then
+    _log("intensity_mod:"..wave_intensity_mod())
+  end
+  if wave % 3 == 0 then
+    _log("spawn_delay_factor:"..spawn_delay_factor())
+  end
 
   -- difficulty scaling
   local count_mult = difficulty == "easy" and 0.7 or (difficulty == "hard" and 1.3 or 1.0)
@@ -1459,13 +1508,16 @@ function spawn_enemy(typ, spawn_x, spawn_y)
     end
   end
 
+  -- apply wave intensity scaling to base speed
+  local base_speed = 0.5 * wave_intensity_mod()
+
   local e = {
     type = typ,
     x = x,
     y = y,
     hp = 1,
     max_hp = 1,
-    speed = 0.5,
+    speed = base_speed,
     score = 10,
     col = 8,
     vx = 0,
@@ -1492,7 +1544,7 @@ function spawn_enemy(typ, spawn_x, spawn_y)
   elseif typ == "speedy" then
     e.hp = 2
     e.max_hp = 2
-    e.speed = 1.2
+    e.speed = 1.2 * wave_intensity_mod()
     e.score = 25
     e.col = 10
   elseif typ == "heavy" then
@@ -1500,7 +1552,7 @@ function spawn_enemy(typ, spawn_x, spawn_y)
     local boss_hp = difficulty == "easy" and 2 or (difficulty == "hard" and 4 or 3)
     e.hp = boss_hp
     e.max_hp = boss_hp
-    e.speed = 0.3
+    e.speed = 0.3 * wave_intensity_mod()
     e.score = 50
     e.col = 8 -- boss color: light gray
     e.glow_t = 0 -- pulsing glow timer
@@ -1512,7 +1564,7 @@ function spawn_enemy(typ, spawn_x, spawn_y)
     -- specter boss: seeking projectiles + teleport dashes
     e.hp = 4
     e.max_hp = 4
-    e.speed = 0.4
+    e.speed = 0.4 * wave_intensity_mod()
     e.score = 60
     e.col = 12 -- cyan/purple
     e.glow_t = 0
@@ -1834,6 +1886,17 @@ function draw_play()
       col = 9 -- orange (aggression color)
     elseif e.type == "specter" and e.phase2 then
       col = 14 -- magenta (specter phase 2)
+    end
+
+    -- wave intensity visual: shift non-boss enemies warmer at high waves
+    if e.type ~= "heavy" and e.type ~= "specter" and wave >= 10 then
+      if wave >= 20 then
+        col = 8  -- red at wave 20+
+      elseif wave >= 15 then
+        col = 9  -- orange at wave 15+
+      else
+        col = 10 -- yellow at wave 10+
+      end
     end
 
     -- dash warning indicator (purple outline)
