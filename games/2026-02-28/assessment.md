@@ -1,10 +1,40 @@
 # NEON-SLINGER Assessment (2026-02-28)
 
-## Current Status: BOSS PHASE 2 ATTACK VARIETY
-**Status:** COMPLETE - Heavy boss phase 2 now uses all 4 attack patterns
+## Current Status: BOSS PHASE 2 ATTACK VARIETY - SYNTAX ERRORS
+**Status:** ❌ BLOCKING - 6 Critical Lua syntax errors prevent game from running
 **Game Type:** Top-down shooter (competitive arcade)
 **Feature:** Enhanced boss phase 2 with varied attack patterns
-**Latest Change:** Added burst attack to phase 2 pattern pool (burst, spiral, ring, aimed)
+**Latest Change:** Feature code contains malformed comments in table literals (missing -- prefix)
+
+---
+
+## 🔴 CRITICAL BLOCKING ISSUES
+
+### Lua Syntax Errors in Phase 2 Attack Functions
+
+**Severity:** CRITICAL - Game will not load or run
+
+**Issue:** Missing `--` comment prefix in table dictionary literals. Six locations have invalid syntax like `col = 9 for spiral` (should be `col = 9, -- for spiral`).
+
+**Affected Lines:**
+1. Line 1098: `col = 9 for spiral` in `boss_spiral_pattern()`
+2. Line 1131: `col = 12 for ring` in `boss_ring_attack()`
+3. Line 1167: `col = 10 for aimed` in `boss_aimed_burst_attack()`
+4. Line 1991: `col = 9 for phase 2 heavy boss` in drawing code
+5. Line 1995: `col = 12 for phase 2 seeker` in drawing code
+6. Line 2122: `col = 12 for phase 2 seeker` in HP bar drawing code
+
+**Required Fix:**
+Replace each instance with proper Lua syntax by adding comma before `--`:
+```lua
+-- INCORRECT:
+col = 9 for spiral
+
+-- CORRECT:
+col = 9, -- for spiral
+```
+
+**Impact:** Game will not load or execute. Feature is completely broken until syntax is fixed.
 
 ---
 
@@ -215,9 +245,28 @@ GAMEOVER: Final stats (score, waves, kills, time, multiplier)
 
 ---
 
-## Next Steps
+## Next Steps (BLOCKING ISSUES)
 
-1. **FIX:** Change line 538 in damage_enemy() function:
+### URGENT: Fix Syntax Errors First
+
+1. **FIX:** Correct all 6 Lua syntax errors in table literals (lines 1098, 1131, 1167, 1991, 1995, 2122)
+   - Add comma and proper `--` comment syntax
+   - Pattern: `col = X,` followed by `-- comment` (not `col = X for comment`)
+
+2. **RE-EXPORT:** Generate fresh HTML/JS after syntax fix
+   ```bash
+   pico8 games/2026-02-28/game.p8 -export games/2026-02-28/game.html
+   ```
+
+3. **VERIFY:** Test game loads without Lua parse errors
+
+4. **RESUBMIT:** Branch will be re-reviewed once syntax is fixed
+
+---
+
+## Original Next Steps (After Syntax Fix)
+
+1. **PREVIOUS FIX (ALREADY APPLIED):** Change line 538 in damage_enemy() function:
    ```lua
    -- FROM: if e.type == "heavy" and not e.phase2 and e.hp == 2 then
    -- TO:   if e.type == "heavy" and not e.phase2 and e.hp <= 2 then

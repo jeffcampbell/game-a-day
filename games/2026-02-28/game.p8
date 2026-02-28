@@ -1095,7 +1095,7 @@ function boss_spiral_pattern(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 9 for spiral
+      col = 9 -- for spiral
     })
   end
 end
@@ -1128,7 +1128,7 @@ function boss_ring_attack(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 12 for ring
+      col = 12 -- for ring
     })
   end
 end
@@ -1164,7 +1164,7 @@ function boss_aimed_burst_attack(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 10 for aimed
+      col = 10 -- for aimed
     })
   end
 end
@@ -1988,11 +1988,11 @@ function draw_edge_indicators()
       if e.type == "heavy" and e.phase3 then
         col = 8 -- bright red for phase 3 heavy boss
       elseif e.type == "heavy" and e.phase2 then
-        col = 9 for phase 2 heavy boss
+        col = 9 -- for phase 2 heavy boss
       elseif e.type == "seeker" and e.phase3 then
         col = 7 -- bright white for phase 3 seeker
       elseif e.type == "seeker" and e.phase2 then
-        col = 12 for phase 2 seeker
+        col = 12 -- for phase 2 seeker
       elseif e.type == "summoner" and e.phase3 then
         col = 13 -- bright magenta for phase 3 summoner
       elseif e.type == "summoner" and e.phase2 then
@@ -2115,11 +2115,11 @@ function drp()
     if e.type == "heavy" and e.phase3 then
       col = 8 -- bright red (phase 3 enrage)
     elseif e.type == "heavy" and e.phase2 then
-      col = 9 (aggression color)
+      col = 9 -- (aggression color)
     elseif e.type == "seeker" and e.phase3 then
       col = 7 -- bright white for phase 3 seeker
     elseif e.type == "seeker" and e.phase2 then
-      col = 12 for phase 2 seeker
+      col = 12 -- for phase 2 seeker
     elseif e.type == "summoner" and e.phase3 then
       col = 13 -- bright magenta for phase 3 summoner
     elseif e.type == "summoner" and e.phase2 then
