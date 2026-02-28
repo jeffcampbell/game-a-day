@@ -765,16 +765,38 @@ function update_boss_attacks(e)
 end
 
 function boss_burst_attack(e)
-  local pattern = e.phase2 and "spiral" or "burst"
-  _log("boss_"..pattern)
+  -- randomly select attack pattern based on phase
+  local patterns
+  if e.phase2 then
+    -- phase 2: spiral, ring, aimed (high difficulty)
+    patterns = {"spiral", "ring", "aimed"}
+  else
+    -- phase 1: burst, ring (medium difficulty)
+    patterns = {"burst", "ring"}
+  end
+
+  local pattern = patterns[flr(rnd(#patterns)) + 1]
+
+  if pattern == "burst" then
+    boss_burst_pattern(e)
+  elseif pattern == "spiral" then
+    boss_spiral_pattern(e)
+  elseif pattern == "ring" then
+    boss_ring_attack(e)
+  elseif pattern == "aimed" then
+    boss_aimed_burst_attack(e)
+  end
+end
+
+function boss_burst_pattern(e)
+  _log("boss_burst")
   sfx(6)
   e.flash_timer = 10
-  e.spin_timer = 30 -- spinning animation
+  e.spin_timer = 30
 
-  -- phase 2: 12-way spiral, phase 1: 8-way burst
-  local count = e.phase2 and 12 or 8
-  for i=0,count-1 do
-    local angle = i / count
+  -- 8-way burst
+  for i=0,7 do
+    local angle = i / 8
     local vx = cos(angle) * e.speed * 3
     local vy = sin(angle) * e.speed * 3
     add(projectiles, {
@@ -785,7 +807,86 @@ function boss_burst_attack(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 8 -- boss projectiles are red
+      col = 8
+    })
+  end
+end
+
+function boss_spiral_pattern(e)
+  _log("boss_spiral")
+  sfx(6)
+  e.flash_timer = 10
+  e.spin_timer = 30
+
+  -- 12-way spiral
+  for i=0,11 do
+    local angle = i / 12
+    local vx = cos(angle) * e.speed * 3
+    local vy = sin(angle) * e.speed * 3
+    add(projectiles, {
+      x = e.x,
+      y = e.y,
+      vx = vx,
+      vy = vy,
+      owner = "enemy",
+      size = 1,
+      dmg = 1,
+      col = 8
+    })
+  end
+end
+
+function boss_ring_attack(e)
+  _log("boss_ring")
+  sfx(6)
+  e.flash_timer = 10
+  e.spin_timer = 30
+
+  -- 8 projectiles equally spaced in full circle
+  for i=0,7 do
+    local angle = i / 8
+    local vx = cos(angle) * e.speed * 3
+    local vy = sin(angle) * e.speed * 3
+    add(projectiles, {
+      x = e.x,
+      y = e.y,
+      vx = vx,
+      vy = vy,
+      owner = "enemy",
+      size = 1,
+      dmg = 1,
+      col = 8
+    })
+  end
+end
+
+function boss_aimed_burst_attack(e)
+  _log("boss_aimed")
+  sfx(6)
+  e.flash_timer = 10
+  e.spin_timer = 30
+
+  -- calculate angle to player
+  local dx = player.x - e.x
+  local dy = player.y - e.y
+  local base_angle = atan2(dy, dx)
+
+  -- fire 5 projectiles: at player + 4 offset angles
+  -- offsets: 0°, ±45°, ±90° in turns (1 turn = 360°)
+  local offsets = {0, -0.125, 0.125, -0.25, 0.25}
+  for i=1,5 do
+    local angle = base_angle + offsets[i]
+    local vx = cos(angle) * e.speed * 3
+    local vy = sin(angle) * e.speed * 3
+    add(projectiles, {
+      x = e.x,
+      y = e.y,
+      vx = vx,
+      vy = vy,
+      owner = "enemy",
+      size = 1,
+      dmg = 1,
+      col = 8
     })
   end
 end
