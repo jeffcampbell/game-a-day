@@ -41,6 +41,7 @@ combo = 0
 ekl = 0
 tsv = 0
 st = 0
+pause_time = 0
 shf = 0
 shi = 0
 
@@ -2349,6 +2350,7 @@ end
 
 function inp()
   state = "pause"
+  pause_time = time()
   _log("state:pause")
   music(-1) -- stop music
   _log("music:stop")
@@ -2356,6 +2358,7 @@ end
 
 function upau()
   if test_inputp(5) then -- X to resume
+    st += (time() - pause_time)
     state = "play"
     _log("state:play")
 
