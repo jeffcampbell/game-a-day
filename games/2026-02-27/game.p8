@@ -122,6 +122,11 @@ sb6 = 0
 sb7 = 0
 sb8 = 1
 
+sk1 = 0
+sk2 = 0
+sk3 = 0
+sk4 = 0
+
 pr1 = "spike"
 pr2 = 1.0
 pr3 = 0
@@ -136,7 +141,7 @@ mc5 = 1
 mc6 = false
 
 mc1 = 1
-mc2 = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "variant_leaderboards", "ad2", "statistics", "settings"}
+mc2 = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "variant_leaderboards", "ad2", "statistics", "settings", "progress"}
 
 ct1 = 90
 ct2 = false
@@ -231,6 +236,8 @@ function _init()
   load_achievements()
 
   load_statistics()
+
+  load_streak()
 
   local t = dget(53)
   mc6 = t == 1
@@ -411,6 +418,59 @@ function save_statistics()
   dset(88, sb6)
 
   _log("statistics_saved:games="..st1)
+end
+
+function load_streak()
+  sk1 = dget(95) or 0
+  sk2 = dget(96) or 0
+  sk3 = dget(97) or 0
+  _log("streak_loaded:current="..sk1..",best="..sk2..",last="..sk3)
+end
+
+function save_streak()
+  dset(95, sk1)
+  dset(96, sk2)
+  dset(97, sk3)
+  _log("streak_saved:current="..sk1..",best="..sk2)
+end
+
+function update_streak()
+  local today = flr(time() / 86400)
+
+  if sk3 == 0 then
+    sk3 = today
+    save_streak()
+    _log("streak_first_day")
+    return
+  end
+
+  local days_diff = today - sk3
+
+  if days_diff == 0 then
+    _log("streak_same_day")
+  elseif days_diff == 1 then
+    sk1 += 1
+    if sk1 > sk2 then
+      sk2 = sk1
+    end
+    sk3 = today
+    save_streak()
+    _log("streak_continued:"..sk1)
+    check_streak_milestone()
+  elseif days_diff > 1 then
+    sk1 = 1
+    sk3 = today
+    save_streak()
+    _log("streak_reset")
+  end
+end
+
+function check_streak_milestone()
+  if sk1 == 5 or sk1 == 10 or sk1 == 20 or sk1 == 50 then
+    add(fx9, {x=64, y=50, txt=sk1.."-day streak!", col=10, age=0, vy=-0.5})
+    shake(12, 1.2)
+    _log("milestone:"..sk1.."-day")
+  end
 end
 
 function load_daily_challenge()
@@ -597,6 +657,8 @@ function _update()
     update_achievements()
   elseif state == "statistics" then
     update_statistics()
+  elseif state == "progress" then
+    update_progress()
   elseif state == "practice_obstacle_select" then
     update_practice_obstacle_select()
   elseif state == "practice_speed_select" then
@@ -649,6 +711,8 @@ function _draw()
     draw_achievements()
   elseif state == "statistics" then
     draw_statistics()
+  elseif state == "progress" then
+    draw_progress()
   elseif state == "practice_obstacle_select" then
     draw_practice_obstacle_select()
   elseif state == "practice_speed_select" then
@@ -733,7 +797,7 @@ function update_menu()
     end
 
     if input & 8 > 0 then
-      mc1 = min(10, mc1 + 1)
+      mc1 = min(11, mc1 + 1)
       play_sfx(1)
       _log("menu_nav:down:"..mc1)
       _log("sfx_menu_nav")
@@ -798,6 +862,11 @@ function update_menu()
         _log("state:settings")
         ss1 = 1
         ic1 = 10
+      elseif selection == "progress" then
+        state = "progress"
+        _log("state:progress")
+        sk4 = 0
+        ic1 = 10
       end
     end
   end
@@ -818,10 +887,11 @@ function draw_menu()
     "variant boards",
     "ad2",
     "statistics",
-    "settings"
+    "settings",
+    "\x94 progress"
   }
 
-  for i = 1, 10 do
+  for i = 1, 11 do
     local col = 6
     local prefix = " "
     if i == mc1 then
@@ -1673,6 +1743,74 @@ function draw_statistics()
 
   print("arrows: navigate", 20, 108, 13)
   print("x: reset z: back", 18, 116, 13)
+end
+
+function update_progress()
+  local input = test_input()
+
+  if ic1 > 0 then
+    ic1 -= 1
+  end
+
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      sk4 = max(0, sk4 - 1)
+      play_sfx(1)
+      _log("progress_nav:up:"..sk4)
+      ic1 = 10
+    end
+
+    if input & 8 > 0 then
+      sk4 = min(7, sk4 + 1)
+      play_sfx(1)
+      _log("progress_nav:down:"..sk4)
+      ic1 = 10
+    end
+
+    if input & 32 > 0 or input & 16 > 0 then
+      play_music(2)
+      state = "menu"
+      _log("state:menu:progress_exit")
+      ic1 = 10
+    end
+  end
+end
+
+function draw_progress()
+  print("unlock progress", 26, 8, 7)
+
+  print("streak: "..sk1.." day"..(sk1 == 1 and "" or "s"), 8, 20, 10)
+  print("best: "..sk2.." day"..(sk2 == 1 and "" or "s"), 8, 28, 12)
+
+  local unlocks = {
+    {name="gold ball", cur=gm2, max=300, type="score"},
+    {name="cyan ball", cur=ic7, max=15, type="combo"},
+    {name="rainbow trail", cur=ic5, max=15, type="powerups"},
+    {name="pink theme", cur=ad6, max=5, type="danger"},
+    {name="gold theme", cur=flr(lm7 * 10), max=15, type="mult"},
+    {name="red theme", cur=ob6, max=5, type="diff"},
+    {name="blue theme", cur=ic8, max=20, type="dodges"},
+    {name="white trail", cur=flr(gm1 / 30), max=60, type="time"}
+  }
+
+  for i = 1, 8 do
+    local u = unlocks[i]
+    local y = 36 + (i - 1) * 9
+    local col = sk4 == i - 1 and 7 or 6
+    local pct = min(1.0, u.cur / u.max)
+    local bar_len = flr(pct * 40)
+
+    print(u.name, 8, y, col)
+    print(u.cur.."/"..u.max, 80, y, col)
+
+    for j = 0, 39 do
+      local bar_col = j < bar_len and 11 or 5
+      pset(8 + j, y + 7, bar_col)
+    end
+  end
+
+  print("arrows: navigate", 20, 110, 13)
+  print("x/z: back to menu", 18, 118, 13)
 end
 
 function init_game()
@@ -3658,6 +3796,7 @@ function update_challenge()
       ct4 = current_result
     end
     save_daily_challenge()
+    update_streak()
     mc4 = 1
     state = "challenge_summary"
     _log("state:challenge_summary:speed_run:time="..time_taken..",best="..ct4)
@@ -3678,6 +3817,7 @@ function update_challenge()
       ct4 = current_result
     end
     save_daily_challenge()
+    update_streak()
     mc4 = 1
     state = "challenge_summary"
     _log("state:challenge_summary:result="..current_result..",best="..ct4)
@@ -4361,6 +4501,12 @@ function draw_challenge_summary()
       print("lives left: "..ct7, 38, 80, ct7 > 0 and 11 or 8)
     elseif ct9 == 3 then
       print("final score: "..ct3, 32, 70, 11)
+    end
+
+    local streak_bonus = flr(10 * (1 + flr(sk1 / 5)))
+    if sk1 > 0 then
+      print("streak: "..sk1.." day"..(sk1 == 1 and "" or "s"), 30, 90, 9)
+      print("bonus: +"..streak_bonus.." pts", 28, 98, 10)
     end
 
     print("page 1/3", 48, 105, 5)
