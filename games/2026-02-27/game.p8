@@ -3420,15 +3420,15 @@ function cleanup_satellites(boss_id)
 end
 
 -- power-up spawning
-function spawn_powerup()
+function spawn_powerup(spawn_x, spawn_y)
   local types = {"shield", "slowmo", "doublescore", "magnet", "bomb", "freeze"}
   local t = types[flr(rnd(6)) + 1]
   local cols = {shield = 11, slowmo = 12, doublescore = 10, magnet = 13, bomb = 8, freeze = 12}
 
-  local x = 20 + rnd(88)
+  local x = spawn_x or (20 + rnd(88))
 
-  -- 75% chance to avoid active danger zones
-  if rnd(1) > 0.25 then
+  -- 75% chance to avoid active danger zones (only if no spawn_x provided)
+  if not spawn_x and rnd(1) > 0.25 then
     local attempts = 0
     while attempts < 10 do
       x = 20 + rnd(88)
@@ -3442,14 +3442,14 @@ function spawn_powerup()
 
   local p = {
     x = x,
-    y = -10,
+    y = spawn_y or -10,
     type = t,
     col = cols[t],
     spawn_time = 0  -- for pulse effect
   }
 
   add(powerups, p)
-  _log("spawn_powerup:"..t)
+  _log("spawn_powerup:"..t..",x="..flr(x)..",y="..flr(p.y))
 end
 
 -- power-up collection
