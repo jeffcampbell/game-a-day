@@ -729,7 +729,10 @@ function update_boss_attacks(e)
   if e.burst_cd > 0 then e.burst_cd -= 1 end
   if e.dash_cd > 0 then e.dash_cd -= 1 end
   if e.flash_timer and e.flash_timer > 0 then e.flash_timer -= 1 end
-  if e.spin_timer and e.spin_timer > 0 then e.spin_timer -= 1 end
+  if e.spin_timer and e.spin_timer > 0 then
+    e.spin_timer -= 1
+    if e.spin_timer == 0 then _log("spin_end") end
+  end
   if e.spawn_flash and e.spawn_flash > 0 then e.spawn_flash -= 1 end
   if e.glow_t then e.glow_t = (e.glow_t + 1) % 12 end
   if e.spawn_timer and e.spawn_timer > 0 then e.spawn_timer -= 1 end
@@ -805,6 +808,7 @@ end
 
 function boss_burst_pattern(e)
   _log("boss_burst")
+  _log("spin_start:30")
   sfx(6)
   e.flash_timer = 10
   e.spin_timer = 30
@@ -829,6 +833,7 @@ end
 
 function boss_spiral_pattern(e)
   _log("boss_spiral")
+  _log("spin_start:30")
   sfx(6)
   e.flash_timer = 10
   e.spin_timer = 30
@@ -853,6 +858,7 @@ end
 
 function boss_ring_attack(e)
   _log("boss_ring")
+  _log("spin_start:30")
   sfx(6)
   e.flash_timer = 10
   e.spin_timer = 30
@@ -877,6 +883,7 @@ end
 
 function boss_aimed_burst_attack(e)
   _log("boss_aimed")
+  _log("spin_start:30")
   sfx(6)
   e.flash_timer = 10
   e.spin_timer = 30
@@ -1767,15 +1774,26 @@ function draw_play()
       circ(e.x, e.y, draw_r + 1, glow_col)
     end
 
-    -- boss spinning crosshairs during burst
+    -- boss spinning effect during burst
     if e.spin_timer and e.spin_timer > 0 then
       local angle = (30 - e.spin_timer) * 0.1
+      local orbit_r = 9
+
+      -- 4 orbiting energy circles for dramatic spin effect
+      for i=0,3 do
+        local orb_angle = angle + (i / 4)
+        local ox = cos(orb_angle) * orbit_r
+        local oy = sin(orb_angle) * orbit_r
+        local orb_col = e.phase2 and 9 or 10 -- orange for phase 2, yellow for phase 1
+        circfill(e.x + ox, e.y + oy, 2, orb_col)
+        circ(e.x + ox, e.y + oy, 2, 7) -- white outline
+      end
+
+      -- crosshairs overlay for extra detail
       local len = 8
-      -- horizontal line
       local hx = cos(angle) * len
       local hy = sin(angle) * len
       line(e.x - hx, e.y - hy, e.x + hx, e.y + hy, 7)
-      -- vertical line
       local vx = cos(angle + 0.25) * len
       local vy = sin(angle + 0.25) * len
       line(e.x - vx, e.y - vy, e.x + vx, e.y + vy, 7)
