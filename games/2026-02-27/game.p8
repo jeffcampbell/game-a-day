@@ -679,7 +679,7 @@ end
 function draw_ball_trail()
   for i,t in pairs(bl1) do
     if t.life > 0 then
-      local c = (cu5==1 and 6) or (cu5==2 and 9) or 12
+      local c = (cu5==1 and 6) or (cu5==2 and 9) or (cu5==4 and 8) or 12
       if cu4==2 then c=8+(i%8) elseif cu4==3 then c=7 end
       circfill(t.x,t.y,1,c)
     end
@@ -687,7 +687,7 @@ function draw_ball_trail()
 end
 
 function draw_ball()
-  local c = (cu5==1 and 7) or (cu5==2 and 10) or 12
+  local c = (cu5==1 and 7) or (cu5==2 and 10) or (cu5==4 and 8) or 12
   if bl3>0 then c=7 end
   circfill(ball.x,ball.y,ball.r,c)
 end
