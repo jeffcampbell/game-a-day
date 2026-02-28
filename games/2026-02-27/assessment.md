@@ -1,10 +1,71 @@
 # Bounce King - Game Assessment
-**Date:** 2026-02-27 (Cosmetic Unlock System Review)
-**Status:** ✅ APPROVED - Critical control flow bug fixed
+**Date:** 2026-02-27 (Boss Gauntlet Mode Review - FIXED)
+**Status:** ✅ READY FOR RE-REVIEW - Critical collision bug fixed
 
 ---
 
-## Latest Review: Cosmetic Unlock System (2026-02-27)
+## Latest Review: Boss Gauntlet Mode (2026-02-27 - FIXED)
+
+**Status:** ✅ READY FOR RE-REVIEW - Critical issue addressed
+
+### Critical Issue FIXED ✅
+
+**Issue:** Collision detection logic in `update_gauntlet()` allowed bosses that hit the player to still award dodge points
+- **Location:** Line 4934 in update_gauntlet()
+- **Problem:** Two-stage collision detection where hitting a boss without shield still marked it as "dodged" later in the same frame
+- **Impact:** CRITICAL - Players were rewarded for taking damage: gained combo points, dodge points (+5 to +50), and potential milestone bonuses
+- **Severity:** CRITICAL - Broke core game balance and made taking damage beneficial
+- **Root Cause:** When collision happened without shield (line 4923), obstacle was NOT deleted. Later when boss passed below (line 4946), it was marked as dodged and points awarded
+- **Fix Applied:** Added `del(obstacles, o)` at line 4934, immediately after damage logging. Now obstacle is deleted on collision (both shield and no-shield cases), preventing dodge detection.
+- **Commit:** f4e921e - "Fix Boss Gauntlet collision detection bug"
+
+**Note:** HTML/JS export pending due to headless environment limitations. Manual re-export required after approval.
+
+### What Works Well ✅
+
+**Architecture & Integration:**
+- ✅ Clean state machine integration (gauntlet, gauntlet_gameover states properly dispatched in _update/_draw)
+- ✅ Menu integration with unlock gating (requires completing one normal game first, lock icon displayed)
+- ✅ Cartdata unlock flag properly loaded, saved, and persisted (slot 93, no conflicts)
+- ✅ Proper initialization and cleanup (init_gauntlet() resets all state arrays and timers)
+
+**Game Design:**
+- ✅ Boss difficulty scaling through 3 stages (stage determined by bosses_defeated / 2 + 1)
+- ✅ Boss spawning logic: first after 2s, then 3-5s depending on stage (scales with difficulty)
+- ✅ Score system sensible: 5 base points (with multiplier + combo_bonus), +50 per boss
+- ✅ Combo milestones properly tracked at 5, 10, 15, 20, 25, 30+
+- ✅ Power-up spawning after boss defeats (30% chance, spawn position 44-84 x-range)
+- ✅ Lives system: starts at 3, resets on new attempt, game over at ≤ 0
+
+**Technical Quality:**
+- ✅ Test infrastructure intact (test_input() used throughout, comprehensive logging)
+- ✅ Shared update_obstacle() refactoring eliminates code duplication between normal/gauntlet modes
+- ✅ Safe bounds checking (boss x=64 center, power-ups within bounds, no division by zero)
+- ✅ Rich visual feedback (HUD with score/time/bosses/stage, particles, screen shake, floating text)
+- ✅ Time display with urgency colors (white→yellow→red as time runs out)
+
+### Token Budget ✅
+- Added ~350-400 tokens for gauntlet feature
+- Refactored update_obstacle() saves ~50 tokens by eliminating duplication
+- Total: ~3,780 tokens (~46% of 8,192 limit)
+- Healthy headroom remaining for future features
+
+### Test Scenarios Required (After Fix)
+Once collision detection bug is fixed:
+1. **Unlock Flow:** Play normal game, reach score > 0, verify gauntlet unlocks and lock icon disappears
+2. **Collision Behavior:** Spawn boss without shield → should delete obstacle (not award dodge points)
+3. **Collision with Shield:** Spawn boss with shield → consume shield, delete obstacle, play SFX 6
+4. **Combo System:** Dodge 5+ bosses consecutively → triggers milestone at each threshold
+5. **Game Over Conditions:** Both time limit (90s) and lives (≤0) properly end game
+6. **Score Calculation:** Verify base points, multiplier, combo_bonus all apply correctly
+7. **Power-up Spawning:** Check that 30% of defeated bosses spawn power-ups
+8. **Boss Progression:** Every 2 bosses → stage increases, spawn interval decreases
+
+**Next Step:** Fix collision detection bug (add `del(obstacles, o)` when taking damage), then re-test and approve.
+
+---
+
+## Previous Review: Cosmetic Unlock System (2026-02-27)
 
 ### Critical Issue Fixed ✅
 

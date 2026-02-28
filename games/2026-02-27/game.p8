@@ -152,8 +152,8 @@ tutorial_page = 1  -- current tutorial page (1-5)
 tutorial_completed = false  -- track if player has seen tutorial
 
 -- menu cursor state
-menu_cursor = 1  -- 1=play, 2=challenge, 3=practice, 4=tutorial, 5=leaderboard, 6=achievements, 7=statistics, 8=settings
-menu_items = {"play", "challenge", "practice", "tutorial", "leaderboard", "achievements", "statistics", "settings"}
+menu_cursor = 1  -- 1=play, 2=challenge, 3=practice, 4=gauntlet, 5=tutorial, 6=leaderboard, 7=achievements, 8=statistics, 9=settings
+menu_items = {"play", "challenge", "practice", "gauntlet", "tutorial", "leaderboard", "achievements", "statistics", "settings"}
 
 -- daily challenge state
 challenge_time_left = 90  -- 90 second time limit
@@ -168,6 +168,17 @@ challenge_variant = 1  -- 1=time_attack, 2=survival, 3=combo_master, 4=powerup_g
 variant_cursor = 1  -- current variant selection
 challenge_lives = 3  -- lives for survival mode
 challenge_max_combo = 0  -- max combo for combo_master mode
+
+-- boss gauntlet state
+gauntlet_active = false  -- flag for gauntlet mode
+gauntlet_time_left = 90 * 30  -- 90 seconds in frames
+gauntlet_score = 0  -- current gauntlet score
+gauntlet_bosses_defeated = 0  -- total bosses defeated
+gauntlet_max_combo = 0  -- max combo reached
+gauntlet_stage = 1  -- difficulty stage (increases every 2 bosses)
+gauntlet_next_boss_timer = 0  -- frames until next boss spawn
+gauntlet_wave_complete = false  -- flag for power-up spawn window
+gauntlet_unlocked = false  -- unlocked after completing one normal game
 
 -- visual juice
 shake_time = 0
@@ -246,6 +257,10 @@ function _init()
   -- load tutorial flag (slot 53)
   local t = dget(53)
   tutorial_completed = t == 1
+
+  -- load gauntlet unlock flag (slot 93)
+  local g = dget(93)
+  gauntlet_unlocked = g == 1
 
   -- load daily challenge data (slots 54-63)
   load_daily_challenge()
@@ -646,6 +661,10 @@ function _update()
     update_challenge()
   elseif state == "challenge_summary" then
     update_challenge_summary()
+  elseif state == "gauntlet" then
+    update_gauntlet()
+  elseif state == "gauntlet_gameover" then
+    update_gauntlet_gameover()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -691,6 +710,10 @@ function _draw()
     draw_challenge()
   elseif state == "challenge_summary" then
     draw_challenge_summary()
+  elseif state == "gauntlet" then
+    draw_gauntlet()
+  elseif state == "gauntlet_gameover" then
+    draw_gauntlet_gameover()
   elseif state == "play" then
     draw_play()
   elseif state == "pause" then
@@ -765,7 +788,7 @@ function update_menu()
     end
 
     if input & 8 > 0 then  -- down
-      menu_cursor = min(8, menu_cursor + 1)
+      menu_cursor = min(9, menu_cursor + 1)
       play_sfx(1)
       _log("menu_nav:down:"..menu_cursor)
       _log("sfx_menu_nav")
@@ -788,6 +811,16 @@ function update_menu()
         state = "practice_obstacle_select"
         _log("state:practice_obstacle_select")
         practice_obstacle_selection = 1
+        input_cooldown = 10
+      elseif selection == "gauntlet" then
+        if gauntlet_unlocked then
+          init_gauntlet()
+          state = "gauntlet"
+          _log("state:gauntlet")
+        else
+          play_sfx(3)  -- error sound
+          _log("gauntlet_locked")
+        end
         input_cooldown = 10
       elseif selection == "tutorial" then
         state = "tutorial"
@@ -829,6 +862,7 @@ function draw_menu()
     "play",
     "daily challenge",
     "practice mode",
+    "boss gauntlet",
     "tutorial",
     "leaderboard",
     "achievements",
@@ -836,14 +870,20 @@ function draw_menu()
     "settings"
   }
 
-  for i = 1, 8 do
+  for i = 1, 9 do
     local col = 6
     local prefix = "  "
     if i == menu_cursor then
       col = 10
       prefix = "> "
     end
-    print(prefix..menu_labels[i], 24, menu_y + (i - 1) * 8, col)
+    local label = menu_labels[i]
+    -- show lock icon if gauntlet is locked
+    if i == 4 and not gauntlet_unlocked then
+      label = label.." \x94"  -- lock icon
+      col = 5  -- gray out
+    end
+    print(prefix..label, 24, menu_y + (i - 1) * 7, col)
   end
 
   -- show top score from leaderboard
@@ -2143,6 +2183,69 @@ function check_cosmetic_unlocks()
   end
 end
 
+-- obstacle update helper (shared by normal game and gauntlet mode)
+function update_obstacle(o)
+  local speed_mod = slowmo_time > 0 and 0.5 or 1.0
+
+  -- freeze effect: skip movement when frozen
+  if not obstacles_frozen then
+    o.y += scroll_speed * speed_mod
+
+    if o.type == "moving" then
+      o.x += o.vx
+      if o.x < 0 or o.x > 128 then
+        o.vx *= -1
+      end
+    elseif o.type == "rotating" then
+      o.angle += 0.02
+      o.r = 8 + sin(o.angle) * 4
+    elseif o.type == "boss" then
+      -- boss evolution stages
+      if o.boss_stage == 1 then
+        -- stage 1: standard wave movement
+        o.wave_time += 0.03
+        o.x = o.base_x + sin(o.wave_time) * 30
+      elseif o.boss_stage == 2 then
+        -- stage 2: faster wave with increased amplitude
+        o.wave_time += 0.05
+        o.x = o.base_x + sin(o.wave_time) * 35
+      elseif o.boss_stage == 3 then
+        -- stage 3: compound movement (wave + vertical oscillation)
+        o.wave_time += 0.06
+        o.vertical_time += 0.04
+        o.x = o.base_x + sin(o.wave_time) * 40
+        -- add vertical oscillation for compound movement
+        local base_y = o.y
+        o.y = base_y + sin(o.vertical_time) * 3
+
+        -- spawn satellites periodically
+        o.satellite_timer += 1
+        if o.satellite_timer >= 90 then
+          o.satellite_timer = 0
+          spawn_satellite(o)
+        end
+      end
+    elseif o.type == "pendulum" then
+      o.swing_time += 0.04
+      o.x = o.base_x + sin(o.swing_time) * 25
+    elseif o.type == "zigzag" then
+      o.zig_time += 0.05
+      local amp = 15 + diff_level * 2
+      o.x += sin(o.zig_time) * amp * o.zig_dir * 0.1
+      if o.x < 10 or o.x > 118 then
+        o.zig_dir *= -1
+      end
+    elseif o.type == "orbiter" then
+      o.orbit_angle += 0.05
+    elseif o.type == "satellite" then
+      -- satellites orbit around their spawn point
+      o.orbit_angle += o.orbit_speed
+      o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius
+      o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius
+    end
+  end
+end
+
 -- play state
 function update_play()
   -- update pause cooldown
@@ -2302,65 +2405,8 @@ function update_play()
   end
 
   -- update obstacles
-  local speed_mod = slowmo_time > 0 and 0.5 or 1.0
   for o in all(obstacles) do
-    -- freeze effect: skip movement when frozen
-    if not obstacles_frozen then
-      o.y += scroll_speed * speed_mod
-
-      if o.type == "moving" then
-        o.x += o.vx
-        if o.x < 0 or o.x > 128 then
-          o.vx *= -1
-        end
-      elseif o.type == "rotating" then
-        o.angle += 0.02
-        o.r = 8 + sin(o.angle) * 4
-      elseif o.type == "boss" then
-        -- boss evolution stages
-        if o.boss_stage == 1 then
-          -- stage 1: standard wave movement
-          o.wave_time += 0.03
-          o.x = o.base_x + sin(o.wave_time) * 30
-        elseif o.boss_stage == 2 then
-          -- stage 2: faster wave with increased amplitude
-          o.wave_time += 0.05
-          o.x = o.base_x + sin(o.wave_time) * 35
-        elseif o.boss_stage == 3 then
-          -- stage 3: compound movement (wave + vertical oscillation)
-          o.wave_time += 0.06
-          o.vertical_time += 0.04
-          o.x = o.base_x + sin(o.wave_time) * 40
-          -- add vertical oscillation for compound movement
-          local base_y = o.y
-          o.y = base_y + sin(o.vertical_time) * 3
-
-          -- spawn satellites periodically
-          o.satellite_timer += 1
-          if o.satellite_timer >= 90 then
-            o.satellite_timer = 0
-            spawn_satellite(o)
-          end
-        end
-      elseif o.type == "pendulum" then
-        o.swing_time += 0.04
-        o.x = o.base_x + sin(o.swing_time) * 25
-      elseif o.type == "zigzag" then
-        o.zig_time += 0.05
-        local amp = 15 + diff_level * 2
-        o.x += sin(o.zig_time) * amp * o.zig_dir * 0.1
-        if o.x < 10 or o.x > 118 then
-          o.zig_dir *= -1
-        end
-      elseif o.type == "orbiter" then
-        o.orbit_angle += 0.05
-      elseif o.type == "satellite" then
-        -- satellites orbit around their spawn point
-        o.orbit_angle += o.orbit_speed
-        o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius
-        o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius
-      end
-    end
+    update_obstacle(o)
 
     -- check collision
     local collision = false
@@ -2954,6 +3000,13 @@ function update_gameover()
     _log("cosmetics_checked")
   end
 
+  -- unlock gauntlet mode after completing first normal game
+  if not gauntlet_unlocked and score > 0 then
+    gauntlet_unlocked = true
+    dset(93, 1)  -- persist unlock
+    _log("gauntlet_unlocked")
+  end
+
   -- if ranked, wait for O button to enter initials
   if leaderboard_rank > 0 and input & 16 > 0 then
     state = "enter_initials"
@@ -3367,15 +3420,15 @@ function cleanup_satellites(boss_id)
 end
 
 -- power-up spawning
-function spawn_powerup()
+function spawn_powerup(spawn_x, spawn_y)
   local types = {"shield", "slowmo", "doublescore", "magnet", "bomb", "freeze"}
   local t = types[flr(rnd(6)) + 1]
   local cols = {shield = 11, slowmo = 12, doublescore = 10, magnet = 13, bomb = 8, freeze = 12}
 
-  local x = 20 + rnd(88)
+  local x = spawn_x or (20 + rnd(88))
 
-  -- 75% chance to avoid active danger zones
-  if rnd(1) > 0.25 then
+  -- 75% chance to avoid active danger zones (only if no spawn_x provided)
+  if not spawn_x and rnd(1) > 0.25 then
     local attempts = 0
     while attempts < 10 do
       x = 20 + rnd(88)
@@ -3389,14 +3442,14 @@ function spawn_powerup()
 
   local p = {
     x = x,
-    y = -10,
+    y = spawn_y or -10,
     type = t,
     col = cols[t],
     spawn_time = 0  -- for pulse effect
   }
 
   add(powerups, p)
-  _log("spawn_powerup:"..t)
+  _log("spawn_powerup:"..t..",x="..flr(x)..",y="..flr(p.y))
 end
 
 -- power-up collection
@@ -4742,6 +4795,440 @@ function draw_challenge_summary()
 
   -- navigation hints
   print("\x8e\x8f page  o/x return", 10, 115, 5)
+end
+
+-- boss gauntlet mode functions
+function init_gauntlet()
+  -- reset ball
+  ball.x = 64
+  ball.y = 100
+  ball.vx = 0
+  ball.vy = 0
+  ball.grounded = false
+
+  -- reset game state
+  gauntlet_score = 0
+  gauntlet_bosses_defeated = 0
+  gauntlet_max_combo = 0
+  gauntlet_stage = 1
+  gauntlet_time_left = 90 * 30  -- 90 seconds
+  gauntlet_next_boss_timer = 60  -- first boss in 2 seconds
+  gauntlet_wave_complete = false
+  gauntlet_active = true
+
+  gametime = 0
+  multiplier = 1.0
+  combo = 0
+  last_milestone = 0
+  lives = 3
+  life_flash = 0
+
+  -- clear arrays
+  obstacles = {}
+  powerups = {}
+  particles = {}
+  floating_texts = {}
+  ball_trail = {}
+
+  -- reset timers
+  obs_timer = 0
+  boss_timer = 0
+  pu_timer = 0
+  shield_time = 0
+  slowmo_time = 0
+  doublescore_time = 0
+  magnet_time = 0
+  freeze_time = 0
+  obstacles_frozen = false
+
+  -- reset stats
+  max_combo = 0
+  total_dodges = 0
+  total_powerups = 0
+  total_dodge_bonus = 0
+  max_multiplier = 1.0
+  power_types_collected = {}
+
+  play_music(0)  -- play normal music
+  _log("state:gauntlet")
+  _log("gauntlet_init:stage="..gauntlet_stage)
+end
+
+function update_gauntlet()
+  -- update timer
+  gauntlet_time_left -= 1
+  if gauntlet_time_left <= 0 then
+    state = "gauntlet_gameover"
+    play_music(3)  -- gameover music
+    _log("state:gauntlet_gameover")
+    _log("gauntlet_time_up:bosses="..gauntlet_bosses_defeated..",score="..gauntlet_score)
+    return
+  end
+
+  gametime += 1
+
+  -- update ball physics
+  update_ball()
+
+  -- update ball trail
+  update_ball_trail()
+
+  -- update boss spawning
+  gauntlet_next_boss_timer -= 1
+  if gauntlet_next_boss_timer <= 0 and #obstacles < 2 then
+    spawn_gauntlet_boss()
+    -- next boss in 3-5 seconds depending on stage
+    gauntlet_next_boss_timer = 90 + flr(rnd(60)) - (gauntlet_stage * 15)
+    _log("gauntlet_boss_spawned:stage="..gauntlet_stage)
+  end
+
+  -- update obstacles (bosses only)
+  for o in all(obstacles) do
+    update_obstacle(o)
+  end
+
+  -- update power-ups
+  for p in all(powerups) do
+    p.y += scroll_speed
+    if p.y > 140 then
+      del(powerups, p)
+    end
+  end
+
+  -- update power-up timers
+  if shield_time > 0 then shield_time -= 1 end
+  if slowmo_time > 0 then slowmo_time -= 1 end
+  if doublescore_time > 0 then doublescore_time -= 1 end
+  if magnet_time > 0 then magnet_time -= 1 end
+  if freeze_time > 0 then
+    freeze_time -= 1
+    obstacles_frozen = true
+  else
+    obstacles_frozen = false
+  end
+
+  -- check collisions with bosses
+  for o in all(obstacles) do
+    if o.is_boss and not o.dodged and o.y >= ball.y - 10 then
+      local dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
+      if dist < ball.r + o.r then
+        if shield_time > 0 then
+          -- shield absorbs hit
+          shield_time = 0
+          play_sfx(6)
+          shake(8, 1.2)
+          del(obstacles, o)
+          spawn_particles(o.x, o.y, 15, 11)
+          _log("shield_absorbed")
+        else
+          -- take damage
+          lives -= 1
+          life_flash = 15
+          combo = 0
+          last_milestone = 0
+          play_sfx(3)
+          shake(15, 1.5)
+          spawn_particles(ball.x, ball.y, 20, 8)
+          _log("gauntlet_damage:lives="..lives)
+
+          del(obstacles, o)  -- delete obstacle to prevent dodge detection
+
+          if lives <= 0 then
+            state = "gauntlet_gameover"
+            play_music(3)
+            _log("state:gauntlet_gameover")
+            _log("gauntlet_death:bosses="..gauntlet_bosses_defeated..",score="..gauntlet_score)
+            return
+          end
+        end
+      end
+    end
+
+    -- check if boss was dodged
+    if o.is_boss and not o.dodged and o.y > ball.y + 10 then
+      o.dodged = true
+      combo += 1
+      gauntlet_max_combo = max(gauntlet_max_combo, combo)
+      total_dodges += 1
+
+      -- apply combo bonus
+      local bonus_mult = 1.0
+      if combo_bonus == 1 then bonus_mult = 1.5  -- generous
+      elseif combo_bonus == 3 then bonus_mult = 0.7  -- stingy
+      end
+      local dodge_points = flr(5 * multiplier * bonus_mult)
+      gauntlet_score += dodge_points
+      total_dodge_bonus += dodge_points
+
+      play_sfx(4)
+      spawn_particles(ball.x, ball.y, 15, 10)
+      add_floating_text("+"..dodge_points, ball.x, ball.y - 5, 10)
+      _log("gauntlet_dodge:combo="..combo..",score="..gauntlet_score)
+
+      -- check milestone
+      local milestone = 0
+      if combo >= 30 then milestone = 30
+      elseif combo >= 25 then milestone = 25
+      elseif combo >= 20 then milestone = 20
+      elseif combo >= 15 then milestone = 15
+      elseif combo >= 10 then milestone = 10
+      elseif combo >= 5 then milestone = 5
+      end
+
+      if milestone > last_milestone then
+        last_milestone = milestone
+        play_sfx(7)
+        shake(3, 0.25)
+        local msg = "x"..milestone.." combo!"
+        local col = milestone >= 20 and 14 or (milestone >= 10 and 9 or 10)
+        add_floating_text(msg, 46, 50, col)
+        _log("milestone:"..milestone)
+      end
+    end
+
+    -- remove bosses that are off screen
+    if o.y > 140 then
+      if o.is_boss and o.dodged then
+        -- boss defeated!
+        gauntlet_bosses_defeated += 1
+        gauntlet_score += 50
+
+        -- increase stage every 2 bosses
+        local new_stage = flr(gauntlet_bosses_defeated / 2) + 1
+        if new_stage > gauntlet_stage then
+          gauntlet_stage = new_stage
+          _log("gauntlet_stage_up:"..gauntlet_stage)
+        end
+
+        -- spawn power-up randomly (30% chance)
+        if rnd(1) < 0.3 then
+          spawn_powerup(64 + rnd(40) - 20, -10)
+        end
+
+        play_sfx(7)
+        shake(10, 1.0)
+        spawn_particles(o.x, o.y, 25, 9)
+        add_floating_text("boss defeated! +50", 24, 60, 10)
+        _log("gauntlet_boss_defeated:"..gauntlet_bosses_defeated..",score="..gauntlet_score)
+      end
+      del(obstacles, o)
+    end
+  end
+
+  -- check power-up collection
+  for p in all(powerups) do
+    local dist = sqrt((ball.x - p.x)^2 + (ball.y - p.y)^2)
+    if dist < ball.r + 3 then
+      collect_powerup(p)
+      del(powerups, p)
+    end
+  end
+
+  -- update visual effects
+  if shake_time > 0 then
+    shake_time -= 1
+    shake_x = (rnd(2) - 1) * shake_intensity
+    shake_y = (rnd(2) - 1) * shake_intensity
+  else
+    shake_x = 0
+    shake_y = 0
+  end
+
+  if ball_flash > 0 then ball_flash -= 1 end
+  if life_flash > 0 then life_flash -= 1 end
+
+  -- update particles
+  for p in all(particles) do
+    p.x += p.vx
+    p.y += p.vy
+    p.life -= 1
+    if p.life <= 0 then
+      del(particles, p)
+    end
+  end
+
+  -- update floating texts
+  for f in all(floating_texts) do
+    f.y -= 0.5
+    f.life -= 1
+    if f.life <= 0 then
+      del(floating_texts, f)
+    end
+  end
+
+  -- track max multiplier
+  max_multiplier = max(max_multiplier, multiplier)
+end
+
+function spawn_gauntlet_boss()
+  -- determine boss stage based on gauntlet_stage
+  local stage = min(3, gauntlet_stage)
+
+  local o = {
+    x = 64,
+    base_x = 64,
+    y = -10,
+    type = "boss",
+    r = 13,
+    dodged = false,
+    is_boss = true,
+    wave_time = 0,
+    boss_stage = stage,
+    satellite_timer = 0,
+    vertical_time = 0,
+    boss_id = flr(rnd(10000))
+  }
+
+  add(obstacles, o)
+  _log("gauntlet_spawn_boss:stage="..stage)
+end
+
+function draw_gauntlet()
+  cls(1)
+
+  -- draw ball trail
+  for i, t in pairs(ball_trail) do
+    if t.life > 0 then
+      local trail_col = (ball_skin == 1 and 6) or (ball_skin == 2 and 9) or 12
+      if trail_effect == 2 then
+        trail_col = 8 + (i % 8)
+      elseif trail_effect == 3 then
+        trail_col = 7
+      end
+      circfill(t.x, t.y, 1, trail_col)
+    end
+  end
+
+  -- draw ball
+  local ball_col = (ball_skin == 1 and 7) or (ball_skin == 2 and 10) or 12
+  if ball_flash > 0 then ball_col = 7 end
+  circfill(ball.x, ball.y, ball.r, ball_col)
+
+  -- draw bosses
+  for o in all(obstacles) do
+    if o.is_boss then
+      -- main boss body
+      circfill(o.x, o.y, o.r, theme_color(8))
+      circ(o.x, o.y, o.r, theme_color(2))
+
+      -- draw satellites for stage 3
+      if o.boss_stage >= 3 then
+        local sat_count = 2
+        for i = 0, sat_count - 1 do
+          local angle = o.satellite_timer + (i / sat_count)
+          local sx = o.x + cos(angle) * 18
+          local sy = o.y + sin(angle) * 18
+          circfill(sx, sy, 3, theme_color(12))
+        end
+      end
+    end
+  end
+
+  -- draw power-ups
+  for p in all(powerups) do
+    local col = 7
+    if p.type == "shield" then col = 12
+    elseif p.type == "slowmo" then col = 14
+    elseif p.type == "doublescore" then col = 10
+    elseif p.type == "magnet" then col = 9
+    elseif p.type == "bomb" then col = 8
+    elseif p.type == "freeze" then col = 13
+    end
+    circfill(p.x, p.y, 3, col)
+    circ(p.x, p.y, 3, 7)
+  end
+
+  -- draw particles
+  for p in all(particles) do
+    pset(p.x, p.y, p.col)
+  end
+
+  -- draw floating texts
+  for f in all(floating_texts) do
+    if f.life > 0 then
+      print(f.text, f.x - #f.text * 2, f.y, f.col)
+    end
+  end
+
+  -- hud
+  print("gauntlet", 2, 2, 7)
+  print("score: "..gauntlet_score, 2, 9, 10)
+
+  -- timer with urgency color
+  local time_sec = flr(gauntlet_time_left / 30)
+  local time_col = time_sec <= 10 and 8 or (time_sec <= 30 and 9 or 11)
+  print("time: "..time_sec.."s", 2, 16, time_col)
+
+  -- bosses defeated
+  print("bosses: "..gauntlet_bosses_defeated, 2, 23, 12)
+
+  -- stage indicator
+  print("stage "..gauntlet_stage, 96, 2, 14)
+
+  -- combo counter
+  if combo > 0 then
+    local combo_col = combo >= 20 and 14 or (combo >= 10 and 9 or 10)
+    print("combo: "..combo, 90, 9, combo_col)
+  end
+
+  -- lives
+  local lives_col = life_flash > 0 and 8 or 11
+  print("\x8e"..lives, 60, 2, lives_col)
+
+  -- active power-ups
+  local pu_x = 2
+  if shield_time > 0 then
+    print("shd", pu_x, 120, 12)
+    pu_x += 20
+  end
+  if slowmo_time > 0 then
+    print("slw", pu_x, 120, 14)
+    pu_x += 20
+  end
+  if doublescore_time > 0 then
+    print("2x", pu_x, 120, 10)
+    pu_x += 16
+  end
+  if magnet_time > 0 then
+    print("mag", pu_x, 120, 9)
+    pu_x += 20
+  end
+  if freeze_time > 0 then
+    print("frz", pu_x, 120, 13)
+  end
+end
+
+function update_gauntlet_gameover()
+  local input = test_input()
+
+  -- O to return to menu
+  if input & 16 > 0 then
+    state = "menu"
+    play_music(2)
+    _log("state:menu")
+  end
+end
+
+function draw_gauntlet_gameover()
+  cls(1)
+
+  print("gauntlet complete!", 20, 15, 7)
+
+  -- final stats
+  print("bosses defeated: "..gauntlet_bosses_defeated, 18, 30, 10)
+  print("final score: "..gauntlet_score, 24, 40, 10)
+  print("max combo: "..gauntlet_max_combo, 28, 50, 11)
+  print("total dodges: "..total_dodges, 24, 60, 12)
+
+  -- time
+  local time_sec = flr((90 * 30 - gauntlet_time_left) / 30)
+  print("time: "..time_sec.."s / 90s", 28, 70, 9)
+
+  -- final stage reached
+  print("final stage: "..gauntlet_stage, 26, 80, 14)
+
+  -- controls
+  print("press o to return", 22, 105, 6)
 end
 
 __gfx__
