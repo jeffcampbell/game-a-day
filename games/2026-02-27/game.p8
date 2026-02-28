@@ -1662,7 +1662,7 @@ function update_challenge_variant_menu()
     end
 
     if input & 8 > 0 then
-      mc3 = min(4, mc3 + 1)
+      mc3 = min(6, mc3 + 1)
       play_sfx(1)
       _log("variant_nav:down:"..mc3)
       ic1 = 10
@@ -1687,29 +1687,33 @@ end
 
 function draw_challenge_variant_menu()
   print("daily challenge", 28, 20, 7)
-  print("select variant", 32, 32, 6)
+  print("select variant", 32, 30, 6)
 
   local variant_names = {
     "time attack",
-    "survival mode",
+    "survival",
+    "speed run",
     "combo master",
-    "power-up gauntlet"
+    "power-up party",
+    "boss slayer"
   }
 
   local variant_desc = {
     "90s: max score",
-    "3 lives: endurance",
-    "60s: biggest combo",
-    "90s: scarce power-ups"
+    "3 lives: endure",
+    "reach 500 fast",
+    "90s: big combo",
+    "90s: collect all",
+    "90s: bosses only"
   }
 
-  local y = 50
-  for i = 1, 4 do
+  local y = 42
+  for i = 1, 6 do
     local col = (i == mc3) and 10 or 6
-    local marker = (i == mc3) and "> " or " "
-    print(marker..variant_names[i], 20, y, col)
-    print(variant_desc[i], 26, y + 8, 5)
-    y += 20
+    local marker = (i == mc3) and "> " or "  "
+    print(marker..variant_names[i], 16, y, col)
+    print(variant_desc[i], 22, y + 6, 5)
+    y += 13
   end
 
   print("arrows: navigate", 22, 118, 5)
@@ -1808,21 +1812,22 @@ function init_challenge()
     ob2 = flr(ob2 * 0.5)
     _log("variant:survival:spawn_2x")
   elseif ct9 == 3 then
-    ct1 = 60 * 30
-    ob2 = flr(ob2 * 1.25)
-    _log("variant:combo_master:spawn_0.8x")
+    ct1 = 99999 * 30
+    _log("variant:speed_run:target_500")
   elseif ct9 == 4 then
     ct1 = 90 * 30
-    ob2 = flr(ob2 * 2)
-    _log("variant:powerup_gauntlet:spawn_0.5x")
+    _log("variant:combo_master")
+  elseif ct9 == 5 then
+    ct1 = 90 * 30
+    _log("variant:powerup_party:spawn_3x")
+  elseif ct9 == 6 then
+    ct1 = 90 * 30
+    ob2 = flr(ob2 * 1.5)
+    _log("variant:boss_slayer:boss_only")
   end
 
   local music_pattern = 0
-  if ct9 == 2 then
-    music_pattern = 1
-  elseif ct9 == 3 then
-    music_pattern = 0
-  elseif ct9 == 4 then
+  if ct9 == 2 or ct9 == 5 or ct9 == 6 then
     music_pattern = 1
   end
   play_music(music_pattern)
@@ -3541,11 +3546,30 @@ function draw_practice_play()
 end
 
 function update_challenge()
+  if ct9 == 3 and ct3 >= 500 then
+    ct2 = false
+    local time_taken = flr(gm1 / 30)
+    local current_result = time_taken
+    if ct4 == 0 or current_result < ct4 then
+      ct4 = current_result
+    end
+    save_daily_challenge()
+    mc4 = 1
+    state = "challenge_summary"
+    _log("state:challenge_summary:speed_run:time="..time_taken..",best="..ct4)
+    return
+  end
+
   if ct1 > 0 then
     ct1 -= 1
   else
     ct2 = false
-    local current_result = ct9 == 3 and ct8 or ct3
+    local current_result = ct3
+    if ct9 == 4 then
+      current_result = ct8
+    elseif ct9 == 6 then
+      current_result = ct8
+    end
     if current_result > ct4 then
       ct4 = current_result
     end
@@ -3616,7 +3640,11 @@ function update_challenge()
 
   ob3 += 1
   if ob3 >= ob2 then
-    spawn_obstacle()
+    if ct9 == 6 then
+      spawn_boss()
+    else
+      spawn_obstacle()
+    end
     ob3 = 0
   end
 
@@ -3624,6 +3652,8 @@ function update_challenge()
   local pu_interval = 240
   if ct9 == 4 then
     pu_interval = 480
+  elseif ct9 == 5 then
+    pu_interval = 80
   end
   if pw7 >= pu_interval then
     spawn_powerup()
@@ -3707,18 +3737,24 @@ function update_challenge()
       elseif lm4 == 3 then bonus_mod = 0.7
       end
       local bonus = flr(10 * lm7 * 2 * bonus_mod)
-      if ct9 == 4 then
+      if ct9 == 5 then
         bonus += 10
+      elseif ct9 == 6 and o.type == "boss" then
+        ct8 += 1
+        bonus = 50
+        _log("boss_defeated:count="..ct8)
       end
       ct3 += bonus
       combo += 1
       ic9 = max(ic9, combo)
-      ct8 = max(ct8, combo)
+      if ct9 == 4 then
+        ct8 = max(ct8, combo)
+      end
       ic8 += 1
       ic6 += bonus
       add_floating_text("+"..bonus, ball.x, ball.y - 10, 10)
       local mult_cap = 5.0
-      if ct9 == 3 or ct9 == 4 then
+      if ct9 == 4 or ct9 == 5 then
         mult_cap = 1.5
       end
       lm7 = min(lm7 + 0.15, mult_cap)
@@ -3846,7 +3882,12 @@ function update_challenge()
 
           if ct7 <= 0 then
             ct2 = false
-            local current_result = ct9 == 3 and ct8 or ct3
+            local current_result = ct3
+            if ct9 == 4 then
+              current_result = ct8
+            elseif ct9 == 6 then
+              current_result = ct8
+            end
             if current_result > ct4 then
               ct4 = current_result
             end
@@ -3872,7 +3913,12 @@ function update_challenge()
 
           if lives <= 0 then
             ct2 = false
-            local current_result = ct9 == 3 and ct8 or ct3
+            local current_result = ct3
+            if ct9 == 4 then
+              current_result = ct8
+            elseif ct9 == 6 then
+              current_result = ct8
+            end
             if current_result > ct4 then
               ct4 = current_result
             end
@@ -3934,7 +3980,11 @@ function update_challenge()
   if ct9 == 2 then
     scale_interval = 240
   elseif ct9 == 3 then
+    scale_interval = 99999
+  elseif ct9 == 4 then
     scale_interval = 360
+  elseif ct9 == 6 then
+    scale_interval = 800
   end
   if lm2 == 1 then scale_interval = flr(scale_interval * 1.5)
   elseif lm2 == 3 then scale_interval = flr(scale_interval * 0.5)
@@ -4132,18 +4182,38 @@ end
 
 function draw_challenge_summary()
   if mc4 == 1 then
-    local variant_names = {"time attack", "survival", "combo master", "gauntlet"}
+    local variant_names = {"time attack", "survival", "speed run", "combo master", "power-up party", "boss slayer"}
     print(variant_names[ct9], 30, 15, 7)
     print("complete!", 42, 23, 6)
 
-    if ct9 == 1 or ct9 == 2 or ct9 == 4 then
+    if ct9 == 1 or ct9 == 2 or ct9 == 5 then
       print("your score: "..ct3, 28, 40, 10)
       local best_col = ct3 == ct4 and 10 or 6
       print("today's best: "..ct4, 22, 50, best_col)
       if ct3 == ct4 then
         print("new record!", 32, 60, 9)
       end
+    elseif ct9 == 6 then
+      print("bosses defeated: "..ct8, 22, 40, 10)
+      local best_col = ct8 == ct4 and 10 or 6
+      print("today's best: "..ct4, 22, 50, best_col)
+      if ct8 == ct4 then
+        print("new record!", 32, 60, 9)
+      end
+      print("total score: "..ct3, 30, 70, 11)
     elseif ct9 == 3 then
+      local time_sec = flr(gm1 / 30)
+      print("your time: "..time_sec.."s", 32, 40, 10)
+      if ct4 > 0 then
+        local best_col = ct4 >= time_sec and 10 or 6
+        print("best time: "..ct4.."s", 30, 50, best_col)
+        if ct4 >= time_sec then
+          print("new record!", 32, 60, 9)
+        end
+      else
+        print("first attempt!", 28, 60, 11)
+      end
+    elseif ct9 == 4 then
       print("max combo: "..ct8, 32, 40, 10)
       local best_col = ct8 == ct4 and 10 or 6
       print("today's best: "..ct4, 22, 50, best_col)
@@ -4153,7 +4223,7 @@ function draw_challenge_summary()
       print("total dodges: "..ic8, 26, 70, 11)
     end
 
-    if ct9 == 1 or ct9 == 4 then
+    if ct9 == 1 or ct9 == 4 or ct9 == 5 or ct9 == 6 then
       local time_sec = flr((90 - ct1 / 30))
       print("time: "..time_sec.."s", 45, 80, 12)
     elseif ct9 == 2 then
@@ -4161,8 +4231,7 @@ function draw_challenge_summary()
       print("survived: "..time_sec.."s", 38, 70, 12)
       print("lives left: "..ct7, 38, 80, ct7 > 0 and 11 or 8)
     elseif ct9 == 3 then
-      local time_sec = flr((60 - ct1 / 30))
-      print("time: "..time_sec.."s / 60s", 32, 80, 6)
+      print("final score: "..ct3, 32, 70, 11)
     end
 
     print("page 1/3", 48, 105, 5)
