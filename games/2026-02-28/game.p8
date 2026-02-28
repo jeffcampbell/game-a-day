@@ -172,6 +172,9 @@ function unlock_achievement(id)
   session_achievements[id] = true
   _log("achievement:"..id)
 
+  -- immediately save to cartdata
+  save_achievements()
+
   -- visual feedback
   sfx(6)
   shake_frames = 2
