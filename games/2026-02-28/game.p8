@@ -41,6 +41,7 @@ combo = 0
 ekl = 0
 tsv = 0
 st = 0
+pause_time = 0
 shf = 0
 shi = 0
 
@@ -57,6 +58,7 @@ lms = 0
 mts = {}
 flt = 0
 sft = 0
+tas = 0  -- time attack spawn timer
 
 as = {}
 sas = {}
@@ -68,7 +70,8 @@ lbs = {
   easy = {0,0,0},
   normal = {0,0,0},
   hard = {0,0,0},
-  boss_rush = {0,0,0}
+  boss_rush = {0,0,0},
+  time_attack = {0,0,0}
 }
 
 -- lifetime stats
@@ -93,6 +96,9 @@ ads = {
   end},
   {id=13, name="boss extreme", desc="defeat 5 bosses in boss rush", check=function()
     return gm == "boss_rush" and bd >= 5
+  end},
+  {id=14, name="speed demon", desc="reach 500+ in time attack", check=function()
+    return gm == "time_attack" and score >= 500
   end}
 }
 
@@ -154,22 +160,12 @@ function _init()
 end
 
 function lda()
-
-  local a1 = dget(3) or 0
-  local a2 = dget(4) or 0
-  local a3 = dget(5) or 0
-
+  local a = {dget(3) or 0, dget(4) or 0, dget(5) or 0, dget(24) or 0}
   as = {}
-
-  for i=1,13 do
-    local slot = i <= 4 and a1 or (i <= 8 and a2 or a3)
-    local bit = ((i - 1) % 4)
-    if slot & (1 << bit) > 0 then
-      as[i] = true
-    end
+  for i=1,14 do
+    local s = flr((i-1)/4)+1
+    if a[s] & (1 << ((i-1) % 4)) > 0 then as[i] = true end
   end
-
-  _log("loaded_achievements:"..cna())
 
   -- load leaderboards
   ldlb()
@@ -181,52 +177,30 @@ function lda()
 end
 
 function ldlb()
-  -- load top 3 for each mode/difficulty
-  lbs.easy = {dget(6) or 0, dget(10) or 0, dget(11) or 0}
-  lbs.normal = {dget(7) or 0, dget(12) or 0, dget(13) or 0}
-  lbs.hard = {dget(8) or 0, dget(14) or 0, dget(15) or 0}
-  lbs.boss_rush = {dget(16) or 0, dget(17) or 0, dget(18) or 0}
-  _log("loaded_leaderboards")
+  local modes = {"easy","normal","hard","boss_rush","time_attack"}
+  local slots = {{6,10,11},{7,12,13},{8,14,15},{16,17,18},{21,22,23}}
+  for i=1,5 do
+    lbs[modes[i]] = {dget(slots[i][1]) or 0, dget(slots[i][2]) or 0, dget(slots[i][3]) or 0}
+  end
 end
 
 function sva()
-
-  local a1, a2, a3 = 0, 0, 0
-
-  for i=1,13 do
+  local a = {0,0,0,0}
+  for i=1,14 do
     if as[i] then
-      local bit = (i - 1) % 4
-      if i <= 4 then
-        a1 = a1 | (1 << bit)
-      elseif i <= 8 then
-        a2 = a2 | (1 << bit)
-      else
-        a3 = a3 | (1 << bit)
-      end
+      local s = flr((i-1)/4)+1
+      a[s] = a[s] | (1 << ((i-1) % 4))
     end
   end
-
-  dset(3, a1)
-  dset(4, a2)
-  dset(5, a3)
-  _log("saved_achievements:"..cna())
+  dset(3,a[1]) dset(4,a[2]) dset(5,a[3]) dset(24,a[4])
 end
 
 function svlb()
-  -- save top 3 for each mode/difficulty
-  dset(6, lbs.easy[1])
-  dset(10, lbs.easy[2])
-  dset(11, lbs.easy[3])
-  dset(7, lbs.normal[1])
-  dset(12, lbs.normal[2])
-  dset(13, lbs.normal[3])
-  dset(8, lbs.hard[1])
-  dset(14, lbs.hard[2])
-  dset(15, lbs.hard[3])
-  dset(16, lbs.boss_rush[1])
-  dset(17, lbs.boss_rush[2])
-  dset(18, lbs.boss_rush[3])
-  _log("saved_leaderboards")
+  local modes = {"easy","normal","hard","boss_rush","time_attack"}
+  local slots = {{6,10,11},{7,12,13},{8,14,15},{16,17,18},{21,22,23}}
+  for i=1,5 do
+    for j=1,3 do dset(slots[i][j], lbs[modes[i]][j]) end
+  end
 end
 
 function inslb(mode, score)
@@ -290,7 +264,7 @@ end
 
 function cna()
   local count = 0
-  for i=1,13 do
+  for i=1,14 do
     if as[i] then count += 1 end
   end
   return count
@@ -298,7 +272,7 @@ end
 
 function csa()
   local count = 0
-  for i=1,13 do
+  for i=1,14 do
     if sas[i] then count += 1 end
   end
   return count
@@ -386,7 +360,7 @@ function drm()
 
   -- as
   local ach_count = cna()
-  print("as: "..ach_count.."/13", 20, 90, 12)
+  print("as: "..ach_count.."/14", 20, 90, 12)
 
   -- controls
   print("l/r: rotate", 32, 100, 6)
@@ -406,12 +380,12 @@ function ums()
     msc -= 1
     _log("mode_cursor:"..msc)
   end
-  if test_inputp(3) and msc < 2 then
+  if test_inputp(3) and msc < 3 then
     msc += 1
     _log("mode_cursor:"..msc)
   end
   if test_inputp(4) then
-    gm = ({"normal","boss_rush"})[msc]
+    gm = ({"normal","boss_rush","time_attack"})[msc]
     _log("gm:"..gm)
     sfx(0)
     ids()
@@ -420,20 +394,14 @@ end
 
 function dms()
   print("select mode", 28, 20, 11)
-  local y = 50
-  for i=1,2 do
-    local mode_name = ({"normal","boss rush"})[i]
-    local col = i == 1 and 10 or 8
-    if i == msc then
-      print(">", 20, y, 7)
-    end
-    print(mode_name, 30, y, col)
-    if i == 1 then
-      print("classic waves", 8, y+8, 6)
-    else
-      print("boss gauntlet", 8, y+8, 6)
-    end
-    y += 30
+  local y = 40
+  local names = {"normal","boss rush","time attack"}
+  local descs = {"classic waves","boss gauntlet","survive 60s"}
+  for i=1,3 do
+    if i == msc then print(">", 20, y, 7) end
+    print(names[i], 30, y, i == 1 and 10 or (i == 2 and 8 or 12))
+    print(descs[i], 8, y+8, 6)
+    y += 26
   end
   print("up/down: select", 24, 108, 6)
   print("o: confirm", 32, 116, 6)
@@ -596,6 +564,7 @@ function init_play()
   rft = 0
   bst = 0
   smt = 0
+  tas = 0  -- time attack spawn timer
 
 
   p = {
@@ -627,6 +596,16 @@ function upp()
 
 
   tsv = flr(time() - st)
+
+  if gm == "time_attack" then
+    if tsv >= 60 then igo() return end
+    if (tas -= 1) <= 0 then
+      tas = df == "easy" and 90 or (df == "hard" and 45 or 60)
+      for i=1,flr(rnd(2))+2 do
+        queue_spawn(tsv>30 and rnd(100)<20 and "speedy" or (tsv>20 and rnd(100)<30 and "shooter" or "minion"))
+      end
+    end
+  end
 
 
   if shf > 0 then
@@ -727,7 +706,7 @@ function upp()
   end
 
 
-  if #es == 0 and ekl > 0 then
+  if #es == 0 and ekl > 0 and gm != "time_attack" then
     asc(100)
     _log("wave_complete:"..wave)
     shf = 2
@@ -2308,7 +2287,15 @@ function drp()
 
   -- ui
   print("score:"..score, 2, 2, 7)
-  print("wave:"..wave, 48, 2, 10)
+
+  if gm == "time_attack" then
+    local r = max(0, 60 - tsv)
+    local s = r % 60
+    print(flr(r/60)..":"..(s<10 and "0"..s or s), 48, 2, r < 10 and 8 or 10)
+  else
+    print("wave:"..wave, 48, 2, 10)
+  end
+
   print("time:"..tsv, 90, 2, 9)
   print("combo:"..combo, 2, 120, 14)
 
@@ -2363,6 +2350,7 @@ end
 
 function inp()
   state = "pause"
+  pause_time = time()
   _log("state:pause")
   music(-1) -- stop music
   _log("music:stop")
@@ -2370,6 +2358,7 @@ end
 
 function upau()
   if test_inputp(5) then -- X to resume
+    st += (time() - pause_time)
     state = "play"
     _log("state:play")
 
@@ -2438,7 +2427,7 @@ function igo()
   _log("lifetime_kills:"..ekl_tot)
 
   -- check leaderboard
-  local mode = gm == "boss_rush" and "boss_rush" or df
+  local mode = gm == "boss_rush" and "boss_rush" or (gm == "time_attack" and "time_attack" or df)
   local rank = inslb(mode, score)
   if rank > 0 then
     nr = true
