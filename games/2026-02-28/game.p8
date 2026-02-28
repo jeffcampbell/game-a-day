@@ -35,6 +35,8 @@ combo = 0
 enemies_killed = 0
 time_survived = 0
 start_time = 0
+shake_frames = 0
+shake_intensity = 0
 
 -- player
 player = {}
@@ -63,6 +65,7 @@ dirs = {
 
 function _init()
   _log("init")
+  cartdata("neon-slinger-v1")
   init_menu()
 end
 
@@ -71,6 +74,8 @@ function _update()
     update_menu()
   elseif state == "play" then
     update_play()
+  elseif state == "pause" then
+    update_pause()
   elseif state == "gameover" then
     update_gameover()
   end
@@ -82,6 +87,8 @@ function _draw()
     draw_menu()
   elseif state == "play" then
     draw_play()
+  elseif state == "pause" then
+    draw_pause()
   elseif state == "gameover" then
     draw_gameover()
   end
@@ -91,6 +98,7 @@ end
 function init_menu()
   state = "menu"
   _log("state:menu")
+  high_score = dget(0)
 end
 
 function update_menu()
@@ -150,10 +158,21 @@ function init_play()
 end
 
 function update_play()
+  -- check for pause (X button press)
+  if btnp(5) then
+    init_pause()
+    return
+  end
+
   local input = test_input()
 
   -- update timers
   time_survived = flr(time() - start_time)
+
+  -- update shake
+  if shake_frames > 0 then
+    shake_frames -= 1
+  end
 
   -- power-up decay
   if rapid_fire_t > 0 then rapid_fire_t -= 1 end
@@ -233,6 +252,8 @@ function update_play()
   if #enemies == 0 and enemies_killed > 0 then
     add_score(100)
     _log("wave_complete:"..wave)
+    shake_frames = 2
+    shake_intensity = 1
     spawn_wave()
   end
 
@@ -376,15 +397,15 @@ function kill_enemy(e)
   enemies_killed += 1
   _log("combo:"..combo)
 
-  -- explosion
-  for i=1,8 do
+  -- explosion (more particles for impact)
+  for i=1,15 do
     add(particles, {
       x = e.x,
       y = e.y,
-      vx = rnd(2) - 1,
-      vy = rnd(2) - 1,
-      life = 15,
-      col = 8 + flr(rnd(3))
+      vx = rnd(3) - 1.5,
+      vy = rnd(3) - 1.5,
+      life = 20,
+      col = 8 + flr(rnd(4))
     })
   end
 
@@ -412,6 +433,10 @@ function hit_player()
   _log("combo_reset")
 
   -- screen shake
+  shake_frames = 3
+  shake_intensity = 2
+
+  -- particles
   for i=1,10 do
     add(particles, {
       x = player.x,
@@ -548,6 +573,8 @@ function add_score(pts)
   _log("score:"..score)
   if score > high_score then
     high_score = score
+    dset(0, high_score)
+    _log("new_high_score:"..high_score)
   end
 end
 
@@ -558,6 +585,15 @@ function dist(x1, y1, x2, y2)
 end
 
 function draw_play()
+  -- apply screen shake
+  if shake_frames > 0 then
+    local dx = rnd(shake_intensity * 2) - shake_intensity
+    local dy = rnd(shake_intensity * 2) - shake_intensity
+    camera(dx, dy)
+  else
+    camera(0, 0)
+  end
+
   -- arena border
   rect(4, 4, 123, 123, 5)
 
@@ -638,6 +674,40 @@ function draw_play()
     local frac = player.dash_cd / 60
     rectfill(2, 110, 2 + 20 * (1 - frac), 113, 6)
   end
+end
+
+-- pause state
+function init_pause()
+  state = "pause"
+  _log("state:pause")
+end
+
+function update_pause()
+  if btnp(5) then -- X to resume
+    state = "play"
+    _log("state:play")
+  end
+  if btnp(4) then -- O to menu
+    init_menu()
+  end
+end
+
+function draw_pause()
+  -- draw game state underneath
+  draw_play()
+
+  -- darken overlay
+  rectfill(0, 0, 127, 127, 0)
+  for i=0,127,4 do
+    for j=0,127,4 do
+      pset(i, j, 1)
+    end
+  end
+
+  -- pause text
+  print("paused", 48, 50, 7)
+  print("press x to resume", 20, 70, 10)
+  print("press o for menu", 22, 80, 6)
 end
 
 -- gameover state
