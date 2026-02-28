@@ -46,6 +46,9 @@ shi = 0
 
 df = "normal"
 dfc = 2
+gm = "normal"
+msc = 1
+bd = 0
 
 bks = 0
 bco = 0
@@ -74,6 +77,9 @@ ads = {
   {id=11, name="time master", desc="survive 180s", check=function() return tsv >= 180 end},
   {id=12, name="arsenal master", desc="collect all 4 power-ups", check=function()
     return pcs["RR"] and pcs["BS"] and pcs["SH"] and pcs["2X"]
+  end},
+  {id=13, name="boss extreme", desc="defeat 5 bosses in boss rush", check=function()
+    return gm == "boss_rush" and bd >= 5
   end}
 }
 
@@ -142,7 +148,7 @@ function lda()
 
   as = {}
 
-  for i=1,12 do
+  for i=1,13 do
     local slot = i <= 4 and a1 or (i <= 8 and a2 or a3)
     local bit = ((i - 1) % 4)
     if slot & (1 << bit) > 0 then
@@ -157,7 +163,7 @@ function sva()
 
   local a1, a2, a3 = 0, 0, 0
 
-  for i=1,12 do
+  for i=1,13 do
     if as[i] then
       local bit = (i - 1) % 4
       if i <= 4 then
@@ -209,7 +215,7 @@ end
 
 function cna()
   local count = 0
-  for i=1,12 do
+  for i=1,13 do
     if as[i] then count += 1 end
   end
   return count
@@ -217,7 +223,7 @@ end
 
 function csa()
   local count = 0
-  for i=1,12 do
+  for i=1,13 do
     if sas[i] then count += 1 end
   end
   return count
@@ -226,6 +232,8 @@ end
 function _update()
   if state == "menu" then
     upm()
+  elseif state == "mode_select" then
+    ums()
   elseif state == "difficulty_select" then
     uds()
   elseif state == "play" then
@@ -241,6 +249,8 @@ function _draw()
   cls(0)
   if state == "menu" then
     drm()
+  elseif state == "mode_select" then
+    dms()
   elseif state == "difficulty_select" then
     dds()
   elseif state == "play" then
@@ -274,7 +284,7 @@ end
 function upm()
   local input = test_input()
   if input & 16 > 0 then
-    ids()
+    ims()
   end
 end
 
@@ -289,12 +299,57 @@ function drm()
 
   -- as
   local ach_count = cna()
-  print("as: "..ach_count.."/12", 20, 90, 12)
+  print("as: "..ach_count.."/13", 20, 90, 12)
 
   -- controls
   print("l/r: rotate", 32, 100, 6)
   print("o: shoot", 36, 108, 6)
   print("x: dash", 36, 116, 6)
+end
+
+function ims()
+  state = "mode_select"
+  _log("state:mode_select")
+  music(-1)
+end
+
+function ums()
+  local input = test_input()
+  if test_inputp(2) and msc > 1 then
+    msc -= 1
+    _log("mode_cursor:"..msc)
+  end
+  if test_inputp(3) and msc < 2 then
+    msc += 1
+    _log("mode_cursor:"..msc)
+  end
+  if test_inputp(4) then
+    gm = ({"normal","boss_rush"})[msc]
+    _log("gm:"..gm)
+    sfx(0)
+    ids()
+  end
+end
+
+function dms()
+  print("select mode", 28, 20, 11)
+  local y = 50
+  for i=1,2 do
+    local mode_name = ({"normal","boss rush"})[i]
+    local col = i == 1 and 10 or 8
+    if i == msc then
+      print(">", 20, y, 7)
+    end
+    print(mode_name, 30, y, col)
+    if i == 1 then
+      print("classic waves", 8, y+8, 6)
+    else
+      print("boss gauntlet", 8, y+8, 6)
+    end
+    y += 30
+  end
+  print("up/down: select", 24, 108, 6)
+  print("o: confirm", 32, 116, 6)
 end
 
 function ids()
@@ -372,6 +427,7 @@ function init_play()
   combo = 0
   ekl = 0
   st = time()
+  bd = 0
 
   -- reset achievement tracking
   bcs = 0
@@ -1265,6 +1321,13 @@ function kill_enemy(e)
   if e.type == "heavy" or e.type == "seeker" or e.type == "summoner" then
     bks += 1
     _log("boss_kill:"..e.type..":"..bks)
+
+    -- track boss rush progress
+    if gm == "boss_rush" then
+      bd += 1
+      _log("boss_rush_defeated:"..bd)
+    end
+
     shf = 4
     shi = 5
     flt = 12  -- extended flash for boss victory
@@ -1429,6 +1492,22 @@ end
 function spw()
   wave += 1
   _log("wave:"..wave)
+
+  -- boss rush mode: spawn 1 boss per wave, no minions
+  if gm == "boss_rush" then
+    local boss_idx = (wave - 1) % 3
+    local boss_type = "heavy"
+    if boss_idx == 1 then
+      boss_type = "seeker"
+    elseif boss_idx == 2 then
+      boss_type = "summoner"
+    end
+    queue_spawn(boss_type, 90)
+    music(2)
+    _log("music:boss")
+    _log("boss_rush_boss:"..boss_type)
+    return
+  end
 
   -- log intensity scaling milestones
   local boss_interval = df == "easy" and 6 or (df == "hard" and 4 or 5)
@@ -1595,6 +1674,22 @@ function spe(typ, spawn_x, spawn_y)
     e.minion_cd = 0 -- minion spawn cooldown
     e.phase2 = false
     e.phase3 = false
+  end
+
+  -- boss rush scaling
+  if gm == "boss_rush" and (typ == "heavy" or typ == "seeker" or typ == "summoner") then
+    local hp_mult = 1.0
+    if wave >= 5 then
+      hp_mult = 1.5
+      e.phase2 = true
+      e.phase3 = true
+      _log("boss_rush:enrage:wave"..wave)
+    elseif wave >= 3 then
+      hp_mult = 1.25
+    end
+    e.hp = flr(e.hp * hp_mult)
+    e.max_hp = e.hp
+    _log("boss_rush_scale:wave"..wave..":hp"..e.hp)
   end
 
   add(es, e)
@@ -2212,13 +2307,21 @@ function dgo()
   print("game over", 40, 30, 8)
 
   print("score: "..score, 36, 42, 7)
-  print("waves: "..wave, 38, 50, 7)
-  print("kills: "..ekl, 38, 58, 7)
-  print("time: "..tsv.."s", 36, 66, 7)
+
+  if gm == "boss_rush" then
+    print("bosses: "..bd, 34, 50, 8)
+    print("time: "..tsv.."s", 36, 58, 7)
+  else
+    print("waves: "..wave, 38, 50, 7)
+    print("kills: "..ekl, 38, 58, 7)
+    print("time: "..tsv.."s", 36, 66, 7)
+  end
 
   -- df
   local diff_col = df == "easy" and 12 or (df == "hard" and 8 or 10)
-  print("mode: "..df, 34, 74, diff_col)
+  local mode_text = gm == "boss_rush" and "boss rush" or df
+  local mode_y = gm == "boss_rush" and 66 or 74
+  print("mode: "..mode_text, 30, mode_y, diff_col)
 
 
   local session_count = csa()
@@ -2226,7 +2329,7 @@ function dgo()
     print("new as: "..session_count, 16, 82, 12)
     -- show which ones
     local y = 90
-    for i=1,12 do
+    for i=1,13 do
       if sas[i] then
         local def = ads[i]
         print("\x97 "..def.name, 8, y, 10)
@@ -2240,7 +2343,7 @@ function dgo()
 
   -- total as
   local total = cna()
-  print("total: "..total.."/12", 42, 112, 14)
+  print("total: "..total.."/13", 42, 112, 14)
 
   print("o:retry x:menu", 28, 120, 6)
 end
