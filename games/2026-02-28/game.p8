@@ -863,37 +863,53 @@ function kill_enemy(e)
   enemies_killed += 1
   _log("combo:"..combo)
 
-  -- combo milestone celebration
+  -- combo milestone celebration (tiered)
   if combo >= 10 and combo % 10 == 0 and combo > last_milestone then
     last_milestone = combo
     _log("combo_milestone:"..combo)
 
+    -- determine tier-based effects
+    local tier_col, tier_particles, tier_shake, tier_sfx_offset = 10, 8, 2, 0
+    if combo >= 100 then
+      tier_col, tier_particles, tier_shake, tier_sfx_offset = 7, 24, 5, 16
+    elseif combo >= 50 then
+      tier_col, tier_particles, tier_shake, tier_sfx_offset = 8, 20, 4, 12
+    elseif combo >= 30 then
+      tier_col, tier_particles, tier_shake, tier_sfx_offset = 14, 16, 3, 8
+    elseif combo >= 20 then
+      tier_col, tier_particles, tier_shake, tier_sfx_offset = 9, 12, 3, 4
+    end
+
     -- screen flash
     flash_timer = 3
 
-    -- floating text
+    -- screen shake (tiered intensity)
+    shake_frames = tier_shake
+    shake_intensity = tier_shake * 0.5
+
+    -- floating text (tier-colored)
     add(milestone_texts, {
       text = "combo x"..combo.."!",
       y = 64,
       life = 30,
-      col = 10
+      col = tier_col
     })
 
-    -- corner particle burst
-    for i=1,8 do
-      local angle = i / 8
+    -- radial particle burst (tier-sized)
+    for i=1,tier_particles do
+      local angle = i / tier_particles
       add(particles, {
         x = 64,
         y = 64,
         vx = cos(angle) * 3,
         vy = sin(angle) * 3,
         life = 30,
-        col = 10
+        col = tier_col
       })
     end
 
-    -- victory chime sfx
-    sfx(6)
+    -- victory chime sfx (tier-pitched)
+    sfx(6, -1, tier_sfx_offset)
   end
 
   -- boss enhanced death feedback
