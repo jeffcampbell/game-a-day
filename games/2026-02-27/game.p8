@@ -152,8 +152,8 @@ tutorial_page = 1  -- current tutorial page (1-5)
 tutorial_completed = false  -- track if player has seen tutorial
 
 -- menu cursor state
-menu_cursor = 1  -- 1=play, 2=challenge, 3=practice, 4=gauntlet, 5=tutorial, 6=leaderboard, 7=achievements, 8=statistics, 9=settings
-menu_items = {"play", "challenge", "practice", "gauntlet", "tutorial", "leaderboard", "achievements", "statistics", "settings"}
+menu_cursor = 1  -- 1=play, 2=challenge, 3=practice, 4=gauntlet, 5=tutorial, 6=bossrush, 7=leaderboard, 8=achievements, 9=statistics, 10=settings
+menu_items = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "leaderboard", "achievements", "statistics", "settings"}
 
 -- daily challenge state
 challenge_time_left = 90  -- 90 second time limit
@@ -179,6 +179,16 @@ gauntlet_stage = 1  -- difficulty stage (increases every 2 bosses)
 gauntlet_next_boss_timer = 0  -- frames until next boss spawn
 gauntlet_wave_complete = false  -- flag for power-up spawn window
 gauntlet_unlocked = false  -- unlocked after completing one normal game
+
+-- boss rush state
+bossrush_active = false  -- flag for boss rush mode
+bossrush_score = 0  -- current boss rush score
+bossrush_bosses_defeated = 0  -- total bosses defeated
+bossrush_max_combo = 0  -- max combo reached
+bossrush_lives = 5  -- lives remaining (start with 5)
+bossrush_spawn_timer = 90  -- frames until next boss (starts at 3s = 90 frames)
+bossrush_stage = 1  -- difficulty stage based on bosses defeated
+bossrush_highscore = 0  -- persistent high score
 
 -- visual juice
 shake_time = 0
@@ -261,6 +271,10 @@ function _init()
   -- load gauntlet unlock flag (slot 93)
   local g = dget(93)
   gauntlet_unlocked = g == 1
+
+  -- load boss rush highscore (slot 94)
+  bossrush_highscore = dget(94)
+  _log("bossrush_highscore:"..bossrush_highscore)
 
   -- load daily challenge data (slots 54-63)
   load_daily_challenge()
@@ -666,6 +680,10 @@ function _update()
     update_gauntlet()
   elseif state == "gauntlet_gameover" then
     update_gauntlet_gameover()
+  elseif state == "bossrush" then
+    update_bossrush()
+  elseif state == "bossrush_gameover" then
+    update_bossrush_gameover()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -715,6 +733,10 @@ function _draw()
     draw_gauntlet()
   elseif state == "gauntlet_gameover" then
     draw_gauntlet_gameover()
+  elseif state == "bossrush" then
+    draw_bossrush()
+  elseif state == "bossrush_gameover" then
+    draw_bossrush_gameover()
   elseif state == "play" then
     draw_play()
   elseif state == "pause" then
@@ -789,7 +811,7 @@ function update_menu()
     end
 
     if input & 8 > 0 then  -- down
-      menu_cursor = min(9, menu_cursor + 1)
+      menu_cursor = min(10, menu_cursor + 1)
       play_sfx(1)
       _log("menu_nav:down:"..menu_cursor)
       _log("sfx_menu_nav")
@@ -822,6 +844,11 @@ function update_menu()
           play_sfx(3)  -- error sound
           _log("gauntlet_locked")
         end
+        input_cooldown = 10
+      elseif selection == "bossrush" then
+        init_bossrush()
+        state = "bossrush"
+        _log("state:bossrush")
         input_cooldown = 10
       elseif selection == "tutorial" then
         state = "tutorial"
@@ -865,13 +892,14 @@ function draw_menu()
     "practice mode",
     "boss gauntlet",
     "tutorial",
+    "boss rush \x8e",  -- crown icon
     "leaderboard",
     "achievements",
     "statistics",
     "settings"
   }
 
-  for i = 1, 9 do
+  for i = 1, 10 do
     local col = 6
     local prefix = "  "
     if i == menu_cursor then
@@ -2184,6 +2212,62 @@ function check_cosmetic_unlocks()
   end
 end
 
+-- ball physics helper (shared by normal game, gauntlet mode, and boss rush)
+function update_ball()
+  -- physics
+  ball.vx *= 0.9
+  ball.vy += 0.4  -- gravity
+  ball.x += ball.vx
+  ball.y += ball.vy
+
+  -- bounce off floor
+  if ball.y >= 122 then
+    ball.y = 122
+    ball.vy *= -0.7
+    ball.grounded = true
+    if abs(ball.vy) < 0.5 then
+      ball.vy = -3
+    end
+    play_sfx(0)  -- bounce sound
+    shake(6, 0.5 + diff_level * 0.1)  -- small shake, scales with difficulty
+    add_particles(ball.x, 122, 5, 13)  -- bounce particles
+    _log("bounce")
+  else
+    ball.grounded = false
+  end
+
+  -- wall bounce
+  if ball.x < ball.r then
+    ball.x = ball.r
+    ball.vx *= -0.5
+    play_sfx(1)  -- wall bounce sound
+    shake(4, 0.3)  -- small shake on wall bounce
+    add_particles(ball.x, ball.y, 3, 6)
+  elseif ball.x > 128 - ball.r then
+    ball.x = 128 - ball.r
+    ball.vx *= -0.5
+    play_sfx(1)  -- wall bounce sound
+    shake(4, 0.3)  -- small shake on wall bounce
+    add_particles(ball.x, ball.y, 3, 6)
+  end
+end
+
+-- ball trail helper (shared by normal game, gauntlet mode, and boss rush)
+function update_ball_trail()
+  local vel = sqrt(ball.vx^2 + ball.vy^2)
+  add(ball_trail, {x=ball.x, y=ball.y, vel=vel, age=0})
+  for tr in all(ball_trail) do
+    tr.age += 1
+    if tr.age > 8 then
+      del(ball_trail, tr)
+    end
+  end
+  -- limit trail length
+  while #ball_trail > max_trail_length do
+    del(ball_trail, ball_trail[1])
+  end
+end
+
 -- obstacle update helper (shared by normal game and gauntlet mode)
 function update_obstacle(o)
   local speed_mod = slowmo_time > 0 and 0.5 or 1.0
@@ -2336,56 +2420,11 @@ function update_play()
     _log("steer_right")
   end
 
-  -- physics
-  ball.vx *= 0.9
-  ball.vy += 0.4  -- gravity
-  ball.x += ball.vx
-  ball.y += ball.vy
+  -- update ball physics
+  update_ball()
 
   -- update ball trail
-  local vel = sqrt(ball.vx^2 + ball.vy^2)
-  add(ball_trail, {x=ball.x, y=ball.y, vel=vel, age=0})
-  for tr in all(ball_trail) do
-    tr.age += 1
-    if tr.age > 8 then
-      del(ball_trail, tr)
-    end
-  end
-  -- limit trail length
-  while #ball_trail > max_trail_length do
-    del(ball_trail, ball_trail[1])
-  end
-
-  -- bounce off floor
-  if ball.y >= 122 then
-    ball.y = 122
-    ball.vy *= -0.7
-    ball.grounded = true
-    if abs(ball.vy) < 0.5 then
-      ball.vy = -3
-    end
-    play_sfx(0)  -- bounce sound
-    shake(6, 0.5 + diff_level * 0.1)  -- small shake, scales with difficulty
-    add_particles(ball.x, 122, 5, 13)  -- bounce particles
-    _log("bounce")
-  else
-    ball.grounded = false
-  end
-
-  -- wall bounce
-  if ball.x < ball.r then
-    ball.x = ball.r
-    ball.vx *= -0.5
-    play_sfx(1)  -- wall bounce sound
-    shake(4, 0.3)  -- small shake on wall bounce
-    add_particles(ball.x, ball.y, 3, 6)
-  elseif ball.x > 128 - ball.r then
-    ball.x = 128 - ball.r
-    ball.vx *= -0.5
-    play_sfx(1)  -- wall bounce sound
-    shake(4, 0.3)  -- small shake on wall bounce
-    add_particles(ball.x, ball.y, 3, 6)
-  end
+  update_ball_trail()
 
   -- spawn obstacles
   obs_timer += 1
@@ -4249,7 +4288,7 @@ function update_challenge()
       end
       multiplier = min(multiplier + 0.15, mult_cap)
       max_multiplier = max(max_multiplier, multiplier)
-      spawn_particles(ball.x, ball.y, 15, 10)
+      add_particles(ball.x, ball.y, 15, 10)
       -- dodge sound with combo-based pitch variation
       local pitch_offset = min(flr(combo / 5) * 2, 12)
       play_sfx(8, -1, pitch_offset)
@@ -4366,7 +4405,7 @@ function update_challenge()
           last_milestone = 0
           multiplier = max(1.0, multiplier - 0.3)
           shake_screen(6, 1.0)
-          spawn_particles(ball.x, ball.y, 15, 8)
+          add_particles(ball.x, ball.y, 15, 8)
           play_sfx(3)  -- collision/damage harsh buzz
           _log("collision:combo_reset:combo=0,mult="..multiplier)
           del(obstacles, o)
@@ -4378,7 +4417,7 @@ function update_challenge()
           last_milestone = 0
           multiplier = max(1.0, multiplier - 0.5)
           shake_screen(10, 1.5)
-          spawn_particles(ball.x, ball.y, 20, 8)
+          add_particles(ball.x, ball.y, 20, 8)
           play_sfx(3)  -- collision/damage harsh buzz
           _log("collision:lives="..challenge_lives..",mult="..multiplier)
           del(obstacles, o)
@@ -4406,7 +4445,7 @@ function update_challenge()
           last_milestone = 0
           multiplier = max(1.0, multiplier - 0.5)
           shake_screen(10, 1.5)
-          spawn_particles(ball.x, ball.y, 20, 8)
+          add_particles(ball.x, ball.y, 20, 8)
           play_sfx(3)  -- collision/damage harsh buzz
           _log("collision:lives="..lives..",mult="..multiplier)
           del(obstacles, o)
@@ -4432,7 +4471,7 @@ function update_challenge()
         play_sfx(6)  -- shield absorb ping
         shield_time = 0  -- consume shield
         shake_screen(4, 0.5)  -- light shake
-        spawn_particles(ball.x, ball.y, 10, 11)  -- cyan particles
+        add_particles(ball.x, ball.y, 10, 11)  -- cyan particles
         -- cleanup satellites if boss was absorbed
         if o.type == "boss" and o.boss_id then
           cleanup_satellites(o.boss_id)
@@ -4926,7 +4965,7 @@ function update_gauntlet()
           play_sfx(6)
           shake(8, 1.2)
           del(obstacles, o)
-          spawn_particles(o.x, o.y, 15, 11)
+          add_particles(o.x, o.y, 15, 11)
           _log("shield_absorbed")
         else
           -- take damage
@@ -4936,7 +4975,7 @@ function update_gauntlet()
           last_milestone = 0
           play_sfx(3)
           shake(15, 1.5)
-          spawn_particles(ball.x, ball.y, 20, 8)
+          add_particles(ball.x, ball.y, 20, 8)
           _log("gauntlet_damage:lives="..lives)
 
           del(obstacles, o)  -- delete obstacle to prevent dodge detection
@@ -4969,7 +5008,7 @@ function update_gauntlet()
       total_dodge_bonus += dodge_points
 
       play_sfx(4)
-      spawn_particles(ball.x, ball.y, 15, 10)
+      add_particles(ball.x, ball.y, 15, 10)
       add_floating_text("+"..dodge_points, ball.x, ball.y - 5, 10)
       _log("gauntlet_dodge:combo="..combo..",score="..gauntlet_score)
 
@@ -5015,7 +5054,7 @@ function update_gauntlet()
 
         play_sfx(7)
         shake(10, 1.0)
-        spawn_particles(o.x, o.y, 25, 9)
+        add_particles(o.x, o.y, 25, 9)
         add_floating_text("boss defeated! +50", 24, 60, 10)
         _log("gauntlet_boss_defeated:"..gauntlet_bosses_defeated..",score="..gauntlet_score)
       end
@@ -5234,6 +5273,474 @@ function draw_gauntlet_gameover()
 
   -- final stage reached
   print("final stage: "..gauntlet_stage, 26, 80, 14)
+
+  -- controls
+  print("press o to return", 22, 105, 6)
+end
+
+-- boss rush mode
+function init_bossrush()
+  -- reset ball
+  ball.x = 64
+  ball.y = 100
+  ball.vx = 0
+  ball.vy = 0
+  ball.grounded = false
+
+  -- reset game state
+  bossrush_score = 0
+  bossrush_bosses_defeated = 0
+  bossrush_max_combo = 0
+  bossrush_stage = 1
+  bossrush_spawn_timer = 90  -- 3 seconds
+  bossrush_lives = 5
+  bossrush_active = true
+
+  gametime = 0
+  multiplier = 1.0
+  combo = 0
+  last_milestone = 0
+  life_flash = 0
+
+  -- clear arrays
+  obstacles = {}
+  powerups = {}
+  particles = {}
+  floating_texts = {}
+  ball_trail = {}
+
+  -- reset timers
+  obs_timer = 0
+  boss_timer = 0
+  pu_timer = 0
+  shield_time = 0
+  slowmo_time = 0
+  doublescore_time = 0
+  magnet_time = 0
+  freeze_time = 0
+  obstacles_frozen = false
+
+  -- reset stats
+  max_combo = 0
+  total_dodges = 0
+  total_powerups = 0
+  total_dodge_bonus = 0
+  max_multiplier = 1.0
+  power_types_collected = {}
+
+  play_music(0)  -- play normal music
+  _log("state:bossrush")
+  _log("bossrush_init:lives="..bossrush_lives)
+end
+
+function update_bossrush()
+  gametime += 1
+
+  -- update ball physics
+  update_ball()
+
+  -- update ball trail
+  update_ball_trail()
+
+  -- update boss spawning
+  bossrush_spawn_timer -= 1
+  if bossrush_spawn_timer <= 0 then
+    spawn_bossrush_boss()
+
+    -- calculate next spawn interval based on combo
+    -- start at 90 frames (3s), decrease to 15 frames (0.5s)
+    local base_interval = 90
+    local min_interval = 15
+    local reduction = flr(combo * 3)  -- 3 frames per combo
+    bossrush_spawn_timer = max(min_interval, base_interval - reduction)
+
+    _log("bossrush_boss_spawned:stage="..bossrush_stage..",interval="..bossrush_spawn_timer)
+  end
+
+  -- update obstacles (bosses only)
+  for o in all(obstacles) do
+    update_obstacle(o)
+  end
+
+  -- update power-ups
+  for p in all(powerups) do
+    p.y += scroll_speed
+    if p.y > 140 then
+      del(powerups, p)
+    end
+  end
+
+  -- update power-up timers
+  if shield_time > 0 then shield_time -= 1 end
+  if slowmo_time > 0 then slowmo_time -= 1 end
+  if doublescore_time > 0 then doublescore_time -= 1 end
+  if magnet_time > 0 then magnet_time -= 1 end
+  if freeze_time > 0 then
+    freeze_time -= 1
+    obstacles_frozen = true
+  else
+    obstacles_frozen = false
+  end
+
+  -- check collisions with bosses
+  for o in all(obstacles) do
+    if o.is_boss and not o.dodged and o.y >= ball.y - 10 then
+      local dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
+      if dist < ball.r + o.r then
+        if shield_time > 0 then
+          -- shield absorbs hit
+          shield_time = 0
+          play_sfx(6)
+          shake(8, 1.2)
+          del(obstacles, o)
+          add_particles(o.x, o.y, 15, 11)
+          _log("bossrush_shield_absorbed")
+        else
+          -- take damage
+          bossrush_lives -= 1
+          life_flash = 15
+          combo = 0
+          last_milestone = 0
+          play_sfx(3)
+          shake(15, 1.5)
+          add_particles(ball.x, ball.y, 20, 8)
+          _log("bossrush_damage:lives="..bossrush_lives)
+
+          del(obstacles, o)
+
+          if bossrush_lives <= 0 then
+            -- save highscore if better
+            if bossrush_score > bossrush_highscore then
+              bossrush_highscore = bossrush_score
+              dset(94, bossrush_highscore)
+              _log("bossrush_new_highscore:"..bossrush_highscore)
+            end
+            state = "bossrush_gameover"
+            play_music(3)
+            _log("state:bossrush_gameover")
+            _log("bossrush_death:bosses="..bossrush_bosses_defeated..",score="..bossrush_score)
+            return
+          end
+        end
+      end
+    end
+
+    -- check if boss was dodged
+    if o.is_boss and not o.dodged and o.y > ball.y + 10 then
+      o.dodged = true
+      combo += 1
+      bossrush_max_combo = max(bossrush_max_combo, combo)
+      total_dodges += 1
+
+      -- calculate score with multiplier and combo bonus
+      local combo_mult = 1.0 + (combo * 0.05)  -- +5% per combo
+      local base_points = 5
+      local dodge_points = flr(base_points * multiplier * combo_mult)
+      bossrush_score += dodge_points
+      total_dodge_bonus += dodge_points
+
+      play_sfx(4)
+      add_particles(ball.x, ball.y, 15, 10)
+      add_floating_text("+"..dodge_points, ball.x, ball.y - 5, 10)
+      _log("bossrush_dodge:combo="..combo..",score="..bossrush_score)
+
+      -- check milestone
+      local milestone = 0
+      if combo >= 30 then milestone = 30
+      elseif combo >= 25 then milestone = 25
+      elseif combo >= 20 then milestone = 20
+      elseif combo >= 15 then milestone = 15
+      elseif combo >= 10 then milestone = 10
+      elseif combo >= 5 then milestone = 5
+      end
+
+      if milestone > last_milestone then
+        last_milestone = milestone
+        play_sfx(7)
+        shake(3, 0.25)
+        local msg = "x"..milestone.." combo!"
+        local col = milestone >= 20 and 14 or (milestone >= 10 and 9 or 10)
+        add_floating_text(msg, 46, 50, col)
+        _log("bossrush_milestone:"..milestone)
+      end
+    end
+
+    -- remove bosses that are off screen
+    if o.y > 140 then
+      if o.is_boss and o.dodged then
+        -- boss defeated!
+        bossrush_bosses_defeated += 1
+
+        -- calculate stage based on bosses defeated
+        -- stage 1: 0-3 bosses (5pt base)
+        -- stage 2: 4-7 bosses (8pt base)
+        -- stage 3: 8+ bosses (12pt base)
+        bossrush_stage = min(3, flr(bossrush_bosses_defeated / 4) + 1)
+
+        -- score based on stage
+        local stage_points = (bossrush_stage == 1 and 5) or (bossrush_stage == 2 and 8) or 12
+        local final_points = flr(stage_points * multiplier)
+        bossrush_score += final_points
+
+        -- increase multiplier every 3 bosses
+        if bossrush_bosses_defeated % 3 == 0 then
+          multiplier += 0.2
+          max_multiplier = max(max_multiplier, multiplier)
+          play_sfx(7)
+          shake(12, 1.5)
+          screen_flash = 10
+          add_floating_text(multiplier.."x multiplier!", 30, 50, 10)
+          _log("bossrush_multiplier:"..multiplier)
+        end
+
+        -- spawn power-up (50% chance)
+        if rnd(1) < 0.5 then
+          spawn_powerup(64 + rnd(40) - 20, -10)
+        end
+
+        -- special milestones
+        if bossrush_bosses_defeated == 10 then
+          add_floating_text("10 bosses!", 40, 60, 10)
+          _log("bossrush_milestone_10")
+        elseif bossrush_bosses_defeated == 50 then
+          add_floating_text("50 bosses!", 40, 60, 9)
+          _log("bossrush_milestone_50")
+        elseif bossrush_bosses_defeated == 100 then
+          add_floating_text("100 bosses!!!", 36, 60, 14)
+          _log("bossrush_milestone_100")
+        end
+
+        play_sfx(7)
+        shake(10, 1.0)
+        add_particles(o.x, o.y, 25, 9)
+        add_floating_text("+"..final_points, o.x, o.y - 5, 10)
+        _log("bossrush_boss_defeated:"..bossrush_bosses_defeated..",stage="..bossrush_stage..",score="..bossrush_score)
+      end
+      del(obstacles, o)
+    end
+  end
+
+  -- check power-up collection
+  for p in all(powerups) do
+    local dist = sqrt((ball.x - p.x)^2 + (ball.y - p.y)^2)
+    if dist < ball.r + 3 then
+      collect_powerup(p)
+      del(powerups, p)
+    end
+  end
+
+  -- update visual effects
+  if shake_time > 0 then
+    shake_time -= 1
+    shake_x = (rnd(2) - 1) * shake_intensity
+    shake_y = (rnd(2) - 1) * shake_intensity
+  else
+    shake_x = 0
+    shake_y = 0
+  end
+
+  if ball_flash > 0 then ball_flash -= 1 end
+  if life_flash > 0 then life_flash -= 1 end
+
+  -- update particles
+  for p in all(particles) do
+    p.x += p.vx
+    p.y += p.vy
+    p.life -= 1
+    if p.life <= 0 then
+      del(particles, p)
+    end
+  end
+
+  -- update floating texts
+  for ft in all(floating_texts) do
+    ft.y -= 0.5
+    ft.life -= 1
+    if ft.life <= 0 then
+      del(floating_texts, ft)
+    end
+  end
+end
+
+function spawn_bossrush_boss()
+  -- determine boss stage based on current bossrush_stage
+  local stage = bossrush_stage
+
+  local o = {
+    x = 64,
+    base_x = 64,
+    y = -10,
+    type = "boss",
+    r = 13,
+    dodged = false,
+    is_boss = true,
+    wave_time = 0,
+    boss_stage = stage,
+    satellite_timer = 0,
+    vertical_time = 0,
+    boss_id = flr(rnd(10000))
+  }
+
+  add(obstacles, o)
+
+  -- screen shake + sfx for boss arrival
+  shake(6, 0.8)
+  play_sfx(2)
+  _log("bossrush_spawn_boss:stage="..stage)
+end
+
+function draw_bossrush()
+  cls(1)
+
+  -- draw ball trail
+  for i, t in pairs(ball_trail) do
+    if t.life > 0 then
+      local trail_col = (ball_skin == 1 and 6) or (ball_skin == 2 and 9) or 12
+      if trail_effect == 2 then
+        trail_col = 8 + (i % 8)
+      elseif trail_effect == 3 then
+        trail_col = 7
+      end
+      circfill(t.x, t.y, 1, trail_col)
+    end
+  end
+
+  -- draw ball
+  local ball_col = (ball_skin == 1 and 7) or (ball_skin == 2 and 10) or 12
+  if ball_flash > 0 then ball_col = 7 end
+  circfill(ball.x, ball.y, ball.r, ball_col)
+
+  -- draw bosses
+  for o in all(obstacles) do
+    if o.is_boss then
+      -- main boss body
+      circfill(o.x, o.y, o.r, theme_color(8))
+      circ(o.x, o.y, o.r, theme_color(2))
+
+      -- draw satellites for stage 2+
+      if o.boss_stage >= 2 then
+        local sat_count = o.boss_stage >= 3 and 2 or 1
+        for i = 0, sat_count - 1 do
+          local angle = o.satellite_timer + (i / sat_count)
+          local sx = o.x + cos(angle) * 18
+          local sy = o.y + sin(angle) * 18
+          circfill(sx, sy, 3, theme_color(12))
+        end
+      end
+    end
+  end
+
+  -- draw power-ups
+  for p in all(powerups) do
+    local col = 7
+    if p.type == "shield" then col = 12
+    elseif p.type == "slowmo" then col = 14
+    elseif p.type == "doublescore" then col = 10
+    elseif p.type == "magnet" then col = 9
+    elseif p.type == "bomb" then col = 8
+    elseif p.type == "freeze" then col = 13
+    end
+    circfill(p.x, p.y, 3, col)
+    circ(p.x, p.y, 3, 7)
+  end
+
+  -- draw particles
+  for p in all(particles) do
+    pset(p.x, p.y, p.col)
+  end
+
+  -- draw floating texts
+  for ft in all(floating_texts) do
+    local alpha = ft.life / 30
+    if alpha > 0.3 then
+      print(ft.text, ft.x, ft.y, ft.col)
+    end
+  end
+
+  -- hud
+  print("score: "..bossrush_score, 2, 2, 7)
+  print("bosses: "..bossrush_bosses_defeated, 2, 9, 10)
+
+  -- multiplier (center top)
+  if multiplier > 1.0 then
+    print(multiplier.."x", 58, 2, 10)
+  end
+
+  -- combo counter
+  if combo > 0 then
+    local combo_col = combo >= 20 and 14 or (combo >= 10 and 9 or 10)
+    print("combo: "..combo, 90, 9, combo_col)
+  end
+
+  -- lives (visual hearts)
+  local lives_col = life_flash > 0 and 8 or 11
+  for i = 1, bossrush_lives do
+    print("\x8e", 95 + (i - 1) * 6, 2, lives_col)
+  end
+
+  -- active power-ups
+  local pu_x = 2
+  if shield_time > 0 then
+    print("shd", pu_x, 120, 12)
+    pu_x += 20
+  end
+  if slowmo_time > 0 then
+    print("slw", pu_x, 120, 14)
+    pu_x += 20
+  end
+  if doublescore_time > 0 then
+    print("2x", pu_x, 120, 10)
+    pu_x += 16
+  end
+  if magnet_time > 0 then
+    print("mag", pu_x, 120, 9)
+    pu_x += 20
+  end
+  if freeze_time > 0 then
+    print("frz", pu_x, 120, 13)
+  end
+end
+
+function update_bossrush_gameover()
+  local input = test_input()
+
+  -- O to return to menu
+  if input & 16 > 0 then
+    state = "menu"
+    play_music(2)
+    _log("state:menu")
+  end
+end
+
+function draw_bossrush_gameover()
+  cls(1)
+
+  -- title
+  print("boss rush complete!", 14, 15, 7)
+
+  -- final stats
+  print("bosses defeated: "..bossrush_bosses_defeated, 18, 30, 10)
+  print("final score: "..bossrush_score, 24, 40, 10)
+  print("max combo: "..bossrush_max_combo, 28, 50, 11)
+  print("final multiplier: "..multiplier.."x", 18, 60, 14)
+
+  -- highscore
+  if bossrush_score > 0 then
+    if bossrush_score >= bossrush_highscore then
+      print("new highscore!", 28, 72, 10)
+    else
+      print("best: "..bossrush_highscore, 38, 72, 12)
+    end
+  end
+
+  -- milestones
+  if bossrush_bosses_defeated >= 100 then
+    print("legendary!", 36, 85, 14)
+  elseif bossrush_bosses_defeated >= 50 then
+    print("amazing!", 40, 85, 9)
+  elseif bossrush_bosses_defeated >= 10 then
+    print("impressive!", 34, 85, 10)
+  end
 
   -- controls
   print("press o to return", 22, 105, 6)
