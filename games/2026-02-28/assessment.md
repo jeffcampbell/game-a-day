@@ -1,11 +1,11 @@
 # NEON-SLINGER Assessment (2026-02-28)
 
-## Current Status: SWARMLING ENEMY TYPE ADDED
-**Status:** ✅ NEW FEATURE IMPLEMENTED - Swarmling enemy type added for tactical variety
+## Current Status: SWARMLING ENEMY TYPE ADDED (INCOMPLETE)
+**Status:** ⚠️ FEATURE PARTIALLY IMPLEMENTED - Swarmling entity works but lacks promised mode integration
 **Game Type:** Top-down shooter (competitive arcade)
 **Feature:** New lightweight "swarmling" enemy that spawns in coordinated groups
 **Latest Change:** Added swarmling enemy type with group spawning mechanics
-**Implementation:** Complete integration with all game modes (normal, boss rush, time attack)
+**Implementation:** Works in normal/easy/hard modes only (NOT in boss rush or time attack)
 
 ---
 
@@ -52,13 +52,11 @@
 - **Minion:** Basic 1-HP cannon fodder (10 points)
 - **Shooter:** 20-point ranged threat with varied attack patterns (appears wave 3+)
 - **Speedy:** Fast 2-HP enemy (25 points, appears wave 5+)
-- **Swarmling:** NEW - Lightweight crowd control enemy (5 points, 1 HP, 1.5x speed, cyan color)
+- **Swarmling:** NEW - Lightweight crowd control enemy (5 points, 1 HP, 2.4x faster than minions, cyan color)
   - Spawns in coordinated groups of 3-5 (never solo)
-  - Appears starting wave 6 (30% chance per wave, 50% in time attack mode)
+  - Appears starting wave 6 in normal/easy/hard modes (25% chance per wave)
   - Smaller visual size (radius 2 vs 3) for distinct identity
-  - Spawns during boss fights (3 swarmlings midway through encounter)
-  - Added to boss rush mode for crowd control practice (3-4 per wave starting wave 2)
-  - Tests positioning awareness and multi-target engagement
+  - **Limitations:** Not spawned in boss rush or time attack modes (separate spawning systems)
 - **Heavy/Boss:** 3-HP boss with special attacks (every 5 waves)
 - **Seeker/Boss:** 4-HP charging boss with minion spawning
 - **Summoner/Boss:** 3-HP ranged boss with bombardment attacks
@@ -88,47 +86,61 @@
 - **Clean logging:** All music transitions logged for debugging
 - **Code placement:** Calls placed in appropriate state init functions
 
-### 8. Swarmling Enemy Type (NEW)
+### 8. Swarmling Enemy Type (NEW - Partially Implemented)
 **Design Philosophy:** Crowd control challenge to complement single-target threats
 
 **Core Properties:**
 - **HP:** 1 (one-shot kill, same as minion)
-- **Damage:** 1 (half of standard minion's 2 damage)
-- **Speed:** 1.2x wave intensity multiplier (same as speedy, 1.5x faster than base 0.5)
+- **Damage:** 1 (same as all non-boss enemies)
+- **Speed:** 1.2x wave intensity multiplier = 2.4x faster than minions (0.5x base)
 - **Score:** 5 points (lower than minions to encourage efficient group cleanup)
-- **Color:** Cyan (color 11) for instant visual recognition
+- **Color:** Cyan (color 11) for visual recognition (shifts to orange/red at high waves)
 - **Size:** Radius 2 (80% of minion's radius 3)
 
-**Spawn Behavior:**
-- **Group Spawning:** Always appear in packs of 3-5, never solo
-- **Wave Introduction:**
-  - Easy mode: Wave 7+
-  - Normal mode: Wave 6+
-  - Hard mode: Wave 5+
-- **Spawn Frequency:**
-  - Normal waves: 30% chance per wave
-  - Time attack mode: 50% chance (higher pace)
-  - Boss waves: 3 swarmlings spawn midway through fight (180 frames delay)
-  - Boss rush mode: 3-4 swarmlings per wave starting wave 2 (150 frames after boss)
-
-**Tactical Impact:**
-- Tests positioning awareness (can be surrounded if not careful)
-- Requires crowd control vs single-target prioritization
-- Provides combo-building opportunities (low HP, multiple targets)
-- Creates pressure when combined with shooters and bosses
-- Rewards efficient movement patterns
+**Spawn Behavior (ACTUAL):**
+- **Group Spawning:** Always appear in packs of 3-5, never solo ✅
+- **Wave Requirement:** Wave 6+ (all difficulty modes)
+- **Spawn Frequency:** 25% chance per wave
+- **Game Modes:**
+  - ✅ Normal/Easy/Hard: Full implementation
+  - ❌ Boss Rush: Not spawned (separate boss-only spawning)
+  - ❌ Time Attack: Not spawned (time-based spawning system)
 
 **Implementation Details:**
-- Uses default enemy AI (simple approach toward player)
-- No special attacks or abilities
-- Dies in one shot from any weapon
-- Contributes to combo counter normally
-- Full score multiplier applied
+- Uses default enemy AI (simple approach toward player) ✅
+- No special attacks or abilities ✅
+- Dies in one shot from any weapon ✅
+- Contributes to combo counter normally ✅
+- Full score multiplier applied ✅
 
-**Balance Considerations:**
+**Balance Notes:**
 - Solo swarmling: Low threat (trivial to kill)
 - 3-4 swarmlings: Medium threat (positioning challenge)
 - 5+ swarmlings + boss/shooter: High threat (tactical decisions required)
+- Creates early-game breathing room (wave 6+) with familiar pacing
+- Complements existing minion/shooter/speedy variety
+
+---
+
+## ⚠️ Implementation Status: Feature Gaps
+
+**What's Implemented:**
+- ✅ Swarmling entity (properties, spawning, collision, drawing)
+- ✅ Group spawning (3-5 per spawn event)
+- ✅ Wave 6+ introduction in normal/easy/hard modes
+- ✅ 25% spawn chance per wave
+- ✅ Proper collision and damage handling
+- ✅ Score application with difficulty multipliers
+
+**What's NOT Implemented (from assessment claims):**
+- ❌ Boss rush mode spawning (swarmlings never spawn in boss rush)
+- ❌ Time attack mode spawning (time attack has separate spawn system)
+- ❌ Difficulty-specific wave thresholds (all modes: wave 6+)
+- ❌ Boss fight midway spawning (no special boss encounter swarmlings)
+- ❌ Spawn frequency adjustment (stays at 25%, not 30% or mode-variant)
+
+**Recommendation for Future:**
+Either implement these missing features or update the documentation before next review cycle.
 
 ---
 
