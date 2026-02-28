@@ -674,10 +674,16 @@ function update_enemy(e)
 
   -- collision with player
   if player.invuln == 0 and dist(player.x, player.y, e.x, e.y) < 6 then
-    -- extra damage during dash (3x in phase 2/3, 2x in phase 1)
+    -- extra damage during dash
+    -- difficulty scaling: hard mode increases dash damage
     local dmg = 1
     if e.dashing and (e.type == "heavy" or e.type == "seeker" or e.type == "summoner") then
-      dmg = e.phase2 and 3 or 2  -- phase3 inherits phase2 flag
+      if difficulty == "hard" then
+        dmg = e.phase2 and 4 or 3  -- hard: 3x (phase1), 4x (phase2/3)
+      else
+        dmg = e.phase2 and 3 or 2  -- easy/normal: 2x (phase1), 3x (phase2/3)
+      end
+      _log("dash_dmg:"..dmg)
     end
     hit_player(dmg)
     if not e.dashing then
@@ -822,10 +828,13 @@ function update_boss_attacks(e)
   local hp_pct = e.hp / e.max_hp
 
   -- phase 2/3 cooldown adjustments
-  -- phase 3 enrage: maximum aggression (40 burst, 60 dash)
-  -- phase 2 aggression: 20% faster attacks (72 vs 90, 96 vs 120)
-  local burst_cooldown = e.phase3 and 40 or (e.phase2 and 72 or 120)
-  local dash_cooldown = e.phase3 and 60 or (e.phase2 and 96 or 180)
+  -- difficulty-based cooldowns: easy (slower), normal (baseline), hard (faster)
+  local burst_base = difficulty == "easy" and 180 or (difficulty == "hard" and 90 or 120)
+  local dash_base = difficulty == "easy" and 270 or (difficulty == "hard" and 135 or 180)
+
+  -- phase 3 enrage: ~33% of base; phase 2: ~60% of base
+  local burst_cooldown = e.phase3 and flr(burst_base / 3) or (e.phase2 and flr(burst_base * 0.6) or burst_base)
+  local dash_cooldown = e.phase3 and flr(dash_base / 3) or (e.phase2 and flr(dash_base * 0.53) or dash_base)
 
   -- burst attack (once at 50% hp or 5s, repeats in phase 2)
   if (not e.burst_used and (hp_pct <= 0.5 or elapsed >= 5) and e.burst_cd == 0) or (e.phase2 and e.burst_cd == 0) then
@@ -873,9 +882,12 @@ function boss_burst_pattern(e)
   e.flash_timer = 10
   e.spin_timer = 30
 
-  -- 8-way burst
-  for i=0,7 do
-    local angle = i / 8
+  -- difficulty-based bullet count: 6-way (easy), 8-way (normal), 12-way (hard)
+  local bullet_count = difficulty == "easy" and 6 or (difficulty == "hard" and 12 or 8)
+  _log("burst_bullets:"..bullet_count)
+
+  for i=0,bullet_count-1 do
+    local angle = i / bullet_count
     local vx = cos(angle) * e.speed * 3
     local vy = sin(angle) * e.speed * 3
     add(projectiles, {
@@ -901,8 +913,12 @@ function boss_spiral_pattern(e)
   shake_frames = 2
   shake_intensity = 1.5  -- medium shake
 
+  -- difficulty scaling: easy (-4), normal (baseline), hard (+4)
+  local diff_mod = difficulty == "easy" and -4 or (difficulty == "hard" and 4 or 0)
   -- phase 3: 16-way spiral, phase 2+: 14-way spiral
-  local proj_count = e.phase3 and 16 or 14
+  local proj_count = (e.phase3 and 16 or 14) + diff_mod
+  _log("spiral_bullets:"..proj_count)
+
   for i=0,proj_count-1 do
     local angle = i / proj_count
     local vx = cos(angle) * e.speed * 3
@@ -930,8 +946,12 @@ function boss_ring_attack(e)
   shake_frames = 3
   shake_intensity = 2.0  -- strongest shake
 
+  -- difficulty scaling: easy (-3), normal (baseline), hard (+3)
+  local diff_mod = difficulty == "easy" and -3 or (difficulty == "hard" and 3 or 0)
   -- phase 3: 14 projectiles, phase 2: 12, phase 1: 10
-  local proj_count = e.phase3 and 14 or (e.phase2 and 12 or 10)
+  local proj_count = (e.phase3 and 14 or (e.phase2 and 12 or 10)) + diff_mod
+  _log("ring_bullets:"..proj_count)
+
   for i=0,proj_count-1 do
     local angle = i / proj_count
     local vx = cos(angle) * e.speed * 3
@@ -991,7 +1011,9 @@ function boss_dash_attack(e, cooldown)
   _log("sfx:dash_warn")
 
   e.dash_cd = cooldown or 180
-  e.dash_warn = 30 -- warning indicator frames
+  -- difficulty scaling: easy mode gets extra warning time
+  e.dash_warn = difficulty == "easy" and 40 or 30
+  _log("dash_warn_frames:"..e.dash_warn)
   e.dash_target_x = player.x
   e.dash_target_y = player.y
 end
@@ -1426,8 +1448,10 @@ function spawn_wave()
   _log("wave:"..wave)
 
   -- log intensity scaling milestones
-  if wave % 5 == 0 then
+  local boss_interval = difficulty == "easy" and 6 or (difficulty == "hard" and 4 or 5)
+  if wave % boss_interval == 0 then
     _log("intensity_mod:"..wave_intensity_mod())
+    _log("boss_interval:"..boss_interval)
   end
   if wave % 3 == 0 then
     _log("spawn_delay_factor:"..spawn_delay_factor())
@@ -1438,8 +1462,11 @@ function spawn_wave()
   local shooter_wave = difficulty == "easy" and 5 or (difficulty == "hard" and 2 or 3)
   local speedy_wave = difficulty == "easy" and 8 or (difficulty == "hard" and 3 or 5)
 
+  -- boss spawn frequency varies by difficulty
+  local boss_interval = difficulty == "easy" and 6 or (difficulty == "hard" and 4 or 5)
+
   local count = flr((3 + wave) * count_mult)
-  local boss_wave = wave % 5 == 0
+  local boss_wave = wave % boss_interval == 0
 
   if boss_wave then
     -- boss rotation: spinner -> seeker -> summoner
