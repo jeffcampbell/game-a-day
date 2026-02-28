@@ -394,10 +394,13 @@ function update_boss_attacks(e)
     e.burst_used = false
   end
 
-  -- update cooldowns
+  -- update cooldowns and effects
   if e.burst_cd > 0 then e.burst_cd -= 1 end
   if e.dash_cd > 0 then e.dash_cd -= 1 end
   if e.flash_timer and e.flash_timer > 0 then e.flash_timer -= 1 end
+  if e.spin_timer and e.spin_timer > 0 then e.spin_timer -= 1 end
+  if e.spawn_flash and e.spawn_flash > 0 then e.spawn_flash -= 1 end
+  if e.glow_t then e.glow_t = (e.glow_t + 1) % 12 end
 
   -- handle dash warning countdown
   if e.dash_warn and e.dash_warn > 0 then
@@ -433,6 +436,7 @@ function boss_burst_attack(e)
   _log("boss_burst")
   sfx(6)
   e.flash_timer = 10
+  e.spin_timer = 30 -- spinning animation
 
   -- fire 8 projectiles in all directions
   for i=0,7 do
@@ -508,16 +512,34 @@ function kill_enemy(e)
   enemies_killed += 1
   _log("combo:"..combo)
 
-  -- explosion (more particles for impact)
-  for i=1,15 do
-    add(particles, {
-      x = e.x,
-      y = e.y,
-      vx = rnd(3) - 1.5,
-      vy = rnd(3) - 1.5,
-      life = 20,
-      col = 8 + flr(rnd(4))
-    })
+  -- boss enhanced death feedback
+  if e.type == "heavy" then
+    shake_frames = 4
+    shake_intensity = 5
+    -- spiral particles
+    for i=1,12 do
+      local angle = i / 12
+      add(particles, {
+        x = e.x,
+        y = e.y,
+        vx = cos(angle) * 2,
+        vy = sin(angle) * 2,
+        life = 25,
+        col = 8 + flr(rnd(4))
+      })
+    end
+  else
+    -- normal explosion particles
+    for i=1,15 do
+      add(particles, {
+        x = e.x,
+        y = e.y,
+        vx = rnd(3) - 1.5,
+        vy = rnd(3) - 1.5,
+        life = 20,
+        col = 8 + flr(rnd(4))
+      })
+    end
   end
 
   -- powerup chance (1/20)
@@ -632,11 +654,20 @@ function spawn_enemy(typ)
     e.max_hp = 3
     e.speed = 0.3
     e.score = 50
-    e.col = 14
+    e.col = 8 -- boss color: light gray
+    e.glow_t = 0 -- pulsing glow timer
+    e.spawn_flash = 3 -- spawn announcement flash
   end
 
   add(enemies, e)
   _log("spawn:"..typ)
+
+  -- boss spawn announcement
+  if typ == "heavy" then
+    sfx(6)
+    shake_frames = 3
+    shake_intensity = 1
+  end
 end
 
 function spawn_powerup(x, y)
@@ -725,24 +756,47 @@ function draw_play()
   for e in all(enemies) do
     local r = e.type == "heavy" and 5 or (e.type == "speedy" and 2 or 3)
 
-    -- boss flash effect
+    -- boss spawn flash
     local col = e.col
-    if e.flash_timer and e.flash_timer > 0 then
+    if e.spawn_flash and e.spawn_flash > 0 then
+      col = (e.spawn_flash % 2 == 0) and 15 or 8
+    elseif e.flash_timer and e.flash_timer > 0 then
       col = (e.flash_timer % 4 < 2) and 7 or e.col
     end
 
-    -- dash warning indicator
+    -- dash warning indicator (purple outline)
     if e.dash_warn and e.dash_warn > 0 then
-      line(e.x, e.y, e.dash_target_x, e.dash_target_y, 8)
-      -- pulsing outline
+      line(e.x, e.y, e.dash_target_x, e.dash_target_y, 11)
+      -- thick pulsing outline
       if e.dash_warn % 8 < 4 then
-        circ(e.x, e.y, r + 1, 8)
+        circ(e.x, e.y, r + 1, 11)
+        circ(e.x, e.y, r + 2, 11)
       end
     end
 
     circfill(e.x, e.y, r, col)
 
-    -- boss outline during attacks
+    -- boss pulsing glow
+    if e.type == "heavy" and e.glow_t and not e.spawn_flash then
+      local glow_col = (e.glow_t < 6) and 8 or 3
+      circ(e.x, e.y, r + 1, glow_col)
+    end
+
+    -- boss spinning crosshairs during burst
+    if e.spin_timer and e.spin_timer > 0 then
+      local angle = (30 - e.spin_timer) * 0.1
+      local len = 8
+      -- horizontal line
+      local hx = cos(angle) * len
+      local hy = sin(angle) * len
+      line(e.x - hx, e.y - hy, e.x + hx, e.y + hy, 7)
+      -- vertical line
+      local vx = cos(angle + 0.25) * len
+      local vy = sin(angle + 0.25) * len
+      line(e.x - vx, e.y - vy, e.x + vx, e.y + vy, 7)
+    end
+
+    -- boss outline during dash
     if e.dashing then
       circ(e.x, e.y, r + 1, 10)
     end
