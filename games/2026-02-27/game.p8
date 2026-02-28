@@ -29,6 +29,7 @@ state = "menu"
 score = 0
 gm2 = 0
 ui6 = {}
+ol1 = {}
 ui2 = false
 ui1 = 0
 ui3 = 0
@@ -39,6 +40,7 @@ combo = 0
 lm1 = 0
 lives = 3
 lm9 = 2
+lm10 = 0
 ic3 = 2
 ic1 = 0
 ic2 = 0
@@ -46,6 +48,7 @@ ic2 = 0
 ui7 = {"a", "a", "a"}
 ui8 = 1
 ui9 = false
+oa1 = false
 
 ui5 = 0
 ui4 = 0
@@ -141,7 +144,7 @@ mc5 = 1
 mc6 = false
 
 mc1 = 1
-mc2 = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "variant_leaderboards", "ad2", "statistics", "settings", "progress"}
+mc2 = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "variant_leaderboards", "ad2", "statistics", "settings", "progress", "arcade_1life"}
 
 ct1 = 90
 ct2 = false
@@ -233,6 +236,8 @@ function _init()
 
   load_leaderboard()
 
+  load_onelife_leaderboard()
+
   load_achievements()
 
   load_statistics()
@@ -261,7 +266,7 @@ function load_settings()
 
   gm3 = m == 0 or m == 1
   gm4 = s == 0 or s == 1
-  cu5 = b >= 1 and b <= 3 and b or 1
+  cu5 = b >= 1 and b <= 4 and b or 1
 
   local sr = dget(89)
   local ds = dget(90)
@@ -594,6 +599,51 @@ function save_leaderboard()
   _log("leaderboard_saved:"..#ui6)
 end
 
+function load_onelife_leaderboard()
+  ol1 = {}
+  for i = 1, 10 do
+    local slot_base = 104 + (i - 1) * 4  -- fixed: moved from 64 to avoid stats conflict
+    local sc = dget(slot_base)
+    if sc > 0 then
+      local c1 = dget(slot_base + 1)
+      local c2 = dget(slot_base + 2)
+      local c3 = dget(slot_base + 3)
+      local init1 = c1 >= 1 and c1 <= 26 and sub(alph, c1, c1) or "a"
+      local init2 = c2 >= 1 and c2 <= 26 and sub(alph, c2, c2) or "a"
+      local init3 = c3 >= 1 and c3 <= 26 and sub(alph, c3, c3) or "a"
+      add(ol1, {
+        score = sc,
+        initials = init1..init2..init3,
+        timestamp = 0
+      })
+    end
+  end
+  _log("onelife_leaderboard_loaded:"..#ol1)
+end
+
+function save_onelife_leaderboard()
+  for i = 1, 10 do
+    local slot_base = 104 + (i - 1) * 4  -- fixed: moved from 64 to avoid stats conflict
+    if i <= #ol1 then
+      local entry = ol1[i]
+      dset(slot_base, entry.score)
+      local init = entry.initials
+      local c1 = sub(init, 1, 1)
+      local c2 = sub(init, 2, 2)
+      local c3 = sub(init, 3, 3)
+      dset(slot_base + 1, ord(c1) - 96)
+      dset(slot_base + 2, ord(c2) - 96)
+      dset(slot_base + 3, ord(c3) - 96)
+    else
+      dset(slot_base, 0)
+      dset(slot_base + 1, 0)
+      dset(slot_base + 2, 0)
+      dset(slot_base + 3, 0)
+    end
+  end
+  _log("onelife_leaderboard_saved:"..#ol1)
+end
+
 function play_sfx(n, ch, off)
   if gm4 then
     sfx(n, ch, off)
@@ -619,6 +669,8 @@ function get_ball_skin_color()
     return 9
   elseif cu5 == 3 then
     return 12
+  elseif cu5 == 4 then
+    return 8
   else
     return 10
   end
@@ -627,7 +679,7 @@ end
 function draw_ball_trail()
   for i,t in pairs(bl1) do
     if t.life > 0 then
-      local c = (cu5==1 and 6) or (cu5==2 and 9) or 12
+      local c = (cu5==1 and 6) or (cu5==2 and 9) or (cu5==4 and 8) or 12
       if cu4==2 then c=8+(i%8) elseif cu4==3 then c=7 end
       circfill(t.x,t.y,1,c)
     end
@@ -635,7 +687,7 @@ function draw_ball_trail()
 end
 
 function draw_ball()
-  local c = (cu5==1 and 7) or (cu5==2 and 10) or 12
+  local c = (cu5==1 and 7) or (cu5==2 and 10) or (cu5==4 and 8) or 12
   if bl3>0 then c=7 end
   circfill(ball.x,ball.y,ball.r,c)
 end
@@ -797,7 +849,7 @@ function update_menu()
     end
 
     if input & 8 > 0 then
-      mc1 = min(11, mc1 + 1)
+      mc1 = min(12, mc1 + 1)
       play_sfx(1)
       _log("menu_nav:down:"..mc1)
       _log("sfx_menu_nav")
@@ -807,6 +859,7 @@ function update_menu()
     if input & 16 > 0 then
       local selection = mc2[mc1]
       if selection == "play" then
+        lm10 = 0
         state = "difficulty_select"
         _log("state:difficulty_select")
         ic3 = lm9
@@ -867,6 +920,13 @@ function update_menu()
         _log("state:progress")
         sk4 = 0
         ic1 = 10
+      elseif selection == "arcade_1life" then
+        lm10 = 1
+        state = "difficulty_select"
+        _log("mode:arcade_1life")
+        _log("state:difficulty_select")
+        ic3 = lm9
+        ic1 = 10
       end
     end
   end
@@ -888,10 +948,11 @@ function draw_menu()
     "ad2",
     "statistics",
     "settings",
-    "\x94 progress"
+    "\x94 progress",
+    "arcade 1-life"
   }
 
-  for i = 1, 11 do
+  for i = 1, 12 do
     local col = 6
     local prefix = " "
     if i == mc1 then
@@ -1059,6 +1120,9 @@ function update_difficulty_select()
 end
 
 function draw_difficulty_select()
+  if lm10 == 1 then
+    print("1-life mode", 34, 20, 8)
+  end
   print("select lm9", 22, 30, 7)
 
   local col1 = ic3 == 1 and 10 or 6
@@ -1113,12 +1177,12 @@ function update_settings()
         _log("toggle_sfx:"..tostr(gm4))
       elseif ss1 == 3 then
         repeat
-          cu5 = cu5 % 3 + 1
-        until cu5 == 1 or (cu5 == 2 and (cu1 & 1) > 0) or (cu5 == 3 and (cu1 & 2) > 0)
+          cu5 = cu5 % 4 + 1
+        until cu5 == 1 or (cu5 == 2 and (cu1 & 1) > 0) or (cu5 == 3 and (cu1 & 2) > 0) or (cu5 == 4 and (cu1 & 256) > 0)
         cu6[cu5] = true
         play_sfx(1)
         _log("cu5:"..cu5)
-        local all_used = cu6[1] and cu6[2] and cu6[3]
+        local all_used = cu6[1] and cu6[2] and cu6[3] and cu6[4]  -- fixed: include 4th skin
         if all_used and not ad2[7] then
           unlock_achievement(7)
         end
@@ -1168,10 +1232,13 @@ function draw_settings()
   print("> sfx: "..check2, 20, 28, col2)
 
   local col3 = ss1 == 3 and 10 or 6
-  local skin_names = {"white", "gold", "cyan"}
+  local skin_names = {"white", "gold", "cyan", "crimson"}
   local skin_str = skin_names[cu5]
-  if cu5 > 1 and (cu1 & (cu5 == 2 and 1 or 2)) == 0 then
-    skin_str = skin_str.." \x94"
+  if cu5 > 1 then
+    local bits = {0, 1, 2, 256}
+    if (cu1 & bits[cu5]) == 0 then
+      skin_str = skin_str.." \x94"
+    end
   end
   print("> ball: "..skin_str, 20, 36, col3)
 
@@ -1215,6 +1282,9 @@ function draw_settings()
     end
     if (cu1 & 2) == 0 then
       print("cyan: combo 15+", 22, 108, 6)
+    end
+    if (cu1 & 256) == 0 then
+      print("crimson: 1-life 200+", 14, 114, 6)
     end
   elseif ss1 == 6 then
     print("ball trail style", 18, 96, 5)
@@ -1824,12 +1894,13 @@ function init_game()
   ui1 = 0
   ui3 = 0
   cu2 = false
+  oa1 = false
   gm1 = 0
   lm7 = 1.0
   lm8 = 1
   combo = 0
   lm1 = 0
-  lives = lm5 == 1 and 5 or (lm5 == 3 and 1 or 3)
+  lives = lm10 == 1 and 1 or (lm5 == 1 and 5 or (lm5 == 3 and 1 or 3))
   fx7 = 0
   ob4 = {}
   pw6 = {}
@@ -2210,6 +2281,16 @@ function check_cosmetic_unlocks()
     shake(12, 1.2)
     unlocked_any = true
     _log("cosmetic_unlock:white_trail")
+  end
+
+  if lm10 == 1 and score >= 200 and lm9 == 3 and (cu1 & 256) == 0 then
+    cu1 = cu1 | 256
+    add_floating_text(64, 50, "unlocked!", 10)
+    add_floating_text(64, 60, "crimson ball", 8)
+    play_sfx(6)
+    shake(12, 1.2)
+    unlocked_any = true
+    _log("cosmetic_unlock:crimson_ball")
   end
 
   if unlocked_any then
@@ -2907,16 +2988,23 @@ end
 function update_gameover()
   local input = test_input()
 
+  if lm10 == 1 and not oa1 then
+    score = flr(score * 1.25)
+    oa1 = true
+    _log("onelife_multiplier:score="..score)
+  end
+
   if not ui2 and ui3 == 0 then
     local rank = 0
-    for i = 1, #ui6 do
-      if score > ui6[i].score then
+    local lb = lm10 == 1 and ol1 or ui6
+    for i = 1, #lb do
+      if score > lb[i].score then
         rank = i
         break
       end
     end
-    if rank == 0 and #ui6 < 10 then
-      rank = #ui6 + 1
+    if rank == 0 and #lb < 10 then
+      rank = #lb + 1
     end
 
     if rank > 0 then
@@ -2959,21 +3047,27 @@ function update_gameover()
 end
 
 function draw_gameover()
-  print("game over", 42, 10, 8)
+  if lm10 == 1 then
+    print("1-life game over", 24, 10, 8)
+  else
+    print("game over", 42, 10, 8)
+  end
 
   print("final score", 38, 22, 7)
   print(score, 64 - #tostr(score) * 2, 30, 10)
 
   if ui2 and ui3 > 0 then
     local flash_col = (ui1 % 8 < 4) and 10 or 9
-    print("ui6 rank #"..ui3, 18, 38, flash_col)
+    local mode_txt = lm10 == 1 and "1-life" or "leaderboard"
+    print(mode_txt.." rank #"..ui3, 18, 38, flash_col)
     if ui1 > 0 then
       ui1 -= 1
     end
   end
 
-  if #ui6 > 0 then
-    local top = ui6[1]
+  local lb = lm10 == 1 and ol1 or ui6
+  if #lb > 0 then
+    local top = lb[1]
     print("best: "..top.score.." ("..top.initials..")", 20, 48, 12)
   end
 
@@ -2986,8 +3080,13 @@ function draw_gameover()
 
   print("pw6: "..ic7, 28, 82, 11)
 
-  local lives_used = 3 - lives
-  print("lives used: "..lives_used.."/3", 22, 90, 8)
+  -- lives display: show different text for 1-life mode
+  if lm10 == 1 then
+    print("one-life: survived!", 24, 90, 8)
+  else
+    local lives_used = 3 - lives
+    print("lives used: "..lives_used.."/3", 22, 90, 8)
+  end
 
   print("lm7: x"..lm7, 24, 98, 10)
 
@@ -3067,30 +3166,43 @@ function update_enter_initials()
         variant = ct2 and ct9 or 0
       }
 
+      local lb = lm10 == 1 and ol1 or ui6
       local inserted = false
-      for i = 1, #ui6 do
-        if score > ui6[i].score then
+      for i = 1, #lb do
+        if score > lb[i].score then
           local temp = {}
           for j = 1, i - 1 do
-            add(temp, ui6[j])
+            add(temp, lb[j])
           end
           add(temp, new_entry)
-          for j = i, #ui6 do
+          for j = i, #lb do
             if #temp < 10 then
-              add(temp, ui6[j])
+              add(temp, lb[j])
             end
           end
-          ui6 = temp
+          if lm10 == 1 then
+            ol1 = temp
+          else
+            ui6 = temp
+          end
           inserted = true
           break
         end
       end
 
-      if not inserted and #ui6 < 10 then
-        add(ui6, new_entry)
+      if not inserted and #lb < 10 then
+        if lm10 == 1 then
+          add(ol1, new_entry)
+        else
+          add(ui6, new_entry)
+        end
       end
 
-      save_leaderboard()
+      if lm10 == 1 then
+        save_onelife_leaderboard()
+      else
+        save_leaderboard()
+      end
       ui4 = ui3
       ui9 = true
       play_sfx(6)
