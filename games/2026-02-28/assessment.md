@@ -1,11 +1,11 @@
 # NEON-SLINGER Assessment (2026-02-28)
 
-## Current Status: BOSS PHASE 2 ATTACK VARIETY - SYNTAX FIXED
-**Status:** ✅ SYNTAX FIXED - All 3 Lua syntax errors corrected, ready for testing
+## Current Status: SWARMLING ENEMY TYPE ADDED
+**Status:** ✅ NEW FEATURE IMPLEMENTED - Swarmling enemy type added for tactical variety
 **Game Type:** Top-down shooter (competitive arcade)
-**Feature:** Enhanced boss phase 2 with varied attack patterns
-**Latest Change:** Fixed missing -- comment prefixes on lines 2134, 2136, 2247
-**Syntax Accuracy:** All syntax errors resolved, game should load and run correctly
+**Feature:** New lightweight "swarmling" enemy that spawns in coordinated groups
+**Latest Change:** Added swarmling enemy type with group spawning mechanics
+**Implementation:** Complete integration with all game modes (normal, boss rush, time attack)
 
 ---
 
@@ -49,10 +49,19 @@
 - Satisfying hit detection with immediate sfx + screen shake
 
 ### 3. Enemy Variety
-- **Minion:** Basic 1-HP cannon fodder
-- **Shooter:** 20-point ranged threat (appears wave 3+)
-- **Speedy:** Fast 2-HP enemy (appears wave 5+)
+- **Minion:** Basic 1-HP cannon fodder (10 points)
+- **Shooter:** 20-point ranged threat with varied attack patterns (appears wave 3+)
+- **Speedy:** Fast 2-HP enemy (25 points, appears wave 5+)
+- **Swarmling:** NEW - Lightweight crowd control enemy (5 points, 1 HP, 1.5x speed, cyan color)
+  - Spawns in coordinated groups of 3-5 (never solo)
+  - Appears starting wave 6 (30% chance per wave, 50% in time attack mode)
+  - Smaller visual size (radius 2 vs 3) for distinct identity
+  - Spawns during boss fights (3 swarmlings midway through encounter)
+  - Added to boss rush mode for crowd control practice (3-4 per wave starting wave 2)
+  - Tests positioning awareness and multi-target engagement
 - **Heavy/Boss:** 3-HP boss with special attacks (every 5 waves)
+- **Seeker/Boss:** 4-HP charging boss with minion spawning
+- **Summoner/Boss:** 3-HP ranged boss with bombardment attacks
 
 ### 4. Player Feedback System
 - **Visual:** Screen shake (intensity 2-4), particles on hit/kill, flash effects, direction indicator
@@ -78,6 +87,48 @@
 - **Pause/resume:** Music(−1) stops during pause, resumes with correct theme
 - **Clean logging:** All music transitions logged for debugging
 - **Code placement:** Calls placed in appropriate state init functions
+
+### 8. Swarmling Enemy Type (NEW)
+**Design Philosophy:** Crowd control challenge to complement single-target threats
+
+**Core Properties:**
+- **HP:** 1 (one-shot kill, same as minion)
+- **Damage:** 1 (half of standard minion's 2 damage)
+- **Speed:** 1.2x wave intensity multiplier (same as speedy, 1.5x faster than base 0.5)
+- **Score:** 5 points (lower than minions to encourage efficient group cleanup)
+- **Color:** Cyan (color 11) for instant visual recognition
+- **Size:** Radius 2 (80% of minion's radius 3)
+
+**Spawn Behavior:**
+- **Group Spawning:** Always appear in packs of 3-5, never solo
+- **Wave Introduction:**
+  - Easy mode: Wave 7+
+  - Normal mode: Wave 6+
+  - Hard mode: Wave 5+
+- **Spawn Frequency:**
+  - Normal waves: 30% chance per wave
+  - Time attack mode: 50% chance (higher pace)
+  - Boss waves: 3 swarmlings spawn midway through fight (180 frames delay)
+  - Boss rush mode: 3-4 swarmlings per wave starting wave 2 (150 frames after boss)
+
+**Tactical Impact:**
+- Tests positioning awareness (can be surrounded if not careful)
+- Requires crowd control vs single-target prioritization
+- Provides combo-building opportunities (low HP, multiple targets)
+- Creates pressure when combined with shooters and bosses
+- Rewards efficient movement patterns
+
+**Implementation Details:**
+- Uses default enemy AI (simple approach toward player)
+- No special attacks or abilities
+- Dies in one shot from any weapon
+- Contributes to combo counter normally
+- Full score multiplier applied
+
+**Balance Considerations:**
+- Solo swarmling: Low threat (trivial to kill)
+- 3-4 swarmlings: Medium threat (positioning challenge)
+- 5+ swarmlings + boss/shooter: High threat (tactical decisions required)
 
 ---
 

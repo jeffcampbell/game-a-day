@@ -1016,25 +1016,15 @@ function uba(e)
 end
 
 function bba(e)
-  -- randomly select attack pattern based on phase
-  local patterns
+  local r=rnd(100)
   if e.phase2 then
-    patterns = {"burst", "spiral", "ring", "aimed"}
+    if r<25 then boss_burst_pattern(e)
+    elseif r<50 then boss_spiral_pattern(e)
+    elseif r<75 then boss_ring_attack(e)
+    else boss_aimed_burst_attack(e) end
   else
-
-    patterns = {"burst", "ring"}
-  end
-
-  local pattern = patterns[flr(rnd(#patterns)) + 1]
-
-  if pattern == "burst" then
-    boss_burst_pattern(e)
-  elseif pattern == "spiral" then
-    boss_spiral_pattern(e)
-  elseif pattern == "ring" then
-    boss_ring_attack(e)
-  elseif pattern == "aimed" then
-    boss_aimed_burst_attack(e)
+    if r<50 then boss_burst_pattern(e)
+    else boss_ring_attack(e) end
   end
 end
 
@@ -1318,24 +1308,22 @@ function dme(e, dmg, proj)
   end
 
 
-  if (e.type == "heavy" or e.type == "seeker" or e.type == "summoner") and not e.phase2 and e.hp <= 2 then
-    e.phase2 = true
+  local ib=e.type=="heavy" or e.type=="seeker" or e.type=="summoner"
+  if ib and not e.phase2 and e.hp<=2 then
+    e.phase2=true
     _log("boss:phase2:"..e.type)
-    e.flt = 18
-    shf = 3
-    shi = 1.5
+    e.flt=18
+    shf=3
+    shi=1.5
     sfx(6)
   end
-
-
-  if (e.type == "heavy" or e.type == "seeker" or e.type == "summoner") and not e.phase3 and e.hp <= 1 then
-    e.phase3 = true
+  if ib and not e.phase3 and e.hp<=1 then
+    e.phase3=true
     _log("boss:phase3:"..e.type)
-    -- dramatic phase 3 entrance
-    e.flt = 20
-    shf = 2
-    shi = 2.0
-    sfx(11)  -- distinct sound for phase 3
+    e.flt=20
+    shf=2
+    shi=2.0
+    sfx(11)
   end
 
   if e.hp <= 0 then
@@ -1347,35 +1335,21 @@ function kill_enemy(e)
   _log("enemy_kill:"..e.type)
 
 
-  if e.type == "heavy" then
+  if e.type=="heavy" then
     sfx(10)
     _log("sfx:boss_death:heavy")
-
-    -- track quick kill (killed before phase 2)
-    if not e.phase2 then
-      qkf = true
-      _log("quick_kill")
-    end
-  elseif e.type == "seeker" then
+  elseif e.type=="seeker" then
     sfx(11)
     _log("sfx:boss_death:seeker")
-
-    -- track quick kill (killed before phase 2)
-    if not e.phase2 then
-      qkf = true
-      _log("quick_kill")
-    end
-  elseif e.type == "summoner" then
-    sfx(10)  -- different pitch for summoner death
+  elseif e.type=="summoner" then
+    sfx(10)
     _log("sfx:boss_death:summoner")
-
-    -- track quick kill (killed before phase 2)
-    if not e.phase2 then
-      qkf = true
-      _log("quick_kill")
-    end
   else
     sfx(2)
+  end
+  if (e.type=="heavy" or e.type=="seeker" or e.type=="summoner") and not e.phase2 then
+    qkf=true
+    _log("quick_kill")
   end
 
   -- score
@@ -1617,19 +1591,16 @@ function spw()
   wave += 1
   _log("wave:"..wave)
 
-  -- boss rush mode: spawn 1 boss per wave, no minions
-  if gm == "boss_rush" then
-    local boss_idx = (wave - 1) % 3
-    local boss_type = "heavy"
-    if boss_idx == 1 then
-      boss_type = "seeker"
-    elseif boss_idx == 2 then
-      boss_type = "summoner"
-    end
-    queue_spawn(boss_type, 90)
+  -- boss rush mode
+  if gm=="boss_rush" then
+    local bi=(wave-1)%3
+    local bt="heavy"
+    if bi==1 then bt="seeker"
+    elseif bi==2 then bt="summoner" end
+    queue_spawn(bt,90)
     music(2)
     _log("music:boss")
-    _log("boss_rush_boss:"..boss_type)
+    _log("boss_rush:"..bt)
     return
   end
 
@@ -1676,16 +1647,14 @@ function spw()
     _log("music:gameplay")
   end
 
+  if wave>=6 and rnd(100)<25 then
+    for i=1,3+flr(rnd(3)) do queue_spawn("swarmling") end
+  end
   for i=1,count do
-    local enemy_type = "minion"
-
-    if wave >= shooter_wave and rnd(100) < 30 then
-      enemy_type = "shooter"
-    elseif wave >= speedy_wave and rnd(100) < 20 then
-      enemy_type = "speedy"
-    end
-
-    queue_spawn(enemy_type)
+    local et="minion"
+    if wave>=shooter_wave and rnd(100)<30 then et="shooter"
+    elseif wave>=speedy_wave and rnd(100)<20 then et="speedy" end
+    queue_spawn(et)
   end
 end
 
@@ -1749,6 +1718,10 @@ function spe(typ, spawn_x, spawn_y)
     e.speed = 1.2 * wim()
     e.score = 25
     e.col = 10
+  elseif typ=="swarmling" then
+    e.speed=1.2*wim()
+    e.score=5
+    e.col=11
   elseif typ == "heavy" then
 
     local boss_hp = df == "easy" and 2 or (df == "hard" and 4 or 3)
@@ -2074,7 +2047,7 @@ function drp()
 
   -- es
   for e in all(es) do
-    local r = e.type == "heavy" and 5 or (e.type == "seeker" and 6 or (e.type == "summoner" and 5 or (e.type == "speedy" and 2 or 3)))
+    local r = e.type == "heavy" and 5 or (e.type == "seeker" and 6 or (e.type == "summoner" and 5 or (e.type == "speedy" and 2 or (e.type == "swarmling" and 2 or 3))))
 
     -- apply entrance scale animation (30 frame scale up)
     local draw_r = r
