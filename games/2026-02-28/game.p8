@@ -528,7 +528,8 @@ function shoot_player()
     vy = dir[2] * 3,
     owner = "player",
     size = size,
-    dmg = big_shot_t > 0 and 2 or 1
+    dmg = big_shot_t > 0 and 2 or 1,
+    col = 10 -- player projectiles are yellow
   })
 end
 
@@ -591,9 +592,23 @@ function update_enemy(e)
   -- shooter behavior
   if e.type == "shooter" then
     e.shoot_timer = (e.shoot_timer or 0) + 1
-    if e.shoot_timer >= 90 then
+    local cooldown = (e.attack_pattern == "burst") and 40 or 90
+    local spread_cooldown = (e.attack_pattern == "spread") and 60 or cooldown
+    local final_cooldown = (e.attack_pattern == "spread") and spread_cooldown or cooldown
+
+    if e.shoot_timer >= final_cooldown then
       e.shoot_timer = 0
       enemy_shoot(e)
+      -- for burst, schedule second shot
+      if e.attack_pattern == "burst" then
+        e.burst_pending = true
+      end
+    end
+
+    -- burst second shot (5 frames after first)
+    if e.burst_pending and e.shoot_timer == 5 then
+      enemy_shoot(e)
+      e.burst_pending = false
     end
   end
 
@@ -616,7 +631,12 @@ function enemy_shoot(e)
   local dy = player.y - e.y
   local d = sqrt(dx*dx + dy*dy)
 
-  if d > 0 then
+  if d == 0 then return end
+
+  local pattern = e.attack_pattern or "single"
+
+  if pattern == "single" then
+    -- single projectile towards player (orange)
     add(projectiles, {
       x = e.x,
       y = e.y,
@@ -624,8 +644,54 @@ function enemy_shoot(e)
       vy = (dy / d) * 1.5,
       owner = "enemy",
       size = 1,
-      dmg = 1
+      dmg = 1,
+      col = 9
     })
+    _log("shoot:single")
+  elseif pattern == "spread" then
+    -- 3 projectiles in spread pattern (yellow)
+    -- calculate base angle to player
+    local base_angle = atan2(dy, dx)
+    for i = -1, 1 do
+      local angle = base_angle + (i * 0.06) -- ~22 degrees spread
+      add(projectiles, {
+        x = e.x,
+        y = e.y,
+        vx = cos(angle) * 1.5,
+        vy = sin(angle) * 1.5,
+        owner = "enemy",
+        size = 1,
+        dmg = 1,
+        col = 10
+      })
+    end
+    _log("shoot:spread")
+  elseif pattern == "aimed" then
+    -- aimed shot directly at player, slower (cyan)
+    add(projectiles, {
+      x = e.x,
+      y = e.y,
+      vx = (dx / d) * 1.2,
+      vy = (dy / d) * 1.2,
+      owner = "enemy",
+      size = 1,
+      dmg = 1,
+      col = 12
+    })
+    _log("shoot:aimed")
+  elseif pattern == "burst" then
+    -- burst fire (white)
+    add(projectiles, {
+      x = e.x,
+      y = e.y,
+      vx = (dx / d) * 1.5,
+      vy = (dy / d) * 1.5,
+      owner = "enemy",
+      size = 1,
+      dmg = 1,
+      col = 7
+    })
+    _log("shoot:burst")
   end
 end
 
@@ -706,7 +772,8 @@ function boss_burst_attack(e)
       vy = vy,
       owner = "enemy",
       size = 1,
-      dmg = 1
+      dmg = 1,
+      col = 8 -- boss projectiles are red
     })
   end
 end
@@ -973,6 +1040,19 @@ function spawn_enemy(typ)
     e.score = 20
     e.col = 9
     e.shoot_timer = 0
+    -- assign attack pattern: 40% single, 30% spread, 15% aimed, 15% burst
+    local r = rnd(100)
+    if r < 40 then
+      e.attack_pattern = "single"
+    elseif r < 70 then
+      e.attack_pattern = "spread"
+    elseif r < 85 then
+      e.attack_pattern = "aimed"
+    else
+      e.attack_pattern = "burst"
+      e.burst_pending = false -- track second shot in burst
+    end
+    _log("spawn:shooter:"..e.attack_pattern)
   elseif typ == "speedy" then
     e.hp = 2
     e.max_hp = 2
@@ -1189,7 +1269,7 @@ function draw_play()
 
   -- projectiles
   for p in all(projectiles) do
-    local col = p.owner == "player" and 10 or 8
+    local col = p.col or (p.owner == "player" and 10 or 8)
     circfill(p.x, p.y, p.size, col)
   end
 
