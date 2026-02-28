@@ -602,7 +602,7 @@ end
 function load_onelife_leaderboard()
   ol1 = {}
   for i = 1, 10 do
-    local slot_base = 64 + (i - 1) * 4
+    local slot_base = 104 + (i - 1) * 4  -- fixed: moved from 64 to avoid stats conflict
     local sc = dget(slot_base)
     if sc > 0 then
       local c1 = dget(slot_base + 1)
@@ -623,7 +623,7 @@ end
 
 function save_onelife_leaderboard()
   for i = 1, 10 do
-    local slot_base = 64 + (i - 1) * 4
+    local slot_base = 104 + (i - 1) * 4  -- fixed: moved from 64 to avoid stats conflict
     if i <= #ol1 then
       local entry = ol1[i]
       dset(slot_base, entry.score)
@@ -1182,7 +1182,7 @@ function update_settings()
         cu6[cu5] = true
         play_sfx(1)
         _log("cu5:"..cu5)
-        local all_used = cu6[1] and cu6[2] and cu6[3]
+        local all_used = cu6[1] and cu6[2] and cu6[3] and cu6[4]  -- fixed: include 4th skin
         if all_used and not ad2[7] then
           unlock_achievement(7)
         end
@@ -3080,8 +3080,13 @@ function draw_gameover()
 
   print("pw6: "..ic7, 28, 82, 11)
 
-  local lives_used = 3 - lives
-  print("lives used: "..lives_used.."/3", 22, 90, 8)
+  -- lives display: show different text for 1-life mode
+  if lm10 == 1 then
+    print("one-life: survived!", 24, 90, 8)
+  else
+    local lives_used = 3 - lives
+    print("lives used: "..lives_used.."/3", 22, 90, 8)
+  end
 
   print("lm7: x"..lm7, 24, 98, 10)
 
