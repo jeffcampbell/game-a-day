@@ -564,6 +564,8 @@ function update_enemy(e)
   -- boss special attacks (heavy enemies)
   if e.type == "heavy" then
     update_boss_attacks(e)
+  elseif e.type == "specter" then
+    update_specter_attacks(e)
   end
 
   -- handle dashing
@@ -623,7 +625,7 @@ function update_enemy(e)
   if player.invuln == 0 and dist(player.x, player.y, e.x, e.y) < 6 then
     -- extra damage during dash (3x in phase 2, 2x in phase 1)
     local dmg = 1
-    if e.dashing and e.type == "heavy" then
+    if e.dashing and (e.type == "heavy" or e.type == "specter") then
       dmg = e.phase2 and 3 or 2
     end
     hit_player(dmg)
@@ -902,7 +904,146 @@ function boss_dash_attack(e, cooldown)
   e.dash_target_y = player.y
 end
 
+function update_specter_attacks(e)
+  -- initialize timers if needed
+  if not e.spawn_time then
+    e.spawn_time = time()
+    e.seek_cd = 0
+    e.teleport_cd = 0
+    e.seek_count = 0
+  end
+
+  -- update cooldowns and effects
+  if e.seek_cd > 0 then e.seek_cd -= 1 end
+  if e.teleport_cd > 0 then e.teleport_cd -= 1 end
+  if e.dash_cd > 0 then e.dash_cd -= 1 end
+  if e.flash_timer and e.flash_timer > 0 then e.flash_timer -= 1 end
+  if e.spawn_flash and e.spawn_flash > 0 then e.spawn_flash -= 1 end
+  if e.glow_t then e.glow_t = (e.glow_t + 1) % 12 end
+
+  -- pulse expansion effect
+  if e.pulse_timer and e.pulse_timer > 0 then
+    e.pulse_timer -= 1
+    e.pulse_radius = (20 - e.pulse_timer) * 0.7
+  end
+
+  -- dash warning countdown (same as heavy)
+  if e.dash_warn and e.dash_warn > 0 then
+    e.dash_warn -= 1
+    if e.dash_warn % 8 == 0 then
+      sfx(12)
+      _log("sfx:dash_warn_tick")
+    end
+    if e.dash_warn == 0 then
+      _log("specter_dash")
+      sfx(3)
+      e.dashing = true
+      e.dash_timer = 60
+      e.speed = 0.6
+    end
+  end
+
+  local elapsed = time() - e.spawn_time
+  local hp_pct = e.hp / e.max_hp
+
+  -- phase 2 cooldown adjustments
+  local seek_cooldown = e.phase2 and 90 or 120  -- faster seeking in phase 2
+  local teleport_cooldown = e.phase2 and 90 or 180  -- faster teleports in phase 2
+
+  -- seeking projectile attack (5 shots total)
+  if e.seek_cd == 0 and e.seek_count < 5 then
+    specter_seek_attack(e)
+    e.seek_count += 1
+    e.seek_cd = 30  -- 1s between shots
+    -- reset counter after sequence
+    if e.seek_count >= 5 then
+      e.seek_count = 0
+      e.seek_cd = seek_cooldown
+    end
+  end
+
+  -- teleport dash attack (phase 2 or when in range)
+  local d = dist(player.x, player.y, e.x, e.y)
+  if not e.dashing and not e.dash_warn and e.teleport_cd == 0 and (e.phase2 or d < 60) then
+    specter_teleport_dash(e, teleport_cooldown)
+  end
+end
+
+function specter_seek_attack(e)
+  _log("specter_seek")
+  sfx(6)
+  e.flash_timer = 5
+
+  -- spawn seeking projectile toward player
+  local dx = player.x - e.x
+  local dy = player.y - e.y
+  local d = sqrt(dx*dx + dy*dy)
+  if d > 0 then
+    add(projectiles, {
+      x = e.x,
+      y = e.y,
+      vx = (dx / d) * 1.2,
+      vy = (dy / d) * 1.2,
+      owner = "enemy",
+      seeking = true,
+      turn_rate = 0.05
+    })
+  end
+end
+
+function specter_teleport_dash(e, cooldown)
+  _log("specter_teleport")
+  sfx(11)  -- different sound for teleport
+
+  -- find random position 64px+ from player
+  local tx, ty
+  local attempts = 0
+  repeat
+    tx = 20 + rnd(88)
+    ty = 20 + rnd(88)
+    attempts += 1
+  until dist(player.x, player.y, tx, ty) >= 64 or attempts > 10
+
+  -- create trail effect from old to new position
+  for i=1,4 do
+    local t = i / 4
+    add(particles, {
+      x = e.x + (tx - e.x) * t,
+      y = e.y + (ty - e.y) * t,
+      vx = 0,
+      vy = 0,
+      life = 15 - i * 2,
+      col = 13  -- purple for trail
+    })
+  end
+
+  -- teleport boss
+  e.x = tx
+  e.y = ty
+
+  -- start dash attack from new position
+  e.teleport_cd = cooldown
+  e.dash_cd = 30  -- brief delay before dash
+  e.dash_warn = 20  -- shorter warning for teleport dash
+  e.dash_target_x = player.x
+  e.dash_target_y = player.y
+end
+
 function update_projectile(p)
+  -- seeking projectile behavior
+  if p.seeking then
+    local dx = player.x - p.x
+    local dy = player.y - p.y
+    local d = sqrt(dx*dx + dy*dy)
+    if d > 0 then
+      -- gradually turn toward player
+      local target_vx = (dx / d) * 1.2
+      local target_vy = (dy / d) * 1.2
+      p.vx = p.vx + (target_vx - p.vx) * p.turn_rate
+      p.vy = p.vy + (target_vy - p.vy) * p.turn_rate
+    end
+  end
+
   p.x += p.vx
   p.y += p.vy
 
@@ -935,9 +1076,9 @@ function damage_enemy(e, dmg)
   sfx(1)
 
   -- phase 2 trigger for bosses
-  if e.type == "heavy" and not e.phase2 and e.hp <= 2 then
+  if (e.type == "heavy" or e.type == "specter") and not e.phase2 and e.hp <= 2 then
     e.phase2 = true
-    _log("boss:phase2")
+    _log("boss:phase2:"..e.type)
     -- visual flash for phase change
     e.flash_timer = 15
     shake_frames = 2
@@ -956,7 +1097,16 @@ function kill_enemy(e)
   -- boss death gets special fanfare
   if e.type == "heavy" then
     sfx(10)
-    _log("sfx:boss_death")
+    _log("sfx:boss_death:heavy")
+
+    -- track quick kill (killed before phase 2)
+    if not e.phase2 then
+      quick_kill_flag = true
+      _log("quick_kill")
+    end
+  elseif e.type == "specter" then
+    sfx(11)  -- higher pitch for specter death
+    _log("sfx:boss_death:specter")
 
     -- track quick kill (killed before phase 2)
     if not e.phase2 then
@@ -1030,23 +1180,26 @@ function kill_enemy(e)
   end
 
   -- boss enhanced death feedback
-  if e.type == "heavy" then
+  if e.type == "heavy" or e.type == "specter" then
     boss_kills += 1
-    _log("boss_kill:"..boss_kills)
+    _log("boss_kill:"..e.type..":"..boss_kills)
     shake_frames = 4
     shake_intensity = 5
-    flash_timer = 12  -- extended gold flash for boss victory
+    flash_timer = 12  -- extended flash for boss victory
 
-    -- floating "BOSS DOWN!" text
+    -- floating "BOSS DOWN!" text (different colors)
+    local boss_text = e.type == "specter" and "specter down!" or "boss down!"
+    local text_col = e.type == "specter" and 12 or 10
     add(milestone_texts, {
-      text = "boss down!",
+      text = boss_text,
       y = 50,
       life = 45,  -- 1.5s display
       initial_life = 45,
-      col = 10  -- yellow/gold for victory
+      col = text_col
     })
-    _log("boss_fanfare")
-    -- enhanced spiral particle burst
+    _log("boss_fanfare:"..e.type)
+    -- enhanced spiral particle burst (cyan for specter, gray for heavy)
+    local particle_col = e.type == "specter" and 12 or 8
     for i=1,18 do
       local angle = i / 18
       add(particles, {
@@ -1055,7 +1208,7 @@ function kill_enemy(e)
         vx = cos(angle) * 2.5,  -- travel further
         vy = sin(angle) * 2.5,
         life = 32,  -- slower (live longer)
-        col = 8 + flr(rnd(4))
+        col = particle_col + flr(rnd(2))
       })
     end
   else
@@ -1171,11 +1324,18 @@ function spawn_wave()
   local speedy_wave = difficulty == "easy" and 8 or (difficulty == "hard" and 3 or 5)
 
   local count = flr((3 + wave) * count_mult)
-  local boss_wave = wave % 5 == 0
+  local heavy_boss_wave = wave % 10 == 5
+  local specter_boss_wave = wave % 10 == 0
 
-  if boss_wave then
-    -- boss wave: 1 heavy + minions
+  if heavy_boss_wave then
+    -- heavy boss wave: 1 heavy + minions
     spawn_enemy("heavy")
+    count = flr(4 * count_mult)
+    music(2) -- boss theme
+    _log("music:boss")
+  elseif specter_boss_wave then
+    -- specter boss wave: 1 specter + minions
+    spawn_enemy("specter")
     count = flr(4 * count_mult)
     music(2) -- boss theme
     _log("music:boss")
@@ -1261,20 +1421,36 @@ function spawn_enemy(typ)
     e.spawn_flash = 3 -- spawn announcement flash
     e.pulse_radius = 0 -- expanding pulse effect
     e.pulse_timer = 20 -- frames for pulse expansion
+  elseif typ == "specter" then
+    -- specter boss: seeking projectiles + teleport dashes
+    e.hp = 4
+    e.max_hp = 4
+    e.speed = 0.4
+    e.score = 60
+    e.col = 12 -- cyan/purple
+    e.glow_t = 0
+    e.spawn_flash = 3
+    e.pulse_radius = 0
+    e.pulse_timer = 20
+    e.seek_cd = 0 -- seeking projectile cooldown
+    e.seek_count = 0 -- number of seeking shots fired
+    e.teleport_cd = 0 -- teleport cooldown
+    e.trail_particles = {} -- fading trail effect
   end
 
   add(enemies, e)
   _log("spawn:"..typ)
 
   -- boss spawn announcement
-  if typ == "heavy" then
+  if typ == "heavy" or typ == "specter" then
     sfx(8) -- boss entrance sound
-    _log("sfx:boss_spawn")
+    _log("sfx:boss_spawn:"..typ)
     shake_frames = 3
     shake_intensity = 1
     flash_timer = 15  -- screen flash
 
-    -- spawn particle burst
+    -- spawn particle burst (different colors for specter)
+    local particle_col = typ == "specter" and 12 or 8
     for i=1,10 do
       local angle = i / 10
       add(particles, {
@@ -1283,19 +1459,20 @@ function spawn_enemy(typ)
         vx = cos(angle) * 1.5,
         vy = sin(angle) * 1.5,
         life = 20,
-        col = 8 + flr(rnd(4))
+        col = particle_col + flr(rnd(2))
       })
     end
 
     -- "boss wave!" announcement text
+    local boss_name = typ == "specter" and "specter!" or "boss wave!"
     add(milestone_texts, {
-      text = "boss wave!",
+      text = boss_name,
       y = 32,
       life = 60,
       initial_life = 60,
-      col = 7  -- yellow
+      col = typ == "specter" and 12 or 7
     })
-    _log("boss_announce")
+    _log("boss_announce:"..typ)
   end
 end
 
@@ -1425,11 +1602,13 @@ function draw_edge_indicators()
       -- color matches enemy type
       local col = e.col
       if e.type == "heavy" and e.phase2 then
-        col = 9 -- orange for phase 2 boss
+        col = 9 -- orange for phase 2 heavy boss
+      elseif e.type == "specter" and e.phase2 then
+        col = 14 -- magenta for phase 2 specter boss
       end
 
       -- boss gets larger indicator
-      if e.type == "heavy" then
+      if e.type == "heavy" or e.type == "specter" then
         circfill(ix, iy, 2, col)
         circ(ix, iy, 3, 7) -- white outline
         -- small hp bar for boss
@@ -1475,7 +1654,7 @@ function draw_play()
 
   -- enemies
   for e in all(enemies) do
-    local r = e.type == "heavy" and 5 or (e.type == "speedy" and 2 or 3)
+    local r = e.type == "heavy" and 5 or (e.type == "specter" and 6 or (e.type == "speedy" and 2 or 3))
 
     -- boss spawn pulse effect (expanding circle)
     if e.pulse_timer and e.pulse_timer > 0 and e.pulse_radius then
@@ -1498,6 +1677,8 @@ function draw_play()
     -- phase 2 color change for bosses
     if e.type == "heavy" and e.phase2 then
       col = 9 -- orange (aggression color)
+    elseif e.type == "specter" and e.phase2 then
+      col = 14 -- magenta (specter phase 2)
     end
 
     -- dash warning indicator (purple outline)
@@ -1513,11 +1694,15 @@ function draw_play()
     circfill(e.x, e.y, r, col)
 
     -- boss pulsing glow
-    if e.type == "heavy" and e.glow_t and not e.spawn_flash then
+    if (e.type == "heavy" or e.type == "specter") and e.glow_t and not e.spawn_flash then
       local glow_col = (e.glow_t < 6) and 8 or 3
-      -- phase 2: add aggressive red ring
+      -- phase 2: different glow for each boss type
       if e.phase2 then
-        glow_col = (e.glow_t < 6) and 9 or 8
+        if e.type == "heavy" then
+          glow_col = (e.glow_t < 6) and 9 or 8  -- red/orange
+        else
+          glow_col = (e.glow_t < 6) and 14 or 12  -- magenta/cyan
+        end
         circ(e.x, e.y, r + 2, glow_col) -- extra ring for phase 2
       end
       circ(e.x, e.y, r + 1, glow_col)
@@ -1553,6 +1738,12 @@ function draw_play()
   -- projectiles
   for p in all(projectiles) do
     local col = p.col or (p.owner == "player" and 10 or 8)
+    -- seeking projectiles get magenta color
+    if p.seeking then
+      col = 14
+      -- add trail effect
+      circ(p.x, p.y, 2, 13)
+    end
     circfill(p.x, p.y, p.size, col)
   end
 
@@ -1672,7 +1863,7 @@ function update_pause()
     state = "play"
     _log("state:play")
     -- resume appropriate music
-    if wave % 5 == 0 then
+    if wave % 10 == 5 or wave % 10 == 0 then
       music(2) -- boss theme
       _log("music:boss")
     else
