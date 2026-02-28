@@ -728,6 +728,11 @@ function update_boss_attacks(e)
   -- handle dash warning countdown
   if e.dash_warn and e.dash_warn > 0 then
     e.dash_warn -= 1
+    -- play repeating warning sound every 8 frames
+    if e.dash_warn % 8 == 0 then
+      sfx(12)
+      _log("sfx:dash_warn_tick")
+    end
     if e.dash_warn == 0 then
       -- warning over, start actual dash
       _log("boss_dash")
