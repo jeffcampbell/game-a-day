@@ -468,7 +468,7 @@ end
 function check_streak_milestone()
   if sk1 == 5 or sk1 == 10 or sk1 == 20 or sk1 == 50 then
     add(fx9, {x=64, y=50, txt=sk1.."-day streak!", col=10, age=0, vy=-0.5})
-    shake_screen(12, 1.2)
+    shake(12, 1.2)
     _log("milestone:"..sk1.."-day")
   end
 end

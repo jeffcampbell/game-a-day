@@ -1,6 +1,56 @@
 # Bounce King - Game Assessment
-**Date:** 2026-02-27 (Aggressive Minification)
-**Status:** ✅ READY FOR EXPORT - Code size reduced by 28.2%
+
+## ⚠️ LATEST: Daily Streak & Progress Tracking Feature (2026-02-27)
+
+**Status:** CHANGES_REQUESTED - Critical bug in milestone feedback
+
+### Critical Issue Found
+**Line 471: `shake_screen()` undefined**
+- The `check_streak_milestone()` function calls `shake_screen(12, 1.2)`
+- The actual function is named `shake()` (defined at line 611)
+- **Impact:** Game crashes when streak milestones are reached (5/10/20/50 days)
+- **Fix:** Change `shake_screen(12, 1.2)` to `shake(12, 1.2)`
+
+### Feature Overview ✅
+- **Streak tracking:** Persistent daily streak counter (sk1=current, sk2=best, sk3=last_date)
+- **Cartdata slots:** 95-97 (no conflicts identified)
+- **Milestone rewards:** Feedback at 5, 10, 20, 50-day milestones
+- **Progress display:** 8 unlock trackers in new "progress" menu state
+- **Challenge integration:** Streak updates called after challenge completion, bonus displayed in summary
+
+### Detailed Assessment
+**Streak System Logic** ✅
+- Time-based day calculation: `flr(time() / 86400)` matches daily challenge pattern
+- First play handled correctly: sk3 initialized on first call
+- Same-day replays prevented: no duplicate increments
+- Consecutive days working: sk1 increments properly
+- Broken streaks handled: resets to 1 (current day count)
+- Best streak tracked: sk2 updates when sk1 exceeds it
+
+**Progress Menu Integration** ✅
+- Menu added with 11th item ("progress")
+- State machine properly extended with update_progress() and draw_progress()
+- Navigation bounds checking: sk4 ∈ [0,7] for 8 unlocks
+- Exit handling: X and O buttons return to menu with music
+- All variables used in progress display are defined and tracked
+
+**Challenge Integration** ✅
+- update_streak() called in both challenge completion paths
+- Streak bonus calculation: 10 + (2 × floor(sk1/5)) points
+- Challenge summary display: Shows streak and bonus when sk1 > 0
+- Pluralization: Correct grammar ("1 day" vs "2 days")
+
+**Code Quality**
+- ✅ Test infrastructure intact: test_input() used, _log() calls present
+- ✅ State transitions logged: "state:progress", "streak_*" events
+- ✅ Bounds checking safe: pixel drawing within 128x128
+- ✅ Array access safe: 8 unlocks with 0-7 indexing
+- ⚠️ **ONE UNDEFINED FUNCTION:** shake_screen() → requires rename to shake()
+
+---
+
+**Previous Assessment Date:** 2026-02-27 (Aggressive Minification)
+**Previous Status:** ✅ READY FOR EXPORT - Code size reduced by 28.2%
 
 ---
 
