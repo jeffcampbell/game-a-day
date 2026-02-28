@@ -672,10 +672,10 @@ function update_enemy(e)
 
   -- collision with player
   if player.invuln == 0 and dist(player.x, player.y, e.x, e.y) < 6 then
-    -- extra damage during dash (3x in phase 2, 2x in phase 1)
+    -- extra damage during dash (3x in phase 2/3, 2x in phase 1)
     local dmg = 1
     if e.dashing and (e.type == "heavy" or e.type == "specter") then
-      dmg = e.phase2 and 3 or 2
+      dmg = e.phase2 and 3 or 2  -- phase3 inherits phase2 flag
     end
     hit_player(dmg)
     if not e.dashing then
@@ -771,7 +771,11 @@ function update_boss_attacks(e)
     if e.spin_timer == 0 then _log("spin_end") end
   end
   if e.spawn_flash and e.spawn_flash > 0 then e.spawn_flash -= 1 end
-  if e.glow_t then e.glow_t = (e.glow_t + 1) % 12 end
+  -- phase 3: faster glow pulse (2x speed)
+  if e.glow_t then
+    local glow_speed = e.phase3 and 2 or 1
+    e.glow_t = (e.glow_t + glow_speed) % 12
+  end
   if e.spawn_timer and e.spawn_timer > 0 then e.spawn_timer -= 1 end
 
   -- boss pulse expansion effect
@@ -807,10 +811,11 @@ function update_boss_attacks(e)
   local elapsed = time() - e.spawn_time
   local hp_pct = e.hp / e.max_hp
 
-  -- phase 2 cooldown adjustments
+  -- phase 2/3 cooldown adjustments
+  -- phase 3 enrage: maximum aggression (40 burst, 60 dash)
   -- phase 2 aggression: 20% faster attacks (72 vs 90, 96 vs 120)
-  local burst_cooldown = e.phase2 and 72 or 120  -- intensified phase 2: 2.4s vs 4s
-  local dash_cooldown = e.phase2 and 96 or 180  -- intensified phase 2: 3.2s vs 6s
+  local burst_cooldown = e.phase3 and 40 or (e.phase2 and 72 or 120)
+  local dash_cooldown = e.phase3 and 60 or (e.phase2 and 96 or 180)
 
   -- burst attack (once at 50% hp or 5s, repeats in phase 2)
   if (not e.burst_used and (hp_pct <= 0.5 or elapsed >= 5) and e.burst_cd == 0) or (e.phase2 and e.burst_cd == 0) then
@@ -886,8 +891,8 @@ function boss_spiral_pattern(e)
   shake_frames = 2
   shake_intensity = 1.5  -- medium shake
 
-  -- phase 2 enhanced: 14-way spiral (vs 12)
-  local proj_count = 14
+  -- phase 3: 16-way spiral, phase 2+: 14-way spiral
+  local proj_count = e.phase3 and 16 or 14
   for i=0,proj_count-1 do
     local angle = i / proj_count
     local vx = cos(angle) * e.speed * 3
@@ -915,8 +920,8 @@ function boss_ring_attack(e)
   shake_frames = 3
   shake_intensity = 2.0  -- strongest shake
 
-  -- phase 2: +2 projectiles (12 vs 10)
-  local proj_count = e.phase2 and 12 or 10  -- phase 2 gets 12 (more intense)
+  -- phase 3: 14 projectiles, phase 2: 12, phase 1: 10
+  local proj_count = e.phase3 and 14 or (e.phase2 and 12 or 10)
   for i=0,proj_count-1 do
     local angle = i / proj_count
     local vx = cos(angle) * e.speed * 3
@@ -996,7 +1001,11 @@ function update_specter_attacks(e)
   if e.dash_cd > 0 then e.dash_cd -= 1 end
   if e.flash_timer and e.flash_timer > 0 then e.flash_timer -= 1 end
   if e.spawn_flash and e.spawn_flash > 0 then e.spawn_flash -= 1 end
-  if e.glow_t then e.glow_t = (e.glow_t + 1) % 12 end
+  -- phase 3: faster glow pulse (2x speed)
+  if e.glow_t then
+    local glow_speed = e.phase3 and 2 or 1
+    e.glow_t = (e.glow_t + glow_speed) % 12
+  end
   if e.spawn_timer and e.spawn_timer > 0 then e.spawn_timer -= 1 end
 
   -- pulse expansion effect
@@ -1024,18 +1033,20 @@ function update_specter_attacks(e)
   local elapsed = time() - e.spawn_time
   local hp_pct = e.hp / e.max_hp
 
-  -- phase 2 cooldown adjustments
+  -- phase 2/3 cooldown adjustments
+  -- phase 3 enrage: maximum aggression (40 seek, 60 teleport, 8 shots)
   -- phase 2 aggression: 20% faster attacks
-  local seek_cooldown = e.phase2 and 72 or 120  -- intensified phase 2: 2.4s vs 4s
-  local teleport_cooldown = e.phase2 and 72 or 180  -- intensified phase 2: 2.4s vs 6s
+  local seek_cooldown = e.phase3 and 40 or (e.phase2 and 72 or 120)
+  local teleport_cooldown = e.phase3 and 60 or (e.phase2 and 72 or 180)
+  local max_seek_count = e.phase3 and 8 or 5
 
-  -- seeking projectile attack (5 shots total)
-  if e.seek_cd == 0 and e.seek_count < 5 then
+  -- seeking projectile attack (5 or 8 shots based on phase)
+  if e.seek_cd == 0 and e.seek_count < max_seek_count then
     specter_seek_attack(e)
     e.seek_count += 1
     e.seek_cd = 30  -- 1s between shots
     -- reset counter after sequence
-    if e.seek_count >= 5 then
+    if e.seek_count >= max_seek_count then
       e.seek_count = 0
       e.seek_cd = seek_cooldown
     end
@@ -1185,6 +1196,17 @@ function damage_enemy(e, dmg, proj)
     shake_frames = 2
     shake_intensity = 1
     sfx(6)
+  end
+
+  -- phase 3 trigger for bosses (final enrage)
+  if (e.type == "heavy" or e.type == "specter") and not e.phase3 and e.hp <= 1 then
+    e.phase3 = true
+    _log("boss:phase3:"..e.type)
+    -- dramatic phase 3 entrance
+    e.flash_timer = 20
+    shake_frames = 2
+    shake_intensity = 2.0
+    sfx(11)  -- distinct sound for phase 3
   end
 
   if e.hp <= 0 then
@@ -1577,6 +1599,8 @@ function spawn_enemy(typ, spawn_x, spawn_y)
     e.pulse_radius = 0 -- expanding pulse effect
     e.pulse_timer = 20 -- frames for pulse expansion
     e.spawn_timer = 60 -- entrance glow + scale animation
+    e.phase2 = false -- phase 2 flag
+    e.phase3 = false -- phase 3 enrage flag
   elseif typ == "specter" then
     -- specter boss: seeking projectiles + teleport dashes
     e.hp = 4
@@ -1593,6 +1617,8 @@ function spawn_enemy(typ, spawn_x, spawn_y)
     e.seek_count = 0 -- number of seeking shots fired
     e.teleport_cd = 0 -- teleport cooldown
     e.trail_particles = {} -- fading trail effect
+    e.phase2 = false -- phase 2 flag
+    e.phase3 = false -- phase 3 enrage flag
   end
 
   add(enemies, e)
@@ -1777,8 +1803,12 @@ function draw_edge_indicators()
 
       -- color matches enemy type
       local col = e.col
-      if e.type == "heavy" and e.phase2 then
+      if e.type == "heavy" and e.phase3 then
+        col = 8 -- bright red for phase 3 heavy boss
+      elseif e.type == "heavy" and e.phase2 then
         col = 9 -- orange for phase 2 heavy boss
+      elseif e.type == "specter" and e.phase3 then
+        col = 13 -- bright magenta for phase 3 specter boss
       elseif e.type == "specter" and e.phase2 then
         col = 14 -- magenta for phase 2 specter boss
       end
@@ -1898,9 +1928,13 @@ function draw_play()
       col = (e.flash_timer % 4 < 2) and 7 or e.col
     end
 
-    -- phase 2 color change for bosses
-    if e.type == "heavy" and e.phase2 then
+    -- phase 2/3 color change for bosses
+    if e.type == "heavy" and e.phase3 then
+      col = 8 -- bright red (phase 3 enrage)
+    elseif e.type == "heavy" and e.phase2 then
       col = 9 -- orange (aggression color)
+    elseif e.type == "specter" and e.phase3 then
+      col = 13 -- bright magenta (phase 3 enrage)
     elseif e.type == "specter" and e.phase2 then
       col = 14 -- magenta (specter phase 2)
     end
@@ -1944,8 +1978,17 @@ function draw_play()
     -- boss pulsing glow
     if (e.type == "heavy" or e.type == "specter") and e.glow_t and not e.spawn_flash then
       local glow_col = (e.glow_t < 6) and 8 or 3
+      -- phase 3: brightest glow
+      if e.phase3 then
+        if e.type == "heavy" then
+          glow_col = (e.glow_t < 6) and 8 or 2  -- bright red/dark red
+        else
+          glow_col = (e.glow_t < 6) and 13 or 14  -- bright magenta/magenta
+        end
+        circ(e.x, e.y, draw_r + 2, glow_col) -- extra ring for phase 3
+        circ(e.x, e.y, draw_r + 3, glow_col) -- double extra ring for phase 3
       -- phase 2: different glow for each boss type
-      if e.phase2 then
+      elseif e.phase2 then
         if e.type == "heavy" then
           glow_col = (e.glow_t < 6) and 9 or 8  -- red/orange
         else
@@ -1966,7 +2009,7 @@ function draw_play()
         local orb_angle = angle + (i / 4)
         local ox = cos(orb_angle) * orbit_r
         local oy = sin(orb_angle) * orbit_r
-        local orb_col = e.phase2 and 9 or 10 -- orange for phase 2, yellow for phase 1
+        local orb_col = e.phase3 and 8 or (e.phase2 and 9 or 10) -- red/orange/yellow
         circfill(e.x + ox, e.y + oy, 2, orb_col)
         circ(e.x + ox, e.y + oy, 2, 7) -- white outline
       end
