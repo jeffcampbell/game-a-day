@@ -63,6 +63,19 @@ sas = {}
 pcs = {}
 qkf = false
 
+-- leaderboards (top 3 per mode/difficulty)
+lbs = {
+  easy = {0,0,0},
+  normal = {0,0,0},
+  hard = {0,0,0},
+  boss_rush = {0,0,0}
+}
+
+-- lifetime stats
+ekl_tot = 0 -- total enemies killed
+gp_cnt = 0 -- games played
+nr = false -- new record flag
+
 ads = {
   {id=1, name="first blood", desc="defeat first enemy", check=function() return ekl >= 1 end},
   {id=2, name="slinger", desc="reach wave 5", check=function() return wave >= 5 end},
@@ -157,6 +170,23 @@ function lda()
   end
 
   _log("loaded_achievements:"..cna())
+
+  -- load leaderboards
+  ldlb()
+
+  -- load lifetime stats
+  ekl_tot = dget(19) or 0
+  gp_cnt = dget(20) or 0
+  _log("loaded_stats:ekl="..ekl_tot..",gp="..gp_cnt)
+end
+
+function ldlb()
+  -- load top 3 for each mode/difficulty
+  lbs.easy = {dget(6) or 0, dget(10) or 0, dget(11) or 0}
+  lbs.normal = {dget(7) or 0, dget(12) or 0, dget(13) or 0}
+  lbs.hard = {dget(8) or 0, dget(14) or 0, dget(15) or 0}
+  lbs.boss_rush = {dget(16) or 0, dget(17) or 0, dget(18) or 0}
+  _log("loaded_leaderboards")
 end
 
 function sva()
@@ -180,6 +210,51 @@ function sva()
   dset(4, a2)
   dset(5, a3)
   _log("saved_achievements:"..cna())
+end
+
+function svlb()
+  -- save top 3 for each mode/difficulty
+  dset(6, lbs.easy[1])
+  dset(10, lbs.easy[2])
+  dset(11, lbs.easy[3])
+  dset(7, lbs.normal[1])
+  dset(12, lbs.normal[2])
+  dset(13, lbs.normal[3])
+  dset(8, lbs.hard[1])
+  dset(14, lbs.hard[2])
+  dset(15, lbs.hard[3])
+  dset(16, lbs.boss_rush[1])
+  dset(17, lbs.boss_rush[2])
+  dset(18, lbs.boss_rush[3])
+  _log("saved_leaderboards")
+end
+
+function inslb(mode, score)
+  -- insert score into leaderboard, return rank (1-3) or 0
+  local lb = lbs[mode]
+  if not lb then return 0 end
+
+  local rank = 0
+  if score > lb[1] then
+    lb[3] = lb[2]
+    lb[2] = lb[1]
+    lb[1] = score
+    rank = 1
+  elseif score > lb[2] then
+    lb[3] = lb[2]
+    lb[2] = score
+    rank = 2
+  elseif score > lb[3] then
+    lb[3] = score
+    rank = 3
+  end
+
+  if rank > 0 then
+    svlb()
+    _log("leaderboard:"..mode..",rank:"..rank..",score:"..score)
+  end
+
+  return rank
 end
 
 function cka()
@@ -242,6 +317,8 @@ function _update()
     upau()
   elseif state == "gameover" then
     ugo()
+  elseif state == "leaderboard_view" then
+    ulv()
   end
 end
 
@@ -253,6 +330,8 @@ function _draw()
     dms()
   elseif state == "difficulty_select" then
     dds()
+  elseif state == "leaderboard_view" then
+    dlv()
   elseif state == "play" then
     drp()
   elseif state == "pause" then
@@ -286,6 +365,14 @@ function upm()
   if input & 16 > 0 then
     ims()
   end
+  if test_inputp(5) then
+    ilv()
+  end
+end
+
+function ilv()
+  state = "leaderboard_view"
+  _log("state:leaderboard_view")
 end
 
 function drm()
@@ -304,7 +391,7 @@ function drm()
   -- controls
   print("l/r: rotate", 32, 100, 6)
   print("o: shoot", 36, 108, 6)
-  print("x: dash", 36, 116, 6)
+  print("x: leaderboard", 26, 116, 10)
 end
 
 function ims()
@@ -418,6 +505,60 @@ function dds()
   print("o: confirm", 32, 116, 6)
 end
 
+function ulv()
+  if test_inputp(5) then
+    inm()
+  end
+end
+
+function dlv()
+  print("leaderboards", 28, 4, 11)
+
+  -- normal mode leaderboards
+  print("normal", 10, 14, 10)
+  print("easy", 6, 20, 12)
+  for i=1,3 do
+    local s = lbs.easy[i]
+    if s > 0 then
+      print(i.."."..s, 8, 20 + i*6, 7)
+    end
+  end
+
+  print("norm", 44, 20, 10)
+  for i=1,3 do
+    local s = lbs.normal[i]
+    if s > 0 then
+      print(i.."."..s, 46, 20 + i*6, 7)
+    end
+  end
+
+  print("hard", 82, 20, 8)
+  for i=1,3 do
+    local s = lbs.hard[i]
+    if s > 0 then
+      print(i.."."..s, 84, 20 + i*6, 7)
+    end
+  end
+
+  -- boss rush
+  print("boss rush", 36, 50, 8)
+  for i=1,3 do
+    local s = lbs.boss_rush[i]
+    if s > 0 then
+      print(i.."."..s, 48, 56 + i*6, 7)
+    end
+  end
+
+  -- lifetime stats
+  print("lifetime stats", 26, 80, 11)
+  print("kills: "..ekl_tot, 32, 88, 7)
+  print("bosses: "..bks, 28, 94, 7)
+  print("games: "..gp_cnt, 30, 100, 7)
+  print("best combo: "..bco, 20, 106, 12)
+
+  print("x: back", 44, 118, 6)
+end
+
 function init_play()
   state = "play"
   _log("state:play")
@@ -437,6 +578,12 @@ function init_play()
   sas = {}
   pcs = {}
   qkf = false
+
+  -- increment games played
+  gp_cnt += 1
+  dset(20, gp_cnt)
+  nr = false
+  _log("games_played:"..gp_cnt)
 
   -- reset collections
   es = {}
@@ -2285,6 +2432,19 @@ function igo()
   dset(1, bks)
   _log("total_boss_kills:"..bks)
 
+  -- update lifetime stats
+  ekl_tot += ekl
+  dset(19, ekl_tot)
+  _log("lifetime_kills:"..ekl_tot)
+
+  -- check leaderboard
+  local mode = gm == "boss_rush" and "boss_rush" or df
+  local rank = inslb(mode, score)
+  if rank > 0 then
+    nr = true
+    _log("new_record:rank="..rank)
+  end
+
   -- save as
   sva()
 
@@ -2308,42 +2468,50 @@ function dgo()
 
   print("score: "..score, 36, 42, 7)
 
+  -- new record indicator
+  if nr then
+    print("new record!", 32, 50, 12)
+  end
+
+  local base_y = nr and 58 or 50
+
   if gm == "boss_rush" then
-    print("bosses: "..bd, 34, 50, 8)
-    print("time: "..tsv.."s", 36, 58, 7)
+    print("bosses: "..bd, 34, base_y, 8)
+    print("time: "..tsv.."s", 36, base_y+8, 7)
   else
-    print("waves: "..wave, 38, 50, 7)
-    print("kills: "..ekl, 38, 58, 7)
-    print("time: "..tsv.."s", 36, 66, 7)
+    print("waves: "..wave, 38, base_y, 7)
+    print("kills: "..ekl, 38, base_y+8, 7)
+    print("time: "..tsv.."s", 36, base_y+16, 7)
   end
 
   -- df
   local diff_col = df == "easy" and 12 or (df == "hard" and 8 or 10)
   local mode_text = gm == "boss_rush" and "boss rush" or df
-  local mode_y = gm == "boss_rush" and 66 or 74
+  local mode_y = (gm == "boss_rush" and 66 or 74) + (nr and 8 or 0)
   print("mode: "..mode_text, 30, mode_y, diff_col)
 
 
   local session_count = csa()
+  local ach_y = 82 + (nr and 8 or 0)
   if session_count > 0 then
-    print("new as: "..session_count, 16, 82, 12)
+    print("new as: "..session_count, 16, ach_y, 12)
     -- show which ones
-    local y = 90
+    local y = ach_y + 8
     for i=1,13 do
       if sas[i] then
         local def = ads[i]
         print("\x97 "..def.name, 8, y, 10)
         y += 6
-        if y > 106 then break end -- prevent overflow
+        if y > 106 + (nr and 8 or 0) then break end -- prevent overflow
       end
     end
   else
-    print("no new as", 20, 82, 5)
+    print("no new as", 20, ach_y, 5)
   end
 
   -- total as
   local total = cna()
-  print("total: "..total.."/13", 42, 112, 14)
+  print("total: "..total.."/13", 42, 112 + (nr and 8 or 0), 14)
 
   print("o:retry x:menu", 28, 120, 6)
 end
