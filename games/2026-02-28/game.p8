@@ -387,8 +387,11 @@ function update_enemy(e)
 
   -- collision with player
   if player.invuln == 0 and dist(player.x, player.y, e.x, e.y) < 6 then
-    -- extra damage during dash
-    local dmg = (e.dashing and e.type == "heavy") and 2 or 1
+    -- extra damage during dash (3x in phase 2, 2x in phase 1)
+    local dmg = 1
+    if e.dashing and e.type == "heavy" then
+      dmg = e.phase2 and 3 or 2
+    end
     hit_player(dmg)
     if not e.dashing then
       del(enemies, e)
@@ -447,34 +450,42 @@ function update_boss_attacks(e)
   local elapsed = time() - e.spawn_time
   local hp_pct = e.hp / e.max_hp
 
-  -- burst attack (once at 50% hp or 5s)
-  if not e.burst_used and (hp_pct <= 0.5 or elapsed >= 5) and e.burst_cd == 0 then
+  -- phase 2 cooldown adjustments
+  local burst_cooldown = e.phase2 and 90 or 120  -- 3s vs 5s (at 30fps: 2s=60, but keeping 90 for 3s)
+  local dash_cooldown = e.phase2 and 120 or 180  -- 2s vs 3s
+
+  -- burst attack (once at 50% hp or 5s, repeats in phase 2)
+  if (not e.burst_used and (hp_pct <= 0.5 or elapsed >= 5) and e.burst_cd == 0) or (e.phase2 and e.burst_cd == 0) then
     boss_burst_attack(e)
     e.burst_used = true
-    e.burst_cd = 120
+    e.burst_cd = burst_cooldown
   end
 
   -- dash attack (when player in range)
   local d = dist(player.x, player.y, e.x, e.y)
   if not e.dashing and not e.dash_warn and d < 60 and d > 10 and e.dash_cd == 0 then
-    boss_dash_attack(e)
+    boss_dash_attack(e, dash_cooldown)
   end
 end
 
 function boss_burst_attack(e)
-  _log("boss_burst")
+  local pattern = e.phase2 and "spiral" or "burst"
+  _log("boss_"..pattern)
   sfx(6)
   e.flash_timer = 10
   e.spin_timer = 30 -- spinning animation
 
-  -- fire 8 projectiles in all directions
-  for i=0,7 do
-    local dir = dirs[i + 1]
+  -- phase 2: 12-way spiral, phase 1: 8-way burst
+  local count = e.phase2 and 12 or 8
+  for i=0,count-1 do
+    local angle = i / count
+    local vx = cos(angle) * e.speed * 3
+    local vy = sin(angle) * e.speed * 3
     add(projectiles, {
       x = e.x,
       y = e.y,
-      vx = dir[1] * e.speed * 3,
-      vy = dir[2] * e.speed * 3,
+      vx = vx,
+      vy = vy,
       owner = "enemy",
       size = 1,
       dmg = 1
@@ -482,10 +493,10 @@ function boss_burst_attack(e)
   end
 end
 
-function boss_dash_attack(e)
+function boss_dash_attack(e, cooldown)
   _log("boss_dash_warn")
 
-  e.dash_cd = 180
+  e.dash_cd = cooldown or 180
   e.dash_warn = 30 -- warning indicator frames
   e.dash_target_x = player.x
   e.dash_target_y = player.y
@@ -522,6 +533,17 @@ end
 function damage_enemy(e, dmg)
   e.hp -= dmg
   sfx(1)
+
+  -- phase 2 trigger for bosses
+  if e.type == "heavy" and not e.phase2 and e.hp == 2 then
+    e.phase2 = true
+    _log("boss:phase2")
+    -- visual flash for phase change
+    e.flash_timer = 15
+    shake_frames = 2
+    shake_intensity = 1
+    sfx(6)
+  end
 
   if e.hp <= 0 then
     kill_enemy(e)
@@ -828,6 +850,11 @@ function draw_play()
       col = (e.flash_timer % 4 < 2) and 7 or e.col
     end
 
+    -- phase 2 color change for bosses
+    if e.type == "heavy" and e.phase2 then
+      col = 9 -- orange (aggression color)
+    end
+
     -- dash warning indicator (purple outline)
     if e.dash_warn and e.dash_warn > 0 then
       line(e.x, e.y, e.dash_target_x, e.dash_target_y, 11)
@@ -843,6 +870,11 @@ function draw_play()
     -- boss pulsing glow
     if e.type == "heavy" and e.glow_t and not e.spawn_flash then
       local glow_col = (e.glow_t < 6) and 8 or 3
+      -- phase 2: add aggressive red ring
+      if e.phase2 then
+        glow_col = (e.glow_t < 6) and 9 or 8
+        circ(e.x, e.y, r + 2, glow_col) -- extra ring for phase 2
+      end
       circ(e.x, e.y, r + 1, glow_col)
     end
 
