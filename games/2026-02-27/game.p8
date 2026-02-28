@@ -270,7 +270,7 @@ function _init()
 end
 
 -- settings persistence
--- difficulty settings packed in slot 62: spawn_rate + diff_scaling*10 + combo_bonus*100
+-- difficulty settings use individual slots 89-92 (spawn_rate, diff_scaling, combo_bonus, lives_preset)
 function load_settings()
   local m = dget(1)
   local s = dget(2)
@@ -459,12 +459,13 @@ function save_statistics()
   _log("statistics_saved:games="..stats_total_games)
 end
 
--- daily challenge persistence (slots 54-63)
+-- daily challenge persistence (slots 54-61, 63)
 -- slot 54: challenge_best
 -- slot 55: challenge_seed
 -- slots 56-61: daily_history (3 days: seed1,score1,seed2,score2,seed3,score3)
--- slot 62: difficulty_settings (packed: spawn_rate + diff_scaling*10 + combo_bonus*100)
+-- slot 62: UNUSED (available for future features)
 -- slot 63: cosmetics_packed (cosmetics_unlocked + trail_effect*256 + color_theme*1024)
+-- note: difficulty settings now use individual slots 89-92
 function load_daily_challenge()
   -- generate today's seed
   challenge_seed = flr(time() / 86400)  -- 86400 = 24*60*60 seconds per day
