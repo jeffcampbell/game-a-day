@@ -1,10 +1,7 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
--- bounce king
--- arcade bouncing ball survival
 
--- test infrastructure
 testmode = false
 test_log = {}
 test_inputs = {}
@@ -26,184 +23,162 @@ function test_input(b)
   return btn()
 end
 
--- constants
 alph = "abcdefghijklmnopqrstuvwxyz"
 
--- game state
 state = "menu"
 score = 0
-highscore = 0  -- kept for migration only
-leaderboard = {}  -- array of {score, initials, timestamp}
-new_record = false  -- flag for leaderboard entry
-new_record_flash = 0  -- flash timer for new record
-leaderboard_rank = 0  -- rank achieved (1-10, 0 if not ranked)
-gametime = 0
-multiplier = 1.0
-diff_level = 1
+gm2 = 0
+ui6 = {}
+ui2 = false
+ui1 = 0
+ui3 = 0
+gm1 = 0
+lm7 = 1.0
+lm8 = 1
 combo = 0
-last_milestone = 0  -- track combo milestones
-lives = 3  -- player lives (max 3)
-difficulty = 2  -- 1=easy, 2=normal, 3=hard
-diff_selection = 2  -- current selection cursor
-input_cooldown = 0  -- navigation delay
-pause_cooldown = 0  -- pause button cooldown
+lm1 = 0
+lives = 3
+lm9 = 2
+ic3 = 2
+ic1 = 0
+ic2 = 0
 
--- initial entry state
-entry_initials = {"a", "a", "a"}  -- 3 letters
-entry_cursor = 1  -- which letter (1-3)
-entry_saved = false  -- confirmation flag
+ui7 = {"a", "a", "a"}
+ui8 = 1
+ui9 = false
 
--- leaderboard display state
-lb_scroll = 0  -- scroll offset
-last_entry_rank = 0  -- highlight player's last entry
+ui5 = 0
+ui4 = 0
 
--- settings state
-music_enabled = true  -- toggle music on/off
-sfx_enabled = true  -- toggle sfx on/off
-ball_skin = 1  -- ball appearance: 1=white, 2=gold, 3=cyan
-trail_effect = 1  -- trail style: 1=basic, 2=rainbow, 3=white
-color_theme = 1  -- color scheme: 1=default, 2=pink, 3=gold, 4=red, 5=blue
-spawn_rate = 2  -- 1=slow, 2=normal, 3=fast, 4=extreme
-diff_scaling = 2  -- 1=conservative(15s), 2=normal(10s), 3=aggressive(5s), 4=insane(2s)
-combo_bonus = 2  -- 1=generous(1.5x), 2=normal(1.0x), 3=stingy(0.7x)
-lives_preset = 2  -- 1=generous(5), 2=normal(3), 3=hardcore(1)
-settings_selection = 1  -- current settings menu cursor (1-9)
-difficulty_customize_selection = 1  -- cursor in difficulty customize menu (1-4)
-skins_used = {}  -- track which skins have been selected
-cosmetics_unlocked = 0  -- bitmask: bit0=gold ball, bit1=cyan ball, bit2=rainbow trail, bit3=pink theme, bit4=gold theme, bit5=red theme, bit6=blue theme, bit7=white trail
+gm3 = true
+gm4 = true
+cu5 = 1
+cu4 = 1
+cu3 = 1
+lm3 = 2
+lm2 = 2
+lm4 = 2
+lm5 = 2
+ss1 = 1
+dc1 = 1
+cu6 = {}
+cu1 = 0
 
--- danger zones system
-danger_zones = {}
-zone_timer = 0
-zone_interval = 450  -- ~15 seconds
+dz1 = {}
+lm6 = 0
+dz3 = 450
 
--- performance stats
-max_combo = 0
-total_dodges = 0
-total_powerups = 0
-total_dodge_bonus = 0
-max_multiplier = 0
+ic9 = 0
+ic8 = 0
+ic7 = 0
+ic6 = 0
+ic5 = 0
 
--- achievement system
-achievements = {}  -- unlocked status {id -> true/false}
-ach_definitions = {
+ad2 = {}
+ad1 = {
   {id=1, name="survivor", title="survivor", desc="survive for 30+ seconds", unlocked=false},
   {id=2, name="power_master", title="power master", desc="collect all 6 power-ups", unlocked=false},
   {id=3, name="combo_king", title="combo king", desc="reach 20+ combo", unlocked=false},
   {id=4, name="danger_expert", title="danger expert", desc="collect 5+ from danger zones", unlocked=false},
   {id=5, name="speedrunner", title="speedrunner", desc="score 500+ in one game", unlocked=false},
-  {id=6, name="unstoppable", title="unstoppable", desc="reach 2.0x multiplier", unlocked=false},
+  {id=6, name="unstoppable", title="unstoppable", desc="reach 2.0x lm7", unlocked=false},
   {id=7, name="collection", title="complete collection", desc="unlock all 3 ball skins", unlocked=false},
   {id=8, name="perfect_wave", title="perfect wave", desc="survive 10s without damage", unlocked=false}
 }
-ach_scroll = 0  -- scroll position in achievements screen
-ach_unlocked_count = 0  -- total unlocked
--- tracking for current game
-power_types_collected = {}  -- set of collected types this game
-last_damage_time = 0  -- time since last damage
-danger_zone_pickups = 0  -- total across all games (persistent)
+ad4 = 0
+ad3 = 0
+ad5 = {}
+ad7 = 0
+ad6 = 0
 
--- player statistics (persistent career tracking)
-stats_total_games = 0  -- total games played (all difficulties)
-stats_total_time = 0  -- total time played (seconds)
-stats_total_dodges = 0  -- total dodges across all games
-stats_total_powerups = 0  -- total power-ups collected
-stats_total_score = 0  -- cumulative score for average calculation
-stats_career_max_combo = 0  -- highest combo ever
-stats_career_max_mult = 0  -- highest multiplier ever (stored as mult*100)
+st1 = 0
+st2 = 0
+st3 = 0
+st4 = 0
+st5 = 0
+st6 = 0
+st7 = 0
 
--- per-difficulty statistics
-stats_easy_games = 0
-stats_normal_games = 0
-stats_hard_games = 0
-stats_easy_total_score = 0
-stats_normal_total_score = 0
-stats_hard_total_score = 0
-stats_easy_max_combo = 0
-stats_normal_max_combo = 0
-stats_hard_max_combo = 0
+st8 = 0
+st9 = 0
+sa1 = 0
+sa2 = 0
+sa3 = 0
+sa4 = 0
+sa5 = 0
+sa6 = 0
+sa7 = 0
 
--- power-up usage tracking
-stats_shield_count = 0
-stats_slowmo_count = 0
-stats_doublescore_count = 0
-stats_magnet_count = 0
-stats_bomb_count = 0
-stats_freeze_count = 0
+sa8 = 0
+sa9 = 0
+sb1 = 0
+sb2 = 0
+sb3 = 0
+sb4 = 0
 
--- streak tracking
-stats_current_streak = 0  -- consecutive games without quitting
-stats_longest_streak = 0  -- career best streak
+sb5 = 0
+sb6 = 0
 
--- statistics UI state
-stats_scroll = 0  -- scroll offset for statistics page
-stats_page = 1  -- current stats page (1=overview, 2=detailed, 3=power-ups)
+sb7 = 0
+sb8 = 1
 
--- practice mode state
-practice_obstacle_type = "spike"  -- selected obstacle type
-practice_speed_modifier = 1.0  -- 0.5=slow, 1.0=normal, 1.5=fast
-practice_collisions = 0  -- collision counter
-practice_pause_timer = 0  -- pause after collision
-practice_obstacle_selection = 1  -- menu cursor (1-7)
-practice_speed_selection = 2  -- menu cursor (1-3)
-practice_obstacle_types = {"spike", "moving", "rotating", "pendulum", "zigzag", "orbiter", "boss"}
-practice_speed_names = {"slow", "normal", "fast"}
-practice_speed_values = {0.5, 1.0, 1.5}
+pr1 = "spike"
+pr2 = 1.0
+pr3 = 0
+pr4 = 0
+pr5 = 1
+pr6 = 2
+pr7 = {"spike", "moving", "rotating", "pendulum", "zigzag", "orbiter", "boss"}
+pr8 = {"slow", "normal", "fast"}
+pr9 = {0.5, 1.0, 1.5}
 
--- tutorial state
-tutorial_page = 1  -- current tutorial page (1-5)
-tutorial_completed = false  -- track if player has seen tutorial
+mc5 = 1
+mc6 = false
 
--- menu cursor state
-menu_cursor = 1  -- 1=play, 2=challenge, 3=practice, 4=gauntlet, 5=tutorial, 6=bossrush, 7=leaderboard, 8=achievements, 9=statistics, 10=settings
-menu_items = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "leaderboard", "achievements", "statistics", "settings"}
+mc1 = 1
+mc2 = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "ui6", "ad2", "statistics", "settings"}
 
--- daily challenge state
-challenge_time_left = 90  -- 90 second time limit
-challenge_active = false  -- flag for challenge mode
-challenge_seed = 0  -- daily seed
-challenge_score = 0  -- current challenge score
-challenge_best = 0  -- today's personal best
-daily_history = {}  -- last 3 days: {day_seed, best_score}
-challenge_pulse = 0  -- urgency pulse effect
-summary_page = 1  -- summary screen page (1-3)
-challenge_variant = 1  -- 1=time_attack, 2=survival, 3=combo_master, 4=powerup_gauntlet
-variant_cursor = 1  -- current variant selection
-challenge_lives = 3  -- lives for survival mode
-challenge_max_combo = 0  -- max combo for combo_master mode
+ct1 = 90
+ct2 = false
+ct5 = 0
+ct3 = 0
+ct4 = 0
+ic4 = {}
+ct6 = 0
+mc4 = 1
+ct9 = 1
+mc3 = 1
+ct7 = 3
+ct8 = 0
 
--- boss gauntlet state
-gauntlet_active = false  -- flag for gauntlet mode
-gauntlet_time_left = 90 * 30  -- 90 seconds in frames
-gauntlet_score = 0  -- current gauntlet score
-gauntlet_bosses_defeated = 0  -- total bosses defeated
-gauntlet_max_combo = 0  -- max combo reached
-gauntlet_stage = 1  -- difficulty stage (increases every 2 bosses)
-gauntlet_next_boss_timer = 0  -- frames until next boss spawn
-gauntlet_wave_complete = false  -- flag for power-up spawn window
-gauntlet_unlocked = false  -- unlocked after completing one normal game
+gt1 = false
+gt2 = 90 * 30
+gt3 = 0
+gt4 = 0
+gt5 = 0
+gt6 = 1
+gt7 = 0
+gt8 = false
+gt9 = false
 
--- boss rush state
-bossrush_active = false  -- flag for boss rush mode
-bossrush_score = 0  -- current boss rush score
-bossrush_bosses_defeated = 0  -- total bosses defeated
-bossrush_max_combo = 0  -- max combo reached
-bossrush_lives = 5  -- lives remaining (start with 5)
-bossrush_spawn_timer = 90  -- frames until next boss (starts at 3s = 90 frames)
-bossrush_stage = 1  -- difficulty stage based on bosses defeated
-bossrush_highscore = 0  -- persistent high score
+br1 = false
+br2 = 0
+br3 = 0
+br4 = 0
+br5 = 5
+br6 = 90
+br7 = 1
+br8 = 0
 
--- visual juice
-shake_time = 0
-shake_intensity = 0
-shake_x = 0
-shake_y = 0
-screen_flash = 0
-ball_flash = 0
-wave_pulse = 0  -- wave counter pulse effect
-life_flash = 0  -- flash lives counter when life lost
+fx2 = 0
+fx1 = 0
+fx3 = 0
+fx4 = 0
+fx5 = 0
+bl3 = 0
+fx6 = 0
+fx7 = 0
 
--- ball physics
 ball = {
   x = 64,
   y = 100,
@@ -213,351 +188,290 @@ ball = {
   grounded = false
 }
 
--- ball trail effect
-ball_trail = {}
-max_trail_length = 5
+bl1 = {}
+bl2 = 5
 
--- obstacles
-obstacles = {}
-obs_timer = 0
-obs_interval = 60
-boss_timer = 0
-boss_interval = 150
-scroll_speed = 0.5
+ob4 = {}
+ob3 = 0
+ob2 = 60
+ob6 = 0
+ob5 = 150
+ob7 = 0.5
 
--- power-ups
-powerups = {}
-pu_timer = 0
-shield_time = 0
-slowmo_time = 0
-doublescore_time = 0
-magnet_time = 0
-freeze_time = 0
-obstacles_frozen = false
+pw6 = {}
+pw7 = 0
+pw2 = 0
+pw3 = 0
+pw1 = 0
+pw4 = 0
+pw5 = 0
+ob1 = false
 
--- particle effects
-particles = {}
+fx8 = {}
 
--- floating text
-floating_texts = {}
+fx9 = {}
 
 function _init()
-  -- enable persistent cartridge data
   cartdata("bounce_king")
 
-  -- migrate old highscore (slot 0) if exists
   local old_hs = dget(0)
   if old_hs > 0 then
-    highscore = old_hs
-    _log("old_highscore:"..highscore)
+    gm2 = old_hs
+    _log("old_highscore:"..gm2)
   end
 
-  -- load settings (slots 1-3)
   load_settings()
 
-  -- load cosmetics (slots 58-59, 63)
   load_cosmetics()
 
-  -- load leaderboard (slots 4-43, 4 per entry)
   load_leaderboard()
 
-  -- load achievements (slots 44-51)
   load_achievements()
 
-  -- load player statistics (slots 64-88)
   load_statistics()
 
-  -- load tutorial flag (slot 53)
   local t = dget(53)
-  tutorial_completed = t == 1
+  mc6 = t == 1
 
-  -- load gauntlet unlock flag (slot 93)
   local g = dget(93)
-  gauntlet_unlocked = g == 1
+  gt9 = g == 1
 
-  -- load boss rush highscore (slot 94)
-  bossrush_highscore = dget(94)
-  _log("bossrush_highscore:"..bossrush_highscore)
+  br8 = dget(94)
+  _log("br8:"..br8)
 
-  -- load daily challenge data (slots 54-63)
   load_daily_challenge()
 
-  play_music(2)  -- start menu music
+  play_music(2)
   _log("state:menu")
 end
 
--- settings persistence
--- difficulty settings use individual slots 89-92 (spawn_rate, diff_scaling, combo_bonus, lives_preset)
 function load_settings()
   local m = dget(1)
   local s = dget(2)
   local b = dget(3)
 
-  -- default to enabled if not set
-  music_enabled = m == 0 or m == 1
-  sfx_enabled = s == 0 or s == 1
-  ball_skin = b >= 1 and b <= 3 and b or 1
+  gm3 = m == 0 or m == 1
+  gm4 = s == 0 or s == 1
+  cu5 = b >= 1 and b <= 3 and b or 1
 
-  -- load difficulty settings from individual slots (89-92)
   local sr = dget(89)
   local ds = dget(90)
   local cb = dget(91)
   local lp = dget(92)
 
-  spawn_rate = (sr >= 1 and sr <= 4) and sr or 2
-  diff_scaling = (ds >= 1 and ds <= 4) and ds or 2
-  combo_bonus = (cb >= 1 and cb <= 3) and cb or 2
-  lives_preset = (lp >= 1 and lp <= 3) and lp or 2
+  lm3 = (sr >= 1 and sr <= 4) and sr or 2
+  lm2 = (ds >= 1 and ds <= 4) and ds or 2
+  lm4 = (cb >= 1 and cb <= 3) and cb or 2
+  lm5 = (lp >= 1 and lp <= 3) and lp or 2
 
-  -- track current skin as used
-  skins_used[ball_skin] = true
+  cu6[cu5] = true
 
-  _log("settings_loaded:m="..tostr(music_enabled)..",s="..tostr(sfx_enabled)..",b="..ball_skin..",sr="..spawn_rate..",ds="..diff_scaling..",cb="..combo_bonus..",lp="..lives_preset)
+  _log("settings_loaded:m="..tostr(gm3)..",s="..tostr(gm4)..",b="..cu5..",sr="..lm3..",ds="..lm2..",cb="..lm4..",lp="..lm5)
 end
 
 function save_settings()
-  dset(1, music_enabled and 1 or 0)
-  dset(2, sfx_enabled and 1 or 0)
-  dset(3, ball_skin)
-  -- save difficulty settings to individual slots (89-92)
-  dset(89, spawn_rate)
-  dset(90, diff_scaling)
-  dset(91, combo_bonus)
-  dset(92, lives_preset)
+  dset(1, gm3 and 1 or 0)
+  dset(2, gm4 and 1 or 0)
+  dset(3, cu5)
+  dset(89, lm3)
+  dset(90, lm2)
+  dset(91, lm4)
+  dset(92, lm5)
   _log("settings_saved")
 end
 
--- cosmetic persistence (slot 63)
--- packed: cosmetics_unlocked + (trail_effect-1)*256 + (color_theme-1)*1024
 function load_cosmetics()
   local packed = dget(63)
 
-  cosmetics_unlocked = flr(packed % 256)
-  trail_effect = flr((packed / 256) % 4) + 1
-  color_theme = flr(packed / 1024) + 1
+  cu1 = flr(packed % 256)
+  cu4 = flr((packed / 256) % 4) + 1
+  cu3 = flr(packed / 1024) + 1
 
-  -- validate ranges
-  if trail_effect < 1 or trail_effect > 3 then trail_effect = 1 end
-  if color_theme < 1 or color_theme > 5 then color_theme = 1 end
-  if cosmetics_unlocked < 0 then cosmetics_unlocked = 0 end
+  if cu4 < 1 or cu4 > 3 then cu4 = 1 end
+  if cu3 < 1 or cu3 > 5 then cu3 = 1 end
+  if cu1 < 0 then cu1 = 0 end
 
-  _log("cosmetics_loaded:te="..trail_effect..",ct="..color_theme..",cu="..cosmetics_unlocked)
+  _log("cosmetics_loaded:te="..cu4..",ct="..cu3..",cu="..cu1)
 end
 
 function save_cosmetics()
-  local packed = cosmetics_unlocked + (trail_effect - 1) * 256 + (color_theme - 1) * 1024
+  local packed = cu1 + (cu4 - 1) * 256 + (cu3 - 1) * 1024
   dset(63, packed)
   _log("cosmetics_saved")
 end
 
--- apply color theme overlay to a color
 function theme_color(col)
-  if color_theme == 1 then return col end  -- default
-  -- theme color mappings: pink=14, gold=10, red=8, blue=12
-  -- expanded to cover all obstacle colors (0,2,5,7,8,9,11,12,14)
+  if cu3 == 1 then return col end
   local theme_map = {
-    [0] = {1, 1, 1, 1},      -- black -> dark across themes
-    [2] = {14, 9, 8, 12},    -- purple -> pink/orange/red/blue
-    [5] = {13, 9, 2, 13},    -- gray -> light pink/orange/dark purple/light blue
-    [7] = {14, 10, 8, 12},   -- white -> pink/gold/red/blue
-    [8] = {14, 10, 8, 8},    -- red -> pink/gold/red/red (stays red for red theme)
-    [9] = {14, 10, 8, 1},    -- orange -> pink/gold/red/dark
-    [11] = {14, 9, 8, 13},   -- peach -> pink/orange/red/light blue
-    [12] = {14, 10, 2, 12},  -- light blue -> pink/gold/dark purple/blue (stays blue for blue theme)
-    [14] = {14, 10, 8, 12}   -- white -> pink/gold/red/blue
+    [0] = {1, 1, 1, 1},
+    [2] = {14, 9, 8, 12},
+    [5] = {13, 9, 2, 13},
+    [7] = {14, 10, 8, 12},
+    [8] = {14, 10, 8, 8},
+    [9] = {14, 10, 8, 1},
+    [11] = {14, 9, 8, 13},
+    [12] = {14, 10, 2, 12},
+    [14] = {14, 10, 8, 12}
   }
   if theme_map[col] then
-    return theme_map[col][color_theme - 1]
+    return theme_map[col][cu3 - 1]
   end
   return col
 end
 
--- achievement persistence (slots 44-51)
 function load_achievements()
-  achievements = {}
-  ach_unlocked_count = 0
+  ad2 = {}
+  ad3 = 0
   for i = 1, 8 do
     local unlocked = dget(43 + i) == 1
-    achievements[i] = unlocked
-    ach_definitions[i].unlocked = unlocked
+    ad2[i] = unlocked
+    ad1[i].unlocked = unlocked
     if unlocked then
-      ach_unlocked_count += 1
+      ad3 += 1
     end
   end
-  -- load persistent danger zone pickups (slot 52)
-  danger_zone_pickups = dget(52) or 0
-  _log("achievements_loaded:"..ach_unlocked_count.."/8")
+  ad6 = dget(52) or 0
+  _log("achievements_loaded:"..ad3.."/8")
 end
 
 function save_achievements()
   for i = 1, 8 do
-    dset(43 + i, achievements[i] and 1 or 0)
+    dset(43 + i, ad2[i] and 1 or 0)
   end
-  -- save persistent danger zone pickups
-  dset(52, danger_zone_pickups)
+  dset(52, ad6)
   _log("achievements_saved")
 end
 
--- player statistics persistence (slots 64-87)
 function load_statistics()
-  stats_total_games = dget(64) or 0
-  stats_total_time = dget(65) or 0
-  stats_total_dodges = dget(66) or 0
-  stats_total_powerups = dget(67) or 0
-  -- total_score split across 2 slots for large values
+  st1 = dget(64) or 0
+  st2 = dget(65) or 0
+  st3 = dget(66) or 0
+  st4 = dget(67) or 0
   local score_low = dget(68) or 0
   local score_high = dget(69) or 0
-  stats_total_score = score_low + score_high * 100000
-  stats_career_max_combo = dget(70) or 0
-  stats_career_max_mult = dget(71) or 0
+  st5 = score_low + score_high * 100000
+  st6 = dget(70) or 0
+  st7 = dget(71) or 0
 
-  -- per-difficulty stats
-  stats_easy_games = dget(72) or 0
-  stats_normal_games = dget(73) or 0
-  stats_hard_games = dget(74) or 0
-  stats_easy_total_score = dget(75) or 0
-  stats_normal_total_score = dget(76) or 0
-  stats_hard_total_score = dget(77) or 0
-  stats_easy_max_combo = dget(78) or 0
-  stats_normal_max_combo = dget(79) or 0
-  stats_hard_max_combo = dget(80) or 0
+  st8 = dget(72) or 0
+  st9 = dget(73) or 0
+  sa1 = dget(74) or 0
+  sa2 = dget(75) or 0
+  sa3 = dget(76) or 0
+  sa4 = dget(77) or 0
+  sa5 = dget(78) or 0
+  sa6 = dget(79) or 0
+  sa7 = dget(80) or 0
 
-  -- power-up counts
-  stats_shield_count = dget(81) or 0
-  stats_slowmo_count = dget(82) or 0
-  stats_doublescore_count = dget(83) or 0
-  stats_magnet_count = dget(84) or 0
-  stats_bomb_count = dget(85) or 0
-  stats_freeze_count = dget(86) or 0
+  sa8 = dget(81) or 0
+  sa9 = dget(82) or 0
+  sb1 = dget(83) or 0
+  sb2 = dget(84) or 0
+  sb3 = dget(85) or 0
+  sb4 = dget(86) or 0
 
-  -- streak stats
-  stats_current_streak = dget(87) or 0
-  stats_longest_streak = dget(88) or 0
+  sb5 = dget(87) or 0
+  sb6 = dget(88) or 0
 
-  _log("statistics_loaded:games="..stats_total_games)
+  _log("statistics_loaded:games="..st1)
 end
 
 function save_statistics()
-  dset(64, stats_total_games)
-  dset(65, stats_total_time)
-  dset(66, stats_total_dodges)
-  dset(67, stats_total_powerups)
-  -- split total_score into two slots
-  local score_low = stats_total_score % 100000
-  local score_high = flr(stats_total_score / 100000)
+  dset(64, st1)
+  dset(65, st2)
+  dset(66, st3)
+  dset(67, st4)
+  local score_low = st5 % 100000
+  local score_high = flr(st5 / 100000)
   dset(68, score_low)
   dset(69, score_high)
-  dset(70, stats_career_max_combo)
-  dset(71, stats_career_max_mult)
+  dset(70, st6)
+  dset(71, st7)
 
-  -- per-difficulty stats
-  dset(72, stats_easy_games)
-  dset(73, stats_normal_games)
-  dset(74, stats_hard_games)
-  dset(75, stats_easy_total_score)
-  dset(76, stats_normal_total_score)
-  dset(77, stats_hard_total_score)
-  dset(78, stats_easy_max_combo)
-  dset(79, stats_normal_max_combo)
-  dset(80, stats_hard_max_combo)
+  dset(72, st8)
+  dset(73, st9)
+  dset(74, sa1)
+  dset(75, sa2)
+  dset(76, sa3)
+  dset(77, sa4)
+  dset(78, sa5)
+  dset(79, sa6)
+  dset(80, sa7)
 
-  -- power-up counts
-  dset(81, stats_shield_count)
-  dset(82, stats_slowmo_count)
-  dset(83, stats_doublescore_count)
-  dset(84, stats_magnet_count)
-  dset(85, stats_bomb_count)
-  dset(86, stats_freeze_count)
+  dset(81, sa8)
+  dset(82, sa9)
+  dset(83, sb1)
+  dset(84, sb2)
+  dset(85, sb3)
+  dset(86, sb4)
 
-  -- streak stats
-  dset(87, stats_current_streak)
-  dset(88, stats_longest_streak)
+  dset(87, sb5)
+  dset(88, sb6)
 
-  _log("statistics_saved:games="..stats_total_games)
+  _log("statistics_saved:games="..st1)
 end
 
--- daily challenge persistence (slots 54-61, 63)
--- slot 54: challenge_best
--- slot 55: challenge_seed
--- slots 56-61: daily_history (3 days: seed1,score1,seed2,score2,seed3,score3)
--- slot 62: UNUSED (available for future features)
--- slot 63: cosmetics_packed (cosmetics_unlocked + trail_effect*256 + color_theme*1024)
--- note: difficulty settings now use individual slots 89-92
 function load_daily_challenge()
-  -- generate today's seed
-  challenge_seed = flr(time() / 86400)  -- 86400 = 24*60*60 seconds per day
+  ct5 = flr(time() / 86400)
 
-  -- load stored seed and best
   local stored_seed = dget(55)
   local stored_best = dget(54)
 
-  -- if stored seed matches today, load the best score
-  if stored_seed == challenge_seed then
-    challenge_best = stored_best
+  if stored_seed == ct5 then
+    ct4 = stored_best
   else
-    -- new day, reset best score
-    challenge_best = 0
-    dset(55, challenge_seed)
+    ct4 = 0
+    dset(55, ct5)
     dset(54, 0)
   end
 
-  -- load daily history (last 3 days)
-  daily_history = {}
+  ic4 = {}
   for i = 0, 2 do
     local day_seed = dget(56 + i * 2)
     local day_score = dget(57 + i * 2)
     if day_seed > 0 then
-      add(daily_history, {seed = day_seed, score = day_score})
+      add(ic4, {seed = day_seed, score = day_score})
     end
   end
 
-  _log("challenge_loaded:seed="..challenge_seed..",best="..challenge_best..",history="..#daily_history)
+  _log("challenge_loaded:seed="..ct5..",best="..ct4..",history="..#ic4)
 end
 
 function save_daily_challenge()
-  -- save current day's best
-  dset(54, challenge_best)
-  dset(55, challenge_seed)
+  dset(54, ct4)
+  dset(55, ct5)
 
-  -- update daily history
-  -- check if today already in history
   local found = false
-  for i = 1, #daily_history do
-    if daily_history[i].seed == challenge_seed then
-      daily_history[i].score = max(daily_history[i].score, challenge_score)
+  for i = 1, #ic4 do
+    if ic4[i].seed == ct5 then
+      ic4[i].score = max(ic4[i].score, ct3)
       found = true
       break
     end
   end
 
-  -- if not found, add new entry
   if not found then
-    add(daily_history, {seed = challenge_seed, score = challenge_score})
-    -- keep only last 3 days
-    while #daily_history > 3 do
-      del(daily_history, daily_history[1])
+    add(ic4, {seed = ct5, score = ct3})
+    while #ic4 > 3 do
+      del(ic4, ic4[1])
     end
   end
 
-  -- save history to cartdata (up to 3 days)
   for i = 1, 3 do
-    if i <= #daily_history then
-      dset(56 + (i - 1) * 2, daily_history[i].seed)
-      dset(57 + (i - 1) * 2, daily_history[i].score)
+    if i <= #ic4 then
+      dset(56 + (i - 1) * 2, ic4[i].seed)
+      dset(57 + (i - 1) * 2, ic4[i].score)
     else
       dset(56 + (i - 1) * 2, 0)
       dset(57 + (i - 1) * 2, 0)
     end
   end
 
-  _log("challenge_saved:score="..challenge_score..",best="..challenge_best..",history="..#daily_history)
+  _log("challenge_saved:score="..ct3..",best="..ct4..",history="..#ic4)
 end
 
--- leaderboard persistence (slots 4-43)
--- each entry uses 4 slots: score, char1, char2, char3
--- timestamp stored as minutes since first entry
 function load_leaderboard()
-  leaderboard = {}
+  ui6 = {}
   for i = 1, 10 do
     local slot_base = 4 + (i - 1) * 4
     local sc = dget(slot_base)
@@ -565,105 +479,96 @@ function load_leaderboard()
       local c1 = dget(slot_base + 1)
       local c2 = dget(slot_base + 2)
       local c3 = dget(slot_base + 3)
-      -- convert codes back to chars (1=a, 26=z)
       local init1 = c1 >= 1 and c1 <= 26 and sub(alph, c1, c1) or "a"
       local init2 = c2 >= 1 and c2 <= 26 and sub(alph, c2, c2) or "a"
       local init3 = c3 >= 1 and c3 <= 26 and sub(alph, c3, c3) or "a"
-      add(leaderboard, {
+      add(ui6, {
         score = sc,
         initials = init1..init2..init3,
-        timestamp = 0  -- not used for now, kept for future
+        timestamp = 0
       })
     end
   end
 
-  -- migrate old highscore if leaderboard empty
-  if #leaderboard == 0 and highscore > 0 then
-    add(leaderboard, {
-      score = highscore,
+  if #ui6 == 0 and gm2 > 0 then
+    add(ui6, {
+      score = gm2,
       initials = "cpu",
       timestamp = 0
     })
     save_leaderboard()
-    _log("migrated_highscore:"..highscore)
+    _log("migrated_highscore:"..gm2)
   end
 
-  _log("leaderboard_loaded:"..#leaderboard)
+  _log("leaderboard_loaded:"..#ui6)
 end
 
 function save_leaderboard()
-  -- save top 10 entries
   for i = 1, 10 do
     local slot_base = 4 + (i - 1) * 4
-    if i <= #leaderboard then
-      local entry = leaderboard[i]
+    if i <= #ui6 then
+      local entry = ui6[i]
       dset(slot_base, entry.score)
-      -- convert chars to codes (a=1, z=26)
       local init = entry.initials
       local c1 = sub(init, 1, 1)
       local c2 = sub(init, 2, 2)
       local c3 = sub(init, 3, 3)
-      dset(slot_base + 1, ord(c1) - 96)  -- a=97, so a=1
+      dset(slot_base + 1, ord(c1) - 96)
       dset(slot_base + 2, ord(c2) - 96)
       dset(slot_base + 3, ord(c3) - 96)
     else
-      -- clear unused slots
       dset(slot_base, 0)
       dset(slot_base + 1, 0)
       dset(slot_base + 2, 0)
       dset(slot_base + 3, 0)
     end
   end
-  _log("leaderboard_saved:"..#leaderboard)
+  _log("leaderboard_saved:"..#ui6)
 end
 
--- audio wrapper functions
 function play_sfx(n, ch, off)
-  if sfx_enabled then
+  if gm4 then
     sfx(n, ch, off)
   end
 end
 
 function play_music(n, fade, mask)
-  if music_enabled then
+  if gm3 then
     music(n, fade, mask)
   else
-    music(-1)  -- stop music if disabled
+    music(-1)
   end
 end
 
--- visual juice functions
 function shake(duration, intensity)
-  shake_time = duration
-  shake_intensity = intensity
+  fx2 = duration
+  fx1 = intensity
   _log("shake:"..duration..":"..intensity)
 end
 
 function get_ball_skin_color()
-  -- return base color based on skin selection
-  if ball_skin == 2 then
-    return 9  -- gold/orange
-  elseif ball_skin == 3 then
-    return 12  -- cyan
+  if cu5 == 2 then
+    return 9
+  elseif cu5 == 3 then
+    return 12
   else
-    return 10  -- white/yellow (default)
+    return 10
   end
 end
 
--- drawing helpers
 function draw_ball_trail()
-  for i,t in pairs(ball_trail) do
+  for i,t in pairs(bl1) do
     if t.life > 0 then
-      local c = (ball_skin==1 and 6) or (ball_skin==2 and 9) or 12
-      if trail_effect==2 then c=8+(i%8) elseif trail_effect==3 then c=7 end
+      local c = (cu5==1 and 6) or (cu5==2 and 9) or 12
+      if cu4==2 then c=8+(i%8) elseif cu4==3 then c=7 end
       circfill(t.x,t.y,1,c)
     end
   end
 end
 
 function draw_ball()
-  local c = (ball_skin==1 and 7) or (ball_skin==2 and 10) or 12
-  if ball_flash>0 then c=7 end
+  local c = (cu5==1 and 7) or (cu5==2 and 10) or 12
+  if bl3>0 then c=7 end
   circfill(ball.x,ball.y,ball.r,c)
 end
 
@@ -678,9 +583,9 @@ function _update()
     update_settings()
   elseif state == "difficulty_customize" then
     update_difficulty_customize()
-  elseif state == "leaderboard" then
+  elseif state == "ui6" then
     update_leaderboard()
-  elseif state == "achievements" then
+  elseif state == "ad2" then
     update_achievements()
   elseif state == "statistics" then
     update_statistics()
@@ -718,8 +623,7 @@ end
 function _draw()
   cls(1)
 
-  -- apply screen shake
-  camera(shake_x, shake_y)
+  camera(fx3, fx4)
 
   if state == "menu" then
     draw_menu()
@@ -731,9 +635,9 @@ function _draw()
     draw_settings()
   elseif state == "difficulty_customize" then
     draw_difficulty_customize()
-  elseif state == "leaderboard" then
+  elseif state == "ui6" then
     draw_leaderboard()
-  elseif state == "achievements" then
+  elseif state == "ad2" then
     draw_achievements()
   elseif state == "statistics" then
     draw_statistics()
@@ -767,11 +671,9 @@ function _draw()
     draw_enter_initials()
   end
 
-  -- reset camera
   camera()
 
-  -- screen flash effect
-  if screen_flash > 0 then
+  if fx5 > 0 then
     for i = 0, 127, 4 do
       for j = 0, 127, 4 do
         pset(i, j, 7)
@@ -779,122 +681,114 @@ function _draw()
     end
   end
 
-  -- update shake
-  if shake_time > 0 then
-    shake_time -= 1
-    local shake_amt = shake_intensity * (shake_time / 10)
-    shake_x = (rnd(2) - 1) * shake_amt
-    shake_y = (rnd(2) - 1) * shake_amt
+  if fx2 > 0 then
+    fx2 -= 1
+    local shake_amt = fx1 * (fx2 / 10)
+    fx3 = (rnd(2) - 1) * shake_amt
+    fx4 = (rnd(2) - 1) * shake_amt
   else
-    shake_x = 0
-    shake_y = 0
+    fx3 = 0
+    fx4 = 0
   end
 
-  -- update screen flash
-  if screen_flash > 0 then
-    screen_flash -= 1
+  if fx5 > 0 then
+    fx5 -= 1
   end
 
-  -- update ball flash
-  if ball_flash > 0 then
-    ball_flash -= 1
+  if bl3 > 0 then
+    bl3 -= 1
   end
 
-  -- update life flash
-  if life_flash > 0 then
-    life_flash -= 1
+  if fx7 > 0 then
+    fx7 -= 1
   end
 
-  -- update wave pulse
-  if wave_pulse > 0 then
-    wave_pulse -= 1
+  if fx6 > 0 then
+    fx6 -= 1
   end
 end
 
--- menu state
 function update_menu()
   local input = test_input()
 
-  -- cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
-  -- menu navigation with cooldown
-  if input_cooldown == 0 then
-    if input & 4 > 0 then  -- up
-      menu_cursor = max(1, menu_cursor - 1)
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      mc1 = max(1, mc1 - 1)
       play_sfx(1)
-      _log("menu_nav:up:"..menu_cursor)
+      _log("menu_nav:up:"..mc1)
       _log("sfx_menu_nav")
-      input_cooldown = 10
+      ic1 = 10
     end
 
-    if input & 8 > 0 then  -- down
-      menu_cursor = min(10, menu_cursor + 1)
+    if input & 8 > 0 then
+      mc1 = min(10, mc1 + 1)
       play_sfx(1)
-      _log("menu_nav:down:"..menu_cursor)
+      _log("menu_nav:down:"..mc1)
       _log("sfx_menu_nav")
-      input_cooldown = 10
+      ic1 = 10
     end
 
-    if input & 16 > 0 then  -- O button - select
-      local selection = menu_items[menu_cursor]
+    if input & 16 > 0 then
+      local selection = mc2[mc1]
       if selection == "play" then
         state = "difficulty_select"
         _log("state:difficulty_select")
-        diff_selection = difficulty
-        input_cooldown = 10
+        ic3 = lm9
+        ic1 = 10
       elseif selection == "challenge" then
         state = "challenge_variant_menu"
         _log("state:challenge_variant_menu")
-        variant_cursor = 1
-        input_cooldown = 10
+        mc3 = 1
+        ic1 = 10
       elseif selection == "practice" then
         state = "practice_obstacle_select"
         _log("state:practice_obstacle_select")
-        practice_obstacle_selection = 1
-        input_cooldown = 10
+        pr5 = 1
+        ic1 = 10
       elseif selection == "gauntlet" then
-        if gauntlet_unlocked then
+        if gt9 then
           init_gauntlet()
           state = "gauntlet"
           _log("state:gauntlet")
         else
-          play_sfx(3)  -- error sound
+          play_sfx(3)
           _log("gauntlet_locked")
         end
-        input_cooldown = 10
+        ic1 = 10
       elseif selection == "bossrush" then
         init_bossrush()
         state = "bossrush"
         _log("state:bossrush")
-        input_cooldown = 10
+        ic1 = 10
       elseif selection == "tutorial" then
         state = "tutorial"
         _log("state:tutorial")
-        tutorial_page = 1
-        input_cooldown = 10
-      elseif selection == "leaderboard" then
-        state = "leaderboard"
-        _log("state:leaderboard")
-        input_cooldown = 10
-      elseif selection == "achievements" then
-        state = "achievements"
-        _log("state:achievements")
-        ach_scroll = 0
-        input_cooldown = 10
+        mc5 = 1
+        ic1 = 10
+      elseif selection == "ui6" then
+        state = "ui6"
+        _log("state:ui6")
+        ic1 = 10
+      elseif selection == "ad2" then
+        state = "ad2"
+        _log("state:ad2")
+        ad4 = 0
+        ic1 = 10
       elseif selection == "statistics" then
         state = "statistics"
         _log("state:statistics")
-        stats_scroll = 0
-        stats_page = 1
-        input_cooldown = 10
+        sb7 = 0
+        sb8 = 1
+        ic1 = 10
       elseif selection == "settings" then
         state = "settings"
         _log("state:settings")
-        settings_selection = 1
-        input_cooldown = 10
+        ss1 = 1
+        ic1 = 10
       end
     end
   end
@@ -904,7 +798,6 @@ function draw_menu()
   print("bounce king", 38, 30, 7)
   print("survive the fall!", 26, 42, 6)
 
-  -- menu items
   local menu_y = 50
   local menu_labels = {
     "play",
@@ -912,66 +805,60 @@ function draw_menu()
     "practice mode",
     "boss gauntlet",
     "tutorial",
-    "boss rush \x8e",  -- crown icon
-    "leaderboard",
-    "achievements",
+    "boss rush \x8e",
+    "ui6",
+    "ad2",
     "statistics",
     "settings"
   }
 
   for i = 1, 10 do
     local col = 6
-    local prefix = "  "
-    if i == menu_cursor then
+    local prefix = " "
+    if i == mc1 then
       col = 10
       prefix = "> "
     end
     local label = menu_labels[i]
-    -- show lock icon if gauntlet is locked
-    if i == 4 and not gauntlet_unlocked then
-      label = label.." \x94"  -- lock icon
-      col = 5  -- gray out
+    if i == 4 and not gt9 then
+      label = label.." \x94"
+      col = 5
     end
     print(prefix..label, 24, menu_y + (i - 1) * 7, col)
   end
 
-  -- show top score from leaderboard
-  if #leaderboard > 0 then
-    local top = leaderboard[1]
+  if #ui6 > 0 then
+    local top = ui6[1]
     print("best: "..top.score.." ("..top.initials..")", 20, 118, 10)
   end
 end
 
--- tutorial state
 function update_tutorial()
   local input = test_input()
 
-  -- cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
-  -- page navigation with cooldown
-  if input_cooldown == 0 then
-    if input & 4 > 0 then  -- up
-      tutorial_page = max(1, tutorial_page - 1)
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      mc5 = max(1, mc5 - 1)
       play_sfx(1)
-      _log("tutorial_nav:up:"..tutorial_page)
-      input_cooldown = 10
+      _log("tutorial_nav:up:"..mc5)
+      ic1 = 10
     end
-    if input & 8 > 0 then  -- down
-      tutorial_page = min(5, tutorial_page + 1)
+    if input & 8 > 0 then
+      mc5 = min(5, mc5 + 1)
       play_sfx(1)
-      _log("tutorial_nav:down:"..tutorial_page)
-      input_cooldown = 10
+      _log("tutorial_nav:down:"..mc5)
+      ic1 = 10
     end
   end
 
-  -- skip/exit with O button
-  if input & 16 > 0 then  -- O button
-    tutorial_completed = true
-    dset(53, 1)  -- save completion flag
-    play_music(2)  -- menu music
+  if input & 16 > 0 then
+    mc6 = true
+    dset(53, 1)
+    play_music(2)
     state = "menu"
     _log("tutorial_complete")
     _log("state:menu")
@@ -979,72 +866,57 @@ function update_tutorial()
 end
 
 function draw_tutorial()
-  -- header
   print("how to play", 38, 4, 7)
-  print("page "..tutorial_page.."/5", 48, 12, 6)
+  print("page "..mc5.."/5", 48, 12, 6)
 
-  if tutorial_page == 1 then
-    -- controls + objective
+  if mc5 == 1 then
     print("controls:", 10, 24, 10)
     print("left/right arrows", 20, 32, 7)
     print("move your ball", 20, 40, 6)
     print("ball bounces automatically", 10, 50, 11)
 
     print("objective:", 10, 62, 10)
-    print("dodge falling obstacles", 16, 70, 7)
+    print("dodge falling ob4", 16, 70, 7)
     print("collect power-ups", 24, 78, 7)
     print("survive as long as you can", 10, 86, 7)
 
-  elseif tutorial_page == 2 then
-    -- obstacles
-    print("obstacles:", 10, 24, 10)
+  elseif mc5 == 2 then
+    print("ob4:", 10, 24, 10)
 
-    -- spike
     circfill(20, 38, 6, 8)
     print("spike: static", 32, 34, 7)
 
-    -- moving
     circfill(20, 54, 10, 8)
     print("moving: left-right", 36, 50, 7)
 
-    -- rotating
     circfill(20, 70, 8, 8)
     print("rotating: pulsing", 34, 66, 7)
 
-    -- advanced
     print("more types unlock as", 16, 86, 6)
-    print("difficulty increases!", 20, 94, 6)
+    print("lm9 increases!", 20, 94, 6)
 
-  elseif tutorial_page == 3 then
-    -- power-ups
+  elseif mc5 == 3 then
     print("power-ups:", 10, 24, 10)
 
-    -- shield
     circfill(16, 34, 4, 11)
     print("shield: +1 life", 26, 32, 7)
 
-    -- slowmo
     circfill(16, 46, 4, 12)
     print("slowmo: slow time", 26, 44, 7)
 
-    -- doublescore
     circfill(16, 58, 4, 10)
     print("doublescore: 2x pts", 26, 56, 7)
 
-    -- magnet
     circfill(16, 70, 4, 13)
     print("magnet: pull items", 26, 68, 7)
 
-    -- bomb
     circfill(16, 82, 4, 8)
     print("bomb: clear screen", 26, 80, 7)
 
-    -- freeze
     circfill(16, 94, 4, 12)
     print("freeze: stop enemies", 26, 92, 7)
 
-  elseif tutorial_page == 4 then
-    -- scoring system
+  elseif mc5 == 4 then
     print("scoring:", 10, 24, 10)
 
     print("dodge bonus:", 16, 34, 7)
@@ -1054,12 +926,11 @@ function draw_tutorial()
     print("chain dodges for bonus", 20, 62, 6)
     print("resets on collision", 22, 70, 8)
 
-    print("multiplier:", 16, 82, 7)
+    print("lm7:", 16, 82, 7)
     print("increases every 10s", 20, 90, 6)
     print("1.0x -> 1.5x -> 2.0x...", 16, 98, 10)
 
-  elseif tutorial_page == 5 then
-    -- ready to play
+  elseif mc5 == 5 then
     print("you're ready!", 34, 30, 10)
 
     print("tips:", 10, 46, 7)
@@ -1072,41 +943,36 @@ function draw_tutorial()
     print("good luck!", 40, 100, 14)
   end
 
-  -- navigation hints
   print("up/down: change page", 16, 118, 13)
   print("o: skip to menu", 26, 124, 13)
 end
 
--- difficulty selection state
 function update_difficulty_select()
   local input = test_input()
 
-  -- update cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
-  -- navigation with cooldown
-  if input_cooldown == 0 then
-    if input & 4 > 0 then  -- up
-      diff_selection = max(1, diff_selection - 1)
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      ic3 = max(1, ic3 - 1)
       play_sfx(1)
       _log("difficulty_nav:up")
-      input_cooldown = 10
+      ic1 = 10
     end
-    if input & 8 > 0 then  -- down
-      diff_selection = min(3, diff_selection + 1)
+    if input & 8 > 0 then
+      ic3 = min(3, ic3 + 1)
       play_sfx(1)
       _log("difficulty_nav:down")
-      input_cooldown = 10
+      ic1 = 10
     end
   end
 
-  -- confirm
-  if input & 16 > 0 then  -- O button
-    difficulty = diff_selection
+  if input & 16 > 0 then
+    lm9 = ic3
     local diff_names = {"easy", "normal", "hard"}
-    _log("difficulty_select:"..diff_names[difficulty])
+    _log("difficulty_select:"..diff_names[lm9])
     state = "play"
     _log("state:play")
     init_game()
@@ -1114,205 +980,183 @@ function update_difficulty_select()
 end
 
 function draw_difficulty_select()
-  print("select difficulty", 22, 30, 7)
+  print("select lm9", 22, 30, 7)
 
-  -- easy option
-  local col1 = diff_selection == 1 and 10 or 6
+  local col1 = ic3 == 1 and 10 or 6
   print("> easy", 38, 50, col1)
-  print("slower obstacles", 16, 58, 5)
+  print("slower ob4", 16, 58, 5)
   print("more forgiving", 20, 64, 5)
 
-  -- normal option
-  local col2 = diff_selection == 2 and 10 or 6
+  local col2 = ic3 == 2 and 10 or 6
   print("> normal", 34, 76, col2)
   print("balanced gameplay", 14, 84, 5)
 
-  -- hard option
-  local col3 = diff_selection == 3 and 10 or 6
+  local col3 = ic3 == 3 and 10 or 6
   print("> hard", 38, 96, col3)
-  print("faster obstacles", 16, 104, 5)
+  print("faster ob4", 16, 104, 5)
   print("real challenge", 22, 110, 5)
 
   print("up/down: choose", 18, 122, 13)
 end
 
--- settings state
 function update_settings()
   local input = test_input()
 
-  -- update cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
-  -- navigation with cooldown
-  if input_cooldown == 0 then
-    if input & 4 > 0 then  -- up
-      settings_selection = max(1, settings_selection - 1)
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      ss1 = max(1, ss1 - 1)
       play_sfx(1)
       _log("settings_nav:up")
-      input_cooldown = 10
+      ic1 = 10
     end
-    if input & 8 > 0 then  -- down
-      settings_selection = min(7, settings_selection + 1)
+    if input & 8 > 0 then
+      ss1 = min(7, ss1 + 1)
       play_sfx(1)
       _log("settings_nav:down")
-      input_cooldown = 10
+      ic1 = 10
     end
 
-    -- toggle options with O button
-    if input & 16 > 0 then  -- O button
-      if settings_selection == 1 then
-        music_enabled = not music_enabled
+    if input & 16 > 0 then
+      if ss1 == 1 then
+        gm3 = not gm3
         play_sfx(1)
-        _log("toggle_music:"..tostr(music_enabled))
-        if not music_enabled then
-          music(-1)  -- stop music immediately
+        _log("toggle_music:"..tostr(gm3))
+        if not gm3 then
+          music(-1)
         end
-      elseif settings_selection == 2 then
-        sfx_enabled = not sfx_enabled
+      elseif ss1 == 2 then
+        gm4 = not gm4
         play_sfx(1)
-        _log("toggle_sfx:"..tostr(sfx_enabled))
-      elseif settings_selection == 3 then
-        -- ball skin: 1=white (always), 2=gold (unlock bit 0), 3=cyan (unlock bit 1)
+        _log("toggle_sfx:"..tostr(gm4))
+      elseif ss1 == 3 then
         repeat
-          ball_skin = ball_skin % 3 + 1
-        until ball_skin == 1 or (ball_skin == 2 and (cosmetics_unlocked & 1) > 0) or (ball_skin == 3 and (cosmetics_unlocked & 2) > 0)
-        skins_used[ball_skin] = true  -- track skin usage
+          cu5 = cu5 % 3 + 1
+        until cu5 == 1 or (cu5 == 2 and (cu1 & 1) > 0) or (cu5 == 3 and (cu1 & 2) > 0)
+        cu6[cu5] = true
         play_sfx(1)
-        _log("ball_skin:"..ball_skin)
-        -- check if all skins used for achievement
-        local all_used = skins_used[1] and skins_used[2] and skins_used[3]
-        if all_used and not achievements[7] then
+        _log("cu5:"..cu5)
+        local all_used = cu6[1] and cu6[2] and cu6[3]
+        if all_used and not ad2[7] then
           unlock_achievement(7)
         end
-      elseif settings_selection == 4 then
-        -- controls info (no toggle)
-      elseif settings_selection == 5 then
-        -- difficulty customization submenu
+      elseif ss1 == 4 then
+      elseif ss1 == 5 then
         state = "difficulty_customize"
         _log("state:difficulty_customize")
-        difficulty_customize_selection = 1
-        input_cooldown = 10
-      elseif settings_selection == 6 then
-        -- trail effect: 1=basic (always), 2=rainbow (unlock bit 2), 3=white (unlock bit 7)
+        dc1 = 1
+        ic1 = 10
+      elseif ss1 == 6 then
         repeat
-          trail_effect = trail_effect % 3 + 1
-        until trail_effect == 1 or (trail_effect == 2 and (cosmetics_unlocked & 4) > 0) or (trail_effect == 3 and (cosmetics_unlocked & 128) > 0)
+          cu4 = cu4 % 3 + 1
+        until cu4 == 1 or (cu4 == 2 and (cu1 & 4) > 0) or (cu4 == 3 and (cu1 & 128) > 0)
         play_sfx(1)
-        _log("trail_effect:"..trail_effect)
-      elseif settings_selection == 7 then
-        -- color theme: 1=default (always), 2=pink (bit 3), 3=gold (bit 4), 4=red (bit 5), 5=blue (bit 6)
+        _log("cu4:"..cu4)
+      elseif ss1 == 7 then
         repeat
-          color_theme = color_theme % 5 + 1
-        until color_theme == 1 or (color_theme == 2 and (cosmetics_unlocked & 8) > 0) or (color_theme == 3 and (cosmetics_unlocked & 16) > 0) or (color_theme == 4 and (cosmetics_unlocked & 32) > 0) or (color_theme == 5 and (cosmetics_unlocked & 64) > 0)
+          cu3 = cu3 % 5 + 1
+        until cu3 == 1 or (cu3 == 2 and (cu1 & 8) > 0) or (cu3 == 3 and (cu1 & 16) > 0) or (cu3 == 4 and (cu1 & 32) > 0) or (cu3 == 5 and (cu1 & 64) > 0)
         play_sfx(1)
-        _log("color_theme:"..color_theme)
+        _log("cu3:"..cu3)
       end
-      save_settings()  -- persist changes
-      save_cosmetics()  -- save cosmetic selections
-      input_cooldown = 10
+      save_settings()
+      save_cosmetics()
+      ic1 = 10
     end
   end
 
-  -- back to menu with X button
   if input & 32 > 0 then
-    play_music(2)  -- menu music
+    play_music(2)
     state = "menu"
     _log("state:menu")
-    save_settings()  -- ensure settings saved
-    input_cooldown = 10
+    save_settings()
+    ic1 = 10
   end
 end
 
 function draw_settings()
   print("settings", 44, 10, 7)
 
-  -- music toggle
-  local col1 = settings_selection == 1 and 10 or 6
-  local check1 = music_enabled and "\x8e" or "\x83"  -- checkmark or X
+  local col1 = ss1 == 1 and 10 or 6
+  local check1 = gm3 and "\x8e" or "\x83"
   print("> music: "..check1, 20, 20, col1)
 
-  -- sfx toggle
-  local col2 = settings_selection == 2 and 10 or 6
-  local check2 = sfx_enabled and "\x8e" or "\x83"
+  local col2 = ss1 == 2 and 10 or 6
+  local check2 = gm4 and "\x8e" or "\x83"
   print("> sfx: "..check2, 20, 28, col2)
 
-  -- ball skin
-  local col3 = settings_selection == 3 and 10 or 6
+  local col3 = ss1 == 3 and 10 or 6
   local skin_names = {"white", "gold", "cyan"}
-  local skin_str = skin_names[ball_skin]
-  if ball_skin > 1 and (cosmetics_unlocked & (ball_skin == 2 and 1 or 2)) == 0 then
-    skin_str = skin_str.." \x94"  -- locked
+  local skin_str = skin_names[cu5]
+  if cu5 > 1 and (cu1 & (cu5 == 2 and 1 or 2)) == 0 then
+    skin_str = skin_str.." \x94"
   end
   print("> ball: "..skin_str, 20, 36, col3)
 
-  -- controls reference
-  local col4 = settings_selection == 4 and 10 or 6
+  local col4 = ss1 == 4 and 10 or 6
   print("> controls", 20, 44, col4)
 
-  -- difficulty customization submenu
-  local col5 = settings_selection == 5 and 10 or 6
-  print("> difficulty...", 20, 52, col5)
+  local col5 = ss1 == 5 and 10 or 6
+  print("> lm9...", 20, 52, col5)
 
-  -- trail effect
-  local col6 = settings_selection == 6 and 10 or 6
+  local col6 = ss1 == 6 and 10 or 6
   local trail_names = {"basic", "rainbow", "white"}
-  local trail_str = trail_names[trail_effect]
-  if trail_effect > 1 and (cosmetics_unlocked & (trail_effect == 2 and 4 or 128)) == 0 then
-    trail_str = trail_str.." \x94"  -- locked
+  local trail_str = trail_names[cu4]
+  if cu4 > 1 and (cu1 & (cu4 == 2 and 4 or 128)) == 0 then
+    trail_str = trail_str.." \x94"
   end
   print("> trail: "..trail_str, 20, 60, col6)
 
-  -- color theme
-  local col7 = settings_selection == 7 and 10 or 6
+  local col7 = ss1 == 7 and 10 or 6
   local theme_names = {"default", "pink", "gold", "red", "blue"}
-  local theme_str = theme_names[color_theme]
-  if color_theme > 1 then
-    local bit_map = {0, 8, 16, 32, 64}  -- theme 1=always, 2=bit3, 3=bit4, 4=bit5, 5=bit6
-    if (cosmetics_unlocked & bit_map[color_theme]) == 0 then
-      theme_str = theme_str.." \x94"  -- locked
+  local theme_str = theme_names[cu3]
+  if cu3 > 1 then
+    local bit_map = {0, 8, 16, 32, 64}
+    if (cu1 & bit_map[cu3]) == 0 then
+      theme_str = theme_str.." \x94"
     end
   end
   print("> theme: "..theme_str, 20, 68, col7)
 
-  -- show details for current selection
-  if settings_selection == 4 then
+  if ss1 == 4 then
     print("arrows: move ball", 8, 86, 5)
     print("o: confirm/toggle", 8, 92, 5)
     print("x: pause/back", 14, 98, 5)
-  elseif settings_selection == 5 then
+  elseif ss1 == 5 then
     print("customize gameplay", 16, 86, 5)
     print("spawn, scaling,", 20, 92, 6)
     print("combo bonus, lives", 18, 98, 6)
-  elseif settings_selection == 3 then
+  elseif ss1 == 3 then
     print("ball skin cosmetic", 18, 96, 5)
-    if (cosmetics_unlocked & 1) == 0 then
+    if (cu1 & 1) == 0 then
       print("gold: score 300+", 20, 102, 6)
     end
-    if (cosmetics_unlocked & 2) == 0 then
+    if (cu1 & 2) == 0 then
       print("cyan: combo 15+", 22, 108, 6)
     end
-  elseif settings_selection == 6 then
+  elseif ss1 == 6 then
     print("ball trail style", 18, 96, 5)
-    if (cosmetics_unlocked & 4) == 0 then
-      print("rainbow: 15+ powerups", 12, 102, 6)
+    if (cu1 & 4) == 0 then
+      print("rainbow: 15+ pw6", 12, 102, 6)
     end
-    if (cosmetics_unlocked & 128) == 0 then
+    if (cu1 & 128) == 0 then
       print("white: survive 60s", 14, 108, 6)
     end
-  elseif settings_selection == 7 then
+  elseif ss1 == 7 then
     print("color theme overlay", 14, 96, 5)
-    if (cosmetics_unlocked & 8) == 0 then
+    if (cu1 & 8) == 0 then
       print("pink: 5+ danger zones", 10, 102, 6)
     end
-    if (cosmetics_unlocked & 16) == 0 then
-      print("gold: 1.5x multiplier", 8, 108, 6)
+    if (cu1 & 16) == 0 then
+      print("gold: 1.5x lm7", 8, 108, 6)
     end
-    if (cosmetics_unlocked & 32) == 0 then
-      print("red: diff_level 5+", 12, 114, 6)
+    if (cu1 & 32) == 0 then
+      print("red: lm8 5+", 12, 114, 6)
     end
-    if (cosmetics_unlocked & 64) == 0 then
+    if (cu1 & 64) == 0 then
       print("blue: 20+ dodges", 16, 120, 6)
     end
   end
@@ -1322,251 +1166,222 @@ function draw_settings()
   print("x: back", 36, 122, 13)
 end
 
--- difficulty customize state
 function update_difficulty_customize()
   local input = test_input()
 
-  -- update cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
-  -- navigation with cooldown
-  if input_cooldown == 0 then
-    if input & 4 > 0 then  -- up
-      difficulty_customize_selection = max(1, difficulty_customize_selection - 1)
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      dc1 = max(1, dc1 - 1)
       play_sfx(1)
       _log("difficulty_customize_nav:up")
-      input_cooldown = 10
+      ic1 = 10
     end
-    if input & 8 > 0 then  -- down
-      difficulty_customize_selection = min(4, difficulty_customize_selection + 1)
+    if input & 8 > 0 then
+      dc1 = min(4, dc1 + 1)
       play_sfx(1)
       _log("difficulty_customize_nav:down")
-      input_cooldown = 10
+      ic1 = 10
     end
 
-    -- adjust values with left/right arrows
-    if input & 1 > 0 then  -- left
-      if difficulty_customize_selection == 1 then
-        spawn_rate = max(1, spawn_rate - 1)
+    if input & 1 > 0 then
+      if dc1 == 1 then
+        lm3 = max(1, lm3 - 1)
         play_sfx(1)
-        _log("spawn_rate:"..spawn_rate)
-      elseif difficulty_customize_selection == 2 then
-        diff_scaling = max(1, diff_scaling - 1)
+        _log("lm3:"..lm3)
+      elseif dc1 == 2 then
+        lm2 = max(1, lm2 - 1)
         play_sfx(1)
-        _log("diff_scaling:"..diff_scaling)
-      elseif difficulty_customize_selection == 3 then
-        combo_bonus = max(1, combo_bonus - 1)
+        _log("lm2:"..lm2)
+      elseif dc1 == 3 then
+        lm4 = max(1, lm4 - 1)
         play_sfx(1)
-        _log("combo_bonus:"..combo_bonus)
-      elseif difficulty_customize_selection == 4 then
-        lives_preset = max(1, lives_preset - 1)
+        _log("lm4:"..lm4)
+      elseif dc1 == 4 then
+        lm5 = max(1, lm5 - 1)
         play_sfx(1)
-        _log("lives_preset:"..lives_preset)
+        _log("lm5:"..lm5)
       end
       save_settings()
-      input_cooldown = 10
+      ic1 = 10
     end
 
-    if input & 2 > 0 then  -- right
-      if difficulty_customize_selection == 1 then
-        spawn_rate = min(4, spawn_rate + 1)
+    if input & 2 > 0 then
+      if dc1 == 1 then
+        lm3 = min(4, lm3 + 1)
         play_sfx(1)
-        _log("spawn_rate:"..spawn_rate)
-      elseif difficulty_customize_selection == 2 then
-        diff_scaling = min(4, diff_scaling + 1)
+        _log("lm3:"..lm3)
+      elseif dc1 == 2 then
+        lm2 = min(4, lm2 + 1)
         play_sfx(1)
-        _log("diff_scaling:"..diff_scaling)
-      elseif difficulty_customize_selection == 3 then
-        combo_bonus = min(3, combo_bonus + 1)
+        _log("lm2:"..lm2)
+      elseif dc1 == 3 then
+        lm4 = min(3, lm4 + 1)
         play_sfx(1)
-        _log("combo_bonus:"..combo_bonus)
-      elseif difficulty_customize_selection == 4 then
-        lives_preset = min(3, lives_preset + 1)
+        _log("lm4:"..lm4)
+      elseif dc1 == 4 then
+        lm5 = min(3, lm5 + 1)
         play_sfx(1)
-        _log("lives_preset:"..lives_preset)
+        _log("lm5:"..lm5)
       end
       save_settings()
-      input_cooldown = 10
+      ic1 = 10
     end
   end
 
-  -- back to settings with X button
   if input & 32 > 0 then
     state = "settings"
     _log("state:settings")
     save_settings()
-    input_cooldown = 10
+    ic1 = 10
   end
 end
 
 function draw_difficulty_customize()
-  print("difficulty", 40, 10, 7)
+  print("lm9", 40, 10, 7)
 
-  -- spawn rate
-  local col1 = difficulty_customize_selection == 1 and 10 or 6
+  local col1 = dc1 == 1 and 10 or 6
   local spawn_names = {"slow", "normal", "fast", "extreme"}
   print("spawn rate:", 20, 24, col1)
-  print("< "..spawn_names[spawn_rate].." >", 44, 32, col1)
+  print("< "..spawn_names[lm3].." >", 44, 32, col1)
 
-  -- difficulty scaling
-  local col2 = difficulty_customize_selection == 2 and 10 or 6
+  local col2 = dc1 == 2 and 10 or 6
   local scale_names = {"slow", "normal", "fast", "insane"}
   print("scaling:", 24, 46, col2)
-  print("< "..scale_names[diff_scaling].." >", 44, 54, col2)
+  print("< "..scale_names[lm2].." >", 44, 54, col2)
 
-  -- combo bonus
-  local col3 = difficulty_customize_selection == 3 and 10 or 6
+  local col3 = dc1 == 3 and 10 or 6
   local bonus_names = {"1.5x", "1.0x", "0.7x"}
   print("combo bonus:", 18, 68, col3)
-  print("< "..bonus_names[combo_bonus].." >", 44, 76, col3)
+  print("< "..bonus_names[lm4].." >", 44, 76, col3)
 
-  -- lives preset
-  local col4 = difficulty_customize_selection == 4 and 10 or 6
+  local col4 = dc1 == 4 and 10 or 6
   local lives_names = {"5 lives", "3 lives", "1 life"}
   print("lives:", 30, 90, col4)
-  print("< "..lives_names[lives_preset].." >", 44, 98, col4)
+  print("< "..lives_names[lm5].." >", 44, 98, col4)
 
-  -- help text
   print("left/right: adjust", 18, 110, 13)
   print("up/down: navigate", 16, 116, 13)
   print("x: back", 36, 122, 13)
 end
 
--- leaderboard state
 function update_leaderboard()
   local input = test_input()
 
-  -- back to menu with X button
   if input & 32 > 0 then
-    play_music(2)  -- menu music
+    play_music(2)
     state = "menu"
     _log("state:menu")
-    input_cooldown = 10
+    ic1 = 10
   end
 end
 
 function draw_leaderboard()
-  print("leaderboard", 38, 8, 7)
+  print("ui6", 38, 8, 7)
   print("-- top 10 scores --", 22, 18, 6)
 
-  if #leaderboard == 0 then
+  if #ui6 == 0 then
     print("no entries yet!", 26, 60, 13)
     print("play to set a record!", 14, 70, 11)
   else
     local y = 28
-    for i = 1, min(10, #leaderboard) do
-      local entry = leaderboard[i]
-      local col = 13  -- default cyan
+    for i = 1, min(10, #ui6) do
+      local entry = ui6[i]
+      local col = 13
       if i == 1 then
-        col = 10  -- gold for 1st
+        col = 10
       elseif i == 2 then
-        col = 12  -- light blue for 2nd
+        col = 12
       elseif i == 3 then
-        col = 14  -- pink for 3rd
+        col = 14
       end
 
-      -- highlight player's last entry
-      if i == last_entry_rank and last_entry_rank > 0 then
-        col = 11  -- green highlight
+      if i == ui4 and ui4 > 0 then
+        col = 11
         print(">", 8, y, col)
       end
 
-      -- rank
       local rank_str = i < 10 and " "..i or tostr(i)
       print(rank_str, 14, y, col)
 
-      -- initials
       print(entry.initials, 28, y, col)
 
-      -- score
       print(entry.score, 52, y, col)
 
       y += 9
-      if y > 118 then break end  -- prevent overflow
+      if y > 118 then break end
     end
   end
 
   print("x: back to menu", 20, 122, 5)
 end
 
--- pause state
 function update_pause()
-  -- update pause cooldown
-  if pause_cooldown > 0 then
-    pause_cooldown -= 1
+  if ic2 > 0 then
+    ic2 -= 1
   end
 
-  -- check for unpause button (X = button 5)
   local input = test_input()
-  if pause_cooldown == 0 and input & 32 > 0 then
+  if ic2 == 0 and input & 32 > 0 then
     state = "play"
-    play_music(0)  -- resume music
+    play_music(0)
     _log("state:resume")
-    pause_cooldown = 15
+    ic2 = 15
   end
 end
 
 function draw_pause()
-  -- draw the frozen game state
   draw_play()
 
-  -- draw semi-transparent overlay (checkerboard pattern for dimming)
   for i = 0, 127, 2 do
     for j = 0, 127, 2 do
       pset(i, j, 0)
     end
   end
 
-  -- pause UI box
   rectfill(24, 40, 104, 90, 0)
   rect(24, 40, 104, 90, 7)
   rect(25, 41, 103, 89, 6)
 
-  -- pause text
   print("paused", 48, 46, 7)
   print("score: "..score, 38, 56, 10)
-  print("time: "..flr(gametime/30).."s", 36, 64, 11)
+  print("time: "..flr(gm1/30).."s", 36, 64, 11)
   print("combo: "..combo, 40, 72, 9)
   print("press x to resume", 28, 82, 13)
 end
 
--- achievements state
 function update_achievements()
-  -- update cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
   local input = test_input()
 
-  -- return to menu
-  if input_cooldown == 0 and input & 32 > 0 then  -- X button
-    play_music(2)  -- menu music
+  if ic1 == 0 and input & 32 > 0 then
+    play_music(2)
     state = "menu"
     _log("state:menu")
-    input_cooldown = 10
+    ic1 = 10
   end
 end
 
 function draw_achievements()
-  print("achievements", 34, 8, 7)
-  print(ach_unlocked_count.."/8 unlocked", 32, 18, 10)
+  print("ad2", 34, 8, 7)
+  print(ad3.."/8 unlocked", 32, 18, 10)
 
-  -- draw achievement list
   local y_start = 30
   for i = 1, 8 do
-    local ach = ach_definitions[i]
+    local ach = ad1[i]
     local y = y_start + (i - 1) * 12
 
     if ach.unlocked then
-      -- unlocked: gold color
-      print("\x8e "..ach.title, 10, y, 9)  -- checkmark
+      print("\x8e "..ach.title, 10, y, 9)
       print(ach.desc, 10, y + 6, 10)
     else
-      -- locked: dark color
-      print("\x94 "..ach.title, 10, y, 5)  -- lock
+      print("\x94 "..ach.title, 10, y, 5)
       print(ach.desc, 10, y + 6, 5)
     end
   end
@@ -1574,71 +1389,65 @@ function draw_achievements()
   print("press x to return", 24, 118, 13)
 end
 
--- statistics state
 function update_statistics()
   local input = test_input()
 
-  -- cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
-  -- page navigation with cooldown
-  if input_cooldown == 0 then
-    if input & 4 > 0 then  -- up - previous page
-      stats_page = max(1, stats_page - 1)
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      sb8 = max(1, sb8 - 1)
       play_sfx(1)
-      _log("stats_nav:up:page="..stats_page)
-      input_cooldown = 10
+      _log("stats_nav:up:page="..sb8)
+      ic1 = 10
     end
 
-    if input & 8 > 0 then  -- down - next page
-      stats_page = min(3, stats_page + 1)
+    if input & 8 > 0 then
+      sb8 = min(3, sb8 + 1)
       play_sfx(1)
-      _log("stats_nav:down:page="..stats_page)
-      input_cooldown = 10
+      _log("stats_nav:down:page="..sb8)
+      ic1 = 10
     end
 
-    -- reset statistics (X button + confirmation)
-    if input & 32 > 0 then  -- X button
-      -- confirm reset (set all stats to 0)
-      stats_total_games = 0
-      stats_total_time = 0
-      stats_total_dodges = 0
-      stats_total_powerups = 0
-      stats_total_score = 0
-      stats_career_max_combo = 0
-      stats_career_max_mult = 0
-      stats_easy_games = 0
-      stats_normal_games = 0
-      stats_hard_games = 0
-      stats_easy_total_score = 0
-      stats_normal_total_score = 0
-      stats_hard_total_score = 0
-      stats_easy_max_combo = 0
-      stats_normal_max_combo = 0
-      stats_hard_max_combo = 0
-      stats_shield_count = 0
-      stats_slowmo_count = 0
-      stats_doublescore_count = 0
-      stats_magnet_count = 0
-      stats_bomb_count = 0
-      stats_freeze_count = 0
-      stats_current_streak = 0
-      stats_longest_streak = 0
+    if input & 32 > 0 then
+      st1 = 0
+      st2 = 0
+      st3 = 0
+      st4 = 0
+      st5 = 0
+      st6 = 0
+      st7 = 0
+      st8 = 0
+      st9 = 0
+      sa1 = 0
+      sa2 = 0
+      sa3 = 0
+      sa4 = 0
+      sa5 = 0
+      sa6 = 0
+      sa7 = 0
+      sa8 = 0
+      sa9 = 0
+      sb1 = 0
+      sb2 = 0
+      sb3 = 0
+      sb4 = 0
+      sb5 = 0
+      sb6 = 0
       save_statistics()
       play_sfx(7)
       shake(15, 0.5)
       _log("stats_reset")
-      input_cooldown = 30
+      ic1 = 30
     end
 
-    -- return to menu (Z button)
-    if input & 16 > 0 then  -- Z button
+    if input & 16 > 0 then
       state = "menu"
-      play_music(2)  -- menu music
+      play_music(2)
       _log("state:menu")
-      input_cooldown = 10
+      ic1 = 10
     end
   end
 end
@@ -1646,102 +1455,86 @@ end
 function draw_statistics()
   print("player statistics", 20, 8, 7)
 
-  -- page indicator
-  print("page "..stats_page.."/3", 46, 18, 13)
+  print("page "..sb8.."/3", 46, 18, 13)
 
-  if stats_page == 1 then
-    -- career overview page
+  if sb8 == 1 then
     print("career overview", 28, 28, 10)
 
     local y = 38
-    -- total games
-    print("games played: "..stats_total_games, 8, y, 6)
+    print("games played: "..st1, 8, y, 6)
     y += 8
 
-    -- total time (format as MM:SS)
-    local mins = flr(stats_total_time / 60)
-    local secs = stats_total_time % 60
+    local mins = flr(st2 / 60)
+    local secs = st2 % 60
     print("time played: "..mins.."m "..secs.."s", 8, y, 6)
     y += 8
 
-    -- average score
-    local avg_score = stats_total_games > 0 and flr(stats_total_score / stats_total_games) or 0
+    local avg_score = st1 > 0 and flr(st5 / st1) or 0
     print("avg score: "..avg_score, 8, y, 6)
     y += 8
 
-    -- career max combo
-    print("best combo: "..stats_career_max_combo, 8, y, 6)
+    print("best combo: "..st6, 8, y, 6)
     y += 8
 
-    -- career max multiplier
-    local max_mult_display = stats_career_max_mult / 100
-    print("max multiplier: "..max_mult_display.."x", 8, y, 6)
+    local max_mult_display = st7 / 100
+    print("max lm7: "..max_mult_display.."x", 8, y, 6)
     y += 8
 
-    -- total dodges
-    print("total dodges: "..stats_total_dodges, 8, y, 6)
+    print("total dodges: "..st3, 8, y, 6)
     y += 8
 
-    -- total power-ups
-    print("power-ups: "..stats_total_powerups, 8, y, 6)
+    print("power-ups: "..st4, 8, y, 6)
     y += 8
 
-    -- streaks
-    print("streak: "..stats_current_streak.." (best: "..stats_longest_streak..")", 8, y, 6)
+    print("streak: "..sb5.." (best: "..sb6..")", 8, y, 6)
 
-  elseif stats_page == 2 then
-    -- per-difficulty breakdown
-    print("difficulty stats", 28, 28, 10)
+  elseif sb8 == 2 then
+    print("lm9 stats", 28, 28, 10)
 
     local y = 38
-    -- easy stats
     print("easy mode:", 8, y, 9)
     y += 8
-    print("  games: "..stats_easy_games, 8, y, 6)
+    print(" games: "..st8, 8, y, 6)
     y += 6
-    local easy_avg = stats_easy_games > 0 and flr(stats_easy_total_score / stats_easy_games) or 0
-    print("  avg: "..easy_avg, 8, y, 6)
+    local easy_avg = st8 > 0 and flr(sa2 / st8) or 0
+    print(" avg: "..easy_avg, 8, y, 6)
     y += 6
-    print("  max combo: "..stats_easy_max_combo, 8, y, 6)
+    print(" max combo: "..sa5, 8, y, 6)
     y += 10
 
-    -- normal stats
     print("normal mode:", 8, y, 12)
     y += 8
-    print("  games: "..stats_normal_games, 8, y, 6)
+    print(" games: "..st9, 8, y, 6)
     y += 6
-    local normal_avg = stats_normal_games > 0 and flr(stats_normal_total_score / stats_normal_games) or 0
-    print("  avg: "..normal_avg, 8, y, 6)
+    local normal_avg = st9 > 0 and flr(sa3 / st9) or 0
+    print(" avg: "..normal_avg, 8, y, 6)
     y += 6
-    print("  max combo: "..stats_normal_max_combo, 8, y, 6)
+    print(" max combo: "..sa6, 8, y, 6)
     y += 10
 
-    -- hard stats
     print("hard mode:", 8, y, 8)
     y += 8
-    print("  games: "..stats_hard_games, 8, y, 6)
+    print(" games: "..sa1, 8, y, 6)
     y += 6
-    local hard_avg = stats_hard_games > 0 and flr(stats_hard_total_score / stats_hard_games) or 0
-    print("  avg: "..hard_avg, 8, y, 6)
+    local hard_avg = sa1 > 0 and flr(sa4 / sa1) or 0
+    print(" avg: "..hard_avg, 8, y, 6)
     y += 6
-    print("  max combo: "..stats_hard_max_combo, 8, y, 6)
+    print(" max combo: "..sa7, 8, y, 6)
 
-  elseif stats_page == 3 then
-    -- power-up usage
+  elseif sb8 == 3 then
     print("power-up usage", 28, 28, 10)
 
     local y = 38
     local powerup_names = {"shield", "slowmo", "2x score", "magnet", "bomb", "freeze"}
     local powerup_counts = {
-      stats_shield_count,
-      stats_slowmo_count,
-      stats_doublescore_count,
-      stats_magnet_count,
-      stats_bomb_count,
-      stats_freeze_count
+      sa8,
+      sa9,
+      sb1,
+      sb2,
+      sb3,
+      sb4
     }
 
-    -- find most and least collected
     local max_count = 0
     local max_idx = 1
     local min_count = 999999
@@ -1757,15 +1550,14 @@ function draw_statistics()
       end
     end
 
-    -- display power-up counts
     for i = 1, 6 do
       local col = 6
       local marker = ""
       if i == max_idx and max_count > 0 then
-        col = 10  -- gold for most collected
+        col = 10
         marker = " \x8e"
-      elseif i == min_idx and stats_total_powerups > 0 then
-        col = 13  -- light blue for least collected
+      elseif i == min_idx and st4 > 0 then
+        col = 13
         marker = " \x97"
       end
 
@@ -1773,16 +1565,13 @@ function draw_statistics()
       y += 10
     end
 
-    -- total
-    print("total: "..stats_total_powerups, 8, y + 4, 7)
+    print("total: "..st4, 8, y + 4, 7)
   end
 
-  -- controls
   print("arrows: navigate", 20, 108, 13)
-  print("x: reset  z: back", 18, 116, 13)
+  print("x: reset z: back", 18, 116, 13)
 end
 
--- game initialization
 function init_game()
   ball.x = 64
   ball.y = 100
@@ -1790,118 +1579,108 @@ function init_game()
   ball.vy = 0
   ball.grounded = false
   score = 0
-  new_record = false  -- reset new record flag
-  new_record_flash = 0
-  leaderboard_rank = 0  -- reset rank
-  cosmetics_checked_this_gameover = false  -- reset cosmetic check flag
-  gametime = 0
-  multiplier = 1.0
-  diff_level = 1
+  ui2 = false
+  ui1 = 0
+  ui3 = 0
+  cu2 = false
+  gm1 = 0
+  lm7 = 1.0
+  lm8 = 1
   combo = 0
-  last_milestone = 0
-  -- set lives based on preset: 1=5 lives, 2=3 lives, 3=1 life
-  lives = lives_preset == 1 and 5 or (lives_preset == 3 and 1 or 3)
-  life_flash = 0
-  obstacles = {}
-  powerups = {}
-  particles = {}
-  floating_texts = {}
-  ball_trail = {}
-  obs_timer = 0
-  boss_timer = 0
-  pu_timer = 0
-  shield_time = 0
-  slowmo_time = 0
-  doublescore_time = 0
-  magnet_time = 0
-  freeze_time = 0
-  obstacles_frozen = false
+  lm1 = 0
+  lives = lm5 == 1 and 5 or (lm5 == 3 and 1 or 3)
+  fx7 = 0
+  ob4 = {}
+  pw6 = {}
+  fx8 = {}
+  fx9 = {}
+  bl1 = {}
+  ob3 = 0
+  ob6 = 0
+  pw7 = 0
+  pw2 = 0
+  pw3 = 0
+  pw1 = 0
+  pw4 = 0
+  pw5 = 0
+  ob1 = false
 
-  -- reset performance stats
-  max_combo = 0
-  total_dodges = 0
-  total_powerups = 0
-  total_dodge_bonus = 0
-  max_multiplier = 0
+  ic9 = 0
+  ic8 = 0
+  ic7 = 0
+  ic6 = 0
+  ic5 = 0
 
-  -- reset achievement tracking for this game
-  power_types_collected = {}
-  last_damage_time = gametime
+  ad5 = {}
+  ad7 = gm1
 
-  -- set initial parameters based on difficulty
-  if difficulty == 1 then  -- easy
-    scroll_speed = 0.3
-    obs_interval = 80
-  elseif difficulty == 2 then  -- normal
-    scroll_speed = 0.5
-    obs_interval = 60
-  elseif difficulty == 3 then  -- hard
-    scroll_speed = 0.8
-    obs_interval = 40
+  if lm9 == 1 then
+    ob7 = 0.3
+    ob2 = 80
+  elseif lm9 == 2 then
+    ob7 = 0.5
+    ob2 = 60
+  elseif lm9 == 3 then
+    ob7 = 0.8
+    ob2 = 40
   end
 
-  -- apply spawn rate modifier
-  if spawn_rate == 1 then  -- slow (20% slower)
-    obs_interval = flr(obs_interval * 1.2)
-  elseif spawn_rate == 3 then  -- fast (20% faster)
-    obs_interval = flr(obs_interval * 0.8)
-  elseif spawn_rate == 4 then  -- extreme (50% faster)
-    obs_interval = flr(obs_interval * 0.5)
+  if lm3 == 1 then
+    ob2 = flr(ob2 * 1.2)
+  elseif lm3 == 3 then
+    ob2 = flr(ob2 * 0.8)
+  elseif lm3 == 4 then
+    ob2 = flr(ob2 * 0.5)
   end
 
-  -- initialize danger zones
-  danger_zones = {
-    {x_min=0, x_max=42, active=false, pulse=0},     -- left
-    {x_min=43, x_max=85, active=false, pulse=0},    -- center
-    {x_min=86, x_max=128, active=false, pulse=0}    -- right
+  dz1 = {
+    {x_min=0, x_max=42, active=false, pulse=0},
+    {x_min=43, x_max=85, active=false, pulse=0},
+    {x_min=86, x_max=128, active=false, pulse=0}
   }
-  zone_timer = 0
-  zone_interval = 450 + rnd(150)  -- 15-20 seconds
+  lm6 = 0
+  dz3 = 450 + rnd(150)
   _log("zones_init")
 
-  play_music(0)  -- start background music
-  _log("game_init:difficulty="..difficulty)
+  play_music(0)
+  _log("game_init:lm9="..lm9)
 end
 
--- challenge variant menu
 function update_challenge_variant_menu()
   local input = test_input()
 
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
-  if input_cooldown == 0 then
-    -- navigate variants
-    if input & 4 > 0 then  -- up
-      variant_cursor = max(1, variant_cursor - 1)
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      mc3 = max(1, mc3 - 1)
       play_sfx(1)
-      _log("variant_nav:up:"..variant_cursor)
-      input_cooldown = 10
+      _log("variant_nav:up:"..mc3)
+      ic1 = 10
     end
 
-    if input & 8 > 0 then  -- down
-      variant_cursor = min(4, variant_cursor + 1)
+    if input & 8 > 0 then
+      mc3 = min(4, mc3 + 1)
       play_sfx(1)
-      _log("variant_nav:down:"..variant_cursor)
-      input_cooldown = 10
+      _log("variant_nav:down:"..mc3)
+      ic1 = 10
     end
 
-    -- select variant
-    if input & 16 > 0 then  -- O button
-      challenge_variant = variant_cursor
+    if input & 16 > 0 then
+      ct9 = mc3
       init_challenge()
       state = "challenge"
-      _log("state:challenge:variant="..challenge_variant)
-      input_cooldown = 10
+      _log("state:challenge:variant="..ct9)
+      ic1 = 10
     end
 
-    -- back to menu
-    if input & 32 > 0 then  -- X button
-      play_music(2)  -- menu music
+    if input & 32 > 0 then
+      play_music(2)
       state = "menu"
       _log("state:menu:variant_cancel")
-      input_cooldown = 10
+      ic1 = 10
     end
   end
 end
@@ -1924,161 +1703,140 @@ function draw_challenge_variant_menu()
     "90s: scarce power-ups"
   }
 
-  -- draw variant options
   local y = 50
   for i = 1, 4 do
-    local col = (i == variant_cursor) and 10 or 6
-    local marker = (i == variant_cursor) and "> " or "  "
+    local col = (i == mc3) and 10 or 6
+    local marker = (i == mc3) and "> " or " "
     print(marker..variant_names[i], 20, y, col)
     print(variant_desc[i], 26, y + 8, 5)
     y += 20
   end
 
-  -- controls
   print("arrows: navigate", 22, 118, 5)
-  print("z: select  x: back", 18, 124, 5)
+  print("z: select x: back", 18, 124, 5)
 end
 
--- daily challenge initialization
 function init_challenge()
-  -- recompute seed in case we crossed midnight
-  challenge_seed = flr(time() / 86400)
-  _log("challenge_seed_recomputed:"..challenge_seed)
+  ct5 = flr(time() / 86400)
+  _log("challenge_seed_recomputed:"..ct5)
 
-  -- check if seed changed (new day) and update best score
   local stored_seed = dget(55)
-  if stored_seed ~= challenge_seed then
-    -- new day, reset best score
-    challenge_best = 0
-    dset(55, challenge_seed)
+  if stored_seed ~= ct5 then
+    ct4 = 0
+    dset(55, ct5)
     dset(54, 0)
-    _log("challenge_new_day:seed="..challenge_seed)
+    _log("challenge_new_day:seed="..ct5)
   else
-    -- same day, load existing best
-    challenge_best = dget(54)
-    _log("challenge_same_day:best="..challenge_best)
+    ct4 = dget(54)
+    _log("challenge_same_day:best="..ct4)
   end
 
-  -- reuse init_game logic
   ball.x = 64
   ball.y = 100
   ball.vx = 0
   ball.vy = 0
   ball.grounded = false
-  challenge_score = 0
-  challenge_active = true
-  challenge_time_left = 90 * 30  -- 90 seconds in frames (30fps)
-  challenge_pulse = 0
-  gametime = 0
-  multiplier = 1.0
-  diff_level = 1
+  ct3 = 0
+  ct2 = true
+  ct1 = 90 * 30
+  ct6 = 0
+  gm1 = 0
+  lm7 = 1.0
+  lm8 = 1
   combo = 0
-  last_milestone = 0
+  lm1 = 0
   lives = 3
-  life_flash = 0
-  obstacles = {}
-  powerups = {}
-  particles = {}
-  floating_texts = {}
-  ball_trail = {}
-  obs_timer = 0
-  boss_timer = 0
-  pu_timer = 0
-  shield_time = 0
-  slowmo_time = 0
-  doublescore_time = 0
-  magnet_time = 0
-  freeze_time = 0
-  obstacles_frozen = false
+  fx7 = 0
+  ob4 = {}
+  pw6 = {}
+  fx8 = {}
+  fx9 = {}
+  bl1 = {}
+  ob3 = 0
+  ob6 = 0
+  pw7 = 0
+  pw2 = 0
+  pw3 = 0
+  pw1 = 0
+  pw4 = 0
+  pw5 = 0
+  ob1 = false
 
-  -- reset performance stats
-  max_combo = 0
-  total_dodges = 0
-  total_powerups = 0
-  total_dodge_bonus = 0
-  max_multiplier = 0
-  power_types_collected = {}
+  ic9 = 0
+  ic8 = 0
+  ic7 = 0
+  ic6 = 0
+  ic5 = 0
+  ad5 = {}
 
-  -- seed-based difficulty (use challenge_seed for deterministic behavior)
-  srand(challenge_seed)
-  local seed_mod = challenge_seed % 3
+  srand(ct5)
+  local seed_mod = ct5 % 3
   if seed_mod == 0 then
-    scroll_speed = 0.6
-    obs_interval = 50
+    ob7 = 0.6
+    ob2 = 50
   elseif seed_mod == 1 then
-    scroll_speed = 0.7
-    obs_interval = 45
+    ob7 = 0.7
+    ob2 = 45
   else
-    scroll_speed = 0.8
-    obs_interval = 40
+    ob7 = 0.8
+    ob2 = 40
   end
 
-  -- apply spawn rate modifier
-  if spawn_rate == 1 then  -- slow (20% slower)
-    obs_interval = flr(obs_interval * 1.2)
-  elseif spawn_rate == 3 then  -- fast (20% faster)
-    obs_interval = flr(obs_interval * 0.8)
-  elseif spawn_rate == 4 then  -- extreme (50% faster)
-    obs_interval = flr(obs_interval * 0.5)
+  if lm3 == 1 then
+    ob2 = flr(ob2 * 1.2)
+  elseif lm3 == 3 then
+    ob2 = flr(ob2 * 0.8)
+  elseif lm3 == 4 then
+    ob2 = flr(ob2 * 0.5)
   end
 
-  -- initialize danger zones
-  danger_zones = {
+  dz1 = {
     {x_min=0, x_max=42, active=false, pulse=0},
     {x_min=43, x_max=85, active=false, pulse=0},
     {x_min=86, x_max=128, active=false, pulse=0}
   }
-  zone_timer = 0
-  zone_interval = 450 + rnd(150)
+  lm6 = 0
+  dz3 = 450 + rnd(150)
 
-  -- apply variant-specific modifiers
-  challenge_lives = 3
-  challenge_max_combo = 0
+  ct7 = 3
+  ct8 = 0
 
-  if challenge_variant == 1 then
-    -- time attack: standard 90s mode (no changes needed)
-    challenge_time_left = 90 * 30
-  elseif challenge_variant == 2 then
-    -- survival: unlimited time, 3 lives, 2x spawn rate, faster difficulty scaling
-    challenge_time_left = 99999 * 30  -- effectively unlimited
-    obs_interval = flr(obs_interval * 0.5)  -- 2x spawn rate
+  if ct9 == 1 then
+    ct1 = 90 * 30
+  elseif ct9 == 2 then
+    ct1 = 99999 * 30
+    ob2 = flr(ob2 * 0.5)
     _log("variant:survival:spawn_2x")
-  elseif challenge_variant == 3 then
-    -- combo master: 60s, slower spawning, no lives system
-    challenge_time_left = 60 * 30
-    obs_interval = flr(obs_interval * 1.25)  -- slower spawning
+  elseif ct9 == 3 then
+    ct1 = 60 * 30
+    ob2 = flr(ob2 * 1.25)
     _log("variant:combo_master:spawn_0.8x")
-  elseif challenge_variant == 4 then
-    -- power-up gauntlet: 90s, slower obstacles, half power-up rate
-    challenge_time_left = 90 * 30
-    obs_interval = flr(obs_interval * 2)  -- slower obstacles
+  elseif ct9 == 4 then
+    ct1 = 90 * 30
+    ob2 = flr(ob2 * 2)
     _log("variant:powerup_gauntlet:spawn_0.5x")
   end
 
-  -- variant-specific music patterns
-  local music_pattern = 0  -- time attack (pattern 0)
-  if challenge_variant == 2 then
-    music_pattern = 1  -- survival mode (pattern 1, higher intensity)
-  elseif challenge_variant == 3 then
-    music_pattern = 0  -- combo master (pattern 0, rhythmic)
-  elseif challenge_variant == 4 then
-    music_pattern = 1  -- power-up gauntlet (pattern 1, playful)
+  local music_pattern = 0
+  if ct9 == 2 then
+    music_pattern = 1
+  elseif ct9 == 3 then
+    music_pattern = 0
+  elseif ct9 == 4 then
+    music_pattern = 1
   end
   play_music(music_pattern)
-  _log("challenge_init:variant="..challenge_variant..",music="..music_pattern..",seed="..challenge_seed..",scroll="..scroll_speed..",interval="..obs_interval)
+  _log("challenge_init:variant="..ct9..",music="..music_pattern..",seed="..ct5..",scroll="..ob7..",interval="..ob2)
 end
 
--- achievement checking
 function check_achievements()
-  -- 1. survivor: survive 30+ seconds
-  if not achievements[1] and gametime >= 900 then
+  if not ad2[1] and gm1 >= 900 then
     unlock_achievement(1)
   end
 
-  -- 2. power master: collect all 6 types
-  if not achievements[2] then
+  if not ad2[2] then
     local types_count = 0
-    for k, v in pairs(power_types_collected) do
+    for k, v in pairs(ad5) do
       if v then types_count += 1 end
     end
     if types_count >= 6 then
@@ -2086,61 +1844,50 @@ function check_achievements()
     end
   end
 
-  -- 3. combo king: reach 20+ combo
-  if not achievements[3] and combo >= 20 then
+  if not ad2[3] and combo >= 20 then
     unlock_achievement(3)
   end
 
-  -- 4. danger expert: 5+ pickups from danger zones (persistent)
-  if not achievements[4] and danger_zone_pickups >= 5 then
+  if not ad2[4] and ad6 >= 5 then
     unlock_achievement(4)
   end
 
-  -- 5. speedrunner: 500+ score in one game
-  if not achievements[5] and score >= 500 then
+  if not ad2[5] and score >= 500 then
     unlock_achievement(5)
   end
 
-  -- 6. unstoppable: 2.0x+ multiplier
-  if not achievements[6] and multiplier >= 2.0 then
+  if not ad2[6] and lm7 >= 2.0 then
     unlock_achievement(6)
   end
 
-  -- 7. complete collection: checked in settings menu when skin is changed
-
-  -- 8. perfect wave: survive 10s (300 frames) without damage
-  if not achievements[8] and gametime - last_damage_time >= 300 then
+  if not ad2[8] and gm1 - ad7 >= 300 then
     unlock_achievement(8)
   end
 end
 
 function unlock_achievement(id)
-  if achievements[id] then return end  -- already unlocked
+  if ad2[id] then return end
 
-  achievements[id] = true
-  ach_definitions[id].unlocked = true
-  ach_unlocked_count += 1
+  ad2[id] = true
+  ad1[id].unlocked = true
+  ad3 += 1
 
-  local ach = ach_definitions[id]
+  local ach = ad1[id]
   _log("achievement:"..ach.name)
 
-  -- visual/audio feedback
-  play_sfx(6)  -- achievement sound
+  play_sfx(6)
   shake(12, 1.2)
   add_floating_text(64, 50, "achievement!", 10)
   add_floating_text(64, 60, ach.title, 9)
 
-  -- save immediately
   save_achievements()
 end
 
--- cosmetic unlocks (separate from achievements)
 function check_cosmetic_unlocks()
   local unlocked_any = false
 
-  -- bit 0: gold ball (score 300+)
-  if score >= 300 and (cosmetics_unlocked & 1) == 0 then
-    cosmetics_unlocked = cosmetics_unlocked | 1
+  if score >= 300 and (cu1 & 1) == 0 then
+    cu1 = cu1 | 1
     add_floating_text(64, 50, "unlocked!", 10)
     add_floating_text(64, 60, "gold ball", 9)
     play_sfx(6)
@@ -2149,9 +1896,8 @@ function check_cosmetic_unlocks()
     _log("cosmetic_unlock:gold_ball")
   end
 
-  -- bit 1: cyan ball (combo 15+)
-  if max_combo >= 15 and (cosmetics_unlocked & 2) == 0 then
-    cosmetics_unlocked = cosmetics_unlocked | 2
+  if ic9 >= 15 and (cu1 & 2) == 0 then
+    cu1 = cu1 | 2
     add_floating_text(64, 50, "unlocked!", 10)
     add_floating_text(64, 60, "cyan ball", 12)
     play_sfx(6)
@@ -2160,9 +1906,8 @@ function check_cosmetic_unlocks()
     _log("cosmetic_unlock:cyan_ball")
   end
 
-  -- bit 2: rainbow trail (15+ power-ups)
-  if total_powerups >= 15 and (cosmetics_unlocked & 4) == 0 then
-    cosmetics_unlocked = cosmetics_unlocked | 4
+  if ic7 >= 15 and (cu1 & 4) == 0 then
+    cu1 = cu1 | 4
     add_floating_text(64, 50, "unlocked!", 10)
     add_floating_text(64, 60, "rainbow trail", 14)
     play_sfx(6)
@@ -2171,9 +1916,8 @@ function check_cosmetic_unlocks()
     _log("cosmetic_unlock:rainbow_trail")
   end
 
-  -- bit 3: pink theme (5+ danger zone pickups)
-  if danger_zone_pickups >= 5 and (cosmetics_unlocked & 8) == 0 then
-    cosmetics_unlocked = cosmetics_unlocked | 8
+  if ad6 >= 5 and (cu1 & 8) == 0 then
+    cu1 = cu1 | 8
     add_floating_text(64, 50, "unlocked!", 10)
     add_floating_text(64, 60, "pink theme", 14)
     play_sfx(6)
@@ -2182,9 +1926,8 @@ function check_cosmetic_unlocks()
     _log("cosmetic_unlock:pink_theme")
   end
 
-  -- bit 4: gold theme (1.5x+ multiplier)
-  if max_multiplier >= 1.5 and (cosmetics_unlocked & 16) == 0 then
-    cosmetics_unlocked = cosmetics_unlocked | 16
+  if ic5 >= 1.5 and (cu1 & 16) == 0 then
+    cu1 = cu1 | 16
     add_floating_text(64, 50, "unlocked!", 10)
     add_floating_text(64, 60, "gold theme", 10)
     play_sfx(6)
@@ -2193,9 +1936,8 @@ function check_cosmetic_unlocks()
     _log("cosmetic_unlock:gold_theme")
   end
 
-  -- bit 5: red theme (diff_level 5+)
-  if diff_level >= 5 and (cosmetics_unlocked & 32) == 0 then
-    cosmetics_unlocked = cosmetics_unlocked | 32
+  if lm8 >= 5 and (cu1 & 32) == 0 then
+    cu1 = cu1 | 32
     add_floating_text(64, 50, "unlocked!", 10)
     add_floating_text(64, 60, "red theme", 8)
     play_sfx(6)
@@ -2204,9 +1946,8 @@ function check_cosmetic_unlocks()
     _log("cosmetic_unlock:red_theme")
   end
 
-  -- bit 6: blue theme (20+ dodges)
-  if total_dodges >= 20 and (cosmetics_unlocked & 64) == 0 then
-    cosmetics_unlocked = cosmetics_unlocked | 64
+  if ic8 >= 20 and (cu1 & 64) == 0 then
+    cu1 = cu1 | 64
     add_floating_text(64, 50, "unlocked!", 10)
     add_floating_text(64, 60, "blue theme", 12)
     play_sfx(6)
@@ -2215,9 +1956,8 @@ function check_cosmetic_unlocks()
     _log("cosmetic_unlock:blue_theme")
   end
 
-  -- bit 7: white trail (60+ seconds survival)
-  if gametime >= 1800 and (cosmetics_unlocked & 128) == 0 then
-    cosmetics_unlocked = cosmetics_unlocked | 128
+  if gm1 >= 1800 and (cu1 & 128) == 0 then
+    cu1 = cu1 | 128
     add_floating_text(64, 50, "unlocked!", 10)
     add_floating_text(64, 60, "white trail", 7)
     play_sfx(6)
@@ -2226,21 +1966,17 @@ function check_cosmetic_unlocks()
     _log("cosmetic_unlock:white_trail")
   end
 
-  -- save if any unlocked
   if unlocked_any then
     save_cosmetics()
   end
 end
 
--- ball physics helper (shared by normal game, gauntlet mode, and boss rush)
 function update_ball()
-  -- physics
   ball.vx *= 0.9
-  ball.vy += 0.4  -- gravity
+  ball.vy += 0.4
   ball.x += ball.vx
   ball.y += ball.vy
 
-  -- bounce off floor
   if ball.y >= 122 then
     ball.y = 122
     ball.vy *= -0.7
@@ -2248,53 +1984,48 @@ function update_ball()
     if abs(ball.vy) < 0.5 then
       ball.vy = -3
     end
-    play_sfx(0)  -- bounce sound
-    shake(6, 0.5 + diff_level * 0.1)  -- small shake, scales with difficulty
-    add_particles(ball.x, 122, 5, 13)  -- bounce particles
+    play_sfx(0)
+    shake(6, 0.5 + lm8 * 0.1)
+    add_particles(ball.x, 122, 5, 13)
     _log("bounce")
   else
     ball.grounded = false
   end
 
-  -- wall bounce
   if ball.x < ball.r then
     ball.x = ball.r
     ball.vx *= -0.5
-    play_sfx(1)  -- wall bounce sound
-    shake(4, 0.3)  -- small shake on wall bounce
+    play_sfx(1)
+    shake(4, 0.3)
     add_particles(ball.x, ball.y, 3, 6)
   elseif ball.x > 128 - ball.r then
     ball.x = 128 - ball.r
     ball.vx *= -0.5
-    play_sfx(1)  -- wall bounce sound
-    shake(4, 0.3)  -- small shake on wall bounce
+    play_sfx(1)
+    shake(4, 0.3)
     add_particles(ball.x, ball.y, 3, 6)
   end
 end
 
--- ball trail helper (shared by normal game, gauntlet mode, and boss rush)
 function update_ball_trail()
   local vel = sqrt(ball.vx^2 + ball.vy^2)
-  add(ball_trail, {x=ball.x, y=ball.y, vel=vel, age=0})
-  for tr in all(ball_trail) do
+  add(bl1, {x=ball.x, y=ball.y, vel=vel, age=0})
+  for tr in all(bl1) do
     tr.age += 1
     if tr.age > 8 then
-      del(ball_trail, tr)
+      del(bl1, tr)
     end
   end
-  -- limit trail length
-  while #ball_trail > max_trail_length do
-    del(ball_trail, ball_trail[1])
+  while #bl1 > bl2 do
+    del(bl1, bl1[1])
   end
 end
 
--- obstacle update helper (shared by normal game and gauntlet mode)
 function update_obstacle(o)
-  local speed_mod = slowmo_time > 0 and 0.5 or 1.0
+  local speed_mod = pw3 > 0 and 0.5 or 1.0
 
-  -- freeze effect: skip movement when frozen
-  if not obstacles_frozen then
-    o.y += scroll_speed * speed_mod
+  if not ob1 then
+    o.y += ob7 * speed_mod
 
     if o.type == "moving" then
       o.x += o.vx
@@ -2305,25 +2036,19 @@ function update_obstacle(o)
       o.angle += 0.02
       o.r = 8 + sin(o.angle) * 4
     elseif o.type == "boss" then
-      -- boss evolution stages
       if o.boss_stage == 1 then
-        -- stage 1: standard wave movement
         o.wave_time += 0.03
         o.x = o.base_x + sin(o.wave_time) * 30
       elseif o.boss_stage == 2 then
-        -- stage 2: faster wave with increased amplitude
         o.wave_time += 0.05
         o.x = o.base_x + sin(o.wave_time) * 35
       elseif o.boss_stage == 3 then
-        -- stage 3: compound movement (wave + vertical oscillation)
         o.wave_time += 0.06
         o.vertical_time += 0.04
         o.x = o.base_x + sin(o.wave_time) * 40
-        -- add vertical oscillation for compound movement
         local base_y = o.y
         o.y = base_y + sin(o.vertical_time) * 3
 
-        -- spawn satellites periodically
         o.satellite_timer += 1
         if o.satellite_timer >= 90 then
           o.satellite_timer = 0
@@ -2335,7 +2060,7 @@ function update_obstacle(o)
       o.x = o.base_x + sin(o.swing_time) * 25
     elseif o.type == "zigzag" then
       o.zig_time += 0.05
-      local amp = 15 + diff_level * 2
+      local amp = 15 + lm8 * 2
       o.x += sin(o.zig_time) * amp * o.zig_dir * 0.1
       if o.x < 10 or o.x > 118 then
         o.zig_dir *= -1
@@ -2343,7 +2068,6 @@ function update_obstacle(o)
     elseif o.type == "orbiter" then
       o.orbit_angle += 0.05
     elseif o.type == "satellite" then
-      -- satellites orbit around their spawn point
       o.orbit_angle += o.orbit_speed
       o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius
       o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius
@@ -2351,56 +2075,49 @@ function update_obstacle(o)
   end
 end
 
--- play state
 function update_play()
-  -- update pause cooldown
-  if pause_cooldown > 0 then
-    pause_cooldown -= 1
+  if ic2 > 0 then
+    ic2 -= 1
   end
 
-  -- check for pause button (X = button 5)
   local input = test_input()
-  if pause_cooldown == 0 and input & 32 > 0 then
+  if ic2 == 0 and input & 32 > 0 then
     state = "pause"
-    play_music(-1)  -- stop music when paused
+    play_music(-1)
     _log("state:pause")
-    pause_cooldown = 15
+    ic2 = 15
     return
   end
 
-  gametime += 1
+  gm1 += 1
 
-  -- difficulty progression (apply scaling setting)
-  local scale_interval = 600  -- normal = every 10s
-  if diff_scaling == 1 then scale_interval = 900  -- conservative = every 15s
-  elseif diff_scaling == 3 then scale_interval = 300  -- aggressive = every 5s
-  elseif diff_scaling == 4 then scale_interval = 120  -- insane = every 2s
+  local scale_interval = 600
+  if lm2 == 1 then scale_interval = 900
+  elseif lm2 == 3 then scale_interval = 300
+  elseif lm2 == 4 then scale_interval = 120
   end
 
-  if gametime % scale_interval == 0 then
-    diff_level += 1
-    scroll_speed += 0.1
-    obs_interval = max(20, obs_interval - 5)
-    play_sfx(2)  -- difficulty increase ascending tone
-    _log("sfx_difficulty_up:level="..diff_level)
-    wave_pulse = 20  -- trigger wave counter pulse
-    _log("difficulty:"..diff_level)
-    _log("wave:"..diff_level)
+  if gm1 % scale_interval == 0 then
+    lm8 += 1
+    ob7 += 0.1
+    ob2 = max(20, ob2 - 5)
+    play_sfx(2)
+    _log("sfx_difficulty_up:level="..lm8)
+    fx6 = 20
+    _log("lm9:"..lm8)
+    _log("wave:"..lm8)
   end
 
-  -- update danger zones
-  zone_timer += 1
-  if zone_timer >= zone_interval then
-    zone_timer = 0
-    zone_interval = 450 + rnd(150)  -- randomize next interval
-    -- toggle random zone
-    local z = danger_zones[flr(rnd(3)) + 1]
+  lm6 += 1
+  if lm6 >= dz3 then
+    lm6 = 0
+    dz3 = 450 + rnd(150)
+    local z = dz1[flr(rnd(3)) + 1]
     z.active = not z.active
-    local zone_idx = z == danger_zones[1] and "L" or (z == danger_zones[2] and "C" or "R")
+    local zone_idx = z == dz1[1] and "L" or (z == dz1[2] and "C" or "R")
     _log("zone_toggle:"..zone_idx..":"..tostr(z.active))
   end
-  -- update zone pulse animations
-  for z in all(danger_zones) do
+  for z in all(dz1) do
     if z.active then
       z.pulse = (z.pulse + 0.08) % 1
     else
@@ -2408,29 +2125,25 @@ function update_play()
     end
   end
 
-  -- score multiplier every 30s
-  if gametime % 900 == 0 then
-    multiplier += 0.5
-    max_multiplier = max(max_multiplier, multiplier)
-    _log("multiplier:"..multiplier)
+  if gm1 % 900 == 0 then
+    lm7 += 0.5
+    ic5 = max(ic5, lm7)
+    _log("lm7:"..lm7)
   end
 
-  -- base score
-  score += flr(1 * multiplier * (doublescore_time > 0 and 2 or 1))
+  score += flr(1 * lm7 * (pw1 > 0 and 2 or 1))
 
-  -- power-up timers
-  if shield_time > 0 then shield_time -= 1 end
-  if slowmo_time > 0 then slowmo_time -= 1 end
-  if doublescore_time > 0 then doublescore_time -= 1 end
-  if magnet_time > 0 then magnet_time -= 1 end
-  if freeze_time > 0 then
-    freeze_time -= 1
-    obstacles_frozen = true
+  if pw2 > 0 then pw2 -= 1 end
+  if pw3 > 0 then pw3 -= 1 end
+  if pw1 > 0 then pw1 -= 1 end
+  if pw4 > 0 then pw4 -= 1 end
+  if pw5 > 0 then
+    pw5 -= 1
+    ob1 = true
   else
-    obstacles_frozen = false
+    ob1 = false
   end
 
-  -- movement input
   if input & 1 > 0 then
     ball.vx -= 0.5
     _log("steer_left")
@@ -2440,57 +2153,47 @@ function update_play()
     _log("steer_right")
   end
 
-  -- update ball physics
   update_ball()
 
-  -- update ball trail
   update_ball_trail()
 
-  -- spawn obstacles
-  obs_timer += 1
-  if obs_timer >= obs_interval then
-    obs_timer = 0
+  ob3 += 1
+  if ob3 >= ob2 then
+    ob3 = 0
     spawn_obstacle()
   end
 
-  -- spawn boss obstacles (diff_level >= 3)
-  if diff_level >= 3 then
-    boss_timer += 1
-    if boss_timer >= boss_interval then
-      boss_timer = 0
+  if lm8 >= 3 then
+    ob6 += 1
+    if ob6 >= ob5 then
+      ob6 = 0
       if rnd(1) < 0.33 then
         spawn_boss()
       end
     end
   end
 
-  -- update obstacles
-  for o in all(obstacles) do
+  for o in all(ob4) do
     update_obstacle(o)
 
-    -- check collision
     local collision = false
 
-    -- standard collision for most types
     if o.type != "orbiter" then
       local dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
       if dist < ball.r + o.r then
         collision = true
       end
     else
-      -- orbiter: check collision with center and two satellites
       local center_dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
       if center_dist < ball.r + 3 then
         collision = true
       end
-      -- satellite 1
       local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
       local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
       local sat1_dist = sqrt((ball.x - sat1_x)^2 + (ball.y - sat1_y)^2)
       if sat1_dist < ball.r + 3 then
         collision = true
       end
-      -- satellite 2
       local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
       local sat2_dist = sqrt((ball.x - sat2_x)^2 + (ball.y - sat2_y)^2)
@@ -2499,389 +2202,339 @@ function update_play()
       end
     end
 
-    if shield_time == 0 then
+    if pw2 == 0 then
 
       if collision then
-        -- lose a life
         lives -= 1
-        life_flash = 10  -- flash lives counter
-        last_damage_time = gametime  -- reset perfect wave tracker
+        fx7 = 10
+        ad7 = gm1
         _log("life_lost")
         _log("lives:"..lives)
 
-        -- collision feedback
-        play_sfx(3)  -- collision/damage harsh buzz
-        shake(8, 1.0)  -- medium shake
-        ball_flash = 3  -- flash ball white
-        add_particles(ball.x, ball.y, 15, 7)  -- particle burst
+        play_sfx(3)
+        shake(8, 1.0)
+        bl3 = 3
+        add_particles(ball.x, ball.y, 15, 7)
         combo = 0
-        last_milestone = 0
+        lm1 = 0
         _log("combo_reset")
 
-        -- remove this obstacle
-        del(obstacles, o)
+        del(ob4, o)
 
-        -- check if game over
         if lives <= 0 then
-          play_sfx(7)  -- game over descending tone
-          play_music(3, 500)  -- game over music with fade
+          play_sfx(7)
+          play_music(3, 500)
           state = "gameover"
           _log("state:gameover")
           _log("final_score:"..score)
-          _log("max_combo:"..max_combo)
-          _log("total_dodges:"..total_dodges)
-          _log("total_powerups:"..total_powerups)
-          _log("multiplier:"..multiplier)
-          local avg = total_dodges > 0 and flr(total_dodge_bonus / total_dodges) or 0
+          _log("ic9:"..ic9)
+          _log("ic8:"..ic8)
+          _log("ic7:"..ic7)
+          _log("lm7:"..lm7)
+          local avg = ic8 > 0 and flr(ic6 / ic8) or 0
           _log("avg_bonus:"..avg)
 
-          -- accumulate player statistics
-          stats_total_games += 1
-          stats_total_time += flr(gametime / 30)  -- convert frames to seconds
-          stats_total_dodges += total_dodges
-          stats_total_powerups += total_powerups
-          stats_total_score += score
-          stats_career_max_combo = max(stats_career_max_combo, max_combo)
-          stats_career_max_mult = max(stats_career_max_mult, flr(multiplier * 100))
-          stats_current_streak += 1
-          stats_longest_streak = max(stats_longest_streak, stats_current_streak)
+          st1 += 1
+          st2 += flr(gm1 / 30)
+          st3 += ic8
+          st4 += ic7
+          st5 += score
+          st6 = max(st6, ic9)
+          st7 = max(st7, flr(lm7 * 100))
+          sb5 += 1
+          sb6 = max(sb6, sb5)
 
-          -- per-difficulty stats
-          if difficulty == 1 then
-            stats_easy_games += 1
-            stats_easy_total_score += score
-            stats_easy_max_combo = max(stats_easy_max_combo, max_combo)
-          elseif difficulty == 2 then
-            stats_normal_games += 1
-            stats_normal_total_score += score
-            stats_normal_max_combo = max(stats_normal_max_combo, max_combo)
-          elseif difficulty == 3 then
-            stats_hard_games += 1
-            stats_hard_total_score += score
-            stats_hard_max_combo = max(stats_hard_max_combo, max_combo)
+          if lm9 == 1 then
+            st8 += 1
+            sa2 += score
+            sa5 = max(sa5, ic9)
+          elseif lm9 == 2 then
+            st9 += 1
+            sa3 += score
+            sa6 = max(sa6, ic9)
+          elseif lm9 == 3 then
+            sa1 += 1
+            sa4 += score
+            sa7 = max(sa7, ic9)
           end
 
-          -- save statistics
           save_statistics()
-          _log("stats_updated:games="..stats_total_games)
+          _log("stats_updated:games="..st1)
 
-          if score > highscore then
-            highscore = score
-            new_record = true
-            new_record_flash = 60  -- flash for 2 seconds
-            dset(0, highscore)  -- save to cartridge data
-            shake(20, 0.5)  -- screen shake
-            _log("new_highscore:"..highscore)
+          if score > gm2 then
+            gm2 = score
+            ui2 = true
+            ui1 = 60
+            dset(0, gm2)
+            shake(20, 0.5)
+            _log("new_highscore:"..gm2)
             _log("highscore_saved")
           end
         end
         return
       end
     else
-      -- shield active: absorb collision
       if collision then
-        play_sfx(6)  -- shield absorb ping
-        shield_time = 0  -- consume shield
-        shake(4, 0.5)  -- light shake
-        add_particles(ball.x, ball.y, 10, 11)  -- cyan particles
-        -- cleanup satellites if boss was absorbed
+        play_sfx(6)
+        pw2 = 0
+        shake(4, 0.5)
+        add_particles(ball.x, ball.y, 10, 11)
         if o.type == "boss" and o.boss_id then
           cleanup_satellites(o.boss_id)
         end
-        del(obstacles, o)  -- remove obstacle
+        del(ob4, o)
         _log("shield_absorb")
         return
       end
     end
 
-    -- dodged obstacle bonus
     if not o.dodged and ball.y < o.y - 10 then
       o.dodged = true
       combo += 1
       _log("combo:"..combo)
 
-      -- update performance stats
-      if combo > max_combo then
-        max_combo = combo
-        _log("max_combo:"..max_combo)
+      if combo > ic9 then
+        ic9 = combo
+        _log("ic9:"..ic9)
       end
-      total_dodges += 1
+      ic8 += 1
 
-      local base_bonus = 10 * multiplier * (doublescore_time > 0 and 2 or 1)
+      local base_bonus = 10 * lm7 * (pw1 > 0 and 2 or 1)
       if o.is_boss then
-        base_bonus *= 2  -- double points for boss dodges
+        base_bonus *= 2
       end
 
-      -- danger zone bonus: check if player is in active zone
       local ball_zone = get_zone(ball.x)
-      local in_danger_zone = ball_zone > 0 and danger_zones[ball_zone].active
+      local in_danger_zone = ball_zone > 0 and dz1[ball_zone].active
       if in_danger_zone then
-        base_bonus *= 1.5  -- 1.5x multiplier for danger zone dodges
+        base_bonus *= 1.5
         _log("danger_dodge:zone"..ball_zone)
       end
 
-      -- apply combo bonus modifier
       local bonus_mod = 1.0
-      if combo_bonus == 1 then bonus_mod = 1.5  -- generous
-      elseif combo_bonus == 3 then bonus_mod = 0.7  -- stingy
+      if lm4 == 1 then bonus_mod = 1.5
+      elseif lm4 == 3 then bonus_mod = 0.7
       end
 
       local combo_mult = 1 + flr(combo / 5)
       local bonus = flr(base_bonus * combo_mult * bonus_mod)
       score += bonus
-      total_dodge_bonus += bonus
+      ic6 += bonus
 
       if o.is_boss then
-        -- boss dodge: stage-specific feedback
         local stage = o.boss_stage or 1
-        local sfx_id = stage == 3 and 7 or (stage == 2 and 2 or 4)  -- different SFX per stage
+        local sfx_id = stage == 3 and 7 or (stage == 2 and 2 or 4)
         play_sfx(sfx_id)
-        local shake_amt = 6 + stage * 2  -- stronger shake for higher stages
+        local shake_amt = 6 + stage * 2
         shake(shake_amt, 0.8 + stage * 0.2)
-        -- more particles for higher stages
         local particle_count = 25 + stage * 10
         local particle_col = stage == 3 and 14 or (stage == 2 and 9 or 9)
         add_particles(ball.x, ball.y, particle_count, particle_col)
         _log("boss_dodge:stage"..stage..":bonus="..bonus)
-        -- cleanup satellites when boss is dodged
         if o.boss_id then
           cleanup_satellites(o.boss_id)
         end
       else
-        -- dodge sound with combo-based pitch variation
         local pitch_offset = min(flr(combo / 5) * 2, 12)
-        play_sfx(8, -1, pitch_offset)  -- dodge sound (upbeat, ascending)
+        play_sfx(8, -1, pitch_offset)
         shake(3, 0.4)
         _log("dodge_bonus:"..bonus)
         _log("sfx_dodge:combo="..combo..",pitch="..pitch_offset)
-        local pcol = in_danger_zone and 8 or 11  -- red for danger zone
+        local pcol = in_danger_zone and 8 or 11
         add_particles(ball.x, ball.y, 15, pcol)
       end
 
-      -- floating text for dodge bonus
-      local text_col = in_danger_zone and 8 or 11  -- red for danger
+      local text_col = in_danger_zone and 8 or 11
       if combo_mult > 1 then
         add_floating_text(ball.x - 8, ball.y - 12, "+"..bonus.." x"..combo_mult, text_col)
       else
         add_floating_text(ball.x - 6, ball.y - 12, "+"..bonus, text_col)
       end
 
-      -- check for combo milestones
       local milestone = 0
       if combo >= 20 then
-        milestone = flr(combo / 5) * 5  -- every 5 after 20
+        milestone = flr(combo / 5) * 5
       elseif combo == 15 or combo == 10 or combo == 5 then
         milestone = combo
       end
 
-      -- trigger milestone celebration if new milestone reached
-      if milestone > 0 and milestone > last_milestone then
-        last_milestone = milestone
+      if milestone > 0 and milestone > lm1 then
+        lm1 = milestone
         _log("milestone:"..milestone)
-        play_sfx(7)  -- celebratory milestone sound
+        play_sfx(7)
         _log("sfx_combo_milestone:"..milestone)
-        shake(3, 0.25)  -- gentle shake for milestone
-        -- milestone floating text with color
-        local m_col = 10  -- yellow
+        shake(3, 0.25)
+        local m_col = 10
         if milestone >= 15 then
-          m_col = 14  -- pink for 15+
+          m_col = 14
         elseif milestone >= 10 then
-          m_col = 9  -- orange for 10+
+          m_col = 9
         end
         add_floating_text(64 - 18, 50, milestone.." combo!", m_col)
       end
     end
 
-    -- cleanup
     if o.y > 140 then
-      -- if removing a boss, clean up its satellites
       if o.type == "boss" and o.boss_id then
         cleanup_satellites(o.boss_id)
       end
-      del(obstacles, o)
+      del(ob4, o)
     end
   end
 
-  -- spawn power-ups
-  pu_timer += 1
-  if pu_timer >= 300 and #powerups < 2 then
-    pu_timer = 0
+  pw7 += 1
+  if pw7 >= 300 and #pw6 < 2 then
+    pw7 = 0
     spawn_powerup()
   end
 
-  -- update power-ups
-  for p in all(powerups) do
-    p.y += scroll_speed * speed_mod
-    p.spawn_time += 1  -- increment for pulse effect
+  for p in all(pw6) do
+    p.y += ob7 * speed_mod
+    p.spawn_time += 1
 
-    -- magnet effect: pull powerups toward ball
-    if magnet_time > 0 then
+    if pw4 > 0 then
       local dx = ball.x - p.x
       local dy = ball.y - p.y
       local dist = sqrt(dx^2 + dy^2)
       if dist > 1 then
-        p.x += (dx / dist) * 2  -- move toward ball
+        p.x += (dx / dist) * 2
         p.y += (dy / dist) * 2
       end
     end
 
-    -- collect
     local dist = sqrt((ball.x - p.x)^2 + (ball.y - p.y)^2)
     if dist < ball.r + 4 then
       collect_powerup(p)
-      del(powerups, p)
+      del(pw6, p)
     end
 
     if p.y > 140 then
-      del(powerups, p)
+      del(pw6, p)
     end
   end
 
-  -- update particles
-  for pt in all(particles) do
+  for pt in all(fx8) do
     pt.x += pt.vx
     pt.y += pt.vy
     pt.life -= 1
     if pt.life <= 0 then
-      del(particles, pt)
+      del(fx8, pt)
     end
   end
 
-  -- update floating texts
-  for ft in all(floating_texts) do
+  for ft in all(fx9) do
     ft.y += ft.vy
     ft.lifetime -= 1
     if ft.lifetime <= 0 then
-      del(floating_texts, ft)
+      del(fx9, ft)
     end
   end
 
-  -- check achievements
   check_achievements()
 end
 
 function draw_play()
-  -- background grid
   for i = 0, 15 do
-    line(0, i * 8 + (gametime % 8), 127, i * 8 + (gametime % 8), 5)
+    line(0, i * 8 + (gm1 % 8), 127, i * 8 + (gm1 % 8), 5)
   end
 
-  -- danger zones (subtle pulsing tint + borders)
   for i = 1, 3 do
-    local z = danger_zones[i]
+    local z = dz1[i]
     if z.active then
-      -- pulsing background tint (checkerboard for subtlety)
       local pulse_alpha = 0.5 + sin(z.pulse) * 0.3
       if pulse_alpha > 0.5 then
         for x = z.x_min, z.x_max - 1, 3 do
           for y = 0, 127, 3 do
-            pset(x, y, 8)  -- red tint
+            pset(x, y, 8)
           end
         end
       end
-      -- glowing borders
-      local border_col = sin(z.pulse) > 0.5 and 8 or 2  -- pulse red/dark
+      local border_col = sin(z.pulse) > 0.5 and 8 or 2
       line(z.x_min, 0, z.x_min, 127, border_col)
       line(z.x_max - 1, 0, z.x_max - 1, 127, border_col)
     end
   end
 
-  -- obstacles (sprite-based)
-  for o in all(obstacles) do
+  for o in all(ob4) do
     if o.type == "spike" then
-      -- sprite 0: spike - apply theme colors
       pal(8, theme_color(8)); pal(2, theme_color(2))
-      if o.in_danger then pal(8, 14) end  -- pink in danger (overrides theme)
-      if obstacles_frozen then pal(2, 12) end  -- cyan outline when frozen (overrides theme)
+      if o.in_danger then pal(8, 14) end
+      if ob1 then pal(2, 12) end
       spr(0, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "moving" then
-      -- sprite 1: moving horizontal bar - apply theme colors
       pal(12, theme_color(12)); pal(0, theme_color(0))
-      if o.in_danger then pal(12, 8) end  -- red in danger (overrides theme)
-      if obstacles_frozen then pal(12, 12) end  -- cyan when frozen (preserves)
+      if o.in_danger then pal(12, 8) end
+      if ob1 then pal(12, 12) end
       spr(1, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "rotating" then
-      -- sprite 2: rotating gear - apply theme colors
       pal(14, theme_color(14)); pal(7, theme_color(7))
-      if o.in_danger then pal(14, 15) end  -- white in danger (overrides theme)
-      if obstacles_frozen then pal(7, 12) end  -- cyan tint when frozen (overrides theme)
+      if o.in_danger then pal(14, 15) end
+      if ob1 then pal(7, 12) end
       spr(2, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "boss" then
-      -- sprite 3: boss face with stage-based color palette
-      -- stage 1: default, stage 2: orange, stage 3: pink
       if o.boss_stage == 2 then
-        pal(8, theme_color(9)); pal(2, theme_color(9))  -- orange palette for stage 2 (themed)
+        pal(8, theme_color(9)); pal(2, theme_color(9))
       elseif o.boss_stage == 3 then
-        pal(8, theme_color(14)); pal(2, theme_color(14))  -- pink palette for stage 3 (themed)
+        pal(8, theme_color(14)); pal(2, theme_color(14))
       else
-        pal(8, theme_color(8)); pal(2, theme_color(2))  -- default stage 1 (themed)
+        pal(8, theme_color(8)); pal(2, theme_color(2))
       end
-      if o.in_danger then pal(8, 8); pal(2, 8) end  -- red override for danger (overrides theme)
+      if o.in_danger then pal(8, 8); pal(2, 8) end
       spr(3, o.x - 4, o.y - 4)
       pal()
-      -- pulsing ring effect with stage intensity
-      if not obstacles_frozen then
-        local pulse = sin(gametime / 15) * 2
+      if not ob1 then
+        local pulse = sin(gm1 / 15) * 2
         local ring_col1 = theme_color(o.boss_stage == 3 and 14 or (o.boss_stage == 2 and 9 or 14))
         local ring_col2 = theme_color(o.boss_stage == 3 and 8 or 9)
         circ(o.x, o.y, o.r - 2 + pulse, ring_col1)
         circ(o.x, o.y, o.r + 2 + pulse, ring_col2)
-        -- stage 3: additional outer ring
         if o.boss_stage == 3 then
           circ(o.x, o.y, o.r + 4 + pulse, theme_color(2))
         end
       else
-        circ(o.x, o.y, o.r, 12)  -- cyan ring when frozen (no theme)
+        circ(o.x, o.y, o.r, 12)
       end
     elseif o.type == "pendulum" then
-      -- sprite 4: pendulum weight with chain
-      line(o.base_x, 0, o.x, o.y, theme_color(5))  -- themed chain
+      line(o.base_x, 0, o.x, o.y, theme_color(5))
       pal(9, theme_color(9)); pal(5, theme_color(5))
-      if o.in_danger then pal(9, 8) end  -- red in danger (overrides theme)
-      if obstacles_frozen then pal(9, 12) end  -- cyan when frozen (overrides theme)
+      if o.in_danger then pal(9, 8) end
+      if ob1 then pal(9, 12) end
       spr(4, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "zigzag" then
-      -- sprite 5: zigzag wave - apply theme colors
       pal(11, theme_color(11)); pal(12, theme_color(12))
-      if o.in_danger then pal(11, 8); pal(12, 8) end  -- red in danger (overrides theme)
-      if obstacles_frozen then pal(11, 12); pal(12, 12) end  -- cyan when frozen (preserves cyan)
+      if o.in_danger then pal(11, 8); pal(12, 8) end
+      if ob1 then pal(11, 12); pal(12, 12) end
       spr(5, o.x - 4, o.y - 4)
       pal()
     elseif o.type == "orbiter" then
-      -- sprite 6: center core + orbit ring - apply theme colors
       pal(2, theme_color(2)); pal(5, theme_color(5))
-      if o.in_danger then pal(2, 8); pal(5, 8) end  -- red in danger (overrides theme)
+      if o.in_danger then pal(2, 8); pal(5, 8) end
       spr(6, o.x - 4, o.y - 4)
       pal()
-      -- satellites (small sprites) with theme colors
       local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
       local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
       local sat_col = o.in_danger and 14 or theme_color(9)
       circfill(sat1_x, sat1_y, 2, sat_col)
-      if obstacles_frozen then circ(sat1_x, sat1_y, 2, 12) end
+      if ob1 then circ(sat1_x, sat1_y, 2, 12) end
       local sat2_x = o.x + cos(o.orbit_angle + 0.5) * o.orbit_radius
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
       circfill(sat2_x, sat2_y, 2, sat_col)
-      if obstacles_frozen then circ(sat2_x, sat2_y, 2, 12) end
+      if ob1 then circ(sat2_x, sat2_y, 2, 12) end
     elseif o.type == "satellite" then
-      -- boss satellites: small spinning obstacles with theme colors
-      circfill(o.x, o.y, o.r, theme_color(8))  -- themed core
-      circ(o.x, o.y, o.r + 1, theme_color(14))  -- themed outline
+      circfill(o.x, o.y, o.r, theme_color(8))
+      circ(o.x, o.y, o.r + 1, theme_color(14))
     end
   end
 
-  -- power-ups with pulse effect (sprite-based)
-  for p in all(powerups) do
+  for p in all(pw6) do
     local pulse = sin(p.spawn_time / 10) * 1.5
-    -- map power-up type to sprite id
     local sprite_map = {shield=7, slowmo=8, doublescore=9, magnet=10, bomb=11, freeze=12}
     local spr_id = sprite_map[p.type]
     spr(spr_id, p.x - 4, p.y - 4)
-    -- pulse ring for emphasis
     local r = 4 + pulse
     circ(p.x, p.y, r, 7)
     if p.spawn_time < 30 then
@@ -2889,41 +2542,32 @@ function draw_play()
     end
   end
 
-  -- particles
-  for pt in all(particles) do
+  for pt in all(fx8) do
     pset(pt.x, pt.y, pt.col)
   end
 
-  -- floating texts
-  for ft in all(floating_texts) do
-    -- fade based on remaining lifetime (30 frames total)
+  for ft in all(fx9) do
     local alpha_step = flr(ft.lifetime / 10)
     if alpha_step >= 2 then
       print(ft.text, ft.x, ft.y, ft.col)
     elseif alpha_step == 1 then
-      -- dimmer color in middle fade
       print(ft.text, ft.x, ft.y, 5)
     end
   end
 
-  -- ball trail effect (draw before ball)
-  for tr in all(ball_trail) do
+  for tr in all(bl1) do
     local fade = 1 - (tr.age / 8)
     local vel_factor = min(1, tr.vel / 5)
     local intensity = fade * vel_factor
     if intensity > 0.2 then
       local trail_r = ball.r * fade
-      local trail_col = 6  -- base trail color
-      -- apply trail effect
-      if trail_effect == 2 then
-        -- rainbow: cycle colors
+      local trail_col = 6
+      if cu4 == 2 then
         trail_col = 8 + (tr.age % 8)
-      elseif trail_effect == 3 then
-        -- white: light colors
+      elseif cu4 == 3 then
         trail_col = 7
       else
-        -- basic: match ball color states
-        if shield_time > 0 then
+        if pw2 > 0 then
           trail_col = 11
         elseif combo >= 10 then
           trail_col = 15
@@ -2931,7 +2575,6 @@ function draw_play()
           trail_col = 10
         end
       end
-      -- fade to darker color
       if fade < 0.5 then
         trail_col = 5
       end
@@ -2939,147 +2582,130 @@ function draw_play()
     end
   end
 
-  -- magnet glow effect (draw before ball)
-  if magnet_time > 0 then
-    local pulse = sin(gametime / 8) * 1.5
-    circ(ball.x, ball.y, ball.r + 4 + pulse, 11)  -- lime glow ring
-    circ(ball.x, ball.y, ball.r + 6 + pulse, 3)  -- outer green ring
+  if pw4 > 0 then
+    local pulse = sin(gm1 / 8) * 1.5
+    circ(ball.x, ball.y, ball.r + 4 + pulse, 11)
+    circ(ball.x, ball.y, ball.r + 6 + pulse, 3)
   end
 
-  -- ball with flash effect, combo color, and skin
-  local ball_col = get_ball_skin_color()  -- default to selected skin
-  if ball_flash > 0 then
-    ball_col = 7  -- white flash on collision
-  elseif shield_time > 0 then
-    ball_col = 11  -- cyan shield color
+  local ball_col = get_ball_skin_color()
+  if bl3 > 0 then
+    ball_col = 7
+  elseif pw2 > 0 then
+    ball_col = 11
   elseif combo >= 10 then
-    ball_col = 15  -- white for high combo
+    ball_col = 15
   end
   circfill(ball.x, ball.y, ball.r, ball_col)
   circ(ball.x, ball.y, ball.r, 7)
 
-  -- ui
   print("score:"..score, 2, 2, 7)
-  print("time:"..flr(gametime/30).."s", 2, 9, 7)
-  -- lives counter with flash effect
-  local lives_col = life_flash > 0 and (life_flash % 4 < 2 and 7 or 8) or 8
+  print("time:"..flr(gm1/30).."s", 2, 9, 7)
+  local lives_col = fx7 > 0 and (fx7 % 4 < 2 and 7 or 8) or 8
   print("lives:"..lives, 2, 16, lives_col)
-  print("x"..multiplier, 100, 2, 9)
-  -- combo counter with milestone colors
-  local combo_col = 7  -- white default
+  print("x"..lm7, 100, 2, 9)
+  local combo_col = 7
   if combo >= 15 then
-    combo_col = 14  -- pink for 15+
+    combo_col = 14
   elseif combo >= 10 then
-    combo_col = 9  -- orange for 10+
+    combo_col = 9
   elseif combo >= 5 then
-    combo_col = 10  -- yellow for 5+
+    combo_col = 10
   end
   print("combo:"..combo, 86, 9, combo_col)
 
-  -- wave counter with pulse effect
-  local wave_col = 10  -- yellow
+  local wave_col = 10
   local wave_y = 16
-  if wave_pulse > 0 then
-    wave_col = wave_pulse % 4 < 2 and 9 or 10  -- pulse between orange and yellow
-    wave_y = 16 + sin(wave_pulse / 4)  -- subtle bounce
+  if fx6 > 0 then
+    wave_col = fx6 % 4 < 2 and 9 or 10
+    wave_y = 16 + sin(fx6 / 4)
   end
-  print("wave:"..diff_level, 92, wave_y, wave_col)
+  print("wave:"..lm8, 92, wave_y, wave_col)
 
-  -- danger zone indicator
   local zone_str = "danger:"
-  if danger_zones[1].active then zone_str = zone_str.."l" end
-  if danger_zones[2].active then zone_str = zone_str.."c" end
-  if danger_zones[3].active then zone_str = zone_str.."r" end
+  if dz1[1].active then zone_str = zone_str.."l" end
+  if dz1[2].active then zone_str = zone_str.."c" end
+  if dz1[3].active then zone_str = zone_str.."r" end
   if zone_str != "danger:" then
     print(zone_str, 2, 24, 8)
   end
 
-  -- power-up indicators
   local ind_x = 2
-  if shield_time > 0 then
+  if pw2 > 0 then
     circfill(ind_x, 120, 3, 11)
     print("s", ind_x-1, 118, 7)
     ind_x += 10
   end
-  if slowmo_time > 0 then
+  if pw3 > 0 then
     circfill(ind_x, 120, 3, 12)
     print("m", ind_x-1, 118, 7)
     ind_x += 10
   end
-  if doublescore_time > 0 then
+  if pw1 > 0 then
     circfill(ind_x, 120, 3, 10)
     print("2", ind_x-1, 118, 7)
     ind_x += 10
   end
-  if magnet_time > 0 then
+  if pw4 > 0 then
     circfill(ind_x, 120, 3, 13)
     print("g", ind_x-1, 118, 7)
     ind_x += 10
   end
-  if freeze_time > 0 then
+  if pw5 > 0 then
     circfill(ind_x, 120, 3, 12)
     print("f", ind_x-1, 118, 7)
     ind_x += 10
   end
 end
 
--- gameover state
 function update_gameover()
   local input = test_input()
 
-  -- check for leaderboard entry (only once)
-  if not new_record and leaderboard_rank == 0 then
-    -- determine if score ranks in top 10
+  if not ui2 and ui3 == 0 then
     local rank = 0
-    for i = 1, #leaderboard do
-      if score > leaderboard[i].score then
+    for i = 1, #ui6 do
+      if score > ui6[i].score then
         rank = i
         break
       end
     end
-    -- also consider if leaderboard not full
-    if rank == 0 and #leaderboard < 10 then
-      rank = #leaderboard + 1
+    if rank == 0 and #ui6 < 10 then
+      rank = #ui6 + 1
     end
 
     if rank > 0 then
-      -- player achieved a leaderboard rank!
-      leaderboard_rank = rank
-      new_record = true
-      new_record_flash = 60
+      ui3 = rank
+      ui2 = true
+      ui1 = 60
       play_sfx(6)
       shake(20, 0.5)
-      _log("leaderboard_rank:"..rank)
+      _log("ui3:"..rank)
     end
   end
 
-  -- check for cosmetic unlocks (once per gameover, regardless of new record)
-  if not cosmetics_checked_this_gameover then
+  if not cu2 then
     check_cosmetic_unlocks()
-    cosmetics_checked_this_gameover = true
+    cu2 = true
     _log("cosmetics_checked")
   end
 
-  -- unlock gauntlet mode after completing first normal game
-  if not gauntlet_unlocked and score > 0 then
-    gauntlet_unlocked = true
-    dset(93, 1)  -- persist unlock
-    _log("gauntlet_unlocked")
+  if not gt9 and score > 0 then
+    gt9 = true
+    dset(93, 1)
+    _log("gt9")
   end
 
-  -- if ranked, wait for O button to enter initials
-  if leaderboard_rank > 0 and input & 16 > 0 then
+  if ui3 > 0 and input & 16 > 0 then
     state = "enter_initials"
     _log("state:enter_initials")
-    entry_initials = {"a", "a", "a"}
-    entry_cursor = 1
-    entry_saved = false
-    input_cooldown = 15
+    ui7 = {"a", "a", "a"}
+    ui8 = 1
+    ui9 = false
+    ic1 = 15
     return
   end
 
-  -- otherwise, O to retry
-  if leaderboard_rank == 0 and input & 16 > 0 then
+  if ui3 == 0 and input & 16 > 0 then
     state = "play"
     _log("state:play")
     init_game()
@@ -3087,79 +2713,62 @@ function update_gameover()
 end
 
 function draw_gameover()
-  -- title
   print("game over", 42, 10, 8)
 
-  -- final score (prominent)
   print("final score", 38, 22, 7)
   print(score, 64 - #tostr(score) * 2, 30, 10)
 
-  -- new leaderboard entry indicator (prominent)
-  if new_record and leaderboard_rank > 0 then
-    local flash_col = (new_record_flash % 8 < 4) and 10 or 9
-    print("leaderboard rank #"..leaderboard_rank, 18, 38, flash_col)
-    -- update flash timer
-    if new_record_flash > 0 then
-      new_record_flash -= 1
+  if ui2 and ui3 > 0 then
+    local flash_col = (ui1 % 8 < 4) and 10 or 9
+    print("ui6 rank #"..ui3, 18, 38, flash_col)
+    if ui1 > 0 then
+      ui1 -= 1
     end
   end
 
-  -- best score display
-  if #leaderboard > 0 then
-    local top = leaderboard[1]
+  if #ui6 > 0 then
+    local top = ui6[1]
     print("best: "..top.score.." ("..top.initials..")", 20, 48, 12)
   end
 
-  -- performance stats section
   print("-- performance --", 26, 58, 6)
 
-  -- highest combo
-  local combo_col = max_combo >= 10 and 15 or 11
-  print("max combo: "..max_combo, 28, 66, combo_col)
+  local combo_col = ic9 >= 10 and 15 or 11
+  print("max combo: "..ic9, 28, 66, combo_col)
 
-  -- total dodges
-  print("dodges: "..total_dodges, 32, 74, 9)
+  print("dodges: "..ic8, 32, 74, 9)
 
-  -- powerups collected
-  print("powerups: "..total_powerups, 28, 82, 11)
+  print("pw6: "..ic7, 28, 82, 11)
 
-  -- lives used
   local lives_used = 3 - lives
   print("lives used: "..lives_used.."/3", 22, 90, 8)
 
-  -- final multiplier
-  print("multiplier: x"..multiplier, 24, 98, 10)
+  print("lm7: x"..lm7, 24, 98, 10)
 
-  -- average dodge bonus
   local avg_bonus = 0
-  if total_dodges > 0 then
-    avg_bonus = flr(total_dodge_bonus / total_dodges)
+  if ic8 > 0 then
+    avg_bonus = flr(ic6 / ic8)
   end
   print("avg bonus: "..avg_bonus, 26, 106, 12)
 
-  -- survival time
-  print("time: "..flr(gametime/30).."s", 36, 114, 6)
+  print("time: "..flr(gm1/30).."s", 36, 114, 6)
 
-  -- retry or enter initials prompt
-  if leaderboard_rank > 0 then
+  if ui3 > 0 then
     print("press o to enter name", 14, 122, 10)
   else
     print("press o to retry", 24, 122, 13)
   end
 end
 
--- enter initials state
 function update_enter_initials()
   local input = test_input()
 
-  -- update cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
     return
   end
 
-  if entry_saved then
-    -- after saving, wait for O to continue
+  if ui9 then
     if input & 16 > 0 then
       state = "play"
       _log("state:play")
@@ -3168,92 +2777,82 @@ function update_enter_initials()
     return
   end
 
-  -- navigate between letters (left/right)
-  if input & 1 > 0 then  -- left
-    entry_cursor = max(1, entry_cursor - 1)
+  if input & 1 > 0 then
+    ui8 = max(1, ui8 - 1)
     play_sfx(1)
-    _log("initial_cursor:"..entry_cursor)
-    input_cooldown = 8
+    _log("initial_cursor:"..ui8)
+    ic1 = 8
   end
-  if input & 2 > 0 then  -- right
-    entry_cursor = min(3, entry_cursor + 1)
+  if input & 2 > 0 then
+    ui8 = min(3, ui8 + 1)
     play_sfx(1)
-    _log("initial_cursor:"..entry_cursor)
-    input_cooldown = 8
-  end
-
-  -- change letter (up/down)
-  if input & 4 > 0 then  -- up
-    local code = ord(entry_initials[entry_cursor])
-    code = code == 122 and 97 or code + 1  -- wrap z->a
-    entry_initials[entry_cursor] = chr(code)
-    play_sfx(1)
-    _log("initial_change:"..entry_initials[entry_cursor])
-    input_cooldown = 5
-  end
-  if input & 8 > 0 then  -- down
-    local code = ord(entry_initials[entry_cursor])
-    code = code == 97 and 122 or code - 1  -- wrap a->z
-    entry_initials[entry_cursor] = chr(code)
-    play_sfx(1)
-    _log("initial_change:"..entry_initials[entry_cursor])
-    input_cooldown = 5
+    _log("initial_cursor:"..ui8)
+    ic1 = 8
   end
 
-  -- confirm with O button
+  if input & 4 > 0 then
+    local code = ord(ui7[ui8])
+    code = code == 122 and 97 or code + 1
+    ui7[ui8] = chr(code)
+    play_sfx(1)
+    _log("initial_change:"..ui7[ui8])
+    ic1 = 5
+  end
+  if input & 8 > 0 then
+    local code = ord(ui7[ui8])
+    code = code == 97 and 122 or code - 1
+    ui7[ui8] = chr(code)
+    play_sfx(1)
+    _log("initial_change:"..ui7[ui8])
+    ic1 = 5
+  end
+
   if input & 16 > 0 then
-    if entry_cursor < 3 then
-      -- move to next letter
-      entry_cursor += 1
+    if ui8 < 3 then
+      ui8 += 1
       play_sfx(1)
-      input_cooldown = 10
+      ic1 = 10
     else
-      -- save entry to leaderboard
-      local initials_str = entry_initials[1]..entry_initials[2]..entry_initials[3]
+      local initials_str = ui7[1]..ui7[2]..ui7[3]
       local new_entry = {
         score = score,
         initials = initials_str,
         timestamp = 0
       }
 
-      -- insert at correct rank
       local inserted = false
-      for i = 1, #leaderboard do
-        if score > leaderboard[i].score then
-          -- insert here
+      for i = 1, #ui6 do
+        if score > ui6[i].score then
           local temp = {}
           for j = 1, i - 1 do
-            add(temp, leaderboard[j])
+            add(temp, ui6[j])
           end
           add(temp, new_entry)
-          for j = i, #leaderboard do
+          for j = i, #ui6 do
             if #temp < 10 then
-              add(temp, leaderboard[j])
+              add(temp, ui6[j])
             end
           end
-          leaderboard = temp
+          ui6 = temp
           inserted = true
           break
         end
       end
 
-      -- if not inserted and room, append
-      if not inserted and #leaderboard < 10 then
-        add(leaderboard, new_entry)
+      if not inserted and #ui6 < 10 then
+        add(ui6, new_entry)
       end
 
-      -- save to cartdata
       save_leaderboard()
-      last_entry_rank = leaderboard_rank  -- remember for highlight
-      entry_saved = true
+      ui4 = ui3
+      ui9 = true
       play_sfx(6)
       shake(10, 0.3)
-      _log("entry_saved:"..initials_str..":"..score)
-      input_cooldown = 15
+      _log("ui9:"..initials_str..":"..score)
+      ic1 = 15
     end
   end
 
-  -- skip with X button
   if input & 32 > 0 then
     state = "play"
     _log("state:play")
@@ -3263,25 +2862,23 @@ function update_enter_initials()
 end
 
 function draw_enter_initials()
-  print("new leaderboard entry!", 12, 20, 10)
-  print("rank #"..leaderboard_rank, 48, 30, 11)
+  print("new ui6 entry!", 12, 20, 10)
+  print("rank #"..ui3, 48, 30, 11)
 
-  if entry_saved then
+  if ui9 then
     print("entry saved!", 34, 60, 7)
     print("score: "..score, 42, 70, 10)
     print("press o to continue", 16, 100, 13)
   else
     print("enter your initials:", 16, 50, 7)
 
-    -- display initials with cursor
     local x_base = 40
     for i = 1, 3 do
-      local col = (i == entry_cursor) and 10 or 6
-      local char = entry_initials[i]
+      local col = (i == ui8) and 10 or 6
+      local char = ui7[i]
       print(char, x_base + (i - 1) * 16, 68, col)
 
-      -- cursor indicator
-      if i == entry_cursor then
+      if i == ui8 then
         print("^", x_base + (i - 1) * 16, 76, 11)
       end
     end
@@ -3292,17 +2889,15 @@ function draw_enter_initials()
   end
 end
 
--- helper: get zone index for x position
 function get_zone(x)
   for i = 1, 3 do
-    if x >= danger_zones[i].x_min and x < danger_zones[i].x_max then
+    if x >= dz1[i].x_min and x < dz1[i].x_max then
       return i
     end
   end
   return 0
 end
 
--- helper: create obstacle table
 function mk_obs(type, x)
   local o = {x=x or 20+rnd(88), y=-10, type=type, dodged=false, is_boss=false}
   if type == "spike" then
@@ -3321,36 +2916,28 @@ function mk_obs(type, x)
   return o
 end
 
--- helper: create boss obstacle
 function mk_boss(stage)
   return {x=64, base_x=64, y=-10, type="boss", r=13, dodged=false, is_boss=true, wave_time=0, boss_stage=stage, satellite_timer=0, vertical_time=0, boss_id=flr(rnd(10000))}
 end
 
--- obstacle spawning
 function spawn_obstacle()
-  -- build available types based on difficulty level
   local types = {"spike", "moving", "rotating"}
 
-  -- check for new obstacle types with probability
-  if diff_level >= 2 and rnd(1) < 0.20 then
-    -- pendulum: 20% chance when diff_level >= 2
+  if lm8 >= 2 and rnd(1) < 0.20 then
     spawn_pendulum()
     return
   end
 
-  if diff_level >= 3 and rnd(1) < 0.15 then
-    -- zigzag: 15% chance when diff_level >= 3
+  if lm8 >= 3 and rnd(1) < 0.15 then
     spawn_zigzag()
     return
   end
 
-  if diff_level >= 4 and rnd(1) < 0.10 then
-    -- orbiter: 10% chance when diff_level >= 4
+  if lm8 >= 4 and rnd(1) < 0.10 then
     spawn_orbiter()
     return
   end
 
-  -- default obstacle types
   local t = types[flr(rnd(3)) + 1]
   local o = {
     x = 20 + rnd(88),
@@ -3371,47 +2958,41 @@ function spawn_obstacle()
     o.angle = 0
   end
 
-  -- assign zone
   o.zone = get_zone(o.x)
-  o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
+  o.in_danger = o.zone > 0 and dz1[o.zone].active or false
 
-  add(obstacles, o)
+  add(ob4, o)
   _log("spawn_obstacle:"..t..(o.in_danger and ":danger" or ""))
 end
 
--- helper to spawn with zone tracking
 function spawn_obs_with_zone(type)
   local o = mk_obs(type)
   o.zone = get_zone(o.x)
-  o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
-  add(obstacles, o)
+  o.in_danger = o.zone > 0 and dz1[o.zone].active or false
+  add(ob4, o)
   _log("spawn_obstacle:"..type..(o.in_danger and ":danger" or ""))
 end
 
--- specialized obstacle spawners
 function spawn_pendulum() spawn_obs_with_zone("pendulum") end
 function spawn_zigzag() spawn_obs_with_zone("zigzag") end
 function spawn_orbiter() spawn_obs_with_zone("orbiter") end
 
--- boss obstacle spawning
 function spawn_boss()
-  local stage = diff_level >= 5 and 3 or (diff_level >= 3 and 2 or 1)
+  local stage = lm8 >= 5 and 3 or (lm8 >= 3 and 2 or 1)
   local o = mk_boss(stage)
   o.zone = get_zone(o.x)
-  o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
-  add(obstacles, o)
+  o.in_danger = o.zone > 0 and dz1[o.zone].active or false
+  add(ob4, o)
   _log("spawn_obstacle:boss:stage"..stage..(o.in_danger and ":danger" or ""))
   play_sfx(6)
   shake(8 + stage * 2, 1.0 + stage * 0.2)
 end
 
--- satellite spawning (for stage 3 bosses)
 function spawn_satellite(boss)
-  -- spawn 1-2 satellites around the boss at 40-60px distance
-  local count = flr(rnd(2)) + 1  -- 1 or 2 satellites
+  local count = flr(rnd(2)) + 1
   for i = 1, count do
-    local angle = rnd(1)  -- random angle in turns
-    local dist = 40 + rnd(20)  -- 40-60px distance
+    local angle = rnd(1)
+    local dist = 40 + rnd(20)
     local s = {
       x = boss.x + cos(angle) * dist,
       y = boss.y + sin(angle) * dist,
@@ -3422,27 +3003,25 @@ function spawn_satellite(boss)
       is_satellite = true,
       parent_boss_id = boss.boss_id,
       orbit_angle = angle,
-      orbit_speed = 0.02 + rnd(0.02),  -- slight variation
-      orbit_center_x = boss.x,  -- orbit center (boss spawn position)
+      orbit_speed = 0.02 + rnd(0.02),
+      orbit_center_x = boss.x,
       orbit_center_y = boss.y,
-      orbit_radius = dist  -- orbit radius
+      orbit_radius = dist
     }
-    add(obstacles, s)
+    add(ob4, s)
     _log("spawn_satellite:boss_id="..boss.boss_id)
   end
 end
 
--- satellite cleanup (when boss is removed)
 function cleanup_satellites(boss_id)
-  for s in all(obstacles) do
+  for s in all(ob4) do
     if s.is_satellite and s.parent_boss_id == boss_id then
-      del(obstacles, s)
+      del(ob4, s)
       _log("cleanup_satellite:boss_id="..boss_id)
     end
   end
 end
 
--- power-up spawning
 function spawn_powerup(spawn_x, spawn_y)
   local types = {"shield", "slowmo", "doublescore", "magnet", "bomb", "freeze"}
   local t = types[flr(rnd(6)) + 1]
@@ -3450,14 +3029,13 @@ function spawn_powerup(spawn_x, spawn_y)
 
   local x = spawn_x or (20 + rnd(88))
 
-  -- 75% chance to avoid active danger zones (only if no spawn_x provided)
   if not spawn_x and rnd(1) > 0.25 then
     local attempts = 0
     while attempts < 10 do
       x = 20 + rnd(88)
       local zone = get_zone(x)
-      if zone == 0 or not danger_zones[zone].active then
-        break  -- safe zone found
+      if zone == 0 or not dz1[zone].active then
+        break
       end
       attempts += 1
     end
@@ -3468,113 +3046,105 @@ function spawn_powerup(spawn_x, spawn_y)
     y = spawn_y or -10,
     type = t,
     col = cols[t],
-    spawn_time = 0  -- for pulse effect
+    spawn_time = 0
   }
 
-  add(powerups, p)
+  add(pw6, p)
   _log("spawn_powerup:"..t..",x="..flr(x)..",y="..flr(p.y))
 end
 
--- power-up collection
 function collect_powerup(p)
-  -- combo master: no power-ups allowed
-  if challenge_active and challenge_variant == 3 then
+  if ct2 and ct9 == 3 then
     _log("powerup_disabled:combo_master")
     return
   end
 
-  local bonus = flr(50 * multiplier * (doublescore_time > 0 and 2 or 1))
-  if challenge_active then
-    challenge_score += bonus
+  local bonus = flr(50 * lm7 * (pw1 > 0 and 2 or 1))
+  if ct2 then
+    ct3 += bonus
   else
     score += bonus
   end
-  total_powerups += 1
+  ic7 += 1
   _log("powerup_collected:"..p.type)
   _log("powerup_bonus:"..bonus)
-  _log("total_powerups:"..total_powerups)
+  _log("ic7:"..ic7)
 
-  -- track power-up type for achievement
-  power_types_collected[p.type] = true
+  ad5[p.type] = true
 
-  -- check if collected from danger zone
   local zone = get_zone(p.x)
-  if zone > 0 and danger_zones[zone].active then
-    danger_zone_pickups += 1
-    _log("danger_zone_pickup:"..danger_zone_pickups)
+  if zone > 0 and dz1[zone].active then
+    ad6 += 1
+    _log("danger_zone_pickup:"..ad6)
   end
 
-  play_sfx(1)  -- power-up collect sound
-  shake(8, 1.0)  -- medium shake on powerup collection
+  play_sfx(1)
+  shake(8, 1.0)
 
-  -- floating text for score bonus
   add_floating_text(p.x - 6, p.y - 10, "+"..bonus, 10)
 
   if p.type == "shield" then
-    shield_time = 90
-    stats_shield_count += 1
-    -- restore 1 life (up to max 3)
+    pw2 = 90
+    sa8 += 1
     if lives < 3 then
       lives += 1
       _log("life_restored")
       _log("lives:"..lives)
     end
-    play_sfx(5, -1, 0)  -- shield powerup (base pitch)
+    play_sfx(5, -1, 0)
     _log("sfx_powerup:shield:pitch=0")
     add_floating_text(p.x - 12, p.y - 20, "shield!", 11)
   elseif p.type == "slowmo" then
-    slowmo_time = 60
-    stats_slowmo_count += 1
-    play_sfx(5, -1, 4)  -- slowmo powerup (higher pitch)
+    pw3 = 60
+    sa9 += 1
+    play_sfx(5, -1, 4)
     _log("sfx_powerup:slowmo:pitch=4")
     add_floating_text(p.x - 12, p.y - 20, "slowmo!", 12)
   elseif p.type == "doublescore" then
-    doublescore_time = 150
-    stats_doublescore_count += 1
-    play_sfx(5, -1, 8)  -- doublescore powerup (even higher pitch)
+    pw1 = 150
+    sb1 += 1
+    play_sfx(5, -1, 8)
     _log("sfx_powerup:doublescore:pitch=8")
     add_floating_text(p.x - 18, p.y - 20, "double score!", 10)
   elseif p.type == "magnet" then
-    magnet_time = 240  -- 8 seconds at 30fps
-    stats_magnet_count += 1
-    play_sfx(5, -1, 2)  -- magnet powerup (slightly higher pitch)
+    pw4 = 240
+    sb2 += 1
+    play_sfx(5, -1, 2)
     _log("sfx_powerup:magnet:pitch=2")
     add_floating_text(p.x - 12, p.y - 20, "magnet!", 13)
     _log("powerup:magnet")
   elseif p.type == "bomb" then
-    stats_bomb_count += 1
-    -- clear obstacles within radius
+    sb3 += 1
     local cleared = 0
-    for o in all(obstacles) do
+    for o in all(ob4) do
       local dist = sqrt((o.x - ball.x)^2 + (o.y - ball.y)^2)
       if dist < 40 then
-        del(obstacles, o)
-        add_particles(o.x, o.y, 15, 8)  -- red explosion particles
+        del(ob4, o)
+        add_particles(o.x, o.y, 15, 8)
         cleared += 1
       end
     end
-    play_sfx(5, -1, 12)  -- bomb powerup (explosion sound, highest pitch)
+    play_sfx(5, -1, 12)
     _log("sfx_powerup:bomb:pitch=12")
-    shake(12, 1.5)  -- strong shake on bomb
-    screen_flash = 8  -- flash screen
+    shake(12, 1.5)
+    fx5 = 8
     add_floating_text(p.x - 10, p.y - 20, "bomb!", 8)
     _log("powerup:bomb:cleared="..cleared)
   elseif p.type == "freeze" then
-    freeze_time = 180  -- 6 seconds at 30fps
-    stats_freeze_count += 1
-    play_sfx(5, -1, 6)  -- freeze powerup (mid-high pitch)
+    pw5 = 180
+    sb4 += 1
+    play_sfx(5, -1, 6)
     _log("sfx_powerup:freeze:pitch=6")
     add_floating_text(p.x - 12, p.y - 20, "freeze!", 12)
     _log("powerup:freeze")
   end
 
-  add_particles(p.x, p.y, 20, p.col)  -- larger particle burst
+  add_particles(p.x, p.y, 20, p.col)
 end
 
--- particle system
 function add_particles(x, y, count, col)
   for i = 1, count do
-    add(particles, {
+    add(fx8, {
       x = x,
       y = y,
       vx = rnd(2) - 1,
@@ -3585,59 +3155,53 @@ function add_particles(x, y, count, col)
   end
 end
 
--- floating text system
 function add_floating_text(x, y, text, col)
-  add(floating_texts, {
+  add(fx9, {
     x = x,
     y = y,
     text = text,
-    col = theme_color(col),  -- apply color theme
+    col = theme_color(col),
     vy = -0.5,
     lifetime = 30
   })
   _log("floating_text:"..text)
 end
 
--- practice mode: obstacle selection
 function update_practice_obstacle_select()
   local input = test_input()
 
-  -- update cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
-  -- navigation with cooldown
-  if input_cooldown == 0 then
-    if input & 4 > 0 then  -- up
-      practice_obstacle_selection = max(1, practice_obstacle_selection - 1)
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      pr5 = max(1, pr5 - 1)
       play_sfx(1)
       _log("practice_obstacle_nav:up")
-      input_cooldown = 10
+      ic1 = 10
     end
-    if input & 8 > 0 then  -- down
-      practice_obstacle_selection = min(7, practice_obstacle_selection + 1)
+    if input & 8 > 0 then
+      pr5 = min(7, pr5 + 1)
       play_sfx(1)
       _log("practice_obstacle_nav:down")
-      input_cooldown = 10
+      ic1 = 10
     end
   end
 
-  -- confirm selection
-  if input & 16 > 0 then  -- O button
-    practice_obstacle_type = practice_obstacle_types[practice_obstacle_selection]
-    _log("practice_obstacle_selected:"..practice_obstacle_type)
+  if input & 16 > 0 then
+    pr1 = pr7[pr5]
+    _log("practice_obstacle_selected:"..pr1)
     state = "practice_speed_select"
     _log("state:practice_speed_select")
-    input_cooldown = 10
+    ic1 = 10
   end
 
-  -- back to menu
-  if input & 32 > 0 then  -- X button
-    play_music(2)  -- menu music
+  if input & 32 > 0 then
+    play_music(2)
     state = "menu"
     _log("state:menu")
-    input_cooldown = 10
+    ic1 = 10
   end
 end
 
@@ -3645,59 +3209,53 @@ function draw_practice_obstacle_select()
   print("practice mode", 32, 20, 7)
   print("select obstacle", 28, 30, 6)
 
-  -- draw obstacle options
   local y = 45
   for i = 1, 7 do
-    local col = (i == practice_obstacle_selection) and 10 or 13
-    local prefix = (i == practice_obstacle_selection) and "> " or "  "
-    print(prefix..practice_obstacle_types[i], 32, y, col)
+    local col = (i == pr5) and 10 or 13
+    local prefix = (i == pr5) and "> " or " "
+    print(prefix..pr7[i], 32, y, col)
     y += 10
   end
 
-  print("o: select  x: back", 14, 118, 5)
+  print("o: select x: back", 14, 118, 5)
 end
 
--- practice mode: speed selection
 function update_practice_speed_select()
   local input = test_input()
 
-  -- update cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
-  -- navigation with cooldown
-  if input_cooldown == 0 then
-    if input & 4 > 0 then  -- up
-      practice_speed_selection = max(1, practice_speed_selection - 1)
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      pr6 = max(1, pr6 - 1)
       play_sfx(1)
       _log("practice_speed_nav:up")
-      input_cooldown = 10
+      ic1 = 10
     end
-    if input & 8 > 0 then  -- down
-      practice_speed_selection = min(3, practice_speed_selection + 1)
+    if input & 8 > 0 then
+      pr6 = min(3, pr6 + 1)
       play_sfx(1)
       _log("practice_speed_nav:down")
-      input_cooldown = 10
+      ic1 = 10
     end
   end
 
-  -- confirm selection
-  if input & 16 > 0 then  -- O button
-    practice_speed_modifier = practice_speed_values[practice_speed_selection]
-    _log("practice_speed_selected:"..practice_speed_names[practice_speed_selection])
+  if input & 16 > 0 then
+    pr2 = pr9[pr6]
+    _log("practice_speed_selected:"..pr8[pr6])
     state = "practice_play"
     _log("state:practice_play")
     init_practice_game()
-    play_music(0)  -- practice mode music (same intensity as normal mode)
+    play_music(0)
     _log("practice_music_start:pattern=0")
   end
 
-  -- back to obstacle select
-  if input & 32 > 0 then  -- X button
+  if input & 32 > 0 then
     state = "practice_obstacle_select"
     _log("state:practice_obstacle_select")
-    input_cooldown = 10
+    ic1 = 10
   end
 end
 
@@ -3705,57 +3263,50 @@ function draw_practice_speed_select()
   print("practice mode", 32, 20, 7)
   print("select speed", 32, 30, 6)
 
-  print("obstacle: "..practice_obstacle_type, 20, 45, 13)
+  print("obstacle: "..pr1, 20, 45, 13)
 
-  -- draw speed options
   local y = 60
   for i = 1, 3 do
-    local col = (i == practice_speed_selection) and 10 or 13
-    local prefix = (i == practice_speed_selection) and "> " or "  "
-    local mult = practice_speed_values[i].."x"
-    print(prefix..practice_speed_names[i].." ("..mult..")", 32, y, col)
+    local col = (i == pr6) and 10 or 13
+    local prefix = (i == pr6) and "> " or " "
+    local mult = pr9[i].."x"
+    print(prefix..pr8[i].." ("..mult..")", 32, y, col)
     y += 12
   end
 
-  print("o: start  x: back", 18, 118, 5)
+  print("o: start x: back", 18, 118, 5)
 end
 
--- practice mode: gameplay initialization
 function init_practice_game()
   ball.x = 64
   ball.y = 100
   ball.vx = 0
   ball.vy = 0
   ball.grounded = false
-  obstacles = {}
-  particles = {}
-  floating_texts = {}
-  ball_trail = {}
-  obs_timer = 0
-  practice_collisions = 0
-  practice_pause_timer = 0
+  ob4 = {}
+  fx8 = {}
+  fx9 = {}
+  bl1 = {}
+  ob3 = 0
+  pr3 = 0
+  pr4 = 0
 
-  -- apply speed modifier to scroll and spawn
-  scroll_speed = 0.5 * practice_speed_modifier
-  obs_interval = flr(60 / practice_speed_modifier)
+  ob7 = 0.5 * pr2
+  ob2 = flr(60 / pr2)
 
-  _log("practice_game_init:type="..practice_obstacle_type..",speed="..practice_speed_modifier)
+  _log("practice_game_init:type="..pr1..",speed="..pr2)
 end
 
--- practice mode: spawn selected obstacle
 function spawn_practice_obstacle()
-  local o = practice_obstacle_type == "boss" and mk_boss(3) or mk_obs(practice_obstacle_type)
-  add(obstacles, o)
-  _log("practice_spawn:"..practice_obstacle_type..(practice_obstacle_type=="boss" and ":stage3" or ""))
+  local o = pr1 == "boss" and mk_boss(3) or mk_obs(pr1)
+  add(ob4, o)
+  _log("practice_spawn:"..pr1..(pr1=="boss" and ":stage3" or ""))
 end
 
--- practice mode: gameplay update
 function update_practice_play()
-  -- handle pause timer (1 second pause after collision)
-  if practice_pause_timer > 0 then
-    practice_pause_timer -= 1
-    if practice_pause_timer == 0 then
-      -- reset ball after pause
+  if pr4 > 0 then
+    pr4 -= 1
+    if pr4 == 0 then
       ball.x = 64
       ball.y = 100
       ball.vx = 0
@@ -3768,23 +3319,18 @@ function update_practice_play()
 
   local input = test_input()
 
-  -- exit to menu
-  if input & 32 > 0 then  -- X button
-    play_music(2)  -- menu music
+  if input & 32 > 0 then
+    play_music(2)
     state = "menu"
     _log("state:menu")
     return
   end
 
-  -- ball physics (same as normal play)
-  -- steering
-  if input & 1 > 0 then ball.vx -= 0.5 end  -- left
-  if input & 2 > 0 then ball.vx += 0.5 end  -- right
+  if input & 1 > 0 then ball.vx -= 0.5 end
+  if input & 2 > 0 then ball.vx += 0.5 end
 
-  -- velocity limits
   ball.vx = mid(-3, ball.vx, 3)
 
-  -- gravity and floor
   if ball.y < 100 then
     ball.vy += 0.2
   else
@@ -3793,19 +3339,15 @@ function update_practice_play()
     ball.grounded = true
   end
 
-  -- floor bounce
   if ball.y >= 100 and ball.vy > 0 then
     ball.vy = -4
   end
 
-  -- apply velocity
   ball.x += ball.vx
   ball.y += ball.vy
 
-  -- friction
   ball.vx *= 0.9
 
-  -- wall bounce
   if ball.x < ball.r then
     ball.x = ball.r
     ball.vx = abs(ball.vx)
@@ -3815,32 +3357,28 @@ function update_practice_play()
     ball.vx = -abs(ball.vx)
   end
 
-  -- update trail
-  if #ball_trail < max_trail_length then
-    add(ball_trail, {x = ball.x, y = ball.y, life = 10})
+  if #bl1 < bl2 then
+    add(bl1, {x = ball.x, y = ball.y, life = 10})
   else
-    for i = 1, max_trail_length - 1 do
-      ball_trail[i] = ball_trail[i + 1]
+    for i = 1, bl2 - 1 do
+      bl1[i] = bl1[i + 1]
     end
-    ball_trail[max_trail_length] = {x = ball.x, y = ball.y, life = 10}
+    bl1[bl2] = {x = ball.x, y = ball.y, life = 10}
   end
 
-  for t in all(ball_trail) do
+  for t in all(bl1) do
     t.life -= 1
   end
 
-  -- spawn obstacles
-  obs_timer += 1
-  if obs_timer >= obs_interval then
+  ob3 += 1
+  if ob3 >= ob2 then
     spawn_practice_obstacle()
-    obs_timer = 0
+    ob3 = 0
   end
 
-  -- update obstacles (same movement logic as normal game)
-  for o in all(obstacles) do
-    o.y += scroll_speed
+  for o in all(ob4) do
+    o.y += ob7
 
-    -- obstacle type movement
     if o.type == "moving" then
       o.x += o.vx
       if o.x < 10 or o.x > 118 then o.vx *= -1 end
@@ -3857,13 +3395,11 @@ function update_practice_play()
     elseif o.type == "orbiter" then
       o.orbit_angle += 0.05
     elseif o.type == "boss" then
-      -- boss stage behavior (practice uses stage 3)
       o.wave_time += 0.06
       o.vertical_time += 0.04
       o.x = o.base_x + sin(o.wave_time) * 40
       local base_y = o.y
       o.y = base_y + sin(o.vertical_time) * 3
-      -- spawn satellites in practice mode too
       o.satellite_timer += 1
       if o.satellite_timer >= 90 then
         o.satellite_timer = 0
@@ -3871,17 +3407,14 @@ function update_practice_play()
       end
     end
 
-    -- collision detection
     local dist
     if o.type == "orbiter" then
-      -- check center + 2 satellites
       local dx = ball.x - o.x
       local dy = ball.y - o.y
       dist = sqrt(dx * dx + dy * dy)
       if dist < ball.r + 3 then
         practice_collision()
       else
-        -- check satellites
         for angle_offset = 0, 1, 0.5 do
           local sat_x = o.x + cos(o.orbit_angle + angle_offset) * o.orbit_radius
           local sat_y = o.y + sin(o.orbit_angle + angle_offset) * o.orbit_radius
@@ -3903,52 +3436,47 @@ function update_practice_play()
       end
     end
 
-    -- remove off-screen obstacles
     if o.y > 140 then
-      -- cleanup satellites if boss removed
       if o.type == "boss" and o.boss_id then
         cleanup_satellites(o.boss_id)
       end
-      del(obstacles, o)
+      del(ob4, o)
     end
   end
 
-  -- update particles
-  for p in all(particles) do
+  for p in all(fx8) do
     p.x += p.vx
     p.y += p.vy
     p.life -= 1
     if p.life <= 0 then
-      del(particles, p)
+      del(fx8, p)
     end
   end
 
-  -- update floating texts
-  for ft in all(floating_texts) do
+  for ft in all(fx9) do
     ft.y += ft.vy
     ft.lifetime -= 1
     if ft.lifetime <= 0 then
-      del(floating_texts, ft)
+      del(fx9, ft)
     end
   end
 end
 
 function practice_collision()
-  if practice_pause_timer > 0 then return end  -- already in pause
+  if pr4 > 0 then return end
 
-  practice_collisions += 1
-  practice_pause_timer = 30  -- 1 second at 30fps
+  pr3 += 1
+  pr4 = 30
   add_particles(ball.x, ball.y, 15, 8)
   play_sfx(4)
-  _log("practice_collision:"..practice_collisions)
+  _log("practice_collision:"..pr3)
 end
 
 function draw_practice_play()
   draw_ball_trail()
   draw_ball()
 
-  -- draw obstacles (sprite-based) with theme colors
-  for o in all(obstacles) do
+  for o in all(ob4) do
     if o.type == "spike" then
       pal(8, theme_color(8)); pal(2, theme_color(2))
       spr(0, o.x - 4, o.y - 4)
@@ -3974,7 +3502,6 @@ function draw_practice_play()
       pal(2, theme_color(2)); pal(5, theme_color(5))
       spr(6, o.x - 4, o.y - 4)
       pal()
-      -- satellites with theme colors
       local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
       local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
       circfill(sat1_x, sat1_y, 2, theme_color(9))
@@ -3982,7 +3509,6 @@ function draw_practice_play()
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
       circfill(sat2_x, sat2_y, 2, theme_color(9))
     elseif o.type == "boss" then
-      -- stage 3 boss in practice mode with theme colors
       pal(8, theme_color(14)); pal(2, theme_color(14))
       spr(3, o.x - 4, o.y - 4)
       pal()
@@ -3995,147 +3521,125 @@ function draw_practice_play()
     end
   end
 
-  -- draw particles
-  for p in all(particles) do
+  for p in all(fx8) do
     pset(p.x, p.y, p.col)
   end
 
-  -- draw floating texts
-  for ft in all(floating_texts) do
+  for ft in all(fx9) do
     print(ft.text, ft.x, ft.y, ft.col)
   end
 
-  -- draw UI: obstacle type, speed, collision count
   print("practice", 2, 2, 13)
-  print(practice_obstacle_type, 2, 9, 10)
-  print(practice_speed_names[practice_speed_selection].." ("..practice_speed_modifier.."x)", 2, 16, 11)
-  print("hits: "..practice_collisions, 2, 23, 8)
+  print(pr1, 2, 9, 10)
+  print(pr8[pr6].." ("..pr2.."x)", 2, 16, 11)
+  print("hits: "..pr3, 2, 23, 8)
   print("x: exit", 88, 2, 5)
 
-  -- show pause indicator
-  if practice_pause_timer > 0 then
+  if pr4 > 0 then
     print("resetting...", 36, 64, 7)
   end
 end
 
--- daily challenge state
 function update_challenge()
-  -- countdown timer
-  if challenge_time_left > 0 then
-    challenge_time_left -= 1
+  if ct1 > 0 then
+    ct1 -= 1
   else
-    -- time's up, end challenge
-    challenge_active = false
-    local current_result = challenge_variant == 3 and challenge_max_combo or challenge_score
-    if current_result > challenge_best then
-      challenge_best = current_result
+    ct2 = false
+    local current_result = ct9 == 3 and ct8 or ct3
+    if current_result > ct4 then
+      ct4 = current_result
     end
     save_daily_challenge()
-    summary_page = 1  -- reset to first page
+    mc4 = 1
     state = "challenge_summary"
-    _log("state:challenge_summary:result="..current_result..",best="..challenge_best)
+    _log("state:challenge_summary:result="..current_result..",best="..ct4)
     return
   end
 
-  -- update pulse effect (increases urgency as time runs out)
-  if challenge_time_left < 30 * 30 then  -- last 30 seconds
-    challenge_pulse = (challenge_pulse + 1) % 30
+  if ct1 < 30 * 30 then
+    ct6 = (ct6 + 1) % 30
   end
 
-  -- reuse play logic
-  gametime += 1
+  gm1 += 1
 
-  -- update pause cooldown
-  if pause_cooldown > 0 then
-    pause_cooldown -= 1
+  if ic2 > 0 then
+    ic2 -= 1
   end
 
-  -- check for X button to quit (with cooldown)
   local input = test_input()
-  if input & 32 > 0 and pause_cooldown == 0 then  -- X button
-    challenge_active = false
-    play_music(2)  -- menu music
+  if input & 32 > 0 and ic2 == 0 then
+    ct2 = false
+    play_music(2)
     state = "menu"
     _log("state:menu:challenge_quit")
-    pause_cooldown = 15
+    ic2 = 15
     return
   end
 
-  -- ball physics (reuse input variable instead of calling test_input() again)
-  if input & 1 > 0 then  -- left
+  if input & 1 > 0 then
     ball.vx = max(ball.vx - 0.5, -2.5)
   end
-  if input & 2 > 0 then  -- right
+  if input & 2 > 0 then
     ball.vx = min(ball.vx + 0.5, 2.5)
   end
 
-  -- apply friction
   ball.vx *= 0.85
 
-  -- apply gravity
   if not ball.grounded then
     ball.vy += 0.4
   end
 
-  -- update position
   ball.x += ball.vx
   ball.y += ball.vy
 
-  -- floor collision
   if ball.y >= 120 then
     ball.y = 120
     ball.vy = -ball.vy * 0.7
-    play_sfx(0)  -- bounce sound
+    play_sfx(0)
     _log("bounce:challenge")
     ball.grounded = abs(ball.vy) < 0.5
   else
     ball.grounded = false
   end
 
-  -- wall collision
   if ball.x <= ball.r then
     ball.x = ball.r
     ball.vx = -ball.vx * 0.7
-    play_sfx(1)  -- wall bounce sound
+    play_sfx(1)
     _log("wall_bounce:challenge")
   elseif ball.x >= 128 - ball.r then
     ball.x = 128 - ball.r
     ball.vx = -ball.vx * 0.7
-    play_sfx(1)  -- wall bounce sound
+    play_sfx(1)
     _log("wall_bounce:challenge")
   end
 
-  -- spawn obstacles (use challenge difficulty)
-  obs_timer += 1
-  if obs_timer >= obs_interval then
+  ob3 += 1
+  if ob3 >= ob2 then
     spawn_obstacle()
-    obs_timer = 0
+    ob3 = 0
   end
 
-  -- spawn power-ups
-  pu_timer += 1
+  pw7 += 1
   local pu_interval = 240
-  if challenge_variant == 4 then
-    pu_interval = 480  -- half spawn rate for power-up gauntlet
+  if ct9 == 4 then
+    pu_interval = 480
   end
-  if pu_timer >= pu_interval then
+  if pw7 >= pu_interval then
     spawn_powerup()
-    pu_timer = 0
+    pw7 = 0
   end
 
-  -- update danger zones
-  zone_timer += 1
-  if zone_timer >= zone_interval then
-    zone_timer = 0
-    zone_interval = 450 + rnd(150)  -- randomize next interval
-    -- toggle random zone
-    local z = danger_zones[flr(rnd(3)) + 1]
+  lm6 += 1
+  if lm6 >= dz3 then
+    lm6 = 0
+    dz3 = 450 + rnd(150)
+    local z = dz1[flr(rnd(3)) + 1]
     z.active = not z.active
-    local zone_idx = z == danger_zones[1] and "L" or (z == danger_zones[2] and "C" or "R")
+    local zone_idx = z == dz1[1] and "L" or (z == dz1[2] and "C" or "R")
     _log("zone_toggle:"..zone_idx..":"..tostr(z.active))
   end
-  -- update zone pulse animations
-  for z in all(danger_zones) do
+  for z in all(dz1) do
     if z.active then
       z.pulse = (z.pulse + 0.08) % 1
     else
@@ -4143,12 +3647,10 @@ function update_challenge()
     end
   end
 
-  -- update obstacles
-  local speed_mod = slowmo_time > 0 and 0.5 or 1.0
-  for o in all(obstacles) do
-    -- freeze effect: skip movement when frozen
-    if not obstacles_frozen then
-      o.y += scroll_speed * speed_mod
+  local speed_mod = pw3 > 0 and 0.5 or 1.0
+  for o in all(ob4) do
+    if not ob1 then
+      o.y += ob7 * speed_mod
       if o.type == "moving" then
         o.x += o.vx
         if o.x <= o.r or o.x >= 128 - o.r then
@@ -4162,7 +3664,7 @@ function update_challenge()
         o.x = o.base_x + sin(o.swing_time) * 25
       elseif o.type == "zigzag" then
         o.zig_time += 0.05
-        local amp = 15 + (challenge_seed % 5) * 2
+        local amp = 15 + (ct5 % 5) * 2
         o.x += sin(o.zig_time) * amp * o.zig_dir * 0.1
         if o.x < 10 or o.x > 118 then
           o.zig_dir *= -1
@@ -4170,7 +3672,6 @@ function update_challenge()
       elseif o.type == "orbiter" then
         o.orbit_angle += 0.05
       elseif o.type == "boss" then
-        -- boss stage behavior
         if o.boss_stage == 1 then
           o.wave_time += 0.03
           o.x = o.base_x + sin(o.wave_time) * 30
@@ -4190,52 +3691,44 @@ function update_challenge()
           end
         end
       elseif o.type == "satellite" then
-        -- satellites orbit around their spawn point
         o.orbit_angle += o.orbit_speed
         o.x = o.orbit_center_x + cos(o.orbit_angle) * o.orbit_radius
         o.y = o.orbit_center_y + sin(o.orbit_angle) * o.orbit_radius
       end
     end
 
-    -- remove off-screen obstacles
     if o.y > 140 then
-      -- cleanup satellites if boss removed
       if o.type == "boss" and o.boss_id then
         cleanup_satellites(o.boss_id)
       end
-      del(obstacles, o)
-      -- dodge bonus (2x for challenge mode)
+      del(ob4, o)
       local bonus_mod = 1.0
-      if combo_bonus == 1 then bonus_mod = 1.5  -- generous
-      elseif combo_bonus == 3 then bonus_mod = 0.7  -- stingy
+      if lm4 == 1 then bonus_mod = 1.5
+      elseif lm4 == 3 then bonus_mod = 0.7
       end
-      local bonus = flr(10 * multiplier * 2 * bonus_mod)
-      -- power-up gauntlet: extra 10 points per dodge
-      if challenge_variant == 4 then
+      local bonus = flr(10 * lm7 * 2 * bonus_mod)
+      if ct9 == 4 then
         bonus += 10
       end
-      challenge_score += bonus
+      ct3 += bonus
       combo += 1
-      max_combo = max(max_combo, combo)
-      challenge_max_combo = max(challenge_max_combo, combo)
-      total_dodges += 1
-      total_dodge_bonus += bonus
+      ic9 = max(ic9, combo)
+      ct8 = max(ct8, combo)
+      ic8 += 1
+      ic6 += bonus
       add_floating_text("+"..bonus, ball.x, ball.y - 10, 10)
-      -- increase multiplier (3x growth for challenge mode)
       local mult_cap = 5.0
-      if challenge_variant == 3 or challenge_variant == 4 then
-        mult_cap = 1.5  -- cap at 1.5x for combo master and power-up gauntlet
+      if ct9 == 3 or ct9 == 4 then
+        mult_cap = 1.5
       end
-      multiplier = min(multiplier + 0.15, mult_cap)
-      max_multiplier = max(max_multiplier, multiplier)
+      lm7 = min(lm7 + 0.15, mult_cap)
+      ic5 = max(ic5, lm7)
       add_particles(ball.x, ball.y, 15, 10)
-      -- dodge sound with combo-based pitch variation
       local pitch_offset = min(flr(combo / 5) * 2, 12)
       play_sfx(8, -1, pitch_offset)
-      _log("dodge:combo="..combo..",mult="..multiplier..",bonus="..bonus)
+      _log("dodge:combo="..combo..",mult="..lm7..",bonus="..bonus)
       _log("sfx_dodge:combo="..combo..",pitch="..pitch_offset)
 
-      -- check combo milestones
       local milestone = 0
       if combo == 5 then milestone = 5
       elseif combo == 10 then milestone = 10
@@ -4244,8 +3737,8 @@ function update_challenge()
       elseif combo == 25 then milestone = 25
       elseif combo >= 30 then milestone = 30 end
 
-      if milestone > 0 and milestone > last_milestone then
-        last_milestone = milestone
+      if milestone > 0 and milestone > lm1 then
+        lm1 = milestone
         local m_col = (milestone <= 10 and 10) or (milestone <= 20 and 9) or 14
         add_floating_text("combo "..milestone.."!", 46, 50, m_col)
         shake_screen(3, 0.25)
@@ -4256,39 +3749,35 @@ function update_challenge()
     end
   end
 
-  -- update power-ups
-  local speed_mod = slowmo_time > 0 and 0.5 or 1.0
-  for pu in all(powerups) do
-    pu.y += scroll_speed * 0.8 * speed_mod
+  local speed_mod = pw3 > 0 and 0.5 or 1.0
+  for pu in all(pw6) do
+    pu.y += ob7 * 0.8 * speed_mod
     if pu.y > 130 then
-      del(powerups, pu)
+      del(pw6, pu)
     end
 
-    -- check collision with ball
     local dx = pu.x - ball.x
     local dy = pu.y - ball.y
     local dist = sqrt(dx * dx + dy * dy)
     if dist < ball.r + 3 then
       collect_powerup(pu)
-      del(powerups, pu)
+      del(pw6, pu)
     end
   end
 
-  -- update power-up timers
-  if shield_time > 0 then shield_time -= 1 end
-  if slowmo_time > 0 then slowmo_time -= 1 end
-  if doublescore_time > 0 then doublescore_time -= 1 end
-  if magnet_time > 0 then magnet_time -= 1 end
-  if freeze_time > 0 then
-    freeze_time -= 1
-    obstacles_frozen = true
+  if pw2 > 0 then pw2 -= 1 end
+  if pw3 > 0 then pw3 -= 1 end
+  if pw1 > 0 then pw1 -= 1 end
+  if pw4 > 0 then pw4 -= 1 end
+  if pw5 > 0 then
+    pw5 -= 1
+    ob1 = true
   else
-    obstacles_frozen = false
+    ob1 = false
   end
 
-  -- magnet effect
-  if magnet_time > 0 then
-    for pu in all(powerups) do
+  if pw4 > 0 then
+    for pu in all(pw6) do
       local dx = ball.x - pu.x
       local dy = ball.y - pu.y
       local dist = sqrt(dx * dx + dy * dy)
@@ -4299,18 +3788,15 @@ function update_challenge()
     end
   end
 
-  -- check obstacle collision
-  for o in all(obstacles) do
+  for o in all(ob4) do
     local collision = false
 
     if o.type == "orbiter" then
-      -- check center
       local dx = o.x - ball.x
       local dy = o.y - ball.y
       local dist = sqrt(dx * dx + dy * dy)
       if dist < ball.r + 3 then collision = true end
 
-      -- check satellites
       if not collision then
         for angle_offset = 0, 1, 0.5 do
           local sat_x = o.x + cos(o.orbit_angle + angle_offset) * o.orbit_radius
@@ -4325,7 +3811,6 @@ function update_challenge()
         end
       end
     else
-      -- standard collision
       local dx = o.x - ball.x
       local dy = o.y - ball.y
       local dist = sqrt(dx * dx + dy * dy)
@@ -4335,143 +3820,130 @@ function update_challenge()
     end
 
     if collision then
-      -- combo master: shield not available
-      local has_shield = shield_time > 0 and challenge_variant ~= 3
+      local has_shield = pw2 > 0 and ct9 ~= 3
 
       if not has_shield then
-        -- combo master: damage resets combo but doesn't end game
-        if challenge_variant == 3 then
+        if ct9 == 3 then
           combo = 0
-          last_milestone = 0
-          multiplier = max(1.0, multiplier - 0.3)
+          lm1 = 0
+          lm7 = max(1.0, lm7 - 0.3)
           shake_screen(6, 1.0)
           add_particles(ball.x, ball.y, 15, 8)
-          play_sfx(3)  -- collision/damage harsh buzz
-          _log("collision:combo_reset:combo=0,mult="..multiplier)
-          del(obstacles, o)
-        -- survival mode: use challenge_lives
-        elseif challenge_variant == 2 then
-          challenge_lives -= 1
-          life_flash = 20
+          play_sfx(3)
+          _log("collision:combo_reset:combo=0,mult="..lm7)
+          del(ob4, o)
+        elseif ct9 == 2 then
+          ct7 -= 1
+          fx7 = 20
           combo = 0
-          last_milestone = 0
-          multiplier = max(1.0, multiplier - 0.5)
+          lm1 = 0
+          lm7 = max(1.0, lm7 - 0.5)
           shake_screen(10, 1.5)
           add_particles(ball.x, ball.y, 20, 8)
-          play_sfx(3)  -- collision/damage harsh buzz
-          _log("collision:lives="..challenge_lives..",mult="..multiplier)
-          del(obstacles, o)
+          play_sfx(3)
+          _log("collision:lives="..ct7..",mult="..lm7)
+          del(ob4, o)
 
-          if challenge_lives <= 0 then
-            -- game over
-            challenge_active = false
-            local current_result = challenge_variant == 3 and challenge_max_combo or challenge_score
-            if current_result > challenge_best then
-              challenge_best = current_result
+          if ct7 <= 0 then
+            ct2 = false
+            local current_result = ct9 == 3 and ct8 or ct3
+            if current_result > ct4 then
+              ct4 = current_result
             end
             save_daily_challenge()
-            play_sfx(7)  -- game over descending tone
-            play_music(3, 500)  -- game over music with fade
-            summary_page = 1  -- reset to first page
+            play_sfx(7)
+            play_music(3, 500)
+            mc4 = 1
             state = "challenge_summary"
-            _log("state:challenge_summary:death:result="..current_result..",best="..challenge_best)
+            _log("state:challenge_summary:death:result="..current_result..",best="..ct4)
             return
           end
         else
-          -- time attack / power-up gauntlet: use standard lives
           lives -= 1
-          life_flash = 20
+          fx7 = 20
           combo = 0
-          last_milestone = 0
-          multiplier = max(1.0, multiplier - 0.5)
+          lm1 = 0
+          lm7 = max(1.0, lm7 - 0.5)
           shake_screen(10, 1.5)
           add_particles(ball.x, ball.y, 20, 8)
-          play_sfx(3)  -- collision/damage harsh buzz
-          _log("collision:lives="..lives..",mult="..multiplier)
-          del(obstacles, o)
+          play_sfx(3)
+          _log("collision:lives="..lives..",mult="..lm7)
+          del(ob4, o)
 
           if lives <= 0 then
-            -- game over
-            challenge_active = false
-            local current_result = challenge_variant == 3 and challenge_max_combo or challenge_score
-            if current_result > challenge_best then
-              challenge_best = current_result
+            ct2 = false
+            local current_result = ct9 == 3 and ct8 or ct3
+            if current_result > ct4 then
+              ct4 = current_result
             end
             save_daily_challenge()
-            play_sfx(7)  -- game over descending tone
-            play_music(3, 500)  -- game over music with fade
-            summary_page = 1  -- reset to first page
+            play_sfx(7)
+            play_music(3, 500)
+            mc4 = 1
             state = "challenge_summary"
-            _log("state:challenge_summary:death:result="..current_result..",best="..challenge_best)
+            _log("state:challenge_summary:death:result="..current_result..",best="..ct4)
             return
           end
         end
       else
-        -- shield active: absorb collision
-        play_sfx(6)  -- shield absorb ping
-        shield_time = 0  -- consume shield
-        shake_screen(4, 0.5)  -- light shake
-        add_particles(ball.x, ball.y, 10, 11)  -- cyan particles
-        -- cleanup satellites if boss was absorbed
+        play_sfx(6)
+        pw2 = 0
+        shake_screen(4, 0.5)
+        add_particles(ball.x, ball.y, 10, 11)
         if o.type == "boss" and o.boss_id then
           cleanup_satellites(o.boss_id)
         end
-        del(obstacles, o)
+        del(ob4, o)
         _log("shield_absorb")
       end
     end
   end
 
-  -- update ball trail
-  if gametime % 3 == 0 then
-    add(ball_trail, {x = ball.x, y = ball.y, life = 5})
-    if #ball_trail > max_trail_length then
-      del(ball_trail, ball_trail[1])
+  if gm1 % 3 == 0 then
+    add(bl1, {x = ball.x, y = ball.y, life = 5})
+    if #bl1 > bl2 then
+      del(bl1, bl1[1])
     end
   end
-  for t in all(ball_trail) do
+  for t in all(bl1) do
     t.life -= 1
     if t.life <= 0 then
-      del(ball_trail, t)
+      del(bl1, t)
     end
   end
 
-  -- update particles
-  for p in all(particles) do
+  for p in all(fx8) do
     p.x += p.vx
     p.y += p.vy
     p.vy += 0.1
     p.life -= 1
     if p.life <= 0 then
-      del(particles, p)
+      del(fx8, p)
     end
   end
 
-  -- update floating texts
-  for ft in all(floating_texts) do
+  for ft in all(fx9) do
     ft.y -= 0.5
     ft.life -= 1
     if ft.life <= 0 then
-      del(floating_texts, ft)
+      del(fx9, ft)
     end
   end
 
-  -- difficulty progression (variant-specific + scaling setting)
-  local scale_interval = 600  -- normal = every 10s
-  if challenge_variant == 2 then
-    scale_interval = 240  -- survival: every 8s
-  elseif challenge_variant == 3 then
-    scale_interval = 360  -- combo master: every 12s
+  local scale_interval = 600
+  if ct9 == 2 then
+    scale_interval = 240
+  elseif ct9 == 3 then
+    scale_interval = 360
   end
-  -- apply user scaling setting on top of variant defaults
-  if diff_scaling == 1 then scale_interval = flr(scale_interval * 1.5)  -- conservative
-  elseif diff_scaling == 3 then scale_interval = flr(scale_interval * 0.5)  -- aggressive
+  if lm2 == 1 then scale_interval = flr(scale_interval * 1.5)
+  elseif lm2 == 3 then scale_interval = flr(scale_interval * 0.5)
   end
 
-  if gametime % scale_interval == 0 and gametime > 0 then
-    diff_level = min(diff_level + 1, 10)
-    wave_pulse = 20
-    _log("difficulty_up:"..diff_level)
+  if gm1 % scale_interval == 0 and gm1 > 0 then
+    lm8 = min(lm8 + 1, 10)
+    fx6 = 20
+    _log("difficulty_up:"..lm8)
   end
 end
 
@@ -4479,8 +3951,7 @@ function draw_challenge()
   draw_ball_trail()
   draw_ball()
 
-  -- draw obstacles (sprite-based) with theme colors
-  for o in all(obstacles) do
+  for o in all(ob4) do
     if o.type == "spike" then
       pal(8, theme_color(8)); pal(2, theme_color(2))
       spr(0, o.x - 4, o.y - 4)
@@ -4506,7 +3977,6 @@ function draw_challenge()
       pal(2, theme_color(2)); pal(5, theme_color(5))
       spr(6, o.x - 4, o.y - 4)
       pal()
-      -- satellites with theme colors
       local sat1_x = o.x + cos(o.orbit_angle) * o.orbit_radius
       local sat1_y = o.y + sin(o.orbit_angle) * o.orbit_radius
       circfill(sat1_x, sat1_y, 2, theme_color(9))
@@ -4514,7 +3984,6 @@ function draw_challenge()
       local sat2_y = o.y + sin(o.orbit_angle + 0.5) * o.orbit_radius
       circfill(sat2_x, sat2_y, 2, theme_color(9))
     elseif o.type == "boss" then
-      -- stage-based boss rendering with theme colors
       local stage = o.boss_stage or 1
       if stage == 2 then
         pal(8, theme_color(9)); pal(2, theme_color(9))
@@ -4538,106 +4007,96 @@ function draw_challenge()
     end
   end
 
-  -- draw power-ups (sprite-based)
-  for pu in all(powerups) do
+  for pu in all(pw6) do
     local sprite_map = {shield=7, slowmo=8, doublescore=9, magnet=10, bomb=11, freeze=12}
     spr(sprite_map[pu.type], pu.x - 4, pu.y - 4)
-    if pu.type == "magnet" and magnet_time > 0 then
-      circ(pu.x, pu.y, 5 + sin(gametime * 0.1) * 2, 9)
+    if pu.type == "magnet" and pw4 > 0 then
+      circ(pu.x, pu.y, 5 + sin(gm1 * 0.1) * 2, 9)
     end
   end
 
-  -- draw particles
-  for p in all(particles) do
+  for p in all(fx8) do
     pset(p.x, p.y, p.col)
   end
 
-  -- draw floating texts
-  for ft in all(floating_texts) do
+  for ft in all(fx9) do
     print(ft.text, ft.x, ft.y, ft.col)
   end
 
-  -- draw variant-specific HUD
-  if challenge_variant == 1 then
-    -- time attack: score, time, multiplier
-    local time_sec = flr(challenge_time_left / 30)
+  if ct9 == 1 then
+    local time_sec = flr(ct1 / 30)
     local time_col = 7
     if time_sec <= 10 then
-      time_col = (challenge_pulse < 15) and 8 or 9
+      time_col = (ct6 < 15) and 8 or 9
     elseif time_sec <= 30 then
       time_col = 9
     end
     print("time attack", 2, 2, 8)
     print("time: "..time_sec.."s", 2, 9, time_col)
-    print("score: "..challenge_score, 2, 16, 10)
+    print("score: "..ct3, 2, 16, 10)
 
     local combo_col = (combo >= 20 and 14) or (combo >= 10 and 9) or 10
     if combo > 0 then print("x"..combo, 100, 2, combo_col) end
 
-    local mult_text = multiplier.."x"
-    local mult_col = (multiplier >= 3.0 and 14) or (multiplier >= 2.0 and 9) or 10
+    local mult_text = lm7.."x"
+    local mult_col = (lm7 >= 3.0 and 14) or (lm7 >= 2.0 and 9) or 10
     print(mult_text, 100, 9, mult_col)
 
-  elseif challenge_variant == 2 then
-    -- survival: lives, time survived, combo
-    local time_sec = flr(gametime / 30)
+  elseif ct9 == 2 then
+    local time_sec = flr(gm1 / 30)
     print("survival", 2, 2, 8)
-    print("lives: "..challenge_lives, 2, 9, 10)
+    print("lives: "..ct7, 2, 9, 10)
     print("time: "..time_sec.."s", 2, 16, 11)
 
     local combo_col = (combo >= 20 and 14) or (combo >= 10 and 9) or 10
     if combo > 0 then print("x"..combo, 100, 2, combo_col) end
-    print("score: "..challenge_score, 80, 9, 6)
+    print("score: "..ct3, 80, 9, 6)
 
-    -- lives indicators
-    for i = 1, challenge_lives do
-      local life_col = life_flash > 0 and 8 or 11
+    for i = 1, ct7 do
+      local life_col = fx7 > 0 and 8 or 11
       circfill(2 + (i - 1) * 6, 120, 2, life_col)
     end
 
-  elseif challenge_variant == 3 then
-    -- combo master: current combo, max combo, dodges, time
-    local time_sec = flr(challenge_time_left / 30)
+  elseif ct9 == 3 then
+    local time_sec = flr(ct1 / 30)
     local time_col = time_sec <= 10 and 8 or 7
     print("combo master", 2, 2, 8)
     print("time: "..time_sec.."s", 2, 9, time_col)
 
     local combo_col = (combo >= 20 and 14) or (combo >= 10 and 9) or 10
     print("combo: "..combo, 2, 16, combo_col)
-    print("max: "..challenge_max_combo, 60, 16, 11)
-    print("dodges: "..total_dodges, 2, 23, 6)
+    print("max: "..ct8, 60, 16, 11)
+    print("dodges: "..ic8, 2, 23, 6)
 
-  elseif challenge_variant == 4 then
-    -- power-up gauntlet: score, power-ups, dodges, time
-    local time_sec = flr(challenge_time_left / 30)
+  elseif ct9 == 4 then
+    local time_sec = flr(ct1 / 30)
     local time_col = time_sec <= 10 and 8 or 7
     print("gauntlet", 2, 2, 8)
     print("time: "..time_sec.."s", 2, 9, time_col)
-    print("score: "..challenge_score, 2, 16, 10)
-    print("power-ups: "..total_powerups, 2, 23, 11)
-    print("dodges: "..total_dodges, 70, 23, 6)
+    print("score: "..ct3, 2, 16, 10)
+    print("power-ups: "..ic7, 2, 23, 11)
+    print("dodges: "..ic8, 70, 23, 6)
   end
 
-  -- power-up indicators (not for combo master)
-  if challenge_variant ~= 3 then
+  if ct9 ~= 3 then
     local pu_y = 110
-    if shield_time > 0 then
+    if pw2 > 0 then
       print("shield", 2, pu_y, 11)
       pu_y -= 6
     end
-    if slowmo_time > 0 then
+    if pw3 > 0 then
       print("slow", 2, pu_y, 12)
       pu_y -= 6
     end
-    if doublescore_time > 0 then
+    if pw1 > 0 then
       print("2x", 2, pu_y, 10)
       pu_y -= 6
     end
-    if magnet_time > 0 then
+    if pw4 > 0 then
       print("magnet", 2, pu_y, 9)
       pu_y -= 6
     end
-    if freeze_time > 0 then
+    if pw5 > 0 then
       print("freeze", 2, pu_y, 14)
     end
   end
@@ -4645,116 +4104,100 @@ function draw_challenge()
   print("x: quit", 88, 120, 5)
 end
 
--- challenge summary state
 function update_challenge_summary()
   local input = test_input()
 
-  -- cooldown
-  if input_cooldown > 0 then
-    input_cooldown -= 1
+  if ic1 > 0 then
+    ic1 -= 1
   end
 
-  -- page navigation
-  if input_cooldown == 0 then
-    if input & 4 > 0 then  -- up
-      summary_page = max(1, summary_page - 1)
-      input_cooldown = 10
-      _log("summary_page:up:"..summary_page)
-    elseif input & 8 > 0 then  -- down
-      summary_page = min(3, summary_page + 1)
-      input_cooldown = 10
-      _log("summary_page:down:"..summary_page)
-    elseif input & 16 > 0 or input & 32 > 0 then  -- O or X
-      play_music(2)  -- menu music
+  if ic1 == 0 then
+    if input & 4 > 0 then
+      mc4 = max(1, mc4 - 1)
+      ic1 = 10
+      _log("mc4:up:"..mc4)
+    elseif input & 8 > 0 then
+      mc4 = min(3, mc4 + 1)
+      ic1 = 10
+      _log("mc4:down:"..mc4)
+    elseif input & 16 > 0 or input & 32 > 0 then
+      play_music(2)
       state = "menu"
-      summary_page = 1  -- reset for next time
+      mc4 = 1
       _log("state:menu:challenge_summary_exit")
-      input_cooldown = 10
+      ic1 = 10
     end
   end
 end
 
 function draw_challenge_summary()
-  -- page 1: overview & variant-specific stats
-  if summary_page == 1 then
+  if mc4 == 1 then
     local variant_names = {"time attack", "survival", "combo master", "gauntlet"}
-    print(variant_names[challenge_variant], 30, 15, 7)
+    print(variant_names[ct9], 30, 15, 7)
     print("complete!", 42, 23, 6)
 
-    if challenge_variant == 1 or challenge_variant == 2 or challenge_variant == 4 then
-      -- show score for time attack, survival, and gauntlet
-      print("your score: "..challenge_score, 28, 40, 10)
-      local best_col = challenge_score == challenge_best and 10 or 6
-      print("today's best: "..challenge_best, 22, 50, best_col)
-      if challenge_score == challenge_best then
+    if ct9 == 1 or ct9 == 2 or ct9 == 4 then
+      print("your score: "..ct3, 28, 40, 10)
+      local best_col = ct3 == ct4 and 10 or 6
+      print("today's best: "..ct4, 22, 50, best_col)
+      if ct3 == ct4 then
         print("new record!", 32, 60, 9)
       end
-    elseif challenge_variant == 3 then
-      -- combo master: show max combo as primary stat
-      print("max combo: "..challenge_max_combo, 32, 40, 10)
-      local best_col = challenge_max_combo == challenge_best and 10 or 6
-      print("today's best: "..challenge_best, 22, 50, best_col)
-      if challenge_max_combo == challenge_best then
+    elseif ct9 == 3 then
+      print("max combo: "..ct8, 32, 40, 10)
+      local best_col = ct8 == ct4 and 10 or 6
+      print("today's best: "..ct4, 22, 50, best_col)
+      if ct8 == ct4 then
         print("new record!", 32, 60, 9)
       end
-      print("total dodges: "..total_dodges, 26, 70, 11)
+      print("total dodges: "..ic8, 26, 70, 11)
     end
 
-    -- variant-specific secondary stats
-    if challenge_variant == 1 or challenge_variant == 4 then
-      -- time attack / gauntlet: time survived
-      local time_sec = flr((90 - challenge_time_left / 30))
+    if ct9 == 1 or ct9 == 4 then
+      local time_sec = flr((90 - ct1 / 30))
       print("time: "..time_sec.."s", 45, 80, 12)
-    elseif challenge_variant == 2 then
-      -- survival: time survived (may exceed 90s)
-      local time_sec = flr(gametime / 30)
+    elseif ct9 == 2 then
+      local time_sec = flr(gm1 / 30)
       print("survived: "..time_sec.."s", 38, 70, 12)
-      print("lives left: "..challenge_lives, 38, 80, challenge_lives > 0 and 11 or 8)
-    elseif challenge_variant == 3 then
-      -- combo master: time used
-      local time_sec = flr((60 - challenge_time_left / 30))
+      print("lives left: "..ct7, 38, 80, ct7 > 0 and 11 or 8)
+    elseif ct9 == 3 then
+      local time_sec = flr((60 - ct1 / 30))
       print("time: "..time_sec.."s / 60s", 32, 80, 6)
     end
 
     print("page 1/3", 48, 105, 5)
 
-  -- page 2: combat stats
-  elseif summary_page == 2 then
+  elseif mc4 == 2 then
     print("combat stats", 32, 20, 7)
 
-    print("best combo: "..max_combo, 30, 40, 10)
-    print("total dodges: "..total_dodges, 25, 50, 11)
+    print("best combo: "..ic9, 30, 40, 10)
+    print("total dodges: "..ic8, 25, 50, 11)
 
-    -- average dodge bonus
-    local avg = total_dodges > 0 and flr(total_dodge_bonus / total_dodges) or 0
+    local avg = ic8 > 0 and flr(ic6 / ic8) or 0
     print("avg dodge bonus: "..avg, 20, 60, 12)
 
-    -- max multiplier
-    local mult_str = ""..flr(max_multiplier*10)/10
-    print("max multiplier: "..mult_str.."x", 18, 70, 9)
+    local mult_str = ""..flr(ic5*10)/10
+    print("max lm7: "..mult_str.."x", 18, 70, 9)
 
     print("page 2/3", 48, 105, 5)
 
-  -- page 3: power-ups & history
-  elseif summary_page == 3 then
+  elseif mc4 == 3 then
     print("power-ups & history", 18, 20, 7)
 
-    print("power-ups: "..total_powerups, 30, 40, 10)
+    print("power-ups: "..ic7, 30, 40, 10)
 
-    -- count types collected
     local types_count = 0
-    for k, v in pairs(power_types_collected) do
+    for k, v in pairs(ad5) do
       if v then types_count += 1 end
     end
     print("types found: "..types_count.."/6", 28, 50, 11)
 
-    -- recent history
-    if #daily_history > 0 then
+    if #ic4 > 0 then
       print("recent history:", 28, 65, 14)
       local y = 75
-      for i = 1, min(3, #daily_history) do
-        local entry = daily_history[#daily_history - i + 1]
-        local days_ago = challenge_seed - entry.seed
+      for i = 1, min(3, #ic4) do
+        local entry = ic4[#ic4 - i + 1]
+        local days_ago = ct5 - entry.seed
         local label = days_ago == 0 and "today" or (days_ago == 1 and "yest." or (days_ago.."d ago"))
         print(label..": "..entry.score, 24, y, 6)
         y += 8
@@ -4764,179 +4207,158 @@ function draw_challenge_summary()
     print("page 3/3", 48, 105, 5)
   end
 
-  -- navigation hints
-  print("\x8e\x8f page  o/x return", 10, 115, 5)
+  print("\x8e\x8f page o/x return", 10, 115, 5)
 end
 
--- boss gauntlet mode functions
 function init_gauntlet()
-  -- reset ball
   ball.x = 64
   ball.y = 100
   ball.vx = 0
   ball.vy = 0
   ball.grounded = false
 
-  -- reset game state
-  gauntlet_score = 0
-  gauntlet_bosses_defeated = 0
-  gauntlet_max_combo = 0
-  gauntlet_stage = 1
-  gauntlet_time_left = 90 * 30  -- 90 seconds
-  gauntlet_next_boss_timer = 60  -- first boss in 2 seconds
-  gauntlet_wave_complete = false
-  gauntlet_active = true
+  gt3 = 0
+  gt4 = 0
+  gt5 = 0
+  gt6 = 1
+  gt2 = 90 * 30
+  gt7 = 60
+  gt8 = false
+  gt1 = true
 
-  gametime = 0
-  multiplier = 1.0
+  gm1 = 0
+  lm7 = 1.0
   combo = 0
-  last_milestone = 0
+  lm1 = 0
   lives = 3
-  life_flash = 0
+  fx7 = 0
 
-  -- clear arrays
-  obstacles = {}
-  powerups = {}
-  particles = {}
-  floating_texts = {}
-  ball_trail = {}
+  ob4 = {}
+  pw6 = {}
+  fx8 = {}
+  fx9 = {}
+  bl1 = {}
 
-  -- reset timers
-  obs_timer = 0
-  boss_timer = 0
-  pu_timer = 0
-  shield_time = 0
-  slowmo_time = 0
-  doublescore_time = 0
-  magnet_time = 0
-  freeze_time = 0
-  obstacles_frozen = false
+  ob3 = 0
+  ob6 = 0
+  pw7 = 0
+  pw2 = 0
+  pw3 = 0
+  pw1 = 0
+  pw4 = 0
+  pw5 = 0
+  ob1 = false
 
-  -- reset stats
-  max_combo = 0
-  total_dodges = 0
-  total_powerups = 0
-  total_dodge_bonus = 0
-  max_multiplier = 1.0
-  power_types_collected = {}
+  ic9 = 0
+  ic8 = 0
+  ic7 = 0
+  ic6 = 0
+  ic5 = 1.0
+  ad5 = {}
 
-  play_music(0)  -- play normal music
+  play_music(0)
   _log("state:gauntlet")
-  _log("gauntlet_init:stage="..gauntlet_stage)
+  _log("gauntlet_init:stage="..gt6)
 end
 
 function update_gauntlet()
-  -- update timer
-  gauntlet_time_left -= 1
-  if gauntlet_time_left <= 0 then
+  gt2 -= 1
+  if gt2 <= 0 then
     state = "gauntlet_gameover"
-    play_music(3)  -- gameover music
+    play_music(3)
     _log("state:gauntlet_gameover")
-    _log("gauntlet_time_up:bosses="..gauntlet_bosses_defeated..",score="..gauntlet_score)
+    _log("gauntlet_time_up:bosses="..gt4..",score="..gt3)
     return
   end
 
-  gametime += 1
+  gm1 += 1
 
-  -- update ball physics
   update_ball()
 
-  -- update ball trail
   update_ball_trail()
 
-  -- update boss spawning
-  gauntlet_next_boss_timer -= 1
-  if gauntlet_next_boss_timer <= 0 and #obstacles < 2 then
+  gt7 -= 1
+  if gt7 <= 0 and #ob4 < 2 then
     spawn_gauntlet_boss()
-    -- next boss in 3-5 seconds depending on stage
-    gauntlet_next_boss_timer = 90 + flr(rnd(60)) - (gauntlet_stage * 15)
-    _log("gauntlet_boss_spawned:stage="..gauntlet_stage)
+    gt7 = 90 + flr(rnd(60)) - (gt6 * 15)
+    _log("gauntlet_boss_spawned:stage="..gt6)
   end
 
-  -- update obstacles (bosses only)
-  for o in all(obstacles) do
+  for o in all(ob4) do
     update_obstacle(o)
   end
 
-  -- update power-ups
-  for p in all(powerups) do
-    p.y += scroll_speed
+  for p in all(pw6) do
+    p.y += ob7
     if p.y > 140 then
-      del(powerups, p)
+      del(pw6, p)
     end
   end
 
-  -- update power-up timers
-  if shield_time > 0 then shield_time -= 1 end
-  if slowmo_time > 0 then slowmo_time -= 1 end
-  if doublescore_time > 0 then doublescore_time -= 1 end
-  if magnet_time > 0 then magnet_time -= 1 end
-  if freeze_time > 0 then
-    freeze_time -= 1
-    obstacles_frozen = true
+  if pw2 > 0 then pw2 -= 1 end
+  if pw3 > 0 then pw3 -= 1 end
+  if pw1 > 0 then pw1 -= 1 end
+  if pw4 > 0 then pw4 -= 1 end
+  if pw5 > 0 then
+    pw5 -= 1
+    ob1 = true
   else
-    obstacles_frozen = false
+    ob1 = false
   end
 
-  -- check collisions with bosses
-  for o in all(obstacles) do
+  for o in all(ob4) do
     if o.is_boss and not o.dodged and o.y >= ball.y - 10 then
       local dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
       if dist < ball.r + o.r then
-        if shield_time > 0 then
-          -- shield absorbs hit
-          shield_time = 0
+        if pw2 > 0 then
+          pw2 = 0
           play_sfx(6)
           shake(8, 1.2)
-          del(obstacles, o)
+          del(ob4, o)
           add_particles(o.x, o.y, 15, 11)
           _log("shield_absorbed")
         else
-          -- take damage
           lives -= 1
-          life_flash = 15
+          fx7 = 15
           combo = 0
-          last_milestone = 0
+          lm1 = 0
           play_sfx(3)
           shake(15, 1.5)
           add_particles(ball.x, ball.y, 20, 8)
           _log("gauntlet_damage:lives="..lives)
 
-          del(obstacles, o)  -- delete obstacle to prevent dodge detection
+          del(ob4, o)
 
           if lives <= 0 then
             state = "gauntlet_gameover"
             play_music(3)
             _log("state:gauntlet_gameover")
-            _log("gauntlet_death:bosses="..gauntlet_bosses_defeated..",score="..gauntlet_score)
+            _log("gauntlet_death:bosses="..gt4..",score="..gt3)
             return
           end
         end
       end
     end
 
-    -- check if boss was dodged
     if o.is_boss and not o.dodged and o.y > ball.y + 10 then
       o.dodged = true
       combo += 1
-      gauntlet_max_combo = max(gauntlet_max_combo, combo)
-      total_dodges += 1
+      gt5 = max(gt5, combo)
+      ic8 += 1
 
-      -- apply combo bonus
       local bonus_mult = 1.0
-      if combo_bonus == 1 then bonus_mult = 1.5  -- generous
-      elseif combo_bonus == 3 then bonus_mult = 0.7  -- stingy
+      if lm4 == 1 then bonus_mult = 1.5
+      elseif lm4 == 3 then bonus_mult = 0.7
       end
-      local dodge_points = flr(5 * multiplier * bonus_mult)
-      gauntlet_score += dodge_points
-      total_dodge_bonus += dodge_points
+      local dodge_points = flr(5 * lm7 * bonus_mult)
+      gt3 += dodge_points
+      ic6 += dodge_points
 
       play_sfx(4)
       add_particles(ball.x, ball.y, 15, 10)
       add_floating_text("+"..dodge_points, ball.x, ball.y - 5, 10)
-      _log("gauntlet_dodge:combo="..combo..",score="..gauntlet_score)
+      _log("gauntlet_dodge:combo="..combo..",score="..gt3)
 
-      -- check milestone
       local milestone = 0
       if combo >= 30 then milestone = 30
       elseif combo >= 25 then milestone = 25
@@ -4946,8 +4368,8 @@ function update_gauntlet()
       elseif combo >= 5 then milestone = 5
       end
 
-      if milestone > last_milestone then
-        last_milestone = milestone
+      if milestone > lm1 then
+        lm1 = milestone
         play_sfx(7)
         shake(3, 0.25)
         local msg = "x"..milestone.." combo!"
@@ -4957,21 +4379,17 @@ function update_gauntlet()
       end
     end
 
-    -- remove bosses that are off screen
     if o.y > 140 then
       if o.is_boss and o.dodged then
-        -- boss defeated!
-        gauntlet_bosses_defeated += 1
-        gauntlet_score += 50
+        gt4 += 1
+        gt3 += 50
 
-        -- increase stage every 2 bosses
-        local new_stage = flr(gauntlet_bosses_defeated / 2) + 1
-        if new_stage > gauntlet_stage then
-          gauntlet_stage = new_stage
-          _log("gauntlet_stage_up:"..gauntlet_stage)
+        local new_stage = flr(gt4 / 2) + 1
+        if new_stage > gt6 then
+          gt6 = new_stage
+          _log("gauntlet_stage_up:"..gt6)
         end
 
-        -- spawn power-up randomly (30% chance)
         if rnd(1) < 0.3 then
           spawn_powerup(64 + rnd(40) - 20, -10)
         end
@@ -4980,60 +4398,55 @@ function update_gauntlet()
         shake(10, 1.0)
         add_particles(o.x, o.y, 25, 9)
         add_floating_text("boss defeated! +50", 24, 60, 10)
-        _log("gauntlet_boss_defeated:"..gauntlet_bosses_defeated..",score="..gauntlet_score)
+        _log("gauntlet_boss_defeated:"..gt4..",score="..gt3)
       end
-      del(obstacles, o)
+      del(ob4, o)
     end
   end
 
-  -- check power-up collection
-  for p in all(powerups) do
+  for p in all(pw6) do
     local dist = sqrt((ball.x - p.x)^2 + (ball.y - p.y)^2)
     if dist < ball.r + 3 then
       collect_powerup(p)
-      del(powerups, p)
+      del(pw6, p)
     end
   end
 
-  -- update visual effects
-  if shake_time > 0 then
-    shake_time -= 1
-    shake_x = (rnd(2) - 1) * shake_intensity
-    shake_y = (rnd(2) - 1) * shake_intensity
+  if fx2 > 0 then
+    fx2 -= 1
+    fx3 = (rnd(2) - 1) * fx1
+    fx4 = (rnd(2) - 1) * fx1
   else
-    shake_x = 0
-    shake_y = 0
+    fx3 = 0
+    fx4 = 0
   end
 
-  if ball_flash > 0 then ball_flash -= 1 end
-  if life_flash > 0 then life_flash -= 1 end
+  if bl3 > 0 then bl3 -= 1 end
+  if fx7 > 0 then fx7 -= 1 end
 
-  -- update particles
-  for p in all(particles) do
+  for p in all(fx8) do
     p.x += p.vx
     p.y += p.vy
     p.life -= 1
     if p.life <= 0 then
-      del(particles, p)
+      del(fx8, p)
     end
   end
 
-  -- update floating texts
-  for f in all(floating_texts) do
+  for f in all(fx9) do
     f.y -= 0.5
     f.life -= 1
     if f.life <= 0 then
-      del(floating_texts, f)
+      del(fx9, f)
     end
   end
 
-  -- track max multiplier
-  max_multiplier = max(max_multiplier, multiplier)
+  ic5 = max(ic5, lm7)
 end
 
 function spawn_gauntlet_boss()
-  local stage = min(3, gauntlet_stage)
-  add(obstacles, mk_boss(stage))
+  local stage = min(3, gt6)
+  add(ob4, mk_boss(stage))
   _log("gauntlet_spawn_boss:stage="..stage)
 end
 
@@ -5042,14 +4455,11 @@ function draw_gauntlet()
   draw_ball_trail()
   draw_ball()
 
-  -- draw bosses
-  for o in all(obstacles) do
+  for o in all(ob4) do
     if o.is_boss then
-      -- main boss body
       circfill(o.x, o.y, o.r, theme_color(8))
       circ(o.x, o.y, o.r, theme_color(2))
 
-      -- draw satellites for stage 3
       if o.boss_stage >= 3 then
         local sat_count = 2
         for i = 0, sat_count - 1 do
@@ -5062,8 +4472,7 @@ function draw_gauntlet()
     end
   end
 
-  -- draw power-ups
-  for p in all(powerups) do
+  for p in all(pw6) do
     local col = 7
     if p.type == "shield" then col = 12
     elseif p.type == "slowmo" then col = 14
@@ -5076,62 +4485,53 @@ function draw_gauntlet()
     circ(p.x, p.y, 3, 7)
   end
 
-  -- draw particles
-  for p in all(particles) do
+  for p in all(fx8) do
     pset(p.x, p.y, p.col)
   end
 
-  -- draw floating texts
-  for f in all(floating_texts) do
+  for f in all(fx9) do
     if f.life > 0 then
       print(f.text, f.x - #f.text * 2, f.y, f.col)
     end
   end
 
-  -- hud
   print("gauntlet", 2, 2, 7)
-  print("score: "..gauntlet_score, 2, 9, 10)
+  print("score: "..gt3, 2, 9, 10)
 
-  -- timer with urgency color
-  local time_sec = flr(gauntlet_time_left / 30)
+  local time_sec = flr(gt2 / 30)
   local time_col = time_sec <= 10 and 8 or (time_sec <= 30 and 9 or 11)
   print("time: "..time_sec.."s", 2, 16, time_col)
 
-  -- bosses defeated
-  print("bosses: "..gauntlet_bosses_defeated, 2, 23, 12)
+  print("bosses: "..gt4, 2, 23, 12)
 
-  -- stage indicator
-  print("stage "..gauntlet_stage, 96, 2, 14)
+  print("stage "..gt6, 96, 2, 14)
 
-  -- combo counter
   if combo > 0 then
     local combo_col = combo >= 20 and 14 or (combo >= 10 and 9 or 10)
     print("combo: "..combo, 90, 9, combo_col)
   end
 
-  -- lives
-  local lives_col = life_flash > 0 and 8 or 11
+  local lives_col = fx7 > 0 and 8 or 11
   print("\x8e"..lives, 60, 2, lives_col)
 
-  -- active power-ups
   local pu_x = 2
-  if shield_time > 0 then
+  if pw2 > 0 then
     print("shd", pu_x, 120, 12)
     pu_x += 20
   end
-  if slowmo_time > 0 then
+  if pw3 > 0 then
     print("slw", pu_x, 120, 14)
     pu_x += 20
   end
-  if doublescore_time > 0 then
+  if pw1 > 0 then
     print("2x", pu_x, 120, 10)
     pu_x += 16
   end
-  if magnet_time > 0 then
+  if pw4 > 0 then
     print("mag", pu_x, 120, 9)
     pu_x += 20
   end
-  if freeze_time > 0 then
+  if pw5 > 0 then
     print("frz", pu_x, 120, 13)
   end
 end
@@ -5139,7 +4539,6 @@ end
 function update_gauntlet_gameover()
   local input = test_input()
 
-  -- O to return to menu
   if input & 16 > 0 then
     state = "menu"
     play_music(2)
@@ -5152,190 +4551,165 @@ function draw_gauntlet_gameover()
 
   print("gauntlet complete!", 20, 15, 7)
 
-  -- final stats
-  print("bosses defeated: "..gauntlet_bosses_defeated, 18, 30, 10)
-  print("final score: "..gauntlet_score, 24, 40, 10)
-  print("max combo: "..gauntlet_max_combo, 28, 50, 11)
-  print("total dodges: "..total_dodges, 24, 60, 12)
+  print("bosses defeated: "..gt4, 18, 30, 10)
+  print("final score: "..gt3, 24, 40, 10)
+  print("max combo: "..gt5, 28, 50, 11)
+  print("total dodges: "..ic8, 24, 60, 12)
 
-  -- time
-  local time_sec = flr((90 * 30 - gauntlet_time_left) / 30)
+  local time_sec = flr((90 * 30 - gt2) / 30)
   print("time: "..time_sec.."s / 90s", 28, 70, 9)
 
-  -- final stage reached
-  print("final stage: "..gauntlet_stage, 26, 80, 14)
+  print("final stage: "..gt6, 26, 80, 14)
 
-  -- controls
   print("press o to return", 22, 105, 6)
 end
 
--- boss rush mode
 function init_bossrush()
-  -- reset ball
   ball.x = 64
   ball.y = 100
   ball.vx = 0
   ball.vy = 0
   ball.grounded = false
 
-  -- reset game state
-  bossrush_score = 0
-  bossrush_bosses_defeated = 0
-  bossrush_max_combo = 0
-  bossrush_stage = 1
-  bossrush_spawn_timer = 90  -- 3 seconds
-  bossrush_lives = 5
-  bossrush_active = true
+  br2 = 0
+  br3 = 0
+  br4 = 0
+  br7 = 1
+  br6 = 90
+  br5 = 5
+  br1 = true
 
-  gametime = 0
-  multiplier = 1.0
+  gm1 = 0
+  lm7 = 1.0
   combo = 0
-  last_milestone = 0
-  life_flash = 0
+  lm1 = 0
+  fx7 = 0
 
-  -- clear arrays
-  obstacles = {}
-  powerups = {}
-  particles = {}
-  floating_texts = {}
-  ball_trail = {}
+  ob4 = {}
+  pw6 = {}
+  fx8 = {}
+  fx9 = {}
+  bl1 = {}
 
-  -- reset timers
-  obs_timer = 0
-  boss_timer = 0
-  pu_timer = 0
-  shield_time = 0
-  slowmo_time = 0
-  doublescore_time = 0
-  magnet_time = 0
-  freeze_time = 0
-  obstacles_frozen = false
+  ob3 = 0
+  ob6 = 0
+  pw7 = 0
+  pw2 = 0
+  pw3 = 0
+  pw1 = 0
+  pw4 = 0
+  pw5 = 0
+  ob1 = false
 
-  -- reset stats
-  max_combo = 0
-  total_dodges = 0
-  total_powerups = 0
-  total_dodge_bonus = 0
-  max_multiplier = 1.0
-  power_types_collected = {}
+  ic9 = 0
+  ic8 = 0
+  ic7 = 0
+  ic6 = 0
+  ic5 = 1.0
+  ad5 = {}
 
-  play_music(0)  -- play normal music
+  play_music(0)
   _log("state:bossrush")
-  _log("bossrush_init:lives="..bossrush_lives)
+  _log("bossrush_init:lives="..br5)
 end
 
 function update_bossrush()
-  gametime += 1
+  gm1 += 1
 
-  -- update ball physics
   update_ball()
 
-  -- update ball trail
   update_ball_trail()
 
-  -- update boss spawning
-  bossrush_spawn_timer -= 1
-  if bossrush_spawn_timer <= 0 then
+  br6 -= 1
+  if br6 <= 0 then
     spawn_bossrush_boss()
 
-    -- calculate next spawn interval based on combo
-    -- start at 90 frames (3s), decrease to 15 frames (0.5s)
     local base_interval = 90
     local min_interval = 15
-    local reduction = flr(combo * 3)  -- 3 frames per combo
-    bossrush_spawn_timer = max(min_interval, base_interval - reduction)
+    local reduction = flr(combo * 3)
+    br6 = max(min_interval, base_interval - reduction)
 
-    _log("bossrush_boss_spawned:stage="..bossrush_stage..",interval="..bossrush_spawn_timer)
+    _log("bossrush_boss_spawned:stage="..br7..",interval="..br6)
   end
 
-  -- update obstacles (bosses only)
-  for o in all(obstacles) do
+  for o in all(ob4) do
     update_obstacle(o)
   end
 
-  -- update power-ups
-  for p in all(powerups) do
-    p.y += scroll_speed
+  for p in all(pw6) do
+    p.y += ob7
     if p.y > 140 then
-      del(powerups, p)
+      del(pw6, p)
     end
   end
 
-  -- update power-up timers
-  if shield_time > 0 then shield_time -= 1 end
-  if slowmo_time > 0 then slowmo_time -= 1 end
-  if doublescore_time > 0 then doublescore_time -= 1 end
-  if magnet_time > 0 then magnet_time -= 1 end
-  if freeze_time > 0 then
-    freeze_time -= 1
-    obstacles_frozen = true
+  if pw2 > 0 then pw2 -= 1 end
+  if pw3 > 0 then pw3 -= 1 end
+  if pw1 > 0 then pw1 -= 1 end
+  if pw4 > 0 then pw4 -= 1 end
+  if pw5 > 0 then
+    pw5 -= 1
+    ob1 = true
   else
-    obstacles_frozen = false
+    ob1 = false
   end
 
-  -- check collisions with bosses
-  for o in all(obstacles) do
+  for o in all(ob4) do
     if o.is_boss and not o.dodged and o.y >= ball.y - 10 then
       local dist = sqrt((ball.x - o.x)^2 + (ball.y - o.y)^2)
       if dist < ball.r + o.r then
-        if shield_time > 0 then
-          -- shield absorbs hit
-          shield_time = 0
+        if pw2 > 0 then
+          pw2 = 0
           play_sfx(6)
           shake(8, 1.2)
-          del(obstacles, o)
+          del(ob4, o)
           add_particles(o.x, o.y, 15, 11)
           _log("bossrush_shield_absorbed")
         else
-          -- take damage
-          bossrush_lives -= 1
-          life_flash = 15
+          br5 -= 1
+          fx7 = 15
           combo = 0
-          last_milestone = 0
+          lm1 = 0
           play_sfx(3)
           shake(15, 1.5)
           add_particles(ball.x, ball.y, 20, 8)
-          _log("bossrush_damage:lives="..bossrush_lives)
+          _log("bossrush_damage:lives="..br5)
 
-          del(obstacles, o)
+          del(ob4, o)
 
-          if bossrush_lives <= 0 then
-            -- save highscore if better
-            if bossrush_score > bossrush_highscore then
-              bossrush_highscore = bossrush_score
-              dset(94, bossrush_highscore)
-              _log("bossrush_new_highscore:"..bossrush_highscore)
+          if br5 <= 0 then
+            if br2 > br8 then
+              br8 = br2
+              dset(94, br8)
+              _log("bossrush_new_highscore:"..br8)
             end
             state = "bossrush_gameover"
             play_music(3)
             _log("state:bossrush_gameover")
-            _log("bossrush_death:bosses="..bossrush_bosses_defeated..",score="..bossrush_score)
+            _log("bossrush_death:bosses="..br3..",score="..br2)
             return
           end
         end
       end
     end
 
-    -- check if boss was dodged
     if o.is_boss and not o.dodged and o.y > ball.y + 10 then
       o.dodged = true
       combo += 1
-      bossrush_max_combo = max(bossrush_max_combo, combo)
-      total_dodges += 1
+      br4 = max(br4, combo)
+      ic8 += 1
 
-      -- calculate score with multiplier and combo bonus
-      local combo_mult = 1.0 + (combo * 0.05)  -- +5% per combo
+      local combo_mult = 1.0 + (combo * 0.05)
       local base_points = 5
-      local dodge_points = flr(base_points * multiplier * combo_mult)
-      bossrush_score += dodge_points
-      total_dodge_bonus += dodge_points
+      local dodge_points = flr(base_points * lm7 * combo_mult)
+      br2 += dodge_points
+      ic6 += dodge_points
 
       play_sfx(4)
       add_particles(ball.x, ball.y, 15, 10)
       add_floating_text("+"..dodge_points, ball.x, ball.y - 5, 10)
-      _log("bossrush_dodge:combo="..combo..",score="..bossrush_score)
+      _log("bossrush_dodge:combo="..combo..",score="..br2)
 
-      -- check milestone
       local milestone = 0
       if combo >= 30 then milestone = 30
       elseif combo >= 25 then milestone = 25
@@ -5345,8 +4719,8 @@ function update_bossrush()
       elseif combo >= 5 then milestone = 5
       end
 
-      if milestone > last_milestone then
-        last_milestone = milestone
+      if milestone > lm1 then
+        lm1 = milestone
         play_sfx(7)
         shake(3, 0.25)
         local msg = "x"..milestone.." combo!"
@@ -5356,47 +4730,37 @@ function update_bossrush()
       end
     end
 
-    -- remove bosses that are off screen
     if o.y > 140 then
       if o.is_boss and o.dodged then
-        -- boss defeated!
-        bossrush_bosses_defeated += 1
+        br3 += 1
 
-        -- calculate stage based on bosses defeated
-        -- stage 1: 0-3 bosses (5pt base)
-        -- stage 2: 4-7 bosses (8pt base)
-        -- stage 3: 8+ bosses (12pt base)
-        bossrush_stage = min(3, flr(bossrush_bosses_defeated / 4) + 1)
+        br7 = min(3, flr(br3 / 4) + 1)
 
-        -- score based on stage
-        local stage_points = (bossrush_stage == 1 and 5) or (bossrush_stage == 2 and 8) or 12
-        local final_points = flr(stage_points * multiplier)
-        bossrush_score += final_points
+        local stage_points = (br7 == 1 and 5) or (br7 == 2 and 8) or 12
+        local final_points = flr(stage_points * lm7)
+        br2 += final_points
 
-        -- increase multiplier every 3 bosses
-        if bossrush_bosses_defeated % 3 == 0 then
-          multiplier += 0.2
-          max_multiplier = max(max_multiplier, multiplier)
+        if br3 % 3 == 0 then
+          lm7 += 0.2
+          ic5 = max(ic5, lm7)
           play_sfx(7)
           shake(12, 1.5)
-          screen_flash = 10
-          add_floating_text(multiplier.."x multiplier!", 30, 50, 10)
-          _log("bossrush_multiplier:"..multiplier)
+          fx5 = 10
+          add_floating_text(lm7.."x lm7!", 30, 50, 10)
+          _log("bossrush_multiplier:"..lm7)
         end
 
-        -- spawn power-up (50% chance)
         if rnd(1) < 0.5 then
           spawn_powerup(64 + rnd(40) - 20, -10)
         end
 
-        -- special milestones
-        if bossrush_bosses_defeated == 10 then
+        if br3 == 10 then
           add_floating_text("10 bosses!", 40, 60, 10)
           _log("bossrush_milestone_10")
-        elseif bossrush_bosses_defeated == 50 then
+        elseif br3 == 50 then
           add_floating_text("50 bosses!", 40, 60, 9)
           _log("bossrush_milestone_50")
-        elseif bossrush_bosses_defeated == 100 then
+        elseif br3 == 100 then
           add_floating_text("100 bosses!!!", 36, 60, 14)
           _log("bossrush_milestone_100")
         end
@@ -5405,59 +4769,55 @@ function update_bossrush()
         shake(10, 1.0)
         add_particles(o.x, o.y, 25, 9)
         add_floating_text("+"..final_points, o.x, o.y - 5, 10)
-        _log("bossrush_boss_defeated:"..bossrush_bosses_defeated..",stage="..bossrush_stage..",score="..bossrush_score)
+        _log("bossrush_boss_defeated:"..br3..",stage="..br7..",score="..br2)
       end
-      del(obstacles, o)
+      del(ob4, o)
     end
   end
 
-  -- check power-up collection
-  for p in all(powerups) do
+  for p in all(pw6) do
     local dist = sqrt((ball.x - p.x)^2 + (ball.y - p.y)^2)
     if dist < ball.r + 3 then
       collect_powerup(p)
-      del(powerups, p)
+      del(pw6, p)
     end
   end
 
-  -- update visual effects
-  if shake_time > 0 then
-    shake_time -= 1
-    shake_x = (rnd(2) - 1) * shake_intensity
-    shake_y = (rnd(2) - 1) * shake_intensity
+  if fx2 > 0 then
+    fx2 -= 1
+    fx3 = (rnd(2) - 1) * fx1
+    fx4 = (rnd(2) - 1) * fx1
   else
-    shake_x = 0
-    shake_y = 0
+    fx3 = 0
+    fx4 = 0
   end
 
-  if ball_flash > 0 then ball_flash -= 1 end
-  if life_flash > 0 then life_flash -= 1 end
+  if bl3 > 0 then bl3 -= 1 end
+  if fx7 > 0 then fx7 -= 1 end
 
-  -- update particles
-  for p in all(particles) do
+  for p in all(fx8) do
     p.x += p.vx
     p.y += p.vy
     p.life -= 1
     if p.life <= 0 then
-      del(particles, p)
+      del(fx8, p)
     end
   end
 
-  -- update floating texts
-  for ft in all(floating_texts) do
+  for ft in all(fx9) do
     ft.y -= 0.5
     ft.life -= 1
     if ft.life <= 0 then
-      del(floating_texts, ft)
+      del(fx9, ft)
     end
   end
 end
 
 function spawn_bossrush_boss()
-  add(obstacles, mk_boss(bossrush_stage))
+  add(ob4, mk_boss(br7))
   shake(6, 0.8)
   play_sfx(2)
-  _log("bossrush_spawn_boss:stage="..bossrush_stage)
+  _log("bossrush_spawn_boss:stage="..br7)
 end
 
 function draw_bossrush()
@@ -5465,14 +4825,11 @@ function draw_bossrush()
   draw_ball_trail()
   draw_ball()
 
-  -- draw bosses
-  for o in all(obstacles) do
+  for o in all(ob4) do
     if o.is_boss then
-      -- main boss body
       circfill(o.x, o.y, o.r, theme_color(8))
       circ(o.x, o.y, o.r, theme_color(2))
 
-      -- draw satellites for stage 2+
       if o.boss_stage >= 2 then
         local sat_count = o.boss_stage >= 3 and 2 or 1
         for i = 0, sat_count - 1 do
@@ -5485,8 +4842,7 @@ function draw_bossrush()
     end
   end
 
-  -- draw power-ups
-  for p in all(powerups) do
+  for p in all(pw6) do
     local col = 7
     if p.type == "shield" then col = 12
     elseif p.type == "slowmo" then col = 14
@@ -5499,59 +4855,52 @@ function draw_bossrush()
     circ(p.x, p.y, 3, 7)
   end
 
-  -- draw particles
-  for p in all(particles) do
+  for p in all(fx8) do
     pset(p.x, p.y, p.col)
   end
 
-  -- draw floating texts
-  for ft in all(floating_texts) do
+  for ft in all(fx9) do
     local alpha = ft.life / 30
     if alpha > 0.3 then
       print(ft.text, ft.x, ft.y, ft.col)
     end
   end
 
-  -- hud
-  print("score: "..bossrush_score, 2, 2, 7)
-  print("bosses: "..bossrush_bosses_defeated, 2, 9, 10)
+  print("score: "..br2, 2, 2, 7)
+  print("bosses: "..br3, 2, 9, 10)
 
-  -- multiplier (center top)
-  if multiplier > 1.0 then
-    print(multiplier.."x", 58, 2, 10)
+  if lm7 > 1.0 then
+    print(lm7.."x", 58, 2, 10)
   end
 
-  -- combo counter
   if combo > 0 then
     local combo_col = combo >= 20 and 14 or (combo >= 10 and 9 or 10)
     print("combo: "..combo, 90, 9, combo_col)
   end
 
-  -- lives (visual hearts)
-  local lives_col = life_flash > 0 and 8 or 11
-  for i = 1, bossrush_lives do
+  local lives_col = fx7 > 0 and 8 or 11
+  for i = 1, br5 do
     print("\x8e", 95 + (i - 1) * 6, 2, lives_col)
   end
 
-  -- active power-ups
   local pu_x = 2
-  if shield_time > 0 then
+  if pw2 > 0 then
     print("shd", pu_x, 120, 12)
     pu_x += 20
   end
-  if slowmo_time > 0 then
+  if pw3 > 0 then
     print("slw", pu_x, 120, 14)
     pu_x += 20
   end
-  if doublescore_time > 0 then
+  if pw1 > 0 then
     print("2x", pu_x, 120, 10)
     pu_x += 16
   end
-  if magnet_time > 0 then
+  if pw4 > 0 then
     print("mag", pu_x, 120, 9)
     pu_x += 20
   end
-  if freeze_time > 0 then
+  if pw5 > 0 then
     print("frz", pu_x, 120, 13)
   end
 end
@@ -5559,7 +4908,6 @@ end
 function update_bossrush_gameover()
   local input = test_input()
 
-  -- O to return to menu
   if input & 16 > 0 then
     state = "menu"
     play_music(2)
@@ -5570,34 +4918,29 @@ end
 function draw_bossrush_gameover()
   cls(1)
 
-  -- title
   print("boss rush complete!", 14, 15, 7)
 
-  -- final stats
-  print("bosses defeated: "..bossrush_bosses_defeated, 18, 30, 10)
-  print("final score: "..bossrush_score, 24, 40, 10)
-  print("max combo: "..bossrush_max_combo, 28, 50, 11)
-  print("final multiplier: "..multiplier.."x", 18, 60, 14)
+  print("bosses defeated: "..br3, 18, 30, 10)
+  print("final score: "..br2, 24, 40, 10)
+  print("max combo: "..br4, 28, 50, 11)
+  print("final lm7: "..lm7.."x", 18, 60, 14)
 
-  -- highscore
-  if bossrush_score > 0 then
-    if bossrush_score >= bossrush_highscore then
-      print("new highscore!", 28, 72, 10)
+  if br2 > 0 then
+    if br2 >= br8 then
+      print("new gm2!", 28, 72, 10)
     else
-      print("best: "..bossrush_highscore, 38, 72, 12)
+      print("best: "..br8, 38, 72, 12)
     end
   end
 
-  -- milestones
-  if bossrush_bosses_defeated >= 100 then
+  if br3 >= 100 then
     print("legendary!", 36, 85, 14)
-  elseif bossrush_bosses_defeated >= 50 then
+  elseif br3 >= 50 then
     print("amazing!", 40, 85, 9)
-  elseif bossrush_bosses_defeated >= 10 then
+  elseif br3 >= 10 then
     print("impressive!", 34, 85, 10)
   end
 
-  -- controls
   print("press o to return", 22, 105, 6)
 end
 
