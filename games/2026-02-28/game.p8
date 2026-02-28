@@ -535,7 +535,7 @@ function damage_enemy(e, dmg)
   sfx(1)
 
   -- phase 2 trigger for bosses
-  if e.type == "heavy" and not e.phase2 and e.hp == 2 then
+  if e.type == "heavy" and not e.phase2 and e.hp <= 2 then
     e.phase2 = true
     _log("boss:phase2")
     -- visual flash for phase change
