@@ -397,6 +397,7 @@ function update_boss_attacks(e)
   -- update cooldowns
   if e.burst_cd > 0 then e.burst_cd -= 1 end
   if e.dash_cd > 0 then e.dash_cd -= 1 end
+  if e.flash_timer and e.flash_timer > 0 then e.flash_timer -= 1 end
 
   -- handle dash warning countdown
   if e.dash_warn and e.dash_warn > 0 then
@@ -727,7 +728,6 @@ function draw_play()
     -- boss flash effect
     local col = e.col
     if e.flash_timer and e.flash_timer > 0 then
-      e.flash_timer -= 1
       col = (e.flash_timer % 4 < 2) and 7 or e.col
     end
 
