@@ -312,15 +312,39 @@ function dash_player()
 end
 
 function update_enemy(e)
-  -- move toward center
-  local dx = player.x - e.x
-  local dy = player.y - e.y
-  local d = sqrt(dx*dx + dy*dy)
+  -- boss special attacks (heavy enemies)
+  if e.type == "heavy" then
+    update_boss_attacks(e)
+  end
 
-  if d > 0 then
-    local speed = e.speed or 0.5
-    e.x += (dx / d) * speed
-    e.y += (dy / d) * speed
+  -- handle dashing
+  if e.dashing then
+    e.dash_timer -= 1
+    if e.dash_timer <= 0 then
+      e.dashing = false
+      e.speed = 0.3 -- restore normal speed
+      _log("boss_dash_end")
+    else
+      -- continue dash movement
+      local dx = e.dash_target_x - e.x
+      local dy = e.dash_target_y - e.y
+      local d = sqrt(dx*dx + dy*dy)
+      if d > 0 then
+        e.x += (dx / d) * e.speed
+        e.y += (dy / d) * e.speed
+      end
+    end
+  else
+    -- normal movement toward player
+    local dx = player.x - e.x
+    local dy = player.y - e.y
+    local d = sqrt(dx*dx + dy*dy)
+
+    if d > 0 then
+      local speed = e.speed or 0.5
+      e.x += (dx / d) * speed
+      e.y += (dy / d) * speed
+    end
   end
 
   -- shooter behavior
@@ -334,8 +358,12 @@ function update_enemy(e)
 
   -- collision with player
   if player.invuln == 0 and dist(player.x, player.y, e.x, e.y) < 6 then
-    hit_player()
-    del(enemies, e)
+    -- extra damage during dash
+    local dmg = (e.dashing and e.type == "heavy") and 2 or 1
+    hit_player(dmg)
+    if not e.dashing then
+      del(enemies, e)
+    end
   end
 end
 
@@ -355,6 +383,79 @@ function enemy_shoot(e)
       dmg = 1
     })
   end
+end
+
+function update_boss_attacks(e)
+  -- initialize timers if needed
+  if not e.spawn_time then
+    e.spawn_time = time()
+    e.burst_cd = 0
+    e.dash_cd = 0
+    e.burst_used = false
+  end
+
+  -- update cooldowns
+  if e.burst_cd > 0 then e.burst_cd -= 1 end
+  if e.dash_cd > 0 then e.dash_cd -= 1 end
+  if e.flash_timer and e.flash_timer > 0 then e.flash_timer -= 1 end
+
+  -- handle dash warning countdown
+  if e.dash_warn and e.dash_warn > 0 then
+    e.dash_warn -= 1
+    if e.dash_warn == 0 then
+      -- warning over, start actual dash
+      _log("boss_dash")
+      sfx(3)
+      e.dashing = true
+      e.dash_timer = 60
+      e.speed = 0.6
+    end
+  end
+
+  local elapsed = time() - e.spawn_time
+  local hp_pct = e.hp / e.max_hp
+
+  -- burst attack (once at 50% hp or 5s)
+  if not e.burst_used and (hp_pct <= 0.5 or elapsed >= 5) and e.burst_cd == 0 then
+    boss_burst_attack(e)
+    e.burst_used = true
+    e.burst_cd = 120
+  end
+
+  -- dash attack (when player in range)
+  local d = dist(player.x, player.y, e.x, e.y)
+  if not e.dashing and not e.dash_warn and d < 60 and d > 10 and e.dash_cd == 0 then
+    boss_dash_attack(e)
+  end
+end
+
+function boss_burst_attack(e)
+  _log("boss_burst")
+  sfx(6)
+  e.flash_timer = 10
+
+  -- fire 8 projectiles in all directions
+  for i=0,7 do
+    local dir = dirs[i + 1]
+    add(projectiles, {
+      x = e.x,
+      y = e.y,
+      vx = dir[1] * e.speed * 3,
+      vy = dir[2] * e.speed * 3,
+      owner = "enemy",
+      size = 1,
+      dmg = 1
+    })
+  end
+end
+
+function boss_dash_attack(e)
+  _log("boss_dash_warn")
+
+  e.dash_cd = 180
+  e.dash_warn = 30 -- warning indicator frames
+  e.dash_target_x = player.x
+  e.dash_target_y = player.y
 end
 
 function update_projectile(p)
@@ -427,7 +528,9 @@ function kill_enemy(e)
   del(enemies, e)
 end
 
-function hit_player()
+function hit_player(dmg)
+  dmg = dmg or 1
+
   if player.has_shield then
     player.has_shield = false
     sfx(5)
@@ -435,16 +538,16 @@ function hit_player()
     return
   end
 
-  player.lives -= 1
+  player.lives -= dmg
   player.invuln = 60
   combo = 0
   sfx(7)
-  _log("hit:lives="..player.lives)
+  _log("hit:lives="..player.lives..",dmg="..dmg)
   _log("combo_reset")
 
-  -- screen shake
-  shake_frames = 3
-  shake_intensity = 2
+  -- screen shake (stronger for higher damage)
+  shake_frames = 3 + dmg
+  shake_intensity = 2 + dmg * 0.5
 
   -- particles
   for i=1,10 do
@@ -621,7 +724,28 @@ function draw_play()
   -- enemies
   for e in all(enemies) do
     local r = e.type == "heavy" and 5 or (e.type == "speedy" and 2 or 3)
-    circfill(e.x, e.y, r, e.col)
+
+    -- boss flash effect
+    local col = e.col
+    if e.flash_timer and e.flash_timer > 0 then
+      col = (e.flash_timer % 4 < 2) and 7 or e.col
+    end
+
+    -- dash warning indicator
+    if e.dash_warn and e.dash_warn > 0 then
+      line(e.x, e.y, e.dash_target_x, e.dash_target_y, 8)
+      -- pulsing outline
+      if e.dash_warn % 8 < 4 then
+        circ(e.x, e.y, r + 1, 8)
+      end
+    end
+
+    circfill(e.x, e.y, r, col)
+
+    -- boss outline during attacks
+    if e.dashing then
+      circ(e.x, e.y, r + 1, 10)
+    end
 
     -- hp bar for multi-hp enemies
     if e.max_hp > 1 then
