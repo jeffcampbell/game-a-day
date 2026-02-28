@@ -720,6 +720,7 @@ function update_boss_attacks(e)
   if e.spin_timer and e.spin_timer > 0 then e.spin_timer -= 1 end
   if e.spawn_flash and e.spawn_flash > 0 then e.spawn_flash -= 1 end
   if e.glow_t then e.glow_t = (e.glow_t + 1) % 12 end
+  if e.spawn_timer and e.spawn_timer > 0 then e.spawn_timer -= 1 end
 
   -- boss pulse expansion effect
   if e.pulse_timer and e.pulse_timer > 0 then
@@ -920,6 +921,7 @@ function update_specter_attacks(e)
   if e.flash_timer and e.flash_timer > 0 then e.flash_timer -= 1 end
   if e.spawn_flash and e.spawn_flash > 0 then e.spawn_flash -= 1 end
   if e.glow_t then e.glow_t = (e.glow_t + 1) % 12 end
+  if e.spawn_timer and e.spawn_timer > 0 then e.spawn_timer -= 1 end
 
   -- pulse expansion effect
   if e.pulse_timer and e.pulse_timer > 0 then
@@ -1421,6 +1423,7 @@ function spawn_enemy(typ)
     e.spawn_flash = 3 -- spawn announcement flash
     e.pulse_radius = 0 -- expanding pulse effect
     e.pulse_timer = 20 -- frames for pulse expansion
+    e.spawn_timer = 60 -- entrance glow + scale animation
   elseif typ == "specter" then
     -- specter boss: seeking projectiles + teleport dashes
     e.hp = 4
@@ -1432,6 +1435,7 @@ function spawn_enemy(typ)
     e.spawn_flash = 3
     e.pulse_radius = 0
     e.pulse_timer = 20
+    e.spawn_timer = 60 -- entrance glow + scale animation
     e.seek_cd = 0 -- seeking projectile cooldown
     e.seek_count = 0 -- number of seeking shots fired
     e.teleport_cd = 0 -- teleport cooldown
@@ -1656,6 +1660,13 @@ function draw_play()
   for e in all(enemies) do
     local r = e.type == "heavy" and 5 or (e.type == "specter" and 6 or (e.type == "speedy" and 2 or 3))
 
+    -- apply entrance scale animation (30 frame scale up)
+    local draw_r = r
+    if e.spawn_timer and e.spawn_timer > 30 then
+      local scale = 0.5 + (60 - e.spawn_timer) / 60
+      draw_r = r * scale
+    end
+
     -- boss spawn pulse effect (expanding circle)
     if e.pulse_timer and e.pulse_timer > 0 and e.pulse_radius then
       local alpha = e.pulse_timer / 20  -- fade out as pulse expands
@@ -1663,6 +1674,18 @@ function draw_play()
       circ(e.x, e.y, e.pulse_radius, pulse_col)
       if e.pulse_radius > 3 then
         circ(e.x, e.y, e.pulse_radius - 1, pulse_col)
+      end
+    end
+
+    -- boss entrance glow (60 frame pulsing effect)
+    if e.spawn_timer and e.spawn_timer > 0 and (e.type == "heavy" or e.type == "specter") then
+      local glow_col = e.type == "specter" and 12 or 9  -- cyan for specter, orange for heavy
+      local pulse = sin(e.spawn_timer / 8) * 2  -- pulsing radius 12-16
+      local base_r = 14
+      circ(e.x, e.y, base_r + pulse, glow_col)
+      circ(e.x, e.y, base_r + pulse - 1, glow_col)
+      if e.spawn_timer > 40 then  -- brighter during first 20 frames
+        circ(e.x, e.y, base_r + pulse + 1, glow_col)
       end
     end
 
@@ -1686,12 +1709,12 @@ function draw_play()
       line(e.x, e.y, e.dash_target_x, e.dash_target_y, 11)
       -- thick pulsing outline
       if e.dash_warn % 8 < 4 then
-        circ(e.x, e.y, r + 1, 11)
-        circ(e.x, e.y, r + 2, 11)
+        circ(e.x, e.y, draw_r + 1, 11)
+        circ(e.x, e.y, draw_r + 2, 11)
       end
     end
 
-    circfill(e.x, e.y, r, col)
+    circfill(e.x, e.y, draw_r, col)
 
     -- boss pulsing glow
     if (e.type == "heavy" or e.type == "specter") and e.glow_t and not e.spawn_flash then
@@ -1703,9 +1726,9 @@ function draw_play()
         else
           glow_col = (e.glow_t < 6) and 14 or 12  -- magenta/cyan
         end
-        circ(e.x, e.y, r + 2, glow_col) -- extra ring for phase 2
+        circ(e.x, e.y, draw_r + 2, glow_col) -- extra ring for phase 2
       end
-      circ(e.x, e.y, r + 1, glow_col)
+      circ(e.x, e.y, draw_r + 1, glow_col)
     end
 
     -- boss spinning crosshairs during burst
@@ -1724,14 +1747,14 @@ function draw_play()
 
     -- boss outline during dash
     if e.dashing then
-      circ(e.x, e.y, r + 1, 10)
+      circ(e.x, e.y, draw_r + 1, 10)
     end
 
     -- hp bar for multi-hp enemies
     if e.max_hp > 1 then
       local w = 8
       local frac = e.hp / e.max_hp
-      rectfill(e.x - w/2, e.y - r - 3, e.x - w/2 + w * frac, e.y - r - 2, 11)
+      rectfill(e.x - w/2, e.y - draw_r - 3, e.x - w/2 + w * frac, e.y - draw_r - 2, 11)
     end
   end
 
