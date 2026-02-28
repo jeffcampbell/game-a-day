@@ -3481,6 +3481,7 @@ function collect_powerup(p)
     _log("danger_zone_pickup:"..danger_zone_pickups)
   end
 
+  play_sfx(1)  -- power-up collect sound
   shake(8, 1.0)  -- medium shake on powerup collection
 
   -- floating text for score bonus
@@ -4104,6 +4105,7 @@ function update_challenge()
   if ball.y >= 120 then
     ball.y = 120
     ball.vy = -ball.vy * 0.7
+    play_sfx(0)  -- bounce sound
     ball.grounded = abs(ball.vy) < 0.5
   else
     ball.grounded = false
@@ -4113,9 +4115,11 @@ function update_challenge()
   if ball.x <= ball.r then
     ball.x = ball.r
     ball.vx = -ball.vx * 0.7
+    play_sfx(0)  -- bounce sound
   elseif ball.x >= 128 - ball.r then
     ball.x = 128 - ball.r
     ball.vx = -ball.vx * 0.7
+    play_sfx(0)  -- bounce sound
   end
 
   -- spawn obstacles (use challenge difficulty)
