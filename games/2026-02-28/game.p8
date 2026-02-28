@@ -92,6 +92,7 @@ enemies = {}
 projectiles = {}
 powerups = {}
 particles = {}
+spawn_queue = {} -- telegraph queue for incoming enemies
 
 -- power-up timers
 rapid_fire_t = 0
@@ -374,6 +375,7 @@ function init_play()
   projectiles = {}
   powerups = {}
   particles = {}
+  spawn_queue = {}
 
   -- reset power-ups
   rapid_fire_t = 0
@@ -420,6 +422,9 @@ function update_play()
   if rapid_fire_t > 0 then rapid_fire_t -= 1 end
   if big_shot_t > 0 then big_shot_t -= 1 end
   if score_mult_t > 0 then score_mult_t -= 1 end
+
+  -- update spawn queue (telegraph system)
+  update_spawn_queue()
 
   -- player input
   if player.invuln > 0 then
@@ -1357,6 +1362,39 @@ function hit_player(dmg)
   end
 end
 
+function queue_spawn(typ, delay)
+  -- telegraph delay: 60-90 frames (1-1.5 seconds)
+  local spawn_delay = delay or (60 + flr(rnd(30)))
+
+  -- calculate spawn position
+  local x, y = 0, 0
+  local side = flr(rnd(4))
+
+  if side == 0 then -- top
+    x = rnd(128)
+    y = 0
+  elseif side == 1 then -- right
+    x = 128
+    y = rnd(128)
+  elseif side == 2 then -- bottom
+    x = rnd(128)
+    y = 128
+  else -- left
+    x = 0
+    y = rnd(128)
+  end
+
+  add(spawn_queue, {
+    type = typ,
+    x = x,
+    y = y,
+    timer = spawn_delay,
+    sfx_played = false
+  })
+
+  _log("queue_spawn:"..typ..":"..x..","..y)
+end
+
 function spawn_wave()
   wave += 1
   _log("wave:"..wave)
@@ -1372,13 +1410,13 @@ function spawn_wave()
 
   if heavy_boss_wave then
     -- heavy boss wave: 1 heavy + minions
-    spawn_enemy("heavy")
+    queue_spawn("heavy", 90) -- longer telegraph for boss
     count = flr(4 * count_mult)
     music(2) -- boss theme
     _log("music:boss")
   elseif specter_boss_wave then
     -- specter boss wave: 1 specter + minions
-    spawn_enemy("specter")
+    queue_spawn("specter", 90) -- longer telegraph for boss
     count = flr(4 * count_mult)
     music(2) -- boss theme
     _log("music:boss")
@@ -1396,26 +1434,29 @@ function spawn_wave()
       enemy_type = "speedy"
     end
 
-    spawn_enemy(enemy_type)
+    queue_spawn(enemy_type)
   end
 end
 
-function spawn_enemy(typ)
-  local x, y = 0, 0
-  local side = flr(rnd(4))
+function spawn_enemy(typ, spawn_x, spawn_y)
+  -- use provided position or generate random edge position
+  local x, y = spawn_x, spawn_y
 
-  if side == 0 then -- top
-    x = rnd(128)
-    y = 0
-  elseif side == 1 then -- right
-    x = 128
-    y = rnd(128)
-  elseif side == 2 then -- bottom
-    x = rnd(128)
-    y = 128
-  else -- left
-    x = 0
-    y = rnd(128)
+  if not x or not y then
+    local side = flr(rnd(4))
+    if side == 0 then -- top
+      x = rnd(128)
+      y = 0
+    elseif side == 1 then -- right
+      x = 128
+      y = rnd(128)
+    elseif side == 2 then -- bottom
+      x = rnd(128)
+      y = 128
+    else -- left
+      x = 0
+      y = rnd(128)
+    end
   end
 
   local e = {
@@ -1520,6 +1561,25 @@ function spawn_enemy(typ)
       col = typ == "specter" and 12 or 7
     })
     _log("boss_announce:"..typ)
+  end
+end
+
+function update_spawn_queue()
+  for sq in all(spawn_queue) do
+    sq.timer -= 1
+
+    -- play telegraph SFX at 60 frames (1 second before spawn)
+    if not sq.sfx_played and sq.timer <= 60 then
+      sfx(8) -- telegraph warning sound
+      sq.sfx_played = true
+      _log("telegraph_sfx:"..sq.type)
+    end
+
+    -- spawn enemy when timer expires
+    if sq.timer <= 0 then
+      spawn_enemy(sq.type, sq.x, sq.y)
+      del(spawn_queue, sq)
+    end
   end
 end
 
@@ -1697,6 +1757,35 @@ function draw_play()
   for pu in all(powerups) do
     rectfill(pu.x - 2, pu.y - 2, pu.x + 2, pu.y + 2, 12)
     print(pu.type, pu.x - 4, pu.y - 8, 7)
+  end
+
+  -- spawn telegraphs (warning indicators)
+  for sq in all(spawn_queue) do
+    -- only show telegraph when timer <= 60 (1 second warning)
+    if sq.timer <= 60 then
+      -- color based on enemy type
+      local tel_col = 10 -- default yellow
+      if sq.type == "shooter" then
+        tel_col = 9 -- orange
+      elseif sq.type == "speedy" then
+        tel_col = 12 -- cyan
+      elseif sq.type == "heavy" or sq.type == "specter" then
+        tel_col = 8 -- red/magenta for bosses
+      end
+
+      -- expanding circle (radius based on remaining time)
+      local progress = (60 - sq.timer) / 60 -- 0 to 1
+      local radius = 3 + progress * 5 -- 3 to 8 pixels
+
+      -- pulsing effect
+      local pulse = sin(sq.timer / 4) * 1
+      circ(sq.x, sq.y, radius + pulse, tel_col)
+
+      -- inner circle for visibility
+      if radius > 4 then
+        circ(sq.x, sq.y, radius - 2, tel_col)
+      end
+    end
   end
 
   -- enemies
@@ -2073,7 +2162,7 @@ __sfx__
 00010000140501605018050190500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000800001c0502005024050280502c0502c0502c0502c0502c0502a05027050240502005000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000200002c0502a0502705024050200501c05018050140500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00020000080500a0500c0500e05010050120501405015050160501605016050160501605016050160501605000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200001c0501e05020050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000200001e0502005022050200501e0502005022050200501e0502005022050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00030000100501305015050180501b0501e05021050240502705029050290502a0502a0502a0502a0502a050000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000001c0501c0501e0501e05020050200502205022050240502405024050240502005020050200502005000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
