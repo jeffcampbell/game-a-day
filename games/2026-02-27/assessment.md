@@ -1,6 +1,97 @@
 # Bounce King - Game Assessment
 
-## ⚠️ LATEST: Daily Streak & Progress Tracking Feature (2026-02-27)
+## ✅ CURRENT: Arcade 1-Life Hardcore Mode Feature (2026-02-28)
+
+**Status:** FIXED - All critical and minor issues resolved
+
+### Previously Found Issues - NOW FIXED ✅
+
+**Ball Skin Rendering Bug in Non-Play States (FIXED)**
+- **Problem:** `draw_ball()` at line 690 didn't handle cu5==4 (crimson ball)
+- **Location:** Lines 690, 682 - draw_ball() and draw_ball_trail() functions
+- **Impact:** Crimson ball was rendering as cyan in practice, challenge, gauntlet, and bossrush modes
+- **Affected Modes:** Practice mode (line 3836), Challenge mode (line 4358), Gauntlet mode (line 4912), Boss Rush mode (line 5282)
+- **Fix Applied:** Added cu5==4 handling to both functions:
+  - Line 682: `local c = (cu5==1 and 6) or (cu5==2 and 9) or (cu5==4 and 8) or 12`
+  - Line 690: `local c = (cu5==1 and 7) or (cu5==2 and 10) or (cu5==4 and 8) or 12`
+- Status: **RESOLVED**
+
+### Previously Fixed Issues ✅
+
+**1. Cartdata Slot Conflict (FIXED)**
+- ✅ 1-life leaderboard moved to slots 104+ (lines 605, 626)
+- ✅ Comment added: "fixed: moved from 64 to avoid stats conflict"
+- Status: **RESOLVED**
+
+**2. Achievement "Complete Collection" Check (FIXED)**
+- ✅ Line 1185 updated to include 4th skin: `cu6[1] and cu6[2] and cu6[3] and cu6[4]`
+- ✅ Comment added: "fixed: include 4th skin"
+- Status: **RESOLVED**
+
+### Feature Overview
+
+**Mode Integration:**
+- ✅ Menu item "arcade 1-life" added (position 12 in menu)
+- ✅ State transition: menu → difficulty_select → play (with lm10=1 flag)
+- ✅ Lives set to 1 when lm10==1 in init_game()
+- ✅ Separate leaderboard (ol1) for 1-life scores
+- ✅ Cartdata slots allocated to 104+ (conflict resolved)
+- ✅ Load/save functions for 1-life leaderboard present
+
+**Score Mechanics:**
+- ✅ 1.25x multiplier applied to final score (line 2992)
+- ✅ Separate rank calculation uses ol1 leaderboard when lm10==1
+- ✅ Gameover text shows "1-life game over" when lm10==1
+- ✅ Mode indicator displayed in difficulty_select state
+
+**Cosmetic Unlock:**
+- ✅ Crimson ball (cu5==4) color set to 8
+- ✅ Unlock condition: 1-life mode, hard difficulty, score >=200
+- ✅ Proper bitfield usage (bit 256 for crimson) with no conflicts
+- ✅ Settings menu shows unlock requirement correctly
+- ✅ Ball renders correctly in all game modes (draw_ball and draw_ball_trail fixed)
+
+**Code Quality:**
+- ✅ Test infrastructure maintained (test_input() used properly)
+- ✅ All state transitions logged
+- ✅ Proper nil checks in leaderboard insertion logic
+- ✅ Character encoding for initials correct (ord/chr)
+- ✅ Critical cartdata fix applied correctly
+- ✅ Achievement check updated for 4 skins
+- ❌ draw_ball() and draw_ball_trail() missing cu5==4 handling (CRITICAL)
+- ⚠️ Ball trail color inconsistent with main play mode (minor)
+
+### What Works Well
+- Feature concept is excellent (arcade 1-life mode adds compelling replayability)
+- UI integration is clean and intuitive (menu item, difficulty screen indicator)
+- Score multiplier (1.25x) encourages strategic high-score runs
+- Separate leaderboard prevents score mixing between modes
+- Cosmetic unlock (crimson ball at 200+ score on hard 1-life) is well-balanced
+- Critical fixes from previous iteration were correctly applied
+- Leaderboard insertion logic properly handles both modes
+- Mode switching between normal and 1-life is seamless
+
+### What Needs Fixing (Before Approval)
+1. **CRITICAL:** Fix draw_ball() to handle cu5==4 (crimson ball) in practice/challenge/gauntlet/bossrush modes
+   - **Line 690:** Change to `local c = (cu5==1 and 7) or (cu5==2 and 10) or (cu5==4 and 8) or 12`
+   - **Line 682:** Optionally add cu5==4 handling to draw_ball_trail() for consistency
+2. **MINOR (optional):** Add cu5==4 handling to draw_ball_trail() for consistency with main play mode
+
+---
+
+## Review Summary (2026-02-28)
+
+**Reviewer:** Inspector (Tester) Agent
+**Review Type:** Feature Verification
+**Total Issues Found:** 1 Critical, 1 Minor
+
+The arcade 1-life hardcore mode feature is well-designed and mostly correctly implemented. The two critical issues from the previous iteration have been successfully fixed (cartdata slots and achievement check). However, a new critical issue was discovered where the draw_ball() function doesn't handle the new crimson ball skin in non-play game states. This causes visual inconsistency and diminishes the cosmetic unlock reward.
+
+The fix is straightforward (one-line change) and essential before approval.
+
+---
+
+## ⚠️ PREVIOUS: Daily Streak & Progress Tracking Feature (2026-02-27)
 
 **Status:** CHANGES_REQUESTED - Critical bug in milestone feedback
 
