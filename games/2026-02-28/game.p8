@@ -559,6 +559,12 @@ function update_boss_attacks(e)
   if e.spawn_flash and e.spawn_flash > 0 then e.spawn_flash -= 1 end
   if e.glow_t then e.glow_t = (e.glow_t + 1) % 12 end
 
+  -- boss pulse expansion effect
+  if e.pulse_timer and e.pulse_timer > 0 then
+    e.pulse_timer -= 1
+    e.pulse_radius = (20 - e.pulse_timer) * 0.7  -- expands to ~14 pixels
+  end
+
   -- handle dash warning countdown
   if e.dash_warn and e.dash_warn > 0 then
     e.dash_warn -= 1
@@ -742,15 +748,16 @@ function kill_enemy(e)
     _log("boss_kill:"..boss_kills)
     shake_frames = 4
     shake_intensity = 5
-    -- spiral particles
-    for i=1,12 do
-      local angle = i / 12
+    flash_timer = 2  -- brief white flash
+    -- enhanced spiral particle burst
+    for i=1,18 do
+      local angle = i / 18
       add(particles, {
         x = e.x,
         y = e.y,
-        vx = cos(angle) * 2,
-        vy = sin(angle) * 2,
-        life = 25,
+        vx = cos(angle) * 2.5,  -- travel further
+        vy = sin(angle) * 2.5,
+        life = 32,  -- slower (live longer)
         col = 8 + flr(rnd(4))
       })
     end
@@ -888,6 +895,8 @@ function spawn_enemy(typ)
     e.col = 8 -- boss color: light gray
     e.glow_t = 0 -- pulsing glow timer
     e.spawn_flash = 3 -- spawn announcement flash
+    e.pulse_radius = 0 -- expanding pulse effect
+    e.pulse_timer = 20 -- frames for pulse expansion
   end
 
   add(enemies, e)
@@ -899,6 +908,19 @@ function spawn_enemy(typ)
     _log("sfx:boss_spawn")
     shake_frames = 3
     shake_intensity = 1
+
+    -- spawn particle burst
+    for i=1,10 do
+      local angle = i / 10
+      add(particles, {
+        x = e.x,
+        y = e.y,
+        vx = cos(angle) * 1.5,
+        vy = sin(angle) * 1.5,
+        life = 20,
+        col = 8 + flr(rnd(4))
+      })
+    end
   end
 end
 
@@ -990,6 +1012,16 @@ function draw_play()
   -- enemies
   for e in all(enemies) do
     local r = e.type == "heavy" and 5 or (e.type == "speedy" and 2 or 3)
+
+    -- boss spawn pulse effect (expanding circle)
+    if e.pulse_timer and e.pulse_timer > 0 and e.pulse_radius then
+      local alpha = e.pulse_timer / 20  -- fade out as pulse expands
+      local pulse_col = (e.pulse_timer % 4 < 2) and 3 or 8  -- magenta/gray alternate
+      circ(e.x, e.y, e.pulse_radius, pulse_col)
+      if e.pulse_radius > 3 then
+        circ(e.x, e.y, e.pulse_radius - 1, pulse_col)
+      end
+    end
 
     -- boss spawn flash
     local col = e.col
