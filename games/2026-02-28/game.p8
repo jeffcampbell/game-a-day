@@ -561,6 +561,18 @@ function dash_player()
 end
 
 function update_enemy(e)
+  -- apply knockback velocity
+  e.x += e.vx
+  e.y += e.vy
+
+  -- dampen velocity over time
+  e.vx *= 0.85
+  e.vy *= 0.85
+
+  -- clamp to screen bounds
+  e.x = mid(4, e.x, 124)
+  e.y = mid(4, e.y, 124)
+
   -- boss special attacks (heavy enemies)
   if e.type == "heavy" then
     update_boss_attacks(e)
@@ -1059,7 +1071,7 @@ function update_projectile(p)
     -- check enemy collision
     for e in all(enemies) do
       if dist(p.x, p.y, e.x, e.y) < 5 then
-        damage_enemy(e, p.dmg)
+        damage_enemy(e, p.dmg, p)
         del(projectiles, p)
         break
       end
@@ -1073,9 +1085,31 @@ function update_projectile(p)
   end
 end
 
-function damage_enemy(e, dmg)
+function damage_enemy(e, dmg, proj)
   e.hp -= dmg
   sfx(1)
+
+  -- apply knockback if hit by projectile
+  if proj then
+    local dx = e.x - proj.x
+    local dy = e.y - proj.y
+    local d = sqrt(dx*dx + dy*dy)
+
+    if d > 0 then
+      local force = 2.5
+
+      -- boss resistance: 1/3 knockback
+      if e.type == "heavy" or e.type == "specter" then
+        force = force / 3
+        _log("knockback:boss:"..e.type)
+      else
+        _log("knockback:"..e.type)
+      end
+
+      e.vx = (dx / d) * force
+      e.vy = (dy / d) * force
+    end
+  end
 
   -- phase 2 trigger for bosses
   if (e.type == "heavy" or e.type == "specter") and not e.phase2 and e.hp <= 2 then
@@ -1385,7 +1419,9 @@ function spawn_enemy(typ)
     max_hp = 1,
     speed = 0.5,
     score = 10,
-    col = 8
+    col = 8,
+    vx = 0,
+    vy = 0
   }
 
   if typ == "shooter" then
