@@ -56,6 +56,30 @@ last_milestone = 0
 milestone_texts = {}
 flash_timer = 0
 
+-- tiered achievement system
+achievements = {} -- all-time unlocked (bitfield)
+session_achievements = {} -- unlocked this session
+powerups_collected = {} -- track power-ups this run
+quick_kill_flag = false -- track boss kill in phase 1
+
+-- achievement definitions
+achievement_defs = {
+  {id=1, name="first blood", desc="defeat first enemy", check=function() return enemies_killed >= 1 end},
+  {id=2, name="slinger", desc="reach wave 5", check=function() return wave >= 5 end},
+  {id=3, name="wave veteran", desc="reach wave 10", check=function() return wave >= 10 end},
+  {id=4, name="endurance", desc="survive 60s", check=function() return time_survived >= 60 end},
+  {id=5, name="sharpshooter", desc="kill 50 enemies", check=function() return enemies_killed >= 50 end},
+  {id=6, name="demolition", desc="kill 100 enemies", check=function() return enemies_killed >= 100 end},
+  {id=7, name="combo king", desc="25-hit combo", check=function() return combo >= 25 end},
+  {id=8, name="unstoppable", desc="50-hit combo", check=function() return combo >= 50 end},
+  {id=9, name="boss slayer", desc="defeat a boss", check=function() return boss_kills >= 1 end},
+  {id=10, name="quick kill", desc="kill boss in phase 1", check=function() return quick_kill_flag end},
+  {id=11, name="time master", desc="survive 180s", check=function() return time_survived >= 180 end},
+  {id=12, name="arsenal master", desc="collect all 4 power-ups", check=function()
+    return powerups_collected["RR"] and powerups_collected["BS"] and powerups_collected["SH"] and powerups_collected["2X"]
+  end}
+}
+
 -- player
 player = {}
 -- enemies, projectiles, powerups, particles
@@ -84,7 +108,94 @@ dirs = {
 function _init()
   _log("init")
   cartdata("neon-slinger-v1")
+  load_achievements()
   init_menu()
+end
+
+-- achievement system
+function load_achievements()
+  -- load achievements from cartdata (3 slots for 12 bits)
+  local a1 = dget(3) or 0
+  local a2 = dget(4) or 0
+  local a3 = dget(5) or 0
+
+  achievements = {}
+  -- decode bitfield (12 achievements)
+  for i=1,12 do
+    local slot = i <= 4 and a1 or (i <= 8 and a2 or a3)
+    local bit = ((i - 1) % 4)
+    if slot & (1 << bit) > 0 then
+      achievements[i] = true
+    end
+  end
+
+  _log("loaded_achievements:"..count_achievements())
+end
+
+function save_achievements()
+  -- encode achievements into 3 slots (4 bits each)
+  local a1, a2, a3 = 0, 0, 0
+
+  for i=1,12 do
+    if achievements[i] then
+      local bit = (i - 1) % 4
+      if i <= 4 then
+        a1 = a1 | (1 << bit)
+      elseif i <= 8 then
+        a2 = a2 | (1 << bit)
+      else
+        a3 = a3 | (1 << bit)
+      end
+    end
+  end
+
+  dset(3, a1)
+  dset(4, a2)
+  dset(5, a3)
+  _log("saved_achievements:"..count_achievements())
+end
+
+function check_achievements()
+  for _, def in pairs(achievement_defs) do
+    if not achievements[def.id] and def.check() then
+      unlock_achievement(def.id)
+    end
+  end
+end
+
+function unlock_achievement(id)
+  achievements[id] = true
+  session_achievements[id] = true
+  _log("achievement:"..id)
+
+  -- visual feedback
+  sfx(6)
+  shake_frames = 2
+  shake_intensity = 0.5
+
+  -- floating text
+  add(milestone_texts, {
+    text = "achievement!",
+    y = 50,
+    life = 40,
+    col = 12
+  })
+end
+
+function count_achievements()
+  local count = 0
+  for i=1,12 do
+    if achievements[i] then count += 1 end
+  end
+  return count
+end
+
+function count_session_achievements()
+  local count = 0
+  for i=1,12 do
+    if session_achievements[i] then count += 1 end
+  end
+  return count
 end
 
 function _update()
@@ -134,6 +245,10 @@ function draw_menu()
   print("press o to start", 24, 60, 7)
   print("high score: "..high_score, 24, 80, 10)
 
+  -- achievements
+  local ach_count = count_achievements()
+  print("achievements: "..ach_count.."/12", 20, 90, 12)
+
   -- controls
   print("l/r: rotate", 32, 100, 6)
   print("o: shoot", 36, 108, 6)
@@ -156,6 +271,9 @@ function init_play()
   last_milestone = 0
   milestone_texts = {}
   flash_timer = 0
+  session_achievements = {}
+  powerups_collected = {}
+  quick_kill_flag = false
 
   -- reset collections
   enemies = {}
@@ -295,6 +413,9 @@ function update_play()
     shake_intensity = 1
     spawn_wave()
   end
+
+  -- check achievements
+  check_achievements()
 
   -- game over check
   if player.lives <= 0 then
@@ -559,6 +680,12 @@ function kill_enemy(e)
   if e.type == "heavy" then
     sfx(10)
     _log("sfx:boss_death")
+
+    -- track quick kill (killed before phase 2)
+    if not e.phase2 then
+      quick_kill_flag = true
+      _log("quick_kill")
+    end
   else
     sfx(2)
   end
@@ -782,6 +909,9 @@ end
 function collect_powerup(pu)
   _log("powerup_collect:"..pu.type)
   sfx(4)
+
+  -- track for arsenal master achievement
+  powerups_collected[pu.type] = true
 
   if pu.type == "RR" then
     rapid_fire_t = 180 -- 3 seconds
@@ -1035,6 +1165,9 @@ function init_gameover()
   _log("kills:"..enemies_killed)
   _log("time:"..time_survived)
 
+  -- final achievement check
+  check_achievements()
+
   -- track session best combo
   best_combo_session = max(best_combo_session, combo)
   _log("best_combo_session:"..best_combo_session)
@@ -1049,6 +1182,13 @@ function init_gameover()
   -- save boss kills
   dset(1, boss_kills)
   _log("total_boss_kills:"..boss_kills)
+
+  -- save achievements
+  save_achievements()
+
+  -- log session achievements
+  local session_count = count_session_achievements()
+  _log("session_achievements:"..session_count)
 end
 
 function update_gameover()
@@ -1064,20 +1204,34 @@ end
 function draw_gameover()
   print("game over", 40, 30, 8)
 
-  print("final score: "..score, 28, 44, 7)
-  print("waves cleared: "..wave, 24, 54, 7)
-  print("enemies killed: "..enemies_killed, 16, 64, 7)
-  print("time survived: "..time_survived.."s", 16, 74, 7)
+  print("score: "..score, 36, 42, 7)
+  print("waves: "..wave, 38, 50, 7)
+  print("kills: "..enemies_killed, 38, 58, 7)
+  print("time: "..time_survived.."s", 36, 66, 7)
 
-  local mult = get_score_multiplier()
-  print("final multiplier: "..flr(mult*10)/10, 12, 84, 10)
+  -- session achievements
+  local session_count = count_session_achievements()
+  if session_count > 0 then
+    print("new achievements: "..session_count, 16, 76, 12)
+    -- show which ones
+    local y = 84
+    for i=1,12 do
+      if session_achievements[i] then
+        local def = achievement_defs[i]
+        print("\x97 "..def.name, 8, y, 10)
+        y += 6
+        if y > 104 then break end -- prevent overflow
+      end
+    end
+  else
+    print("no new achievements", 20, 76, 5)
+  end
 
-  -- achievement stats
-  print("best combo: "..best_combo_session, 24, 94, 11)
-  print("bosses defeated: "..boss_kills, 16, 102, 14)
+  -- total achievements
+  local total = count_achievements()
+  print("total: "..total.."/12", 42, 108, 14)
 
-  print("press o to retry", 24, 114, 11)
-  print("press x for menu", 24, 122, 6)
+  print("o:retry x:menu", 28, 120, 6)
 end
 
 __gfx__
