@@ -2131,9 +2131,9 @@ function drp()
       if wave >= 20 then
         col = 8  -- red at wave 20+
       elseif wave >= 15 then
-        col = 9 at wave 15+
+        col = 9 -- at wave 15+
       else
-        col = 10 at wave 10+
+        col = 10 -- at wave 10+
       end
     end
 
@@ -2244,7 +2244,7 @@ function drp()
       player_col = 8  -- red flash (combo reset)
       p.flash_red -= 1
     elseif p.flash > 0 then
-      player_col = 7 flash (shield block)
+      player_col = 7 -- flash (shield block)
       p.flash -= 1
     end
     circfill(p.x, p.y, 4, player_col)
