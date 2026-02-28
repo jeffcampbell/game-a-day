@@ -798,6 +798,12 @@ function update_boss_attacks(e)
     end
   end
 
+  -- handle aim warning countdown
+  if e.aim_warn and e.aim_warn > 0 then
+    e.aim_warn -= 1
+    -- no additional logic needed; aim_warn is visual only
+  end
+
   local elapsed = time() - e.spawn_time
   local hp_pct = e.hp / e.max_hp
 
@@ -848,6 +854,7 @@ function boss_burst_pattern(e)
   _log("boss_burst")
   _log("spin_start:30")
   sfx(6)
+  _log("sfx:burst")
   e.flash_timer = 10
   e.spin_timer = 30
 
@@ -872,9 +879,12 @@ end
 function boss_spiral_pattern(e)
   _log("boss_spiral")
   _log("spin_start:30")
-  sfx(6)
+  sfx(6, -1, 4)  -- pitch variation for spiral
+  _log("sfx:spiral")
   e.flash_timer = 10
   e.spin_timer = 30
+  shake_frames = 2
+  shake_intensity = 1.5  -- medium shake
 
   -- phase 2 enhanced: 14-way spiral (vs 12)
   local proj_count = 14
@@ -890,7 +900,7 @@ function boss_spiral_pattern(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 8
+      col = 9  -- orange for spiral
     })
   end
 end
@@ -898,12 +908,15 @@ end
 function boss_ring_attack(e)
   _log("boss_ring")
   _log("spin_start:30")
-  sfx(6)
+  sfx(6, -1, 8)  -- higher pitch for ring
+  _log("sfx:ring")
   e.flash_timer = 10
   e.spin_timer = 30
+  shake_frames = 3
+  shake_intensity = 2.0  -- strongest shake
 
-  -- phase 2: +2 projectiles (10 vs 8)
-  local proj_count = e.phase2 and 10 or 8
+  -- phase 2: +2 projectiles (12 vs 10)
+  local proj_count = e.phase2 and 12 or 10  -- phase 2 gets 12 (more intense)
   for i=0,proj_count-1 do
     local angle = i / proj_count
     local vx = cos(angle) * e.speed * 3
@@ -916,17 +929,21 @@ function boss_ring_attack(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 8
+      col = 12  -- cyan for ring
     })
   end
 end
 
 function boss_aimed_burst_attack(e)
   _log("boss_aimed")
-  _log("spin_start:30")
-  sfx(6)
-  e.flash_timer = 10
-  e.spin_timer = 30
+  sfx(9)  -- warning sound (same as dash)
+  _log("sfx:aimed_warn")
+  e.flash_timer = 15  -- longer warning flash
+  e.aim_warn = 20  -- targeting indicator frames
+  e.aim_target_x = player.x
+  e.aim_target_y = player.y
+  shake_frames = 1
+  shake_intensity = 1.0  -- light shake
 
   -- calculate angle to player
   local dx = player.x - e.x
@@ -948,7 +965,7 @@ function boss_aimed_burst_attack(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 8
+      col = 10  -- yellow for aimed
     })
   end
 end
@@ -1906,6 +1923,19 @@ function draw_play()
       if e.dash_warn % 8 < 4 then
         circ(e.x, e.y, draw_r + 1, 11)
         circ(e.x, e.y, draw_r + 2, 11)
+      end
+    end
+
+    -- aim warning indicator (yellow crosshair on player)
+    if e.aim_warn and e.aim_warn > 0 then
+      -- pulsing crosshair on targeted position
+      if e.aim_warn % 6 < 3 then
+        local tx = e.aim_target_x
+        local ty = e.aim_target_y
+        local size = 6
+        line(tx - size, ty, tx + size, ty, 10)  -- yellow horizontal
+        line(tx, ty - size, tx, ty + size, 10)  -- yellow vertical
+        circ(tx, ty, 4, 10)  -- targeting circle
       end
     end
 
