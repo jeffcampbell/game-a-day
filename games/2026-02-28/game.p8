@@ -1329,7 +1329,7 @@ function draw_play()
     -- boss spawn pulse effect (expanding circle)
     if e.pulse_timer and e.pulse_timer > 0 and e.pulse_radius then
       local alpha = e.pulse_timer / 20  -- fade out as pulse expands
-      local pulse_col = (e.pulse_timer % 4 < 2) and 3 or 8  -- magenta/gray alternate
+      local pulse_col = (e.pulse_timer % 4 < 2) and 7 or 12  -- white/cyan alternate
       circ(e.x, e.y, e.pulse_radius, pulse_col)
       if e.pulse_radius > 3 then
         circ(e.x, e.y, e.pulse_radius - 1, pulse_col)
