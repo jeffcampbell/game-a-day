@@ -604,6 +604,7 @@ function upp()
       for i=1,flr(rnd(2))+2 do
         queue_spawn(tsv>30 and rnd(100)<20 and "speedy" or (tsv>20 and rnd(100)<30 and "shooter" or "minion"))
       end
+      if tsv>=15 and rnd(100)<(tsv>=60 and 30 or 20)then for i=1,2+flr(rnd(2))do queue_spawn("swarmling")end _log("time_attack:swarmling")end
     end
   end
 
@@ -1601,6 +1602,7 @@ function spw()
     music(2)
     _log("music:boss")
     _log("boss_rush:"..bt)
+    if wave>=6 and rnd(100)<25 then for i=1,3+flr(rnd(3))do queue_spawn("swarmling")end _log("boss_rush:swarmling")end
     return
   end
 
