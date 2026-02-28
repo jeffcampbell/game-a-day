@@ -1019,8 +1019,7 @@ function bba(e)
   -- randomly select attack pattern based on phase
   local patterns
   if e.phase2 then
-
-    patterns = {"spiral", "ring", "aimed"}
+    patterns = {"burst", "spiral", "ring", "aimed"}
   else
 
     patterns = {"burst", "ring"}
@@ -1096,7 +1095,7 @@ function boss_spiral_pattern(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 9 for spiral
+      col = 9 -- for spiral
     })
   end
 end
@@ -1129,7 +1128,7 @@ function boss_ring_attack(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 12 for ring
+      col = 12 -- for ring
     })
   end
 end
@@ -1165,7 +1164,7 @@ function boss_aimed_burst_attack(e)
       owner = "enemy",
       size = 1,
       dmg = 1,
-      col = 10 for aimed
+      col = 10 -- for aimed
     })
   end
 end
@@ -1989,11 +1988,11 @@ function draw_edge_indicators()
       if e.type == "heavy" and e.phase3 then
         col = 8 -- bright red for phase 3 heavy boss
       elseif e.type == "heavy" and e.phase2 then
-        col = 9 for phase 2 heavy boss
+        col = 9 -- for phase 2 heavy boss
       elseif e.type == "seeker" and e.phase3 then
         col = 7 -- bright white for phase 3 seeker
       elseif e.type == "seeker" and e.phase2 then
-        col = 12 for phase 2 seeker
+        col = 12 -- for phase 2 seeker
       elseif e.type == "summoner" and e.phase3 then
         col = 13 -- bright magenta for phase 3 summoner
       elseif e.type == "summoner" and e.phase2 then
@@ -2116,11 +2115,11 @@ function drp()
     if e.type == "heavy" and e.phase3 then
       col = 8 -- bright red (phase 3 enrage)
     elseif e.type == "heavy" and e.phase2 then
-      col = 9 (aggression color)
+      col = 9 -- (aggression color)
     elseif e.type == "seeker" and e.phase3 then
       col = 7 -- bright white for phase 3 seeker
     elseif e.type == "seeker" and e.phase2 then
-      col = 12 for phase 2 seeker
+      col = 12 -- for phase 2 seeker
     elseif e.type == "summoner" and e.phase3 then
       col = 13 -- bright magenta for phase 3 summoner
     elseif e.type == "summoner" and e.phase2 then
@@ -2132,9 +2131,9 @@ function drp()
       if wave >= 20 then
         col = 8  -- red at wave 20+
       elseif wave >= 15 then
-        col = 9 at wave 15+
+        col = 9 -- at wave 15+
       else
-        col = 10 at wave 10+
+        col = 10 -- at wave 10+
       end
     end
 
@@ -2245,7 +2244,7 @@ function drp()
       player_col = 8  -- red flash (combo reset)
       p.flash_red -= 1
     elseif p.flash > 0 then
-      player_col = 7 flash (shield block)
+      player_col = 7 -- flash (shield block)
       p.flash -= 1
     end
     circfill(p.x, p.y, 4, player_col)
