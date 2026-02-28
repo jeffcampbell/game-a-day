@@ -4106,6 +4106,7 @@ function update_challenge()
     ball.y = 120
     ball.vy = -ball.vy * 0.7
     play_sfx(0)  -- bounce sound
+    _log("bounce:challenge")
     ball.grounded = abs(ball.vy) < 0.5
   else
     ball.grounded = false
@@ -4115,11 +4116,13 @@ function update_challenge()
   if ball.x <= ball.r then
     ball.x = ball.r
     ball.vx = -ball.vx * 0.7
-    play_sfx(0)  -- bounce sound
+    play_sfx(1)  -- wall bounce sound
+    _log("wall_bounce:challenge")
   elseif ball.x >= 128 - ball.r then
     ball.x = 128 - ball.r
     ball.vx = -ball.vx * 0.7
-    play_sfx(0)  -- bounce sound
+    play_sfx(1)  -- wall bounce sound
+    _log("wall_bounce:challenge")
   end
 
   -- spawn obstacles (use challenge difficulty)
