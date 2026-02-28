@@ -26,6 +26,9 @@ function test_input(b)
   return btn()
 end
 
+-- constants
+alph = "abcdefghijklmnopqrstuvwxyz"
+
 -- game state
 state = "menu"
 score = 0
@@ -563,9 +566,9 @@ function load_leaderboard()
       local c2 = dget(slot_base + 2)
       local c3 = dget(slot_base + 3)
       -- convert codes back to chars (1=a, 26=z)
-      local init1 = c1 >= 1 and c1 <= 26 and sub("abcdefghijklmnopqrstuvwxyz", c1, c1) or "a"
-      local init2 = c2 >= 1 and c2 <= 26 and sub("abcdefghijklmnopqrstuvwxyz", c2, c2) or "a"
-      local init3 = c3 >= 1 and c3 <= 26 and sub("abcdefghijklmnopqrstuvwxyz", c3, c3) or "a"
+      local init1 = c1 >= 1 and c1 <= 26 and sub(alph, c1, c1) or "a"
+      local init2 = c2 >= 1 and c2 <= 26 and sub(alph, c2, c2) or "a"
+      local init3 = c3 >= 1 and c3 <= 26 and sub(alph, c3, c3) or "a"
       add(leaderboard, {
         score = sc,
         initials = init1..init2..init3,
@@ -645,6 +648,23 @@ function get_ball_skin_color()
   else
     return 10  -- white/yellow (default)
   end
+end
+
+-- drawing helpers
+function draw_ball_trail()
+  for i,t in pairs(ball_trail) do
+    if t.life > 0 then
+      local c = (ball_skin==1 and 6) or (ball_skin==2 and 9) or 12
+      if trail_effect==2 then c=8+(i%8) elseif trail_effect==3 then c=7 end
+      circfill(t.x,t.y,1,c)
+    end
+  end
+end
+
+function draw_ball()
+  local c = (ball_skin==1 and 7) or (ball_skin==2 and 10) or 12
+  if ball_flash>0 then c=7 end
+  circfill(ball.x,ball.y,ball.r,c)
 end
 
 function _update()
@@ -3282,6 +3302,30 @@ function get_zone(x)
   return 0
 end
 
+-- helper: create obstacle table
+function mk_obs(type, x)
+  local o = {x=x or 20+rnd(88), y=-10, type=type, dodged=false, is_boss=false}
+  if type == "spike" then
+    o.r = 6
+  elseif type == "moving" then
+    o.r = 10 o.vx = 0.5+rnd(1) if rnd(1)>0.5 then o.vx *= -1 end
+  elseif type == "rotating" then
+    o.r = 8 o.angle = 0
+  elseif type == "pendulum" then
+    o.x = x or 40+rnd(48) o.r = 7 o.swing_time = 0 o.base_x = o.x
+  elseif type == "zigzag" then
+    o.r = 6 o.zig_time = 0 o.zig_dir = rnd(1)>0.5 and 1 or -1
+  elseif type == "orbiter" then
+    o.x = x or 40+rnd(48) o.r = 5 o.orbit_angle = 0 o.orbit_radius = 8
+  end
+  return o
+end
+
+-- helper: create boss obstacle
+function mk_boss(stage)
+  return {x=64, base_x=64, y=-10, type="boss", r=13, dodged=false, is_boss=true, wave_time=0, boss_stage=stage, satellite_timer=0, vertical_time=0, boss_id=flr(rnd(10000))}
+end
+
 -- obstacle spawning
 function spawn_obstacle()
   -- build available types based on difficulty level
@@ -3335,91 +3379,30 @@ function spawn_obstacle()
   _log("spawn_obstacle:"..t..(o.in_danger and ":danger" or ""))
 end
 
--- pendulum obstacle
-function spawn_pendulum()
-  local o = {
-    x = 40 + rnd(48),
-    y = -10,
-    type = "pendulum",
-    r = 7,
-    dodged = false,
-    is_boss = false,
-    swing_time = 0,
-    base_x = 0
-  }
-  o.base_x = o.x
+-- helper to spawn with zone tracking
+function spawn_obs_with_zone(type)
+  local o = mk_obs(type)
   o.zone = get_zone(o.x)
   o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
   add(obstacles, o)
-  _log("spawn_obstacle:pendulum"..(o.in_danger and ":danger" or ""))
+  _log("spawn_obstacle:"..type..(o.in_danger and ":danger" or ""))
 end
 
--- zigzag obstacle
-function spawn_zigzag()
-  local o = {
-    x = 20 + rnd(88),
-    y = -10,
-    type = "zigzag",
-    r = 6,
-    dodged = false,
-    is_boss = false,
-    zig_time = 0,
-    zig_dir = rnd(1) > 0.5 and 1 or -1
-  }
-  o.zone = get_zone(o.x)
-  o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
-  add(obstacles, o)
-  _log("spawn_obstacle:zigzag"..(o.in_danger and ":danger" or ""))
-end
-
--- orbiter obstacle
-function spawn_orbiter()
-  local o = {
-    x = 40 + rnd(48),
-    y = -10,
-    type = "orbiter",
-    r = 5,
-    dodged = false,
-    is_boss = false,
-    orbit_angle = 0,
-    orbit_radius = 8
-  }
-  o.zone = get_zone(o.x)
-  o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
-  add(obstacles, o)
-  _log("spawn_obstacle:orbiter"..(o.in_danger and ":danger" or ""))
-end
+-- specialized obstacle spawners
+function spawn_pendulum() spawn_obs_with_zone("pendulum") end
+function spawn_zigzag() spawn_obs_with_zone("zigzag") end
+function spawn_orbiter() spawn_obs_with_zone("orbiter") end
 
 -- boss obstacle spawning
 function spawn_boss()
-  -- determine boss stage based on difficulty level
-  local stage = 1
-  if diff_level >= 5 then stage = 3
-  elseif diff_level >= 3 then stage = 2
-  end
-
-  local o = {
-    x = 64,
-    base_x = 64,
-    y = -10,
-    type = "boss",
-    r = 13,
-    dodged = false,
-    is_boss = true,
-    wave_time = 0,
-    boss_stage = stage,
-    satellite_timer = 0,  -- for stage 3 satellite spawning
-    vertical_time = 0,  -- for stage 3 compound movement
-    boss_id = flr(rnd(10000))  -- unique id for satellite tracking
-  }
-
+  local stage = diff_level >= 5 and 3 or (diff_level >= 3 and 2 or 1)
+  local o = mk_boss(stage)
   o.zone = get_zone(o.x)
   o.in_danger = o.zone > 0 and danger_zones[o.zone].active or false
-
   add(obstacles, o)
   _log("spawn_obstacle:boss:stage"..stage..(o.in_danger and ":danger" or ""))
-  play_sfx(6)  -- boss spawn sound
-  shake(8 + stage * 2, 1.0 + stage * 0.2)  -- stronger shake for higher stages
+  play_sfx(6)
+  shake(8 + stage * 2, 1.0 + stage * 0.2)
 end
 
 -- satellite spawning (for stage 3 bosses)
@@ -3761,37 +3744,9 @@ end
 
 -- practice mode: spawn selected obstacle
 function spawn_practice_obstacle()
-  if practice_obstacle_type == "spike" then
-    local o = {x = 20 + rnd(88), y = -10, type = "spike", r = 6, dodged = false, is_boss = false}
-    add(obstacles, o)
-    _log("practice_spawn:spike")
-  elseif practice_obstacle_type == "moving" then
-    local o = {x = 20 + rnd(88), y = -10, type = "moving", r = 10, vx = 0.5 + rnd(1), dodged = false, is_boss = false}
-    if rnd(1) > 0.5 then o.vx *= -1 end
-    add(obstacles, o)
-    _log("practice_spawn:moving")
-  elseif practice_obstacle_type == "rotating" then
-    local o = {x = 20 + rnd(88), y = -10, type = "rotating", r = 8, angle = 0, dodged = false, is_boss = false}
-    add(obstacles, o)
-    _log("practice_spawn:rotating")
-  elseif practice_obstacle_type == "pendulum" then
-    local o = {x = 40 + rnd(48), y = -10, type = "pendulum", r = 7, swing_time = 0, base_x = 0, dodged = false, is_boss = false}
-    o.base_x = o.x
-    add(obstacles, o)
-    _log("practice_spawn:pendulum")
-  elseif practice_obstacle_type == "zigzag" then
-    local o = {x = 20 + rnd(88), y = -10, type = "zigzag", r = 6, zig_time = 0, zig_dir = rnd(1) > 0.5 and 1 or -1, dodged = false, is_boss = false}
-    add(obstacles, o)
-    _log("practice_spawn:zigzag")
-  elseif practice_obstacle_type == "orbiter" then
-    local o = {x = 40 + rnd(48), y = -10, type = "orbiter", r = 5, orbit_angle = 0, orbit_radius = 8, dodged = false, is_boss = false}
-    add(obstacles, o)
-    _log("practice_spawn:orbiter")
-  elseif practice_obstacle_type == "boss" then
-    local o = {x = 64, base_x = 64, y = -10, type = "boss", r = 13, wave_time = 0, vertical_time = 0, boss_stage = 3, satellite_timer = 0, boss_id = flr(rnd(10000)), dodged = false, is_boss = true}
-    add(obstacles, o)
-    _log("practice_spawn:boss:stage3")
-  end
+  local o = practice_obstacle_type == "boss" and mk_boss(3) or mk_obs(practice_obstacle_type)
+  add(obstacles, o)
+  _log("practice_spawn:"..practice_obstacle_type..(practice_obstacle_type=="boss" and ":stage3" or ""))
 end
 
 -- practice mode: gameplay update
@@ -3989,23 +3944,8 @@ function practice_collision()
 end
 
 function draw_practice_play()
-  -- draw ball trail
-  for i, t in pairs(ball_trail) do
-    if t.life > 0 then
-      local trail_col = (ball_skin == 1 and 6) or (ball_skin == 2 and 9) or 12
-      -- apply trail effect
-      if trail_effect == 2 then
-        trail_col = 8 + (i % 8)  -- rainbow
-      elseif trail_effect == 3 then
-        trail_col = 7  -- white
-      end
-      circfill(t.x, t.y, 1, trail_col)
-    end
-  end
-
-  -- draw ball
-  local ball_col = (ball_skin == 1 and 7) or (ball_skin == 2 and 10) or 12
-  circfill(ball.x, ball.y, ball.r, ball_col)
+  draw_ball_trail()
+  draw_ball()
 
   -- draw obstacles (sprite-based) with theme colors
   for o in all(obstacles) do
@@ -4536,24 +4476,8 @@ function update_challenge()
 end
 
 function draw_challenge()
-  -- draw ball trail
-  for i, t in pairs(ball_trail) do
-    if t.life > 0 then
-      local trail_col = (ball_skin == 1 and 6) or (ball_skin == 2 and 9) or 12
-      -- apply trail effect
-      if trail_effect == 2 then
-        trail_col = 8 + (i % 8)  -- rainbow
-      elseif trail_effect == 3 then
-        trail_col = 7  -- white
-      end
-      circfill(t.x, t.y, 1, trail_col)
-    end
-  end
-
-  -- draw ball
-  local ball_col = (ball_skin == 1 and 7) or (ball_skin == 2 and 10) or 12
-  if ball_flash > 0 then ball_col = 7 end
-  circfill(ball.x, ball.y, ball.r, ball_col)
+  draw_ball_trail()
+  draw_ball()
 
   -- draw obstacles (sprite-based) with theme colors
   for o in all(obstacles) do
@@ -5108,48 +5032,15 @@ function update_gauntlet()
 end
 
 function spawn_gauntlet_boss()
-  -- determine boss stage based on gauntlet_stage
   local stage = min(3, gauntlet_stage)
-
-  local o = {
-    x = 64,
-    base_x = 64,
-    y = -10,
-    type = "boss",
-    r = 13,
-    dodged = false,
-    is_boss = true,
-    wave_time = 0,
-    boss_stage = stage,
-    satellite_timer = 0,
-    vertical_time = 0,
-    boss_id = flr(rnd(10000))
-  }
-
-  add(obstacles, o)
+  add(obstacles, mk_boss(stage))
   _log("gauntlet_spawn_boss:stage="..stage)
 end
 
 function draw_gauntlet()
   cls(1)
-
-  -- draw ball trail
-  for i, t in pairs(ball_trail) do
-    if t.life > 0 then
-      local trail_col = (ball_skin == 1 and 6) or (ball_skin == 2 and 9) or 12
-      if trail_effect == 2 then
-        trail_col = 8 + (i % 8)
-      elseif trail_effect == 3 then
-        trail_col = 7
-      end
-      circfill(t.x, t.y, 1, trail_col)
-    end
-  end
-
-  -- draw ball
-  local ball_col = (ball_skin == 1 and 7) or (ball_skin == 2 and 10) or 12
-  if ball_flash > 0 then ball_col = 7 end
-  circfill(ball.x, ball.y, ball.r, ball_col)
+  draw_ball_trail()
+  draw_ball()
 
   -- draw bosses
   for o in all(obstacles) do
@@ -5563,52 +5454,16 @@ function update_bossrush()
 end
 
 function spawn_bossrush_boss()
-  -- determine boss stage based on current bossrush_stage
-  local stage = bossrush_stage
-
-  local o = {
-    x = 64,
-    base_x = 64,
-    y = -10,
-    type = "boss",
-    r = 13,
-    dodged = false,
-    is_boss = true,
-    wave_time = 0,
-    boss_stage = stage,
-    satellite_timer = 0,
-    vertical_time = 0,
-    boss_id = flr(rnd(10000))
-  }
-
-  add(obstacles, o)
-
-  -- screen shake + sfx for boss arrival
+  add(obstacles, mk_boss(bossrush_stage))
   shake(6, 0.8)
   play_sfx(2)
-  _log("bossrush_spawn_boss:stage="..stage)
+  _log("bossrush_spawn_boss:stage="..bossrush_stage)
 end
 
 function draw_bossrush()
   cls(1)
-
-  -- draw ball trail
-  for i, t in pairs(ball_trail) do
-    if t.life > 0 then
-      local trail_col = (ball_skin == 1 and 6) or (ball_skin == 2 and 9) or 12
-      if trail_effect == 2 then
-        trail_col = 8 + (i % 8)
-      elseif trail_effect == 3 then
-        trail_col = 7
-      end
-      circfill(t.x, t.y, 1, trail_col)
-    end
-  end
-
-  -- draw ball
-  local ball_col = (ball_skin == 1 and 7) or (ball_skin == 2 and 10) or 12
-  if ball_flash > 0 then ball_col = 7 end
-  circfill(ball.x, ball.y, ball.r, ball_col)
+  draw_ball_trail()
+  draw_ball()
 
   -- draw bosses
   for o in all(obstacles) do

@@ -1,4 +1,108 @@
 # Bounce King - Game Assessment
+**Date:** 2026-02-27 (Code Size Optimization Attempt)
+**Status:** ⚠️ PARTIAL - Export still blocked by code size limit
+
+---
+
+## Latest Update: Code Size Optimization (2026-02-27)
+
+**Status:** ⚠️ PARTIAL - Optimizations applied, but export still fails
+
+### Problem Statement
+HTML export blocked with "could not load game.p8" error. PICO-8 has a compressed code size limit of ~15.6KB. The current cart with all features (5 game modes, achievements, cosmetics, statistics, difficulty customization) exceeds this limit.
+
+### Optimizations Completed ✅
+
+**1. Consolidated Boss Spawning** (~38 lines saved)
+- Created `mk_boss(stage)` helper function
+- Refactored `spawn_boss()`, `spawn_gauntlet_boss()`, `spawn_bossrush_boss()` to use shared code
+- Reduced from 57 total lines to 19 lines
+
+**2. Consolidated Obstacle Spawning** (~62 lines saved)
+- Created `mk_obs(type, x)` helper function for obstacle table creation
+- Created `spawn_obs_with_zone(type)` wrapper for zone tracking
+- Simplified `spawn_practice_obstacle()` from 33 lines to 4 lines
+- Converted spawn_pendulum/zigzag/orbiter to one-liner wrappers
+
+**3. Consolidated Ball/Trail Drawing** (~52 lines saved)
+- Created `draw_ball_trail()` and `draw_ball()` helper functions
+- Replaced 4 instances of duplicated 13-line drawing code with 2-line function calls
+- Applied across draw_practice_play, draw_challenge, draw_gauntlet, draw_bossrush
+
+**4. String Constant Optimization** (~52 bytes saved)
+- Created `alph = "abcdefghijklmnopqrstuvwxyz"` constant
+- Replaced 3 inline alphabet string instances
+
+### Code Metrics
+- **Before:** 5908 lines, ~161KB uncompressed Lua code
+- **After:** 5754 lines (~154 lines removed, 2.6% reduction)
+- **Result:** Cart still exceeds PICO-8's compressed code size limit
+
+### Why Export Still Fails
+The codebase contains extensive features that result in ~4,876 lines of actual code (excluding comments/blanks):
+- 5 game modes (normal, practice, challenge, gauntlet, boss_rush)
+- Achievement system (8 achievements with comprehensive tracking)
+- Cosmetics unlock system (ball skins, trail effects, color themes with bitmasks)
+- Statistics tracking system (25 cartdata slots for detailed metrics)
+- Difficulty customization menu (spawn rate, scaling, combo bonus, lives presets)
+- Leaderboard system (top 10 per difficulty with initials)
+- Danger zones, tutorial, settings, pause system
+- 7 obstacle types, 6 power-up types
+
+Even with consolidation, the compressed code exceeds PICO-8's ~15.6KB limit.
+
+### Recommendations for Unblocking Export
+
+**Option A: Feature Reduction** (Breaking Change)
+Remove or significantly simplify features to get below limit:
+- Remove 2 game modes (e.g., gauntlet + boss_rush)
+- Remove cosmetics unlock system
+- Remove achievements
+- Simplify statistics to basic counters only
+- **Impact:** Reduces gameplay variety but enables export
+
+**Option B: Code Splitting** (Architectural Change)
+Split into multiple cartridges:
+- `bounce-king-core.p8` - Normal/practice/challenge modes
+- `bounce-king-endurance.p8` - Gauntlet/boss_rush modes
+- **Impact:** Requires code duplication, but each cart can export
+
+**Option C: Aggressive Minification** (High Effort)
+- Shorten all variable names (e.g., `ball_trail` → `bt`)
+- Convert functions to dispatch tables
+- Remove all inline comments
+- Merge similar update/draw functions
+- **Impact:** Harder to maintain, but preserves all features
+- **Estimate:** 2-3 hours work, may save 20-30% code size
+
+**Option D: Accept Limitation**
+- Keep .p8 file functional in PICO-8 desktop
+- Skip HTML export for this feature-rich version
+- Deploy simpler version separately for web
+- **Impact:** Desktop-only deployment
+
+### Code Quality
+- ✅ All helper functions syntactically correct
+- ✅ Test infrastructure intact (testmode, _log, test_input)
+- ✅ State machine pattern maintained
+- ✅ No gameplay logic changes made
+- ✅ All consolidations preserve original behavior
+
+### Files Modified
+- `games/2026-02-27/game.p8` - Consolidated spawn/drawing functions, added helpers
+
+### Next Steps
+Requires team decision on approach:
+1. Accept reduced feature set (Option A)
+2. Restructure as multi-cart (Option B)
+3. Invest in aggressive minification (Option C)
+4. Deploy desktop-only (Option D)
+
+**Commit Pending:** Awaiting decision on whether to commit partial optimization or pursue further reduction.
+
+---
+
+## Previous Update: Boss Rush Endurance Mode Review (2026-02-27)
 **Date:** 2026-02-27 (Boss Rush Endurance Mode Review)
 **Status:** ✅ FIXED - All critical issues resolved
 
