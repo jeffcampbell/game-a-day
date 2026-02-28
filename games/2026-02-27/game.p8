@@ -3060,7 +3060,7 @@ end
 
 function collect_powerup(p)
   if ct2 and ct9 == 3 then
-    _log("powerup_disabled:combo_master")
+    _log("powerup_disabled:speed_run")
     return
   end
 
@@ -4108,6 +4108,18 @@ function draw_challenge()
     end
 
   elseif ct9 == 3 then
+    print("speed run", 2, 2, 8)
+    local score_col = ct3 >= 400 and 10 or (ct3 >= 250 and 11 or 6)
+    print("score: "..ct3.."/500", 2, 9, score_col)
+
+    local combo_col = (combo >= 20 and 14) or (combo >= 10 and 9) or 10
+    if combo > 0 then print("x"..combo, 100, 2, combo_col) end
+
+    local mult_text = lm7.."x"
+    local mult_col = (lm7 >= 3.0 and 14) or (lm7 >= 2.0 and 9) or 10
+    print(mult_text, 100, 9, mult_col)
+
+  elseif ct9 == 4 then
     local time_sec = flr(ct1 / 30)
     local time_col = time_sec <= 10 and 8 or 7
     print("combo master", 2, 2, 8)
@@ -4118,14 +4130,27 @@ function draw_challenge()
     print("max: "..ct8, 60, 16, 11)
     print("dodges: "..ic8, 2, 23, 6)
 
-  elseif ct9 == 4 then
+  elseif ct9 == 5 then
     local time_sec = flr(ct1 / 30)
     local time_col = time_sec <= 10 and 8 or 7
-    print("gauntlet", 2, 2, 8)
+    print("power-up party", 2, 2, 8)
     print("time: "..time_sec.."s", 2, 9, time_col)
     print("score: "..ct3, 2, 16, 10)
     print("power-ups: "..ic7, 2, 23, 11)
-    print("dodges: "..ic8, 70, 23, 6)
+
+    local combo_col = (combo >= 20 and 14) or (combo >= 10 and 9) or 10
+    if combo > 0 then print("x"..combo, 100, 2, combo_col) end
+
+  elseif ct9 == 6 then
+    local time_sec = flr(ct1 / 30)
+    local time_col = time_sec <= 10 and 8 or 7
+    print("boss slayer", 2, 2, 8)
+    print("time: "..time_sec.."s", 2, 9, time_col)
+    print("bosses: "..ct8, 2, 16, 10)
+    print("score: "..ct3, 60, 16, 11)
+
+    local combo_col = (combo >= 20 and 14) or (combo >= 10 and 9) or 10
+    if combo > 0 then print("x"..combo, 100, 2, combo_col) end
   end
 
   if ct9 ~= 3 then
