@@ -66,6 +66,7 @@ landing_zones = {}
 asteroids = {}
 fuel_pickups = {}
 enemies = {}
+boss = nil
 powerups = {}
 active_powerups = {}
 hazard_zones = {}
@@ -521,6 +522,45 @@ function init_level()
   end
 
   particles = {}
+
+  -- spawn boss in levels 3, 4, 5
+  boss = nil
+  if level >= 3 then
+    local bx = 80 + rnd(20)  -- spawn in middle-right area
+    local by = 100 + rnd(surface_y - 200)  -- random vertical position
+    local boss_col = (level == 5) and 9 or 8  -- orange for level 5, red for 3-4
+
+    boss = {
+      x = bx,
+      y = by,
+      vx = 0.2 + rnd(0.1),  -- slower speed 0.2-0.3
+      r = 8,  -- larger radius
+      hp = 3,  -- takes 3 hits
+      max_hp = 3,
+      patrol_min = 16,
+      patrol_max = 112,
+      col = boss_col,
+      anim = 0,  -- animation timer
+      spawn_timer = 30  -- entrance effect timer
+    }
+
+    _log("boss:spawn:"..flr(bx)..","..flr(by)..":level:"..level)
+
+    -- boss spawn sfx (warning)
+    sfx(7, -1, 12)  -- higher pitch warning
+
+    -- boss spawn particles (glow effect)
+    for i = 1, 15 do
+      add(particles, {
+        x = bx,
+        y = by,
+        vx = rnd(2) - 1,
+        vy = rnd(2) - 1,
+        life = 25,
+        col = boss_col
+      })
+    end
+  end
 end
 
 function update_enemies()
@@ -538,6 +578,23 @@ function update_enemies()
         e.vy = -e.vy  -- reverse direction
       end
     end
+  end
+
+  -- update boss
+  if boss then
+    -- decrement spawn timer
+    if boss.spawn_timer > 0 then
+      boss.spawn_timer -= 1
+    end
+
+    -- horizontal patrol
+    boss.x += boss.vx
+    if boss.x < boss.patrol_min or boss.x > boss.patrol_max then
+      boss.vx = -boss.vx  -- reverse direction
+    end
+
+    -- update animation timer
+    boss.anim += 0.05
   end
 end
 
@@ -752,6 +809,58 @@ function update_play()
         ship.alive = false
         collision_count += 1
         _log("crash:enemy")
+        do_crash()
+        return
+      end
+    end
+  end
+
+  -- collision with boss
+  if boss and boss.spawn_timer == 0 then
+    local dx = ship.x - boss.x
+    local dy = ship.y - boss.y
+    if sqrt(dx * dx + dy * dy) < 4 + boss.r then
+      -- check for shield
+      local shield_active = false
+      for p in all(active_powerups) do
+        if p.type == 1 then  -- shield type
+          shield_active = true
+          del(active_powerups, p)
+          boss.hp -= 1
+          _log("shield:absorbed:boss:hp:"..boss.hp)
+
+          -- shield absorption particles (boss color)
+          for i = 1, 15 do
+            add(particles, {
+              x = ship.x,
+              y = ship.y,
+              vx = rnd(3) - 1.5,
+              vy = rnd(3) - 1.5,
+              life = 20,
+              col = boss.col
+            })
+          end
+
+          -- shield absorption sfx
+          sfx(6)
+
+          -- screen shake
+          shake_frames = 5
+          shake_intensity = 0.5
+
+          -- check if boss defeated
+          if boss.hp <= 0 then
+            do_boss_defeat()
+          end
+
+          break
+        end
+      end
+
+      if not shield_active then
+        ship.alive = false
+        collision_count += 1
+        _log("crash:boss")
         do_crash()
         return
       end
@@ -1152,6 +1261,39 @@ function do_landing(velocity, zone_x, zone_w)
   end
 end
 
+function do_boss_defeat()
+  if not boss then return end
+
+  _log("boss:defeated")
+
+  -- award bonus points
+  local bonus = 150
+  score += bonus
+  _log("score:"..score..":boss_bonus:"..bonus)
+
+  -- boss defeat sfx (powerful explosion)
+  sfx(2, -1, 0)  -- explosion sound
+
+  -- boss defeat particles (20+ particles in boss color)
+  for i = 1, 25 do
+    add(particles, {
+      x = boss.x,
+      y = boss.y,
+      vx = rnd(4) - 2,
+      vy = rnd(4) - 2,
+      life = 35,
+      col = boss.col
+    })
+  end
+
+  -- screen shake
+  shake_frames = 8
+  shake_intensity = 1.0
+
+  -- remove boss
+  boss = nil
+end
+
 function do_crash()
   -- track collision (skip if already counted from asteroid hit)
   if ship.alive then
@@ -1225,6 +1367,34 @@ function draw_world()
     -- cross marker
     line(e.x - 3, e.y, e.x + 3, e.y, 7)  -- horizontal
     line(e.x, e.y - 3, e.x, e.y + 3, 7)  -- vertical
+  end
+
+  -- draw boss
+  if boss then
+    -- spawn entrance effect (growing from center)
+    if boss.spawn_timer > 0 then
+      local grow = (30 - boss.spawn_timer) / 30
+      local r = boss.r * grow
+      circfill(boss.x, boss.y, r, boss.col)
+      circ(boss.x, boss.y, r + 1, 7)  -- white glow
+    else
+      -- normal boss appearance
+      -- outer circle (boss body)
+      circfill(boss.x, boss.y, boss.r, boss.col)
+
+      -- pulsing outline
+      local pulse_r = boss.r + sin(boss.anim) * 1.5
+      circ(boss.x, boss.y, pulse_r, 7)  -- white pulsing outline
+
+      -- inner circle (docking ring design)
+      local inner_r = boss.r - 3
+      circ(boss.x, boss.y, inner_r, 2)  -- dark inner ring
+
+      -- HP indicator (small dots at top)
+      for i = 1, boss.hp do
+        pset(boss.x - 3 + (i - 1) * 3, boss.y - boss.r - 2, 11)
+      end
+    end
   end
 
   -- draw fuel pickups
