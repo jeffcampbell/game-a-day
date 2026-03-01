@@ -55,6 +55,7 @@ thrust_sfx_timer = 0
 -- level data
 landing_zones = {}
 asteroids = {}
+fuel_pickups = {}
 surface_y = 0
 camera_y = 0
 last_cam_log = -999
@@ -280,6 +281,51 @@ function init_level()
     })
   end
 
+  -- generate fuel pickups
+  fuel_pickups = {}
+  local pickup_counts = {4, 3, 2}  -- easy, normal, hard
+  local pickup_count = pickup_counts[difficulty + 1]
+  if rnd(1) < 0.5 then
+    pickup_count -= 1  -- randomize: easy=3-4, normal=2-3, hard=1-2
+  end
+  for i = 1, pickup_count do
+    local px, py, valid
+    local attempts = 0
+    repeat
+      px = 20 + rnd(88)
+      py = 60 + rnd(surface_y - 100)
+      valid = true
+      attempts += 1
+
+      -- check distance from asteroids
+      for a in all(asteroids) do
+        local dx = px - a.x
+        local dy = py - a.y
+        if sqrt(dx * dx + dy * dy) < a.r + 15 then
+          valid = false
+          break
+        end
+      end
+
+      -- check distance from landing zones
+      for z in all(landing_zones) do
+        if py > z.y - 30 and py < z.y + 10 and px > z.x - 10 and px < z.x + z.w + 10 then
+          valid = false
+          break
+        end
+      end
+    until valid or attempts > 20
+
+    if valid then
+      add(fuel_pickups, {
+        x = px,
+        y = py,
+        anim = rnd(1)  -- animation offset
+      })
+      _log("fuel_pickup:spawn:"..flr(px)..","..flr(py))
+    end
+  end
+
   particles = {}
 end
 
@@ -375,6 +421,43 @@ function update_play()
       _log("crash:asteroid")
       do_crash()
       return
+    end
+  end
+
+  -- collision with fuel pickups
+  for pickup in all(fuel_pickups) do
+    local dx = ship.x - pickup.x
+    local dy = ship.y - pickup.y
+    if sqrt(dx * dx + dy * dy) < 8 then
+      -- collect fuel pickup
+      local fuel_restore = 10 + rnd(11)  -- 10-20 fuel
+      local bonus_points = 25 + rnd(26)  -- 25-50 points
+      ship.fuel += fuel_restore
+      score += flr(bonus_points)
+
+      _log("fuel_pickup:collect:fuel+"..flr(fuel_restore)..":score+"..flr(bonus_points))
+
+      -- pickup particles
+      for i = 1, 10 do
+        add(particles, {
+          x = pickup.x,
+          y = pickup.y,
+          vx = rnd(2) - 1,
+          vy = rnd(2) - 1,
+          life = 15,
+          col = 10
+        })
+      end
+
+      -- pickup sfx
+      sfx(4)
+
+      -- screen shake
+      shake_frames = 4
+      shake_intensity = 0.3
+
+      -- remove pickup
+      del(fuel_pickups, pickup)
     end
   end
 
@@ -526,6 +609,21 @@ function draw_world()
   for a in all(asteroids) do
     circfill(a.x, a.y, a.r, 8)
     circ(a.x, a.y, a.r, 2)
+  end
+
+  -- draw fuel pickups
+  for pickup in all(fuel_pickups) do
+    -- pulsing animation
+    local pulse = sin((t() * 2 + pickup.anim)) * 1.5 + 4.5
+    circfill(pickup.x, pickup.y, pulse, 10)
+    circ(pickup.x, pickup.y, pulse + 1, 9)
+    -- spark effect
+    if pulse > 5 then
+      pset(pickup.x + 3, pickup.y, 7)
+      pset(pickup.x - 3, pickup.y, 7)
+      pset(pickup.x, pickup.y + 3, 7)
+      pset(pickup.x, pickup.y - 3, 7)
+    end
   end
 
   -- draw particles
