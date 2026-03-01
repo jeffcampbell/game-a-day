@@ -261,7 +261,7 @@ function update_play()
     -- check landing zones
     for z in all(landing_zones) do
       if ship.x >= z.x and ship.x <= z.x + z.w then
-        if velocity < 2 and abs(ship.angle) < 0.1 or abs(ship.angle - 1) < 0.1 then
+        if velocity < 2 and (abs(ship.angle) < 0.1 or abs(ship.angle - 1) < 0.1) then
           -- successful landing
           landed = true
           do_landing(velocity)
@@ -438,8 +438,6 @@ function update_gameover()
 end
 
 function draw_gameover()
-  local win = (level > 5 or (level == 5 and not ship.alive))
-
   if level > 5 then
     print("mission complete!", 24, 30, 11)
   else
