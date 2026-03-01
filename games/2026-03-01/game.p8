@@ -1036,64 +1036,45 @@ function init_level()
   -- reset collision count for perfect run bonus
   collision_count = 0
 
-  -- generate landing zones
+  -- generate landing zones with structured randomization
   landing_zones = {}
   local zone_count = min(3 + level - 1, 5)
   local base_width = 20
   local zone_width = flr(base_width * zone_mult[difficulty + 1])
 
-  -- generate random zone positions
-  local zone_positions = {}
-  local min_spacing = 16
-  local max_attempts = 50
-  local attempt = 0
-  local valid = false
+  -- define horizontal ranges for each zone (creates distinct "lanes")
+  -- each zone has its own region to add variety while maintaining structure
+  local zone_ranges = {
+    {15, 30},   -- zone 1: left region
+    {40, 60},   -- zone 2: left-center region
+    {70, 90},   -- zone 3: center-right region
+    {95, 112},  -- zone 4: right region (levels 4+)
+    {50, 65}    -- zone 5: center region (level 5 only, overlaps zone 2 range for variety)
+  }
 
-  while not valid and attempt < max_attempts do
-    attempt += 1
-    zone_positions = {}
-
-    -- generate random x positions
-    for i = 1, zone_count do
-      local min_x = 8 + flr(zone_width / 2)
-      local max_x = 120 - flr(zone_width / 2)
-      local zx = min_x + rnd(max_x - min_x)
-      add(zone_positions, zx)
-    end
-
-    -- sort positions
-    for i = 1, #zone_positions - 1 do
-      for j = i + 1, #zone_positions do
-        if zone_positions[i] > zone_positions[j] then
-          local tmp = zone_positions[i]
-          zone_positions[i] = zone_positions[j]
-          zone_positions[j] = tmp
-        end
-      end
-    end
-
-    -- check spacing
-    valid = true
-    for i = 1, #zone_positions - 1 do
-      if zone_positions[i + 1] - zone_positions[i] < min_spacing then
-        valid = false
-        break
-      end
-    end
-  end
-
-  -- create landing zones from positions
+  -- create landing zones with randomized positions within their ranges
   for i = 1, zone_count do
-    local zx = zone_positions[i]
+    local range = zone_ranges[i]
+    local min_x = range[1]
+    local max_x = range[2]
+
+    -- ensure zone fits within bounds considering zone width
+    local half_w = flr(zone_width / 2)
+    min_x = max(min_x, 8 + half_w)
+    max_x = min(max_x, 120 - half_w)
+
+    -- randomize position within the range
+    local zx = min_x + rnd(max_x - min_x)
     local zy = surface_y - 2
+
     add(landing_zones, {
       x = zx,
       y = zy,
       w = zone_width,
       h = 2
     })
+    _log("zone:"..i..":x:"..flr(zx)..":range:"..min_x.."-"..max_x)
   end
-  _log("zones:"..zone_count.." spacing:valid")
 
   -- generate asteroids
   asteroids = {}
@@ -1295,14 +1276,25 @@ function init_level()
     local hx, hy, valid
     local attempts = 0
     repeat
-      hx = 15 + rnd(98)
+      -- randomize position with awareness of landing zone structure
+      -- place hazards in gaps between landing zone ranges
+      local gap_ranges = {
+        {8, 14},      -- before zone 1
+        {31, 39},     -- between zones 1 and 2
+        {61, 69},     -- between zones 2 and 3
+        {91, 94},     -- between zones 3 and 4
+        {113, 120}    -- after zone 4
+      }
+      local gap = gap_ranges[1 + flr(rnd(#gap_ranges))]
+      hx = gap[1] + rnd(gap[2] - gap[1])
       hy = surface_y - 2  -- on the surface
       valid = true
       attempts += 1
 
-      -- check distance from landing zones (must be at least 25px away)
+      -- check distance from landing zones (must be at least 20px away from zone centers)
       for z in all(landing_zones) do
-        if abs(hx - (z.x + z.w / 2)) < 25 then
+        local zone_center = z.x + z.w / 2
+        if abs(hx - zone_center) < 20 then
           valid = false
           break
         end
@@ -1319,9 +1311,9 @@ function init_level()
         end
       end
 
-      -- check distance from other hazard zones (must be at least 30px apart)
+      -- check distance from other hazard zones (must be at least 25px apart)
       for h in all(hazard_zones) do
-        if abs(hx - h.x) < 30 then
+        if abs(hx - h.x) < 25 then
           valid = false
           break
         end
