@@ -37,6 +37,8 @@ end
 
 -- game state
 state = "menu"
+game_mode = "normal"  -- "normal" or "time_attack"
+menu_cursor = 0  -- 0=normal mode, 1=time attack mode
 difficulty = 1  -- 0=easy, 1=normal, 2=hard
 difficulty_cursor = 1  -- menu cursor position
 level = 1
@@ -44,6 +46,13 @@ score = 0
 chain = 0
 total_fuel_saved = 0
 last_chain_milestone = 0
+
+-- time attack mode
+time_attack_timer = 240  -- seconds remaining (240 = 4 minutes)
+time_attack_start_time = 0  -- time when started
+time_attack_level_start = 0  -- time when current level started
+time_attack_best_time = 0  -- best completion time
+time_warning_played = false  -- 30s warning flag
 
 -- bonus tracking
 collision_count = 0
@@ -139,14 +148,16 @@ function load_highscores()
   high_score = dget(0)
   high_level = dget(1)
   high_landing = dget(2)
-  _log("load:score:"..high_score..",level:"..high_level..",landing:"..high_landing)
+  time_attack_best_time = dget(15)  -- slot 15 for time attack
+  _log("load:score:"..high_score..",level:"..high_level..",landing:"..high_landing..",time:"..time_attack_best_time)
 end
 
 function save_highscores()
   dset(0, high_score)
   dset(1, high_level)
   dset(2, high_landing)
-  _log("save:score:"..high_score..",level:"..high_level..",landing:"..high_landing)
+  dset(15, time_attack_best_time)  -- save time attack
+  _log("save:score:"..high_score..",level:"..high_level..",landing:"..high_landing..",time:"..time_attack_best_time)
 end
 
 -- achievement persistence
@@ -287,6 +298,16 @@ function check_and_save_records()
     _log("newhigh:landing:"..best_landing_score)
   end
 
+  -- check for time attack best time (only if completed all 5 levels)
+  if game_mode == "time_attack" and level >= 6 then
+    local total_time = t() - time_attack_start_time
+    if time_attack_best_time == 0 or total_time < time_attack_best_time then
+      time_attack_best_time = total_time
+      new_record = true
+      _log("newhigh:time_attack:"..flr(total_time).."s")
+    end
+  end
+
   -- save if any record was beaten
   if new_record then
     save_highscores()
@@ -372,10 +393,45 @@ end
 
 -- menu state
 function update_menu()
+  -- up/down navigation
+  if test_inputp(2) then  -- up
+    menu_cursor = max(0, menu_cursor - 1)
+    sfx(4)
+  elseif test_inputp(3) then  -- down
+    menu_cursor = min(1, menu_cursor + 1)
+    sfx(4)
+  end
+
   if test_inputp(4) then  -- O button
-    state = "difficulty_select"
-    difficulty_cursor = 1  -- reset cursor to normal
-    _log("state:difficulty_select")
+    if menu_cursor == 0 then
+      -- normal mode
+      game_mode = "normal"
+      state = "difficulty_select"
+      difficulty_cursor = 1  -- reset cursor to normal
+      _log("state:difficulty_select:normal")
+    else
+      -- time attack mode
+      game_mode = "time_attack"
+      difficulty = 1  -- always normal difficulty
+      state = "play"
+      level = 1
+      score = 0
+      chain = 0
+      time_attack_timer = 240  -- 4 minutes
+      time_attack_start_time = t()
+      time_warning_played = false
+
+      -- reset tracking
+      collision_count = 0
+      total_bonuses = 0
+      new_achievements = {}
+      shield_used_this_game = false
+      collisions_this_game = 0
+
+      init_level()
+      music(1)
+      _log("state:play:time_attack")
+    end
   elseif test_inputp(5) then  -- X button - achievements
     state = "achievements"
     _log("state:achievements")
@@ -384,25 +440,39 @@ end
 
 function draw_menu()
   print("lunar lander", 32, 20, 7)
-  print("land safely on green zones", 8, 40, 6)
 
   -- high score display
   if high_score > 0 then
-    print("best score: "..high_score, 28, 30, 10)
+    print("best score: "..high_score, 28, 28, 10)
   end
 
-  -- achievement count
-  local ach_count = count_achievements()
-  if ach_count > 0 then
-    print("achievements: "..ach_count.."/12", 24, 36, 11)
+  -- time attack record
+  if time_attack_best_time > 0 then
+    local mins = flr(time_attack_best_time / 60)
+    local secs = flr(time_attack_best_time % 60)
+    print("best time: "..mins..":"..secs, 30, 35, 11)
   end
 
-  print("controls:", 8, 52, 7)
-  print("left/right: rotate", 8, 60, 13)
-  print("up: thrust", 8, 68, 13)
-  print("o: cut engines", 8, 76, 13)
-  print("press o to start", 28, 100, 11)
-  print("press x for achievements", 16, 108, 6)
+  -- mode selection
+  print("select mode:", 32, 48, 7)
+
+  local norm_col = (menu_cursor == 0) and 11 or 6
+  local time_col = (menu_cursor == 1) and 11 or 6
+
+  print("\x8e normal mode", 24, 58, norm_col)
+  print("\x8e time attack", 24, 66, time_col)
+
+  -- mode description
+  if menu_cursor == 0 then
+    print("classic lander", 24, 78, 13)
+    print("all features", 24, 85, 13)
+  else
+    print("race vs clock!", 24, 78, 13)
+    print("4 min, no power-ups", 14, 85, 13)
+  end
+
+  print("up/down: select", 24, 100, 6)
+  print("o: start  x: achievements", 8, 108, 6)
 end
 
 -- achievements state
@@ -533,6 +603,11 @@ end
 function init_level()
   _log("level:"..level)
 
+  -- track level start time for time attack
+  if game_mode == "time_attack" then
+    time_attack_level_start = t()
+  end
+
   -- difficulty scaling factors
   local fuel_mult = {1.15, 1.0, 0.8}  -- easy, normal, hard
   local grav_mult = {0.8, 1.0, 1.15}
@@ -628,6 +703,12 @@ function init_level()
   -- generate asteroids
   asteroids = {}
   local ast_count = max(0, level + ast_adjust[difficulty + 1])
+
+  -- time attack mode: 20% more asteroids
+  if game_mode == "time_attack" and ast_count > 0 then
+    ast_count = flr(ast_count * 1.2) + 1
+  end
+
   for i = 1, ast_count do
     add(asteroids, {
       x = 15 + rnd(98),
@@ -686,6 +767,12 @@ function init_level()
   if level >= 2 then
     local enemy_counts = {1, 2, 3}  -- easy, normal, hard
     local enemy_count = enemy_counts[difficulty + 1]
+
+    -- time attack mode: 20% more enemies
+    if game_mode == "time_attack" and enemy_count > 0 then
+      enemy_count = flr(enemy_count * 1.2) + 1
+    end
+
     for i = 1, enemy_count do
       local patrol_type = flr(rnd(2))  -- 0=horizontal, 1=vertical
       local ex, ey, evx, evy, patrol_min, patrol_max
@@ -735,11 +822,12 @@ function init_level()
     end
   end
 
-  -- generate power-ups
+  -- generate power-ups (disabled in time attack mode)
   powerups = {}
   active_powerups = {}
-  local powerup_count = 2 + flr(rnd(2))  -- 2-3 power-ups per level
-  for i = 1, powerup_count do
+  if game_mode ~= "time_attack" then
+    local powerup_count = 2 + flr(rnd(2))  -- 2-3 power-ups per level
+    for i = 1, powerup_count do
     local px, py, valid
     local attempts = 0
     repeat
@@ -788,6 +876,7 @@ function init_level()
       })
       _log("powerup:spawn:type"..ptype..":"..flr(px)..","..flr(py))
     end
+    end
   end
 
   -- generate thermal hazard zones
@@ -800,6 +889,11 @@ function init_level()
     hazard_count -= 1  -- easy mode: one fewer hazard
   elseif difficulty == 2 and level >= 3 then
     hazard_count = min(hazard_count + 1, 5)  -- hard mode: one more hazard (max 5)
+  end
+
+  -- time attack mode: 20% more hazards
+  if game_mode == "time_attack" and hazard_count > 0 then
+    hazard_count = flr(hazard_count * 1.2) + 1  -- round up for 20% increase
   end
 
   for i = 1, hazard_count do
@@ -1028,6 +1122,39 @@ function update_play()
     state = "pause"
     _log("state:pause")
     return
+  end
+
+  -- time attack timer countdown
+  if game_mode == "time_attack" then
+    local elapsed = t() - time_attack_start_time
+    time_attack_timer = max(0, 240 - elapsed)
+
+    -- warning at 30 seconds
+    if time_attack_timer <= 30 and time_attack_timer > 0 and not time_warning_played then
+      sfx(6)  -- warning sound
+      time_warning_played = true
+      _log("time_attack:warning:30s")
+    end
+
+    -- time's up - instant loss
+    if time_attack_timer <= 0 then
+      ship.alive = false
+      shake_frames = 15
+      shake_intensity = 3
+      _log("time_attack:timeout")
+
+      -- particle explosion
+      for i = 1, 30 do
+        add(particles, {
+          x = ship.x,
+          y = ship.y,
+          vx = rnd(6) - 3,
+          vy = rnd(6) - 3,
+          life = 40,
+          col = 8
+        })
+      end
+    end
   end
 
   -- update enemies
@@ -1758,8 +1885,20 @@ function do_landing(velocity, zone_x, zone_w)
   local multiplied_bonuses = flr(precision_bonuses * chain_multiplier * diff_mult[difficulty + 1])
   total_bonuses += multiplied_bonuses
 
+  -- time attack speed multiplier (1.0x base, 1.5x if <18s)
+  local speed_mult = 1.0
+  if game_mode == "time_attack" then
+    local level_time = t() - time_attack_level_start
+    if level_time < 18 then
+      speed_mult = 1.5
+      _log("time_attack:speed_bonus:1.5x:"..flr(level_time).."s")
+    else
+      _log("time_attack:level_time:"..flr(level_time).."s")
+    end
+  end
+
   -- calculate total landing score
-  local landing_score = flr((base + fuel_bonus + speed_bonus) * chain_multiplier * diff_mult[difficulty + 1]) + multiplied_bonuses
+  local landing_score = flr((base + fuel_bonus + speed_bonus) * chain_multiplier * diff_mult[difficulty + 1] * speed_mult) + multiplied_bonuses
   score += landing_score
   total_fuel_saved += ship.fuel
 
@@ -2265,6 +2404,14 @@ function draw_hud()
   print("lvl:"..level, 100, 2, 7)
   print("score:"..score, 80, 9, 10)
 
+  -- time attack timer
+  if game_mode == "time_attack" then
+    local mins = flr(time_attack_timer / 60)
+    local secs = flr(time_attack_timer % 60)
+    local timer_col = time_attack_timer <= 30 and 8 or 7
+    print("time:"..mins..":"..secs, 84, 16, timer_col)
+  end
+
   if chain > 1 then
     print("x"..flr((1 + (chain - 1) * 0.5) * 10) / 10, 110, 16, 11)
   end
@@ -2311,39 +2458,73 @@ function update_gameover()
 end
 
 function draw_gameover()
-  if level > 5 then
-    print("mission complete!", 24, 20, 11)
-  else
-    print("mission failed", 32, 20, 8)
-  end
+  if game_mode == "time_attack" then
+    -- time attack gameover screen
+    if level > 5 then
+      print("mission complete!", 24, 20, 11)
 
-  -- celebration for new records
-  if new_record then
-    print("*** new record! ***", 20, 28, 10)
-  end
-
-  print("final score: "..score, 28, 35, 7)
-  print("best landing: "..best_landing_score, 24, 43, 10)
-  print("total bonuses: "..total_bonuses, 20, 51, 10)
-
-  -- bonus breakdown
-  print("bonus breakdown:", 24, 62, 6)
-  print("soft landings: "..soft_landing_count, 8, 70, 7)
-  print("fuel efficient: "..fuel_efficiency_count, 8, 77, 7)
-  print("precision: "..precision_landing_count, 8, 84, 7)
-  print("perfect runs: "..perfect_run_count, 8, 91, 7)
-
-  -- new achievements this session
-  if #new_achievements > 0 then
-    print("new achievements:", 20, 98, 11)
-    local y = 105
-    for i = 1, min(#new_achievements, 2) do
-      local ach_id = new_achievements[i]
-      print("\x8e "..achievement_names[ach_id], 16, y, 10)
-      y += 7
+      local total_time = t() - time_attack_start_time
+      local mins = flr(total_time / 60)
+      local secs = flr(total_time % 60)
+      print("time: "..mins..":"..secs, 36, 28, 10)
+    else
+      print("time's up!", 40, 20, 8)
+      print("reached level "..level, 28, 28, 7)
     end
+
+    -- celebration for new records
+    if new_record then
+      print("*** new record! ***", 20, 36, 10)
+    end
+
+    print("final score: "..score, 28, 44, 7)
+
+    -- best time record
+    if time_attack_best_time > 0 then
+      local mins = flr(time_attack_best_time / 60)
+      local secs = flr(time_attack_best_time % 60)
+      print("best time: "..mins..":"..secs, 30, 52, 11)
+    end
+
+    print("time attack stats:", 24, 64, 6)
+    print("levels completed: "..(level - 1), 16, 72, 7)
+    print("speed bonuses: check logs", 12, 80, 7)
   else
-    print("achievements: "..count_achievements().."/12", 24, 105, 6)
+    -- normal mode gameover screen
+    if level > 5 then
+      print("mission complete!", 24, 20, 11)
+    else
+      print("mission failed", 32, 20, 8)
+    end
+
+    -- celebration for new records
+    if new_record then
+      print("*** new record! ***", 20, 28, 10)
+    end
+
+    print("final score: "..score, 28, 35, 7)
+    print("best landing: "..best_landing_score, 24, 43, 10)
+    print("total bonuses: "..total_bonuses, 20, 51, 10)
+
+    -- bonus breakdown
+    print("bonus breakdown:", 24, 62, 6)
+    print("soft landings: "..soft_landing_count, 8, 70, 7)
+    print("fuel efficient: "..fuel_efficiency_count, 8, 77, 7)
+    print("precision: "..precision_landing_count, 8, 84, 7)
+    print("perfect runs: "..perfect_run_count, 8, 91, 7)
+
+    -- new achievements this session
+    if #new_achievements > 0 then
+      print("new achievements:", 20, 98, 11)
+      local y = 105
+      for i = 1, min(#new_achievements, 2) do
+        local ach_id = new_achievements[i]
+        print("\x8e "..achievement_names[ach_id], 16, y, 10)
+        y += 7
+      end
+    else
+      print("achievements: "..count_achievements().."/12", 24, 105, 6)
+    end
   end
 
   print("press o/x to restart", 16, 119, 6)
