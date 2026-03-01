@@ -119,6 +119,8 @@ particles = {}
 shake_frames = 0
 shake_intensity = 0
 thrust_sfx_timer = 0
+nearest_hazard_dist = 999  -- distance to nearest hazard (for proximity effects)
+hazard_warning_timer = 0  -- cooldown for proximity warning sfx
 
 -- level data
 landing_zones = {}
@@ -1186,6 +1188,35 @@ function update_play()
     end
   end
 
+  -- calculate proximity to nearest hazard zone (for visual/audio feedback)
+  nearest_hazard_dist = 999
+  for h in all(hazard_zones) do
+    local dx = ship.x - h.x
+    local dy = ship.y - h.y
+    local dist = sqrt(dx * dx + dy * dy)
+    if dist < nearest_hazard_dist then
+      nearest_hazard_dist = dist
+    end
+  end
+
+  -- proximity warning audio (optional - plays when within detection radius)
+  local hazard_detection_radius = 40  -- distance threshold for audio warning
+  if nearest_hazard_dist < hazard_detection_radius and ship.alive then
+    -- play warning sound with pitch based on proximity (closer = higher pitch)
+    if hazard_warning_timer <= 0 then
+      local proximity_factor = 1 - (nearest_hazard_dist / hazard_detection_radius)  -- 0 to 1
+      local pitch_offset = flr(proximity_factor * 8)  -- 0 to 8
+      sfx(21, 3, pitch_offset)  -- channel 3 for ambient effects
+      hazard_warning_timer = 15  -- cooldown to avoid spam
+      _log("hazard:proximity_warning:"..flr(nearest_hazard_dist))
+    end
+  end
+
+  -- update hazard warning timer
+  if hazard_warning_timer > 0 then
+    hazard_warning_timer -= 1
+  end
+
   -- update enemies
   update_enemies()
 
@@ -2223,20 +2254,45 @@ function draw_world()
 
   -- draw thermal hazard zones (pulsing red/orange circles)
   for h in all(hazard_zones) do
-    -- pulsing animation (slower pulse for hazards)
-    local pulse = sin((t() * 1.5 + h.anim)) * 2 + h.r
-    local glow = sin((t() * 3 + h.anim)) * 1.5 + 3
+    -- calculate distance from ship to this hazard
+    local dx = ship.x - h.x
+    local dy = ship.y - h.y
+    local dist = sqrt(dx * dx + dy * dy)
 
-    -- outer glow (warning effect)
-    circfill(h.x, h.y, glow, 2)  -- dark red glow
+    -- proximity factor: 0 (far) to 1 (very close)
+    -- closer = faster pulse and more intense glow
+    local proximity_threshold = 50  -- distance at which effects start to intensify
+    local proximity_factor = max(0, 1 - (dist / proximity_threshold))
+
+    -- pulse speed increases with proximity (1.5x base -> 4x when very close)
+    local pulse_speed = 1.5 + (proximity_factor * 2.5)
+    local pulse = sin((t() * pulse_speed + h.anim)) * 2 + h.r
+
+    -- glow intensity increases with proximity (base 3 -> 6 when very close)
+    local glow_speed = 3 + (proximity_factor * 3)
+    local glow_base = 3 + (proximity_factor * 3)
+    local glow = sin((t() * glow_speed + h.anim)) * 1.5 + glow_base
+
+    -- outer glow (warning effect - brighter when player is close)
+    local glow_col = (proximity_factor > 0.5) and 8 or 2  -- red when close, dark red otherwise
+    circfill(h.x, h.y, glow, glow_col)
 
     -- main hazard circle (alternating colors for heat effect)
-    local heat_phase = flr((t() * 4 + h.anim) % 2)
+    -- faster color alternation when player is close
+    local heat_speed = 4 + (proximity_factor * 4)
+    local heat_phase = flr((t() * heat_speed + h.anim) % 2)
     local heat_col = (heat_phase == 0) and 8 or 9  -- alternate red/orange
     circfill(h.x, h.y, pulse, heat_col)
 
-    -- bright center
-    circfill(h.x, h.y, pulse * 0.5, 10)  -- yellow center
+    -- bright center (more intense when player is close)
+    local center_col = (proximity_factor > 0.7) and 7 or 10  -- white when very close, yellow otherwise
+    circfill(h.x, h.y, pulse * 0.5, center_col)
+
+    -- additional warning ring when player is very close
+    if proximity_factor > 0.6 then
+      local warning_r = h.r + 4 + sin(t() * 6) * 2
+      circ(h.x, h.y, warning_r, 9)  -- orange warning ring
+    end
   end
 
   -- draw asteroids
@@ -2660,6 +2716,7 @@ __sfx__
 001000001855020550235502655028550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000002355027550295502d5503055033550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000001855020550235502755029550305503555038550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000c5300c5300c5300c5300c5300c5300c5300c530000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
 00 08090a0b
 00 0c0d0e0f
