@@ -1746,18 +1746,21 @@ function do_landing(velocity, zone_x, zone_w)
   -- check for achievements
   check_achievements()
 
-  -- advance level
-  if level < 5 then
-    level += 1
-    sfx(3)  -- level up sfx
-    _log("levelup")
-    init_level()
-  else
+  -- advance level (always increment on successful landing)
+  level += 1
+  sfx(3)  -- level up sfx
+  _log("levelup:level"..level)
+
+  -- check win condition (reaching level 6)
+  if level >= 6 then
     -- game complete
     check_and_save_records()
     state = "gameover"
     music(3)  -- victory music
     _log("state:gameover:win")
+  else
+    -- continue to next level
+    init_level()
   end
 end
 
