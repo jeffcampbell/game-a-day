@@ -37,6 +37,8 @@ end
 
 -- game state
 state = "menu"
+difficulty = 1  -- 0=easy, 1=normal, 2=hard
+difficulty_cursor = 1  -- menu cursor position
 level = 1
 score = 0
 chain = 0
@@ -64,6 +66,8 @@ end
 function _update()
   if state == "menu" then
     update_menu()
+  elseif state == "difficulty_select" then
+    update_difficulty_select()
   elseif state == "play" then
     update_play()
   elseif state == "gameover" then
@@ -104,6 +108,8 @@ function _draw()
 
   if state == "menu" then
     draw_menu()
+  elseif state == "difficulty_select" then
+    draw_difficulty_select()
   elseif state == "play" then
     draw_play()
   elseif state == "gameover" then
@@ -116,15 +122,9 @@ end
 -- menu state
 function update_menu()
   if test_inputp(4) then  -- O button
-    state = "play"
-    level = 1
-    score = 0
-    chain = 0
-    last_chain_milestone = 0
-    total_fuel_saved = 0
-    init_level()
-    music(1)  -- start gameplay music
-    _log("state:play")
+    state = "difficulty_select"
+    difficulty_cursor = 1  -- reset cursor to normal
+    _log("state:difficulty_select")
   end
 end
 
@@ -138,13 +138,94 @@ function draw_menu()
   print("press o to start", 28, 100, 11)
 end
 
+-- difficulty selection state
+function update_difficulty_select()
+  -- left/right navigation
+  if test_inputp(0) then  -- left
+    difficulty_cursor = max(0, difficulty_cursor - 1)
+    sfx(4)
+    _log("difficulty:cursor:"..difficulty_cursor)
+  end
+  if test_inputp(1) then  -- right
+    difficulty_cursor = min(2, difficulty_cursor + 1)
+    sfx(4)
+    _log("difficulty:cursor:"..difficulty_cursor)
+  end
+
+  -- confirm selection
+  if test_inputp(4) then  -- O button
+    difficulty = difficulty_cursor
+    local diff_names = {"easy", "normal", "hard"}
+    _log("difficulty:"..diff_names[difficulty + 1])
+
+    state = "play"
+    level = 1
+    score = 0
+    chain = 0
+    last_chain_milestone = 0
+    total_fuel_saved = 0
+    init_level()
+    music(1)  -- start gameplay music
+    _log("state:play")
+  end
+end
+
+function draw_difficulty_select()
+  print("select difficulty", 24, 20, 7)
+
+  -- difficulty options
+  local diff_names = {"easy", "normal", "hard"}
+  local diff_x = {16, 48, 88}
+
+  for i = 0, 2 do
+    local col = (i == difficulty_cursor) and 11 or 6
+    print(diff_names[i + 1], diff_x[i + 1], 40, col)
+  end
+
+  -- cursor indicator
+  print(">", diff_x[difficulty_cursor + 1] - 8, 40, 11)
+
+  -- description based on cursor
+  local desc = ""
+  if difficulty_cursor == 0 then
+    print("easy mode:", 20, 60, 10)
+    print("less gravity", 20, 70, 6)
+    print("more fuel", 20, 78, 6)
+    print("wider landing zones", 20, 86, 6)
+    print("score x0.8", 20, 94, 6)
+  elseif difficulty_cursor == 1 then
+    print("normal mode:", 18, 60, 10)
+    print("standard challenge", 18, 70, 6)
+    print("balanced gameplay", 18, 78, 6)
+    print("score x1.0", 18, 94, 6)
+  else
+    print("hard mode:", 20, 60, 10)
+    print("more gravity", 20, 70, 6)
+    print("less fuel", 20, 78, 6)
+    print("narrow landing zones", 20, 86, 6)
+    print("score x1.5", 20, 94, 6)
+  end
+
+  print("arrows: select", 24, 115, 13)
+  print("o: confirm", 32, 122, 13)
+end
+
 -- play state
 function init_level()
   _log("level:"..level)
 
+  -- difficulty scaling factors
+  local fuel_mult = {1.15, 1.0, 0.8}  -- easy, normal, hard
+  local grav_mult = {0.8, 1.0, 1.15}
+  local zone_mult = {1.3, 1.0, 0.75}
+  local ast_adjust = {-2, -1, 0}  -- asteroid count adjustment
+
   -- init ship
   local fuel_table = {80, 70, 60, 50, 40}
   local grav_table = {0.15, 0.2, 0.22, 0.24, 0.3}
+
+  local base_fuel = fuel_table[level] or 40
+  local base_grav = grav_table[level] or 0.3
 
   ship = {
     x = 64,
@@ -152,8 +233,8 @@ function init_level()
     vx = 0,
     vy = 0,
     angle = 0,  -- 0 = up, 0.25 = right, 0.5 = down, 0.75 = left
-    fuel = fuel_table[level] or 40,
-    gravity = grav_table[level] or 0.3,
+    fuel = flr(base_fuel * fuel_mult[difficulty + 1]),
+    gravity = base_grav * grav_mult[difficulty + 1],
     alive = true,
     thrusting = false
   }
@@ -165,20 +246,22 @@ function init_level()
   -- generate landing zones
   landing_zones = {}
   local zone_count = min(3 + level - 1, 5)
+  local base_width = 20
+  local zone_width = flr(base_width * zone_mult[difficulty + 1])
   for i = 1, zone_count do
     local zx = 10 + (i - 1) * (108 / (zone_count - 1))
     local zy = surface_y - 2
     add(landing_zones, {
       x = zx,
       y = zy,
-      w = 20,
+      w = zone_width,
       h = 2
     })
   end
 
   -- generate asteroids
   asteroids = {}
-  local ast_count = max(0, level - 1)
+  local ast_count = max(0, level + ast_adjust[difficulty + 1])
   for i = 1, ast_count do
     add(asteroids, {
       x = 15 + rnd(98),
@@ -275,10 +358,13 @@ function update_play()
     local landed = false
     local velocity = sqrt(ship.vx * ship.vx + ship.vy * ship.vy)
 
+    -- difficulty-based velocity threshold
+    local vel_thresh = {3.0, 2.0, 2.0}  -- easy, normal, hard
+
     -- check landing zones
     for z in all(landing_zones) do
       if ship.x >= z.x and ship.x <= z.x + z.w then
-        if velocity < 2 and (abs(ship.angle) < 0.1 or abs(ship.angle - 1) < 0.1) then
+        if velocity < vel_thresh[difficulty + 1] and (abs(ship.angle) < 0.1 or abs(ship.angle - 1) < 0.1) then
           -- successful landing
           landed = true
           do_landing(velocity)
@@ -317,9 +403,12 @@ function do_landing(velocity)
   local fuel_bonus = ship.fuel * 5
   local speed_bonus = (velocity < 1) and 20 or 0
   chain += 1
-  local multiplier = min(1 + (chain - 1) * 0.5, 2)
+  local chain_multiplier = min(1 + (chain - 1) * 0.5, 2)
 
-  local landing_score = flr((base + fuel_bonus + speed_bonus) * multiplier)
+  -- difficulty score multipliers
+  local diff_mult = {0.8, 1.0, 1.5}  -- easy, normal, hard
+
+  local landing_score = flr((base + fuel_bonus + speed_bonus) * chain_multiplier * diff_mult[difficulty + 1])
   score += landing_score
   total_fuel_saved += ship.fuel
 
@@ -452,8 +541,11 @@ function draw_play()
   print("vel:"..flr(vel * 10) / 10, 2, 2, 7)
   print("fuel:"..flr(ship.fuel), 2, 9, 7)
 
-  -- fuel bar
-  local fuel_pct = ship.fuel / 80
+  -- fuel bar (calculate max based on difficulty)
+  local fuel_table = {80, 70, 60, 50, 40}
+  local fuel_mult = {1.15, 1.0, 0.8}
+  local max_fuel = flr((fuel_table[level] or 40) * fuel_mult[difficulty + 1])
+  local fuel_pct = ship.fuel / max_fuel
   rectfill(30, 10, 30 + fuel_pct * 30, 13, 8)
   rect(30, 10, 60, 13, 7)
 
