@@ -295,7 +295,9 @@ function check_achievements()
 
   -- 14. fuel conservationist: complete level with <30% fuel remaining
   if not achievements[14] and ship.fuel > 0 then
-    local max_fuel = flr(400 * ({1.5, 1.0, 0.6})[difficulty + 1])
+    local fuel_table = {80, 70, 60, 50, 40}
+    local fuel_mult = {1.15, 1.0, 0.8}
+    local max_fuel = flr((fuel_table[level] or 40) * fuel_mult[difficulty + 1])
     if ship.fuel / max_fuel < 0.3 then
       unlock_achievement(14)
     end
