@@ -60,6 +60,50 @@ high_level = 0
 high_landing = 0
 new_record = false  -- flag for new record celebration
 
+-- achievement system
+achievements = {}  -- 12 boolean flags for unlocked achievements
+new_achievements = {}  -- achievements unlocked this session
+achievement_names = {
+  "first blood",
+  "steady hands",
+  "chain reaction",
+  "expert pilot",
+  "perfect run",
+  "fuel miser",
+  "precision landing",
+  "boss slayer",
+  "phase 2 survivor",
+  "mission complete",
+  "hazard dodger",
+  "flawless victory"
+}
+achievement_desc = {
+  "complete first landing",
+  "3 consecutive soft landings",
+  "reach landing chain x3",
+  "reach landing chain x5",
+  "complete level without collisions",
+  "land w/ fuel bonus 5 times",
+  "land in zone center 5 times",
+  "defeat boss (level 3, 4, or 5)",
+  "defeat boss in phase 2",
+  "reach level 6 (complete all levels)",
+  "land near hazard 10 times",
+  "win without shield & no collisions"
+}
+
+-- achievement progress tracking
+consecutive_soft_landings = 0
+total_soft_landings = 0
+total_fuel_efficiency_landings = 0
+total_precision_landings = 0
+total_perfect_runs = 0
+total_hazard_landings = 0
+bosses_defeated = 0
+phase2_bosses_defeated = 0
+shield_used_this_game = false
+collisions_this_game = 0
+
 -- ship physics
 ship = {}
 particles = {}
@@ -84,6 +128,7 @@ last_cam_log = -999
 
 function _init()
   load_highscores()
+  load_achievements()
   _log("state:menu")
   music(0)  -- start menu music
 end
@@ -102,6 +147,119 @@ function save_highscores()
   dset(1, high_level)
   dset(2, high_landing)
   _log("save:score:"..high_score..",level:"..high_level..",landing:"..high_landing)
+end
+
+-- achievement persistence
+function load_achievements()
+  -- slots 3-14 for 12 achievements (0=locked, 1=unlocked)
+  for i = 1, 12 do
+    achievements[i] = dget(2 + i) > 0
+  end
+  _log("load:achievements:"..count_achievements())
+end
+
+function save_achievements()
+  for i = 1, 12 do
+    dset(2 + i, achievements[i] and 1 or 0)
+  end
+  _log("save:achievements")
+end
+
+function count_achievements()
+  local count = 0
+  for i = 1, 12 do
+    if achievements[i] then count += 1 end
+  end
+  return count
+end
+
+function unlock_achievement(id)
+  if achievements[id] then return end  -- already unlocked
+
+  achievements[id] = true
+  add(new_achievements, id)
+  save_achievements()
+
+  _log("achievement:unlock:"..achievement_names[id])
+
+  -- celebration effects
+  sfx(5)  -- fanfare sound
+  shake_frames = 10
+  shake_intensity = 1.2
+
+  -- burst of particles
+  for i = 1, 20 do
+    add(particles, {
+      x = 64,
+      y = 64,
+      vx = rnd(4) - 2,
+      vy = rnd(4) - 2,
+      life = 30,
+      col = 10  -- gold
+    })
+  end
+end
+
+function check_achievements()
+  -- 1. first blood: complete first landing
+  if not achievements[1] and total_soft_landings + total_fuel_efficiency_landings + total_precision_landings > 0 then
+    unlock_achievement(1)
+  end
+
+  -- 2. steady hands: 3 consecutive soft landings
+  if not achievements[2] and consecutive_soft_landings >= 3 then
+    unlock_achievement(2)
+  end
+
+  -- 3. chain reaction: reach landing chain x3
+  if not achievements[3] and chain >= 3 then
+    unlock_achievement(3)
+  end
+
+  -- 4. expert pilot: reach landing chain x5
+  if not achievements[4] and chain >= 5 then
+    unlock_achievement(4)
+  end
+
+  -- 5. perfect run: complete level without collisions
+  if not achievements[5] and total_perfect_runs >= 1 then
+    unlock_achievement(5)
+  end
+
+  -- 6. fuel miser: land with fuel efficiency bonus 5 times
+  if not achievements[6] and total_fuel_efficiency_landings >= 5 then
+    unlock_achievement(6)
+  end
+
+  -- 7. precision landing: land in zone center 5 times
+  if not achievements[7] and total_precision_landings >= 5 then
+    unlock_achievement(7)
+  end
+
+  -- 8. boss slayer: defeat boss
+  if not achievements[8] and bosses_defeated >= 1 then
+    unlock_achievement(8)
+  end
+
+  -- 9. phase 2 survivor: defeat boss in phase 2
+  if not achievements[9] and phase2_bosses_defeated >= 1 then
+    unlock_achievement(9)
+  end
+
+  -- 10. mission complete: reach level 6
+  if not achievements[10] and level >= 6 then
+    unlock_achievement(10)
+  end
+
+  -- 11. hazard dodger: land near hazard 10 times
+  if not achievements[11] and total_hazard_landings >= 10 then
+    unlock_achievement(11)
+  end
+
+  -- 12. flawless victory: win without shield usage and no collisions
+  if not achievements[12] and level >= 6 and not shield_used_this_game and collisions_this_game == 0 then
+    unlock_achievement(12)
+  end
 end
 
 function check_and_save_records()
@@ -133,6 +291,9 @@ function check_and_save_records()
   if new_record then
     save_highscores()
   end
+
+  -- check for achievements
+  check_achievements()
 end
 
 function _update()
@@ -140,6 +301,8 @@ function _update()
     update_menu()
   elseif state == "difficulty_select" then
     update_difficulty_select()
+  elseif state == "achievements" then
+    update_achievements()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -187,6 +350,8 @@ function _draw()
     draw_menu()
   elseif state == "difficulty_select" then
     draw_difficulty_select()
+  elseif state == "achievements" then
+    draw_achievements()
   elseif state == "play" then
     draw_world()  -- draw world elements in world space
   elseif state == "pause" then
@@ -211,6 +376,9 @@ function update_menu()
     state = "difficulty_select"
     difficulty_cursor = 1  -- reset cursor to normal
     _log("state:difficulty_select")
+  elseif test_inputp(5) then  -- X button - achievements
+    state = "achievements"
+    _log("state:achievements")
   end
 end
 
@@ -223,11 +391,54 @@ function draw_menu()
     print("best score: "..high_score, 28, 30, 10)
   end
 
+  -- achievement count
+  local ach_count = count_achievements()
+  if ach_count > 0 then
+    print("achievements: "..ach_count.."/12", 24, 36, 11)
+  end
+
   print("controls:", 8, 52, 7)
   print("left/right: rotate", 8, 60, 13)
   print("up: thrust", 8, 68, 13)
   print("o: cut engines", 8, 76, 13)
   print("press o to start", 28, 100, 11)
+  print("press x for achievements", 16, 108, 6)
+end
+
+-- achievements state
+function update_achievements()
+  if test_inputp(5) or test_inputp(4) then  -- X or O button - back to menu
+    state = "menu"
+    _log("state:menu")
+  end
+end
+
+function draw_achievements()
+  print("achievements", 32, 4, 7)
+  local unlocked = count_achievements()
+  print(unlocked.."/12 unlocked", 36, 12, unlocked > 0 and 11 or 6)
+
+  -- draw achievements in 2 columns
+  for i = 1, 12 do
+    local col_x = (i <= 6) and 2 or 66
+    local row_y = 22 + ((i - 1) % 6) * 16
+    local locked = not achievements[i]
+
+    -- tier number and name
+    local tier_col = locked and 5 or 10
+    print(i..".", col_x, row_y, tier_col)
+    print(achievement_names[i], col_x + 10, row_y, locked and 6 or 7)
+
+    -- description
+    print(achievement_desc[i], col_x + 2, row_y + 6, locked and 5 or 13)
+
+    -- unlock indicator
+    if not locked then
+      print("\x8e", col_x + 2, row_y, 11)  -- checkmark
+    end
+  end
+
+  print("press x/o to return", 20, 119, 6)
 end
 
 -- difficulty selection state
@@ -265,6 +476,12 @@ function update_difficulty_select()
     precision_landing_count = 0
     perfect_run_count = 0
     best_landing_score = 0
+
+    -- reset achievement tracking for this game
+    new_achievements = {}
+    consecutive_soft_landings = 0
+    shield_used_this_game = false
+    collisions_this_game = 0
 
     init_level()
     music(1)  -- start gameplay music
@@ -871,6 +1088,7 @@ function update_play()
       for p in all(active_powerups) do
         if p.type == 1 then  -- shield type
           shield_active = true
+          shield_used_this_game = true
           del(active_powerups, p)
           _log("shield:absorbed:asteroid")
 
@@ -917,6 +1135,7 @@ function update_play()
       for p in all(active_powerups) do
         if p.type == 1 then  -- shield type
           shield_active = true
+          shield_used_this_game = true
           del(active_powerups, p)
           _log("shield:absorbed:enemy")
 
@@ -963,6 +1182,7 @@ function update_play()
       for p in all(active_powerups) do
         if p.type == 1 then  -- shield type
           shield_active = true
+          shield_used_this_game = true
           del(active_powerups, p)
           boss.hp -= 1
           _log("shield:absorbed:boss:hp:"..boss.hp)
@@ -1045,6 +1265,7 @@ function update_play()
       for p in all(active_powerups) do
         if p.type == 1 then  -- shield type
           shield_active = true
+          shield_used_this_game = true
           del(active_powerups, p)
           del(boss_projectiles, proj)
           _log("shield:absorbed:projectile")
@@ -1093,6 +1314,7 @@ function update_play()
       for p in all(active_powerups) do
         if p.type == 1 then  -- shield type
           shield_active = true
+          shield_used_this_game = true
           del(active_powerups, p)
           del(enemy_projectiles, proj)
           _log("shield:absorbed:enemy_projectile")
@@ -1141,6 +1363,7 @@ function update_play()
       for p in all(active_powerups) do
         if p.type == 1 then  -- shield type
           shield_active = true
+          shield_used_this_game = true
           del(active_powerups, p)
           _log("shield:absorbed:hazard")
 
@@ -1341,6 +1564,8 @@ function do_landing(velocity, zone_x, zone_w)
     local soft_bonus = 50
     precision_bonuses += soft_bonus
     soft_landing_count += 1
+    total_soft_landings += 1
+    consecutive_soft_landings += 1
     _log("bonus:soft_landing:"..soft_bonus)
 
     -- gold particles
@@ -1356,6 +1581,9 @@ function do_landing(velocity, zone_x, zone_w)
     end
 
     sfx(16)  -- soft landing sfx
+  else
+    -- reset consecutive soft landings if not a soft landing
+    consecutive_soft_landings = 0
   end
 
   -- 2. fuel efficiency bonus (>60% fuel)
@@ -1368,6 +1596,7 @@ function do_landing(velocity, zone_x, zone_w)
     local fuel_eff_bonus = flr(ship.fuel * 3)
     precision_bonuses += fuel_eff_bonus
     fuel_efficiency_count += 1
+    total_fuel_efficiency_landings += 1
     _log("bonus:fuel_efficiency:"..fuel_eff_bonus)
 
     -- cyan particles
@@ -1394,6 +1623,7 @@ function do_landing(velocity, zone_x, zone_w)
     local precision_bonus = 75
     precision_bonuses += precision_bonus
     precision_landing_count += 1
+    total_precision_landings += 1
     _log("bonus:precision_landing:"..precision_bonus)
 
     -- white star burst
@@ -1416,6 +1646,7 @@ function do_landing(velocity, zone_x, zone_w)
     local perfect_bonus = 100
     precision_bonuses += perfect_bonus
     perfect_run_count += 1
+    total_perfect_runs += 1
     _log("bonus:perfect_run:"..perfect_bonus)
 
     -- rainbow particles
@@ -1445,6 +1676,7 @@ function do_landing(velocity, zone_x, zone_w)
   if nearest_hazard_dist < 10 then
     local near_miss_bonus = 25 + rnd(16)  -- 25-40 points
     precision_bonuses += flr(near_miss_bonus)
+    total_hazard_landings += 1
     _log("bonus:hazard_near_miss:"..flr(near_miss_bonus))
 
     -- orange/red warning particles
@@ -1510,6 +1742,9 @@ function do_landing(velocity, zone_x, zone_w)
   -- shake
   shake_frames = 6
   shake_intensity = 0.5
+
+  -- check for achievements
+  check_achievements()
 
   -- advance level
   if level < 5 then
@@ -1688,6 +1923,15 @@ function do_boss_defeat()
   shake_frames = is_phase2 and 12 or 8
   shake_intensity = is_phase2 and 1.5 or 1.0
 
+  -- track achievement progress
+  bosses_defeated += 1
+  if is_phase2 then
+    phase2_bosses_defeated += 1
+  end
+
+  -- check for achievements
+  check_achievements()
+
   -- remove boss
   boss = nil
 end
@@ -1696,6 +1940,8 @@ function do_crash()
   -- track collision (skip if already counted from asteroid hit)
   if ship.alive then
     collision_count += 1
+    collisions_this_game += 1
+    consecutive_soft_landings = 0  -- reset consecutive soft landings
   end
 
   -- crash sfx and music
@@ -2002,10 +2248,20 @@ function draw_gameover()
   print("precision: "..precision_landing_count, 8, 84, 7)
   print("perfect runs: "..perfect_run_count, 8, 91, 7)
 
-  print("levels: "..(level - 1), 8, 102, 6)
-  print("fuel: "..total_fuel_saved, 64, 102, 6)
+  -- new achievements this session
+  if #new_achievements > 0 then
+    print("new achievements:", 20, 98, 11)
+    local y = 105
+    for i = 1, min(#new_achievements, 2) do
+      local ach_id = new_achievements[i]
+      print("\x8e "..achievement_names[ach_id], 16, y, 10)
+      y += 7
+    end
+  else
+    print("achievements: "..count_achievements().."/12", 24, 105, 6)
+  end
 
-  print("press o/x to restart", 16, 115, 6)
+  print("press o/x to restart", 16, 119, 6)
 end
 
 -- pause state
