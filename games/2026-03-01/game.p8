@@ -54,6 +54,12 @@ precision_landing_count = 0
 perfect_run_count = 0
 best_landing_score = 0
 
+-- high score persistence
+high_score = 0
+high_level = 0
+high_landing = 0
+new_record = false  -- flag for new record celebration
+
 -- ship physics
 ship = {}
 particles = {}
@@ -76,8 +82,56 @@ camera_y = 0
 last_cam_log = -999
 
 function _init()
+  load_highscores()
   _log("state:menu")
   music(0)  -- start menu music
+end
+
+-- high score persistence
+function load_highscores()
+  cartdata("lunarlander_v1")
+  high_score = dget(0)
+  high_level = dget(1)
+  high_landing = dget(2)
+  _log("load:score:"..high_score..",level:"..high_level..",landing:"..high_landing)
+end
+
+function save_highscores()
+  dset(0, high_score)
+  dset(1, high_level)
+  dset(2, high_landing)
+  _log("save:score:"..high_score..",level:"..high_level..",landing:"..high_landing)
+end
+
+function check_and_save_records()
+  new_record = false
+
+  -- check for new high score
+  if score > high_score then
+    high_score = score
+    new_record = true
+    _log("newhigh:score:"..score)
+    sfx(5)  -- celebration sound
+  end
+
+  -- check for furthest level
+  if level > high_level then
+    high_level = level
+    new_record = true
+    _log("newhigh:level:"..level)
+  end
+
+  -- check for best landing bonus
+  if best_landing_score > high_landing then
+    high_landing = best_landing_score
+    new_record = true
+    _log("newhigh:landing:"..best_landing_score)
+  end
+
+  -- save if any record was beaten
+  if new_record then
+    save_highscores()
+  end
 end
 
 function _update()
@@ -162,6 +216,12 @@ end
 function draw_menu()
   print("lunar lander", 32, 20, 7)
   print("land safely on green zones", 8, 40, 6)
+
+  -- high score display
+  if high_score > 0 then
+    print("best score: "..high_score, 28, 30, 10)
+  end
+
   print("controls:", 8, 52, 7)
   print("left/right: rotate", 8, 60, 13)
   print("up: thrust", 8, 68, 13)
@@ -648,6 +708,7 @@ function update_play()
   if not ship.alive then
     -- wait for input after crash
     if test_inputp(4) or test_inputp(5) then
+      check_and_save_records()
       state = "gameover"
       _log("state:gameover")
     end
@@ -1379,6 +1440,7 @@ function do_landing(velocity, zone_x, zone_w)
     init_level()
   else
     -- game complete
+    check_and_save_records()
     state = "gameover"
     music(3)  -- victory music
     _log("state:gameover:win")
@@ -1787,6 +1849,7 @@ end
 function update_gameover()
   if test_inputp(4) or test_inputp(5) then
     state = "menu"
+    new_record = false  -- reset celebration flag
     music(0)  -- restart menu music
     _log("state:menu")
   end
@@ -1797,6 +1860,11 @@ function draw_gameover()
     print("mission complete!", 24, 20, 11)
   else
     print("mission failed", 32, 20, 8)
+  end
+
+  -- celebration for new records
+  if new_record then
+    print("*** new record! ***", 20, 28, 10)
   end
 
   print("final score: "..score, 28, 35, 7)
