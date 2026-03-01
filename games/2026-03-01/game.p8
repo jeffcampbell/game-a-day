@@ -84,6 +84,8 @@ function _update()
     update_difficulty_select()
   elseif state == "play" then
     update_play()
+  elseif state == "pause" then
+    update_pause()
   elseif state == "gameover" then
     update_gameover()
   end
@@ -120,7 +122,7 @@ function _draw()
   end
 
   -- apply camera_y only during play state
-  local cam_y = (state == "play") and camera_y or 0
+  local cam_y = (state == "play" or state == "pause") and camera_y or 0
   camera(sx, sy + cam_y)
 
   if state == "menu" then
@@ -129,15 +131,19 @@ function _draw()
     draw_difficulty_select()
   elseif state == "play" then
     draw_world()  -- draw world elements in world space
+  elseif state == "pause" then
+    draw_world()  -- draw frozen world
   elseif state == "gameover" then
     draw_gameover()
   end
 
   camera(0, 0)  -- reset camera before HUD
 
-  -- draw HUD in screen space (play state only)
+  -- draw HUD in screen space (play and pause states)
   if state == "play" then
     draw_hud()
+  elseif state == "pause" then
+    draw_pause()
   end
 end
 
@@ -481,6 +487,13 @@ function update_play()
       state = "gameover"
       _log("state:gameover")
     end
+    return
+  end
+
+  -- check for pause (X button)
+  if test_inputp(5) then
+    state = "pause"
+    _log("state:pause")
     return
   end
 
@@ -1222,6 +1235,67 @@ function draw_gameover()
   print("fuel: "..total_fuel_saved, 64, 102, 6)
 
   print("press o/x to restart", 16, 115, 6)
+end
+
+-- pause state
+function update_pause()
+  if test_inputp(5) then  -- X button - resume
+    state = "play"
+    _log("state:play")
+  elseif test_inputp(4) then  -- O button - quit to menu
+    state = "menu"
+    music(0)  -- restart menu music
+    _log("state:menu")
+  end
+end
+
+function draw_pause()
+  -- semi-transparent overlay
+  rectfill(0, 0, 128, 128, 0)
+
+  -- title
+  print("paused", 48, 10, 7)
+
+  -- current stats
+  print("score: "..score, 32, 25, 10)
+  print("level: "..level, 32, 33, 7)
+
+  -- chain multiplier
+  if chain > 1 then
+    local mult = flr((1 + (chain - 1) * 0.5) * 10) / 10
+    print("chain: x"..mult, 32, 41, 11)
+  end
+
+  -- fuel status
+  local fuel_table = {80, 70, 60, 50, 40}
+  local fuel_mult = {1.15, 1.0, 0.8}
+  local max_fuel = flr((fuel_table[level] or 40) * fuel_mult[difficulty + 1])
+  print("fuel: "..flr(ship.fuel).."/"..max_fuel, 32, 49, 7)
+
+  -- active power-ups
+  if #active_powerups > 0 then
+    print("active power-ups:", 24, 60, 6)
+    local pup_y = 68
+    for p in all(active_powerups) do
+      local pname = ({"shield", "fuel+", "boost", "low-g"})[p.type]
+      local pcol = ({8, 12, 9, 11})[p.type]
+
+      circfill(26, pup_y + 2, 2, pcol)
+
+      if p.time then
+        local sec = flr(p.time / 60) + 1
+        print(pname.." ("..sec.."s)", 30, pup_y, 7)
+      else
+        print(pname, 30, pup_y, 7)
+      end
+
+      pup_y += 8
+    end
+  end
+
+  -- controls
+  print("x: resume", 40, 105, 11)
+  print("o: quit to menu", 28, 113, 8)
 end
 
 __gfx__
