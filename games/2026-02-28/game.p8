@@ -59,7 +59,7 @@ mts = {}
 flt = 0
 sft = 0
 tas = 0  -- time attack spawn timer
-
+wfv=true
 as = {}
 sas = {}
 pcs = {}
@@ -1661,7 +1661,7 @@ function spw()
     queue_spawn(et)
   end
 end
-
+function dwf()if wfv then local bi=gm=="boss_rush"and 1 or(df=="easy"and 6 or(df=="hard"and 4 or 5))for i=1,2 do local w=wave+i print("w"..w..(w%bi==0 and":b"or""),70,10+(i-1)*7,w%bi==0 and 8 or 6)end end end
 function spe(typ, spawn_x, spawn_y)
   -- use provided position or generate random edge position
   local x, y = spawn_x, spawn_y
@@ -2307,8 +2307,7 @@ function drp()
     if fade < 0.3 then col = 5 end
     print(mt.text, 36, mt.y, col)
   end
-
-
+dwf()
   if flt > 0 then
     local intensity = flt / 3
     rectfill(0, 0, 127, 127, 7)
