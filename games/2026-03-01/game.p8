@@ -45,6 +45,15 @@ chain = 0
 total_fuel_saved = 0
 last_chain_milestone = 0
 
+-- bonus tracking
+collision_count = 0
+total_bonuses = 0
+soft_landing_count = 0
+fuel_efficiency_count = 0
+precision_landing_count = 0
+perfect_run_count = 0
+best_landing_score = 0
+
 -- ship physics
 ship = {}
 particles = {}
@@ -174,6 +183,16 @@ function update_difficulty_select()
     chain = 0
     last_chain_milestone = 0
     total_fuel_saved = 0
+
+    -- reset bonus tracking
+    collision_count = 0
+    total_bonuses = 0
+    soft_landing_count = 0
+    fuel_efficiency_count = 0
+    precision_landing_count = 0
+    perfect_run_count = 0
+    best_landing_score = 0
+
     init_level()
     music(1)  -- start gameplay music
     _log("state:play")
@@ -253,6 +272,9 @@ function init_level()
   camera_y = 0
   last_cam_log = -999
   surface_y = 400 + (level * 50)
+
+  -- reset collision count for perfect run bonus
+  collision_count = 0
 
   -- generate landing zones
   landing_zones = {}
@@ -418,6 +440,7 @@ function update_play()
     local dy = ship.y - a.y
     if sqrt(dx * dx + dy * dy) < 4 + a.r then
       ship.alive = false
+      collision_count += 1
       _log("crash:asteroid")
       do_crash()
       return
@@ -475,7 +498,7 @@ function update_play()
         if velocity < vel_thresh[difficulty + 1] and (abs(ship.angle) < 0.1 or abs(ship.angle - 1) < 0.1) then
           -- successful landing
           landed = true
-          do_landing(velocity)
+          do_landing(velocity, z.x, z.w)
           break
         end
       end
@@ -500,13 +523,13 @@ function update_play()
   end
 end
 
-function do_landing(velocity)
+function do_landing(velocity, zone_x, zone_w)
   _log("landing:velocity:"..flr(velocity * 10))
 
   -- landing sfx
   sfx(1)
 
-  -- calculate score
+  -- calculate base score
   local base = 100
   local fuel_bonus = ship.fuel * 5
   local speed_bonus = (velocity < 1) and 20 or 0
@@ -516,9 +539,120 @@ function do_landing(velocity)
   -- difficulty score multipliers
   local diff_mult = {0.8, 1.0, 1.5}  -- easy, normal, hard
 
-  local landing_score = flr((base + fuel_bonus + speed_bonus) * chain_multiplier * diff_mult[difficulty + 1])
+  -- precision bonuses
+  local precision_bonuses = 0
+
+  -- 1. soft landing bonus (velocity < 0.5)
+  if velocity < 0.5 then
+    local soft_bonus = 50
+    precision_bonuses += soft_bonus
+    soft_landing_count += 1
+    _log("bonus:soft_landing:"..soft_bonus)
+
+    -- gold particles
+    for i = 1, 12 do
+      add(particles, {
+        x = ship.x,
+        y = ship.y,
+        vx = rnd(2) - 1,
+        vy = rnd(2) - 1,
+        life = 25,
+        col = 10  -- gold
+      })
+    end
+
+    sfx(16)  -- soft landing sfx
+  end
+
+  -- 2. fuel efficiency bonus (>60% fuel)
+  local fuel_table = {80, 70, 60, 50, 40}
+  local fuel_mult = {1.15, 1.0, 0.8}
+  local max_fuel = flr((fuel_table[level] or 40) * fuel_mult[difficulty + 1])
+  local fuel_pct = ship.fuel / max_fuel
+
+  if fuel_pct > 0.6 then
+    local fuel_eff_bonus = flr(ship.fuel * 3)
+    precision_bonuses += fuel_eff_bonus
+    fuel_efficiency_count += 1
+    _log("bonus:fuel_efficiency:"..fuel_eff_bonus)
+
+    -- cyan particles
+    for i = 1, 10 do
+      add(particles, {
+        x = ship.x,
+        y = ship.y,
+        vx = rnd(2) - 1,
+        vy = rnd(2) - 1,
+        life = 20,
+        col = 12  -- cyan
+      })
+    end
+
+    sfx(17)  -- fuel efficiency sfx
+  end
+
+  -- 3. precision landing bonus (center third of zone)
+  local zone_center = zone_x + zone_w / 2
+  local zone_third = zone_w / 3
+  local dist_from_center = abs(ship.x - zone_center)
+
+  if dist_from_center < zone_third / 2 then
+    local precision_bonus = 75
+    precision_bonuses += precision_bonus
+    precision_landing_count += 1
+    _log("bonus:precision_landing:"..precision_bonus)
+
+    -- white star burst
+    for i = 1, 8 do
+      add(particles, {
+        x = ship.x,
+        y = ship.y,
+        vx = cos(i / 8) * 2,
+        vy = sin(i / 8) * 2,
+        life = 18,
+        col = 7  -- white
+      })
+    end
+
+    sfx(18)  -- precision landing sfx
+  end
+
+  -- 4. perfect run bonus (no collisions this level)
+  if collision_count == 0 then
+    local perfect_bonus = 100
+    precision_bonuses += perfect_bonus
+    perfect_run_count += 1
+    _log("bonus:perfect_run:"..perfect_bonus)
+
+    -- rainbow particles
+    for i = 1, 15 do
+      add(particles, {
+        x = ship.x,
+        y = ship.y,
+        vx = rnd(3) - 1.5,
+        vy = rnd(3) - 1.5,
+        life = 30,
+        col = 8 + (i % 8)  -- rainbow colors
+      })
+    end
+
+    sfx(19)  -- perfect run sfx
+  end
+
+  -- apply multipliers to bonuses
+  local multiplied_bonuses = flr(precision_bonuses * chain_multiplier * diff_mult[difficulty + 1])
+  total_bonuses += multiplied_bonuses
+
+  -- calculate total landing score
+  local landing_score = flr((base + fuel_bonus + speed_bonus) * chain_multiplier * diff_mult[difficulty + 1]) + multiplied_bonuses
   score += landing_score
   total_fuel_saved += ship.fuel
+
+  -- track best landing
+  if landing_score > best_landing_score then
+    best_landing_score = landing_score
+    _log("best_landing:"..best_landing_score)
+  end
 
   _log("score:"..score)
   _log("chain:"..chain)
@@ -569,6 +703,11 @@ function do_landing(velocity)
 end
 
 function do_crash()
+  -- track collision (skip if already counted from asteroid hit)
+  if ship.alive then
+    collision_count += 1
+  end
+
   -- crash sfx and music
   sfx(2)
   music(2)  -- game over music
@@ -700,17 +839,26 @@ end
 
 function draw_gameover()
   if level > 5 then
-    print("mission complete!", 24, 30, 11)
+    print("mission complete!", 24, 20, 11)
   else
-    print("mission failed", 32, 30, 8)
+    print("mission failed", 32, 20, 8)
   end
 
-  print("final score: "..score, 28, 50, 7)
-  print("levels completed: "..(level - 1), 16, 60, 7)
-  print("chain best: "..chain, 32, 70, 7)
-  print("fuel saved: "..total_fuel_saved, 24, 80, 7)
+  print("final score: "..score, 28, 35, 7)
+  print("best landing: "..best_landing_score, 24, 43, 10)
+  print("total bonuses: "..total_bonuses, 20, 51, 10)
 
-  print("press o/x to restart", 16, 105, 6)
+  -- bonus breakdown
+  print("bonus breakdown:", 24, 62, 6)
+  print("soft landings: "..soft_landing_count, 8, 70, 7)
+  print("fuel efficient: "..fuel_efficiency_count, 8, 77, 7)
+  print("precision: "..precision_landing_count, 8, 84, 7)
+  print("perfect runs: "..perfect_run_count, 8, 91, 7)
+
+  print("levels: "..(level - 1), 8, 102, 6)
+  print("fuel: "..total_fuel_saved, 64, 102, 6)
+
+  print("press o/x to restart", 16, 115, 6)
 end
 
 __gfx__
@@ -739,6 +887,10 @@ __sfx__
 00100000245302453024530245302453024530245302453024530245302453000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00100000205302053020530205302053020530205302053020530205302053000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000001c5301c5301c5301c5301c5301c5301c5301c53000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000002055023550265502a5502d550305503355037550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000001855020550235502655028550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000002355027550295502d5503055033550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000001855020550235502755029550305503555038550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
 00 08090a0b
 00 0c0d0e0f
