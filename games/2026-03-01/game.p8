@@ -68,6 +68,7 @@ fuel_pickups = {}
 enemies = {}
 powerups = {}
 active_powerups = {}
+hazard_zones = {}
 surface_y = 0
 camera_y = 0
 last_cam_log = -999
@@ -459,6 +460,66 @@ function init_level()
     end
   end
 
+  -- generate thermal hazard zones
+  hazard_zones = {}
+  local hazard_counts = {0, 2, 3, 4, 4}  -- level 1: 0, level 2: 2, level 3: 3, level 4+: 4
+  local hazard_count = hazard_counts[min(level, 5)]
+
+  -- adjust for difficulty (easy=fewer, hard=more)
+  if difficulty == 0 and hazard_count > 0 then
+    hazard_count -= 1  -- easy mode: one fewer hazard
+  elseif difficulty == 2 and level >= 3 then
+    hazard_count = min(hazard_count + 1, 5)  -- hard mode: one more hazard (max 5)
+  end
+
+  for i = 1, hazard_count do
+    local hx, hy, valid
+    local attempts = 0
+    repeat
+      hx = 15 + rnd(98)
+      hy = surface_y - 2  -- on the surface
+      valid = true
+      attempts += 1
+
+      -- check distance from landing zones (must be at least 25px away)
+      for z in all(landing_zones) do
+        if abs(hx - (z.x + z.w / 2)) < 25 then
+          valid = false
+          break
+        end
+      end
+
+      -- check distance from asteroids near surface (must be at least 20px away)
+      for a in all(asteroids) do
+        if a.y > surface_y - 30 then  -- only check asteroids near surface
+          local dx = hx - a.x
+          if abs(dx) < a.r + 15 then
+            valid = false
+            break
+          end
+        end
+      end
+
+      -- check distance from other hazard zones (must be at least 30px apart)
+      for h in all(hazard_zones) do
+        if abs(hx - h.x) < 30 then
+          valid = false
+          break
+        end
+      end
+    until valid or attempts > 30
+
+    if valid then
+      add(hazard_zones, {
+        x = hx,
+        y = hy,
+        r = 6,  -- radius
+        anim = rnd(1)  -- animation offset for variation
+      })
+      _log("hazard:spawn:"..flr(hx)..","..flr(hy))
+    end
+  end
+
   particles = {}
 end
 
@@ -691,6 +752,52 @@ function update_play()
         ship.alive = false
         collision_count += 1
         _log("crash:enemy")
+        do_crash()
+        return
+      end
+    end
+  end
+
+  -- collision with thermal hazard zones
+  for h in all(hazard_zones) do
+    local dx = ship.x - h.x
+    local dy = ship.y - h.y
+    if sqrt(dx * dx + dy * dy) < 4 + h.r then
+      -- check for shield
+      local shield_active = false
+      for p in all(active_powerups) do
+        if p.type == 1 then  -- shield type
+          shield_active = true
+          del(active_powerups, p)
+          _log("shield:absorbed:hazard")
+
+          -- shield absorption particles (orange/red)
+          for i = 1, 15 do
+            add(particles, {
+              x = ship.x,
+              y = ship.y,
+              vx = rnd(3) - 1.5,
+              vy = rnd(3) - 1.5,
+              life = 20,
+              col = (i % 2 == 0) and 8 or 9  -- alternating red/orange
+            })
+          end
+
+          -- shield absorption sfx
+          sfx(6)
+
+          -- screen shake
+          shake_frames = 5
+          shake_intensity = 0.5
+
+          break
+        end
+      end
+
+      if not shield_active then
+        ship.alive = false
+        collision_count += 1
+        _log("crash:hazard")
         do_crash()
         return
       end
@@ -953,6 +1060,35 @@ function do_landing(velocity, zone_x, zone_w)
     sfx(19)  -- perfect run sfx
   end
 
+  -- 5. hazard near-miss bonus (landed within 10px of a thermal hazard)
+  local nearest_hazard_dist = 999
+  for h in all(hazard_zones) do
+    local dist = abs(ship.x - h.x)
+    if dist < nearest_hazard_dist then
+      nearest_hazard_dist = dist
+    end
+  end
+
+  if nearest_hazard_dist < 10 then
+    local near_miss_bonus = 25 + rnd(16)  -- 25-40 points
+    precision_bonuses += flr(near_miss_bonus)
+    _log("bonus:hazard_near_miss:"..flr(near_miss_bonus))
+
+    -- orange/red warning particles
+    for i = 1, 10 do
+      add(particles, {
+        x = ship.x,
+        y = ship.y,
+        vx = rnd(2.5) - 1.25,
+        vy = rnd(2.5) - 1.25,
+        life = 22,
+        col = (i % 2 == 0) and 8 or 9  -- alternating red/orange
+      })
+    end
+
+    sfx(20)  -- near-miss warning sfx
+  end
+
   -- apply multipliers to bonuses
   local multiplied_bonuses = flr(precision_bonuses * chain_multiplier * diff_mult[difficulty + 1])
   total_bonuses += multiplied_bonuses
@@ -1056,6 +1192,24 @@ function draw_world()
   -- draw landing zones
   for z in all(landing_zones) do
     rectfill(z.x, z.y, z.x + z.w, z.y + z.h, 11)
+  end
+
+  -- draw thermal hazard zones (pulsing red/orange circles)
+  for h in all(hazard_zones) do
+    -- pulsing animation (slower pulse for hazards)
+    local pulse = sin((t() * 1.5 + h.anim)) * 2 + h.r
+    local glow = sin((t() * 3 + h.anim)) * 1.5 + 3
+
+    -- outer glow (warning effect)
+    circfill(h.x, h.y, glow, 2)  -- dark red glow
+
+    -- main hazard circle (alternating colors for heat effect)
+    local heat_phase = flr((t() * 4 + h.anim) % 2)
+    local heat_col = (heat_phase == 0) and 8 or 9  -- alternate red/orange
+    circfill(h.x, h.y, pulse, heat_col)
+
+    -- bright center
+    circfill(h.x, h.y, pulse * 0.5, 10)  -- yellow center
   end
 
   -- draw asteroids
