@@ -551,7 +551,8 @@ function init_level()
       attack_timer = attack_cooldown,  -- time until next attack
       attack_telegraph = 0,  -- telegraph effect countdown
       attack_cooldown = attack_cooldown,  -- store for reset
-      attack_pattern = 0  -- 0=burst, 1=aimed, 2=ring
+      attack_pattern = 0,  -- 0=burst, 1=aimed, 2=ring, 3=homing
+      phase2 = false  -- phase 2 flag
     }
 
     _log("boss:spawn:"..flr(bx)..","..flr(by)..":level:"..level)
@@ -622,7 +623,9 @@ function update_enemies()
         if boss.attack_timer <= 0 then
           -- start telegraph
           boss.attack_telegraph = 30  -- 30-frame warning
-          boss.attack_pattern = flr(rnd(3))  -- random pattern (0=burst, 1=aimed, 2=ring)
+          -- select pattern: phase 2 can use homing (pattern 3)
+          local max_pattern = boss.phase2 and 4 or 3
+          boss.attack_pattern = flr(rnd(max_pattern))  -- random pattern
           _log("boss:telegraph:pattern:"..boss.attack_pattern)
           sfx(8)  -- attack warning sfx
         end
@@ -871,6 +874,36 @@ function update_play()
           del(active_powerups, p)
           boss.hp -= 1
           _log("shield:absorbed:boss:hp:"..boss.hp)
+
+          -- check for phase 2 trigger
+          if boss.hp == 1 and not boss.phase2 then
+            boss.phase2 = true
+            boss.col = 12  -- cyan color
+            _log("boss:phase2")
+
+            -- phase 2 transformation effects
+            sfx(10)  -- phase 2 sfx
+            shake_frames = 6
+            shake_intensity = 0.8
+
+            -- phase 2 particles (25+ fast particles)
+            for i = 1, 30 do
+              add(particles, {
+                x = boss.x,
+                y = boss.y,
+                vx = (rnd(5) - 2.5) * 1.5,
+                vy = (rnd(5) - 2.5) * 1.5,
+                life = 30,
+                col = 12  -- cyan
+              })
+            end
+
+            -- double movement speed
+            boss.vx = boss.vx * 2
+
+            -- reduce attack cooldown (60% of original)
+            boss.attack_cooldown = flr(boss.attack_cooldown * 0.6)
+          end
 
           -- shield absorption particles (boss color)
           for i = 1, 15 do
@@ -1359,6 +1392,9 @@ function boss_fire_attack()
   local projectile_counts = {3, 4, 5}
   local proj_count = projectile_counts[difficulty + 1]
 
+  -- phase 2 speed multiplier (+20%)
+  local speed_mult = boss.phase2 and 1.2 or 1.0
+
   -- attack sfx
   sfx(9)
   _log("boss:attack:pattern:"..boss.attack_pattern)
@@ -1366,9 +1402,9 @@ function boss_fire_attack()
   -- boss flash effect
   boss.flash_timer = 5
 
-  -- screen shake
-  shake_frames = 3
-  shake_intensity = 0.3
+  -- screen shake (enhanced in phase 2)
+  shake_frames = boss.phase2 and 5 or 3
+  shake_intensity = boss.phase2 and 0.5 or 0.3
 
   if boss.attack_pattern == 0 then
     -- burst spray (8-way spread)
@@ -1377,8 +1413,8 @@ function boss_fire_attack()
       add(boss_projectiles, {
         x = boss.x,
         y = boss.y,
-        vx = cos(angle) * 1.5,
-        vy = sin(angle) * 1.5,
+        vx = cos(angle) * 1.5 * speed_mult,
+        vy = sin(angle) * 1.5 * speed_mult,
         r = 2,
         col = boss.col
       })
@@ -1394,23 +1430,43 @@ function boss_fire_attack()
       add(boss_projectiles, {
         x = boss.x,
         y = boss.y,
-        vx = cos(angle) * 2.0,
-        vy = sin(angle) * 2.0,
+        vx = cos(angle) * 2.0 * speed_mult,
+        vy = sin(angle) * 2.0 * speed_mult,
         r = 2,
         col = boss.col
       })
     end
-  else
+  elseif boss.attack_pattern == 2 then
     -- ring pattern (12-way all directions)
     for i = 0, 11 do
       local angle = i / 12
       add(boss_projectiles, {
         x = boss.x,
         y = boss.y,
-        vx = cos(angle) * 1.2,
-        vy = sin(angle) * 1.2,
+        vx = cos(angle) * 1.2 * speed_mult,
+        vy = sin(angle) * 1.2 * speed_mult,
         r = 2,
         col = boss.col
+      })
+    end
+  else
+    -- homing ring (phase 2 only: 8 projectiles that curve toward player)
+    local dx = ship.x - boss.x
+    local dy = ship.y - boss.y
+    local target_angle = atan2(dx, dy)
+    for i = 0, 7 do
+      local angle = i / 8
+      -- blend between ring angle and target angle for homing effect
+      local homing_angle = angle * 0.7 + target_angle * 0.3
+      add(boss_projectiles, {
+        x = boss.x,
+        y = boss.y,
+        vx = cos(homing_angle) * 1.8,
+        vy = sin(homing_angle) * 1.8,
+        r = 2,
+        col = boss.col,
+        homing = true,  -- mark as homing for potential future behavior
+        target_angle = target_angle
       })
     end
   end
@@ -1419,18 +1475,31 @@ end
 function do_boss_defeat()
   if not boss then return end
 
-  _log("boss:defeated")
+  -- check if phase 2 for enhanced defeat
+  local is_phase2 = boss.phase2
+  if is_phase2 then
+    _log("boss:phase2:defeated")
+  else
+    _log("boss:defeated")
+  end
 
-  -- award bonus points
-  local bonus = 150
+  -- award bonus points (extra 100 for phase 2)
+  local bonus = is_phase2 and 250 or 150
   score += bonus
   _log("score:"..score..":boss_bonus:"..bonus)
 
-  -- boss defeat sfx (powerful explosion)
-  sfx(2, -1, 0)  -- explosion sound
+  -- boss defeat sfx
+  if is_phase2 then
+    -- extended fanfare for phase 2
+    sfx(10)  -- first fanfare
+    sfx(11, -1, 0)  -- second fanfare chained
+  else
+    sfx(2, -1, 0)  -- explosion sound
+  end
 
-  -- boss defeat particles (20+ particles in boss color)
-  for i = 1, 25 do
+  -- boss defeat particles (50+ for phase 2, 25 for normal)
+  local particle_count = is_phase2 and 55 or 25
+  for i = 1, particle_count do
     add(particles, {
       x = boss.x,
       y = boss.y,
@@ -1441,9 +1510,9 @@ function do_boss_defeat()
     })
   end
 
-  -- screen shake
-  shake_frames = 8
-  shake_intensity = 1.0
+  -- screen shake (enhanced for phase 2)
+  shake_frames = is_phase2 and 12 or 8
+  shake_intensity = is_phase2 and 1.5 or 1.0
 
   -- remove boss
   boss = nil
@@ -1534,6 +1603,13 @@ function draw_world()
       circ(boss.x, boss.y, r + 1, 7)  -- white glow
     else
       -- normal boss appearance
+      -- phase 2 aura effect (semi-transparent larger circle)
+      if boss.phase2 then
+        local aura_r = boss.r + 4 + sin(boss.anim * 2) * 2
+        circ(boss.x, boss.y, aura_r, 12)  -- cyan outer aura
+        circ(boss.x, boss.y, aura_r - 1, 7)  -- white inner aura
+      end
+
       -- telegraph warning effect (flashing glow)
       if boss.attack_telegraph > 0 and boss.attack_telegraph % 6 < 3 then
         circ(boss.x, boss.y, boss.r + 3, 10)  -- yellow warning glow
@@ -1674,6 +1750,11 @@ function draw_hud()
 
   if chain > 1 then
     print("x"..flr((1 + (chain - 1) * 0.5) * 10) / 10, 110, 16, 11)
+  end
+
+  -- phase 2 indicator
+  if boss and boss.phase2 then
+    print("phase 2", 46, 2, 12)  -- cyan text, centered
   end
 
   -- active power-ups display
