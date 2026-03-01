@@ -571,8 +571,50 @@ function init_level()
   local zone_count = min(3 + level - 1, 5)
   local base_width = 20
   local zone_width = flr(base_width * zone_mult[difficulty + 1])
+
+  -- generate random zone positions
+  local zone_positions = {}
+  local min_spacing = 16
+  local max_attempts = 50
+  local attempt = 0
+  local valid = false
+
+  while not valid and attempt < max_attempts do
+    attempt += 1
+    zone_positions = {}
+
+    -- generate random x positions
+    for i = 1, zone_count do
+      local min_x = 8 + flr(zone_width / 2)
+      local max_x = 120 - flr(zone_width / 2)
+      local zx = min_x + rnd(max_x - min_x)
+      add(zone_positions, zx)
+    end
+
+    -- sort positions
+    for i = 1, #zone_positions - 1 do
+      for j = i + 1, #zone_positions do
+        if zone_positions[i] > zone_positions[j] then
+          local tmp = zone_positions[i]
+          zone_positions[i] = zone_positions[j]
+          zone_positions[j] = tmp
+        end
+      end
+    end
+
+    -- check spacing
+    valid = true
+    for i = 1, #zone_positions - 1 do
+      if zone_positions[i + 1] - zone_positions[i] < min_spacing then
+        valid = false
+        break
+      end
+    end
+  end
+
+  -- create landing zones from positions
   for i = 1, zone_count do
-    local zx = 10 + (i - 1) * (108 / (zone_count - 1))
+    local zx = zone_positions[i]
     local zy = surface_y - 2
     add(landing_zones, {
       x = zx,
@@ -581,6 +623,7 @@ function init_level()
       h = 2
     })
   end
+  _log("zones:"..zone_count.." spacing:valid")
 
   -- generate asteroids
   asteroids = {}
