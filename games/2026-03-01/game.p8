@@ -69,6 +69,12 @@ high_level = 0
 high_landing = 0
 new_record = false  -- flag for new record celebration
 
+-- leaderboard system
+leaderboard = {}  -- top 5 scores with names
+player_name = "AAA"  -- name being entered
+name_entry_pos = 0  -- current character (0-2)
+player_rank = 0  -- player's rank in leaderboard
+
 -- achievement system
 achievements = {}  -- 15 boolean flags for unlocked achievements
 new_achievements = {}  -- achievements unlocked this session
@@ -148,6 +154,7 @@ last_cam_log = -999
 function _init()
   load_highscores()
   load_achievements()
+  load_leaderboard()
   _log("state:menu")
   music(0)  -- start menu music
 end
@@ -190,6 +197,111 @@ function save_achievements()
     dset(3 + i, achievements[i] and 1 or 0)  -- slots 16-18
   end
   _log("save:achievements")
+end
+
+-- leaderboard persistence (slots 19-28)
+function encode_name(name)
+  -- convert 3-char string to number
+  local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
+  local val = 0
+  for i = 1, 3 do
+    local c = sub(name, i, i)
+    local code = 37  -- default to space
+    -- find character position in lookup table
+    for j = 1, #chars do
+      if sub(chars, j, j) == c then
+        code = j
+        break
+      end
+    end
+    val = val * 40 + code
+  end
+  return val
+end
+
+function decode_name(val)
+  -- convert number back to 3-char string
+  local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
+  local name = ""
+  for i = 1, 3 do
+    local code = val % 40
+    val = flr(val / 40)
+    if code >= 1 and code <= 37 then
+      name = sub(chars, code, code)..name
+    else
+      name = " "..name
+    end
+  end
+  return name
+end
+
+function load_leaderboard()
+  leaderboard = {}
+  for i = 1, 5 do
+    local score = dget(18 + i * 2)
+    local name_code = dget(19 + i * 2)
+    if score > 0 then
+      add(leaderboard, {
+        score = score,
+        name = decode_name(name_code)
+      })
+    end
+  end
+  _log("load:leaderboard:"..#leaderboard.." entries")
+end
+
+function save_leaderboard()
+  for i = 1, 5 do
+    if i <= #leaderboard then
+      dset(18 + i * 2, leaderboard[i].score)
+      dset(19 + i * 2, encode_name(leaderboard[i].name))
+    else
+      dset(18 + i * 2, 0)
+      dset(19 + i * 2, 0)
+    end
+  end
+  _log("save:leaderboard:"..#leaderboard.." entries")
+end
+
+function get_leaderboard_rank(score)
+  -- returns rank (1-5) or 0 if not in top 5
+  if score == 0 then return 0 end
+
+  local rank = 1
+  for entry in all(leaderboard) do
+    if score <= entry.score then
+      rank += 1
+    end
+  end
+
+  if rank <= 5 then
+    return rank
+  end
+  return 0
+end
+
+function insert_leaderboard_entry(score, name)
+  -- insert entry in sorted order and keep top 5
+  add(leaderboard, {score = score, name = name})
+
+  -- bubble sort (simple for small array)
+  for i = 1, #leaderboard - 1 do
+    for j = i + 1, #leaderboard do
+      if leaderboard[j].score > leaderboard[i].score then
+        local temp = leaderboard[i]
+        leaderboard[i] = leaderboard[j]
+        leaderboard[j] = temp
+      end
+    end
+  end
+
+  -- keep only top 5
+  while #leaderboard > 5 do
+    del(leaderboard, leaderboard[6])
+  end
+
+  save_leaderboard()
+  _log("leaderboard:insert:"..name.."="..score)
 end
 
 function count_achievements()
@@ -360,6 +472,10 @@ function _update()
     update_difficulty_select()
   elseif state == "achievements" then
     update_achievements()
+  elseif state == "leaderboard" then
+    update_leaderboard()
+  elseif state == "name_entry" then
+    update_name_entry()
   elseif state == "play" then
     update_play()
   elseif state == "pause" then
@@ -409,6 +525,10 @@ function _draw()
     draw_difficulty_select()
   elseif state == "achievements" then
     draw_achievements()
+  elseif state == "leaderboard" then
+    draw_leaderboard()
+  elseif state == "name_entry" then
+    draw_name_entry()
   elseif state == "play" then
     draw_world()  -- draw world elements in world space
   elseif state == "pause" then
@@ -434,7 +554,7 @@ function update_menu()
     menu_cursor = max(0, menu_cursor - 1)
     sfx(4)
   elseif test_inputp(3) then  -- down
-    menu_cursor = min(1, menu_cursor + 1)
+    menu_cursor = min(2, menu_cursor + 1)
     sfx(4)
   end
 
@@ -445,7 +565,7 @@ function update_menu()
       state = "difficulty_select"
       difficulty_cursor = 1  -- reset cursor to normal
       _log("state:difficulty_select:normal")
-    else
+    elseif menu_cursor == 1 then
       -- time attack mode
       game_mode = "time_attack"
       difficulty = 1  -- always normal difficulty
@@ -467,6 +587,10 @@ function update_menu()
       init_level()
       music(1)
       _log("state:play:time_attack")
+    else
+      -- leaderboard
+      state = "leaderboard"
+      _log("state:leaderboard")
     end
   elseif test_inputp(5) then  -- X button - achievements
     state = "achievements"
@@ -494,21 +618,26 @@ function draw_menu()
 
   local norm_col = (menu_cursor == 0) and 11 or 6
   local time_col = (menu_cursor == 1) and 11 or 6
+  local lead_col = (menu_cursor == 2) and 11 or 6
 
   print("\x8e normal mode", 24, 58, norm_col)
   print("\x8e time attack", 24, 66, time_col)
+  print("\x8e leaderboard", 24, 74, lead_col)
 
   -- mode description
   if menu_cursor == 0 then
-    print("classic lander", 24, 78, 13)
-    print("all features", 24, 85, 13)
+    print("classic lander", 24, 86, 13)
+    print("all features", 24, 93, 13)
+  elseif menu_cursor == 1 then
+    print("race vs clock!", 24, 86, 13)
+    print("4 min, no power-ups", 14, 93, 13)
   else
-    print("race vs clock!", 24, 78, 13)
-    print("4 min, no power-ups", 14, 85, 13)
+    print("top 5 scores", 28, 86, 13)
+    print("with player names", 20, 93, 13)
   end
 
-  print("up/down: select", 24, 100, 6)
-  print("o: start  x: achievements", 8, 108, 6)
+  print("up/down: select", 24, 104, 6)
+  print("o: start  x: achievements", 8, 112, 6)
 end
 
 -- achievements state
@@ -555,6 +684,140 @@ function draw_achievements()
   end
 
   print("press x/o to return", 20, 119, 6)
+end
+
+-- leaderboard state
+function update_leaderboard()
+  if test_inputp(5) or test_inputp(4) then  -- X or O button - back to menu
+    state = "menu"
+    _log("state:menu")
+  end
+end
+
+function draw_leaderboard()
+  print("leaderboard", 36, 8, 7)
+  print("top 5 scores", 32, 16, 13)
+
+  if #leaderboard == 0 then
+    print("no scores yet!", 28, 50, 6)
+    print("play to set a record!", 16, 58, 13)
+  else
+    for i = 1, #leaderboard do
+      local entry = leaderboard[i]
+      local y = 32 + i * 14
+
+      -- rank with trophy/color
+      local rank_col = 7
+      local trophy = ""
+      if i == 1 then
+        rank_col = 10  -- gold
+        trophy = "\x8e"
+      elseif i == 2 then
+        rank_col = 12  -- blue
+        trophy = "\x8f"
+      elseif i == 3 then
+        rank_col = 14  -- pink
+        trophy = "\x94"
+      end
+
+      print(trophy.." "..i..".", 12, y, rank_col)
+      print(entry.name, 32, y, rank_col)
+      print(entry.score, 68, y, 7)
+
+      -- highlight if this is the player's recent entry
+      if player_rank == i and player_rank > 0 then
+        rect(10, y - 2, 118, y + 8, 11)
+      end
+    end
+  end
+
+  print("press x/o to return", 20, 119, 6)
+end
+
+-- name entry state
+function update_name_entry()
+  -- left/right: move between characters
+  if test_inputp(0) then  -- left
+    name_entry_pos = max(0, name_entry_pos - 1)
+    sfx(4)
+  elseif test_inputp(1) then  -- right
+    name_entry_pos = min(2, name_entry_pos + 1)
+    sfx(4)
+  end
+
+  -- up/down: cycle through characters
+  if test_inputp(2) or test_inputp(3) then  -- up or down
+    local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
+    local current_char = sub(player_name, name_entry_pos + 1, name_entry_pos + 1)
+    local char_idx = 1
+
+    -- find current character in list
+    for i = 1, #chars do
+      if sub(chars, i, i) == current_char then
+        char_idx = i
+        break
+      end
+    end
+
+    -- move to next/prev character
+    if test_inputp(2) then  -- up
+      char_idx = char_idx - 1
+      if char_idx < 1 then char_idx = #chars end
+    else  -- down
+      char_idx = char_idx + 1
+      if char_idx > #chars then char_idx = 1 end
+    end
+
+    -- update player_name
+    local new_char = sub(chars, char_idx, char_idx)
+    local before = sub(player_name, 1, name_entry_pos)
+    local after = sub(player_name, name_entry_pos + 2, 3)
+    player_name = before..new_char..after
+
+    sfx(4)
+  end
+
+  -- O button: confirm
+  if test_inputp(4) then
+    insert_leaderboard_entry(score, player_name)
+    state = "gameover"
+    _log("state:gameover:name_saved")
+  end
+
+  -- X button: cancel (use default name)
+  if test_inputp(5) then
+    insert_leaderboard_entry(score, "???")
+    state = "gameover"
+    _log("state:gameover:name_cancelled")
+  end
+end
+
+function draw_name_entry()
+  print("new high score!", 28, 20, 10)
+  print("you placed #"..player_rank.."!", 32, 28, 11)
+
+  print("enter your name:", 24, 48, 7)
+
+  -- draw name with cursor
+  for i = 0, 2 do
+    local char = sub(player_name, i + 1, i + 1)
+    local x = 40 + i * 16
+    local y = 60
+
+    -- highlight current character
+    if i == name_entry_pos then
+      rectfill(x - 2, y - 2, x + 8, y + 8, 1)
+      print(char, x, y, 11)
+    else
+      print(char, x, y, 7)
+    end
+  end
+
+  print("left/right: move", 24, 80, 13)
+  print("up/down: change letter", 12, 88, 13)
+  print("o: confirm  x: skip", 20, 100, 6)
+
+  print("final score: "..score, 28, 112, 10)
 end
 
 -- difficulty selection state
@@ -1226,8 +1489,18 @@ function update_play()
     -- wait for input after crash
     if test_inputp(4) or test_inputp(5) then
       check_and_save_records()
-      state = "gameover"
-      _log("state:gameover")
+
+      -- check if player made leaderboard
+      player_rank = get_leaderboard_rank(score)
+      if player_rank > 0 then
+        player_name = "AAA"
+        name_entry_pos = 0
+        state = "name_entry"
+        _log("state:name_entry:rank:"..player_rank)
+      else
+        state = "gameover"
+        _log("state:gameover")
+      end
     end
     return
   end
@@ -2208,9 +2481,20 @@ function do_landing(velocity, zone_x, zone_w)
   if level >= 6 then
     -- game complete
     check_and_save_records()
-    state = "gameover"
+
+    -- check if player made leaderboard
+    player_rank = get_leaderboard_rank(score)
+    if player_rank > 0 then
+      player_name = "AAA"
+      name_entry_pos = 0
+      state = "name_entry"
+      _log("state:name_entry:rank:"..player_rank)
+    else
+      state = "gameover"
+      _log("state:gameover:win")
+    end
+
     music(3)  -- victory music
-    _log("state:gameover:win")
   else
     -- continue to next level
     init_level()
@@ -2809,6 +3093,7 @@ function update_gameover()
   if test_inputp(4) or test_inputp(5) then
     state = "menu"
     new_record = false  -- reset celebration flag
+    player_rank = 0  -- reset rank display
     music(0)  -- restart menu music
     _log("state:menu")
   end
@@ -2859,28 +3144,29 @@ function draw_gameover()
       print("*** new record! ***", 20, 28, 10)
     end
 
-    print("final score: "..score, 28, 35, 7)
-    print("best landing: "..best_landing_score, 24, 43, 10)
-    print("total bonuses: "..total_bonuses, 20, 51, 10)
+    -- show leaderboard rank
+    if player_rank > 0 then
+      local rank_col = player_rank == 1 and 10 or (player_rank == 2 and 12 or (player_rank == 3 and 14 or 11))
+      print("you placed #"..player_rank.."!", 28, 35, rank_col)
+    end
+
+    print("final score: "..score, 28, 43, 7)
+    print("best landing: "..best_landing_score, 24, 51, 10)
+    print("total bonuses: "..total_bonuses, 20, 59, 10)
 
     -- bonus breakdown
-    print("bonus breakdown:", 24, 62, 6)
-    print("soft landings: "..soft_landing_count, 8, 70, 7)
-    print("fuel efficient: "..fuel_efficiency_count, 8, 77, 7)
-    print("precision: "..precision_landing_count, 8, 84, 7)
-    print("perfect runs: "..perfect_run_count, 8, 91, 7)
+    print("bonus breakdown:", 24, 70, 6)
+    print("soft landings: "..soft_landing_count, 8, 78, 7)
+    print("fuel efficient: "..fuel_efficiency_count, 8, 85, 7)
+    print("precision: "..precision_landing_count, 8, 92, 7)
+    print("perfect runs: "..perfect_run_count, 8, 99, 7)
 
-    -- new achievements this session
-    if #new_achievements > 0 then
-      print("new achievements:", 20, 98, 11)
-      local y = 105
-      for i = 1, min(#new_achievements, 2) do
-        local ach_id = new_achievements[i]
-        print("\x8e "..achievement_names[ach_id], 16, y, 10)
-        y += 7
-      end
-    else
-      print("achievements: "..count_achievements().."/12", 24, 105, 6)
+    -- new achievements this session (only show if no rank display)
+    if #new_achievements > 0 and player_rank == 0 then
+      print("new achievements:", 20, 106, 11)
+      print("\x8e "..achievement_names[new_achievements[1]], 16, 113, 10)
+    elseif player_rank == 0 then
+      print("achievements: "..count_achievements().."/15", 24, 110, 6)
     end
   end
 
