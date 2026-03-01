@@ -953,17 +953,40 @@ function init_level()
   if level >= 3 then
     local bx = 80 + rnd(20)  -- spawn in middle-right area
     local by = 100 + rnd(surface_y - 200)  -- random vertical position
-    local boss_col = (level == 5) and 9 or 8  -- orange for level 5, red for 3-4
+
+    -- boss type properties based on level
+    local boss_type = level  -- 3=standard, 4=heavy, 5=elite
+    local boss_col, boss_r, boss_vx, attack_mult
+
+    if level == 3 then
+      -- standard lander (red/orange)
+      boss_col = 8  -- red
+      boss_r = 8
+      boss_vx = 0.2 + rnd(0.1)  -- 0.2-0.3
+      attack_mult = 1.0
+    elseif level == 4 then
+      -- heavy interceptor (purple/magenta) - larger, slower attacks
+      boss_col = 2  -- magenta
+      boss_r = 12  -- 1.5x larger
+      boss_vx = 0.15 + rnd(0.05)  -- 0.15-0.2 (slower)
+      attack_mult = 1.2  -- 20% slower attacks
+    else
+      -- elite guardian (yellow/gold) - smaller, faster
+      boss_col = 10  -- yellow
+      boss_r = 6  -- 0.75x smaller
+      boss_vx = 0.3 + rnd(0.15)  -- 0.3-0.45 (faster)
+      attack_mult = 0.9  -- 10% faster attacks
+    end
 
     -- attack cooldown based on difficulty: easy=240f (4s), normal=180f (3s), hard=120f (2s)
     local attack_cooldowns = {240, 180, 120}
-    local attack_cooldown = attack_cooldowns[difficulty + 1]
+    local attack_cooldown = flr(attack_cooldowns[difficulty + 1] * attack_mult)
 
     boss = {
       x = bx,
       y = by,
-      vx = 0.2 + rnd(0.1),  -- slower speed 0.2-0.3
-      r = 8,  -- larger radius
+      vx = boss_vx,
+      r = boss_r,
       hp = 3,  -- takes 3 hits
       max_hp = 3,
       patrol_min = 16,
@@ -976,10 +999,11 @@ function init_level()
       attack_cooldown = attack_cooldown,  -- store for reset
       attack_pattern = 0,  -- 0=burst, 1=aimed, 2=ring, 3=homing
       phase2 = false,  -- phase 2 flag
-      telegraph_col = 10  -- telegraph warning color (pattern-based)
+      telegraph_col = 10,  -- telegraph warning color (pattern-based)
+      boss_type = boss_type  -- track boss variant
     }
 
-    _log("boss:spawn:"..flr(bx)..","..flr(by)..":level:"..level)
+    _log("boss:spawn:"..flr(bx)..","..flr(by)..":level:"..level..":type:"..boss_type)
 
     -- boss spawn sfx (warning)
     sfx(7, -1, 12)  -- higher pitch warning
@@ -1064,8 +1088,13 @@ function update_enemies()
         -- countdown to next attack
         boss.attack_timer -= 1
         if boss.attack_timer <= 0 then
-          -- start telegraph
-          boss.attack_telegraph = 45  -- 45-frame warning (extended for clarity)
+          -- elite boss in phase 2: reduced telegraph time (unpredictable)
+          local telegraph_time = 45  -- default
+          if boss.phase2 and boss.boss_type == 5 then
+            telegraph_time = 30  -- faster attacks for elite
+          end
+          boss.attack_telegraph = telegraph_time
+
           -- select pattern: phase 2 can use homing (pattern 3)
           local max_pattern = boss.phase2 and 4 or 3
           boss.attack_pattern = flr(rnd(max_pattern))  -- random pattern
@@ -1075,7 +1104,7 @@ function update_enemies()
           local telegraph_colors = {10, 8, 12, 9}
           boss.telegraph_col = telegraph_colors[boss.attack_pattern + 1]
 
-          _log("boss:telegraph:pattern:"..boss.attack_pattern)
+          _log("boss:telegraph:pattern:"..boss.attack_pattern..":type:"..boss.boss_type)
 
           -- attack warning sfx with pitch variation per pattern
           local pitch_offsets = {0, 4, -4, 8}  -- different pitch per pattern
@@ -1375,10 +1404,11 @@ function update_play()
           _log("shield:absorbed:boss:hp:"..boss.hp)
 
           -- check for phase 2 trigger
-          if boss.hp == 1 and not boss.phase2 then
+          if boss.hp <= 2 and not boss.phase2 then
             boss.phase2 = true
-            boss.col = 12  -- cyan color
-            _log("boss:phase2")
+            -- phase 2 color: orange for all types
+            boss.col = 9  -- orange
+            _log("boss:phase2:type:"..boss.boss_type)
 
             -- phase 2 transformation effects
             sfx(10)  -- phase 2 sfx
@@ -1393,15 +1423,24 @@ function update_play()
                 vx = (rnd(5) - 2.5) * 1.5,
                 vy = (rnd(5) - 2.5) * 1.5,
                 life = 30,
-                col = 12  -- cyan
+                col = 9  -- orange
               })
             end
 
-            -- double movement speed
-            boss.vx = boss.vx * 2
-
-            -- reduce attack cooldown (60% of original)
-            boss.attack_cooldown = flr(boss.attack_cooldown * 0.6)
+            -- boss type specific phase 2 enhancements
+            if boss.boss_type == 3 then
+              -- standard: double speed, 60% cooldown
+              boss.vx = boss.vx * 2
+              boss.attack_cooldown = flr(boss.attack_cooldown * 0.6)
+            elseif boss.boss_type == 4 then
+              -- heavy: moderate speed increase, 67% cooldown (1.5x frequency)
+              boss.vx = boss.vx * 1.5
+              boss.attack_cooldown = flr(boss.attack_cooldown * 0.67)
+            else
+              -- elite: triple speed, 50% cooldown
+              boss.vx = boss.vx * 3
+              boss.attack_cooldown = flr(boss.attack_cooldown * 0.5)
+            end
           end
 
           -- shield absorption particles (boss color)
@@ -2234,7 +2273,7 @@ function draw_world()
       -- phase 2 aura effect (semi-transparent larger circle)
       if boss.phase2 then
         local aura_r = boss.r + 4 + sin(boss.anim * 2) * 2
-        circ(boss.x, boss.y, aura_r, 12)  -- cyan outer aura
+        circ(boss.x, boss.y, aura_r, boss.col)  -- outer aura (boss color)
         circ(boss.x, boss.y, aura_r - 1, 7)  -- white inner aura
       end
 
