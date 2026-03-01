@@ -67,6 +67,7 @@ asteroids = {}
 fuel_pickups = {}
 enemies = {}
 boss = nil
+boss_projectiles = {}
 powerups = {}
 active_powerups = {}
 hazard_zones = {}
@@ -525,10 +526,15 @@ function init_level()
 
   -- spawn boss in levels 3, 4, 5
   boss = nil
+  boss_projectiles = {}
   if level >= 3 then
     local bx = 80 + rnd(20)  -- spawn in middle-right area
     local by = 100 + rnd(surface_y - 200)  -- random vertical position
     local boss_col = (level == 5) and 9 or 8  -- orange for level 5, red for 3-4
+
+    -- attack cooldown based on difficulty: easy=240f (4s), normal=180f (3s), hard=120f (2s)
+    local attack_cooldowns = {240, 180, 120}
+    local attack_cooldown = attack_cooldowns[difficulty + 1]
 
     boss = {
       x = bx,
@@ -541,7 +547,11 @@ function init_level()
       patrol_max = 112,
       col = boss_col,
       anim = 0,  -- animation timer
-      spawn_timer = 30  -- entrance effect timer
+      spawn_timer = 30,  -- entrance effect timer
+      attack_timer = attack_cooldown,  -- time until next attack
+      attack_telegraph = 0,  -- telegraph effect countdown
+      attack_cooldown = attack_cooldown,  -- store for reset
+      attack_pattern = 0  -- 0=burst, 1=aimed, 2=ring
     }
 
     _log("boss:spawn:"..flr(bx)..","..flr(by)..":level:"..level)
@@ -595,6 +605,39 @@ function update_enemies()
 
     -- update animation timer
     boss.anim += 0.05
+
+    -- attack system (only attack after spawn animation)
+    if boss.spawn_timer == 0 then
+      -- handle telegraph countdown
+      if boss.attack_telegraph > 0 then
+        boss.attack_telegraph -= 1
+        if boss.attack_telegraph == 0 then
+          -- fire attack
+          boss_fire_attack()
+          boss.attack_timer = boss.attack_cooldown  -- reset attack timer
+        end
+      else
+        -- countdown to next attack
+        boss.attack_timer -= 1
+        if boss.attack_timer <= 0 then
+          -- start telegraph
+          boss.attack_telegraph = 30  -- 30-frame warning
+          boss.attack_pattern = flr(rnd(3))  -- random pattern (0=burst, 1=aimed, 2=ring)
+          _log("boss:telegraph:pattern:"..boss.attack_pattern)
+          sfx(8)  -- attack warning sfx
+        end
+      end
+    end
+  end
+
+  -- update boss projectiles
+  for p in all(boss_projectiles) do
+    p.x += p.vx
+    p.y += p.vy
+    -- remove projectiles that go off-screen
+    if p.x < 0 or p.x > 128 or p.y < 0 or p.y > 128 then
+      del(boss_projectiles, p)
+    end
   end
 end
 
@@ -861,6 +904,54 @@ function update_play()
         ship.alive = false
         collision_count += 1
         _log("crash:boss")
+        do_crash()
+        return
+      end
+    end
+  end
+
+  -- collision with boss projectiles
+  for proj in all(boss_projectiles) do
+    local dx = ship.x - proj.x
+    local dy = ship.y - proj.y
+    if sqrt(dx * dx + dy * dy) < 4 + proj.r then
+      -- check for shield
+      local shield_active = false
+      for p in all(active_powerups) do
+        if p.type == 1 then  -- shield type
+          shield_active = true
+          del(active_powerups, p)
+          del(boss_projectiles, proj)
+          _log("shield:absorbed:projectile")
+
+          -- shield absorption particles
+          for i = 1, 8 do
+            add(particles, {
+              x = ship.x,
+              y = ship.y,
+              vx = rnd(2) - 1,
+              vy = rnd(2) - 1,
+              life = 15,
+              col = 11
+            })
+          end
+
+          -- shield absorption sfx
+          sfx(6)
+
+          -- screen shake
+          shake_frames = 3
+          shake_intensity = 0.3
+
+          break
+        end
+      end
+
+      if not shield_active then
+        ship.alive = false
+        collision_count += 1
+        _log("crash:projectile")
+        del(boss_projectiles, proj)
         do_crash()
         return
       end
@@ -1261,6 +1352,70 @@ function do_landing(velocity, zone_x, zone_w)
   end
 end
 
+function boss_fire_attack()
+  if not boss then return end
+
+  -- projectile counts based on difficulty: easy=3, normal=4, hard=5
+  local projectile_counts = {3, 4, 5}
+  local proj_count = projectile_counts[difficulty + 1]
+
+  -- attack sfx
+  sfx(9)
+  _log("boss:attack:pattern:"..boss.attack_pattern)
+
+  -- boss flash effect
+  boss.flash_timer = 5
+
+  -- screen shake
+  shake_frames = 3
+  shake_intensity = 0.3
+
+  if boss.attack_pattern == 0 then
+    -- burst spray (8-way spread)
+    for i = 0, 7 do
+      local angle = i / 8
+      add(boss_projectiles, {
+        x = boss.x,
+        y = boss.y,
+        vx = cos(angle) * 1.5,
+        vy = sin(angle) * 1.5,
+        r = 2,
+        col = boss.col
+      })
+    end
+  elseif boss.attack_pattern == 1 then
+    -- aimed burst (proj_count shots toward player)
+    local dx = ship.x - boss.x
+    local dy = ship.y - boss.y
+    local base_angle = atan2(dx, dy)
+    for i = 1, proj_count do
+      local spread = (i - (proj_count + 1) / 2) * 0.03  -- slight spread
+      local angle = base_angle + spread
+      add(boss_projectiles, {
+        x = boss.x,
+        y = boss.y,
+        vx = cos(angle) * 2.0,
+        vy = sin(angle) * 2.0,
+        r = 2,
+        col = boss.col
+      })
+    end
+  else
+    -- ring pattern (12-way all directions)
+    for i = 0, 11 do
+      local angle = i / 12
+      add(boss_projectiles, {
+        x = boss.x,
+        y = boss.y,
+        vx = cos(angle) * 1.2,
+        vy = sin(angle) * 1.2,
+        r = 2,
+        col = boss.col
+      })
+    end
+  end
+end
+
 function do_boss_defeat()
   if not boss then return end
 
@@ -1379,8 +1534,21 @@ function draw_world()
       circ(boss.x, boss.y, r + 1, 7)  -- white glow
     else
       -- normal boss appearance
+      -- telegraph warning effect (flashing glow)
+      if boss.attack_telegraph > 0 and boss.attack_telegraph % 6 < 3 then
+        circ(boss.x, boss.y, boss.r + 3, 10)  -- yellow warning glow
+        circ(boss.x, boss.y, boss.r + 4, 9)  -- orange outer warning
+      end
+
+      -- flash effect when firing
+      local boss_draw_col = boss.col
+      if boss.flash_timer and boss.flash_timer > 0 then
+        boss_draw_col = 7  -- white flash
+        boss.flash_timer -= 1
+      end
+
       -- outer circle (boss body)
-      circfill(boss.x, boss.y, boss.r, boss.col)
+      circfill(boss.x, boss.y, boss.r, boss_draw_col)
 
       -- pulsing outline
       local pulse_r = boss.r + sin(boss.anim) * 1.5
@@ -1395,6 +1563,12 @@ function draw_world()
         pset(boss.x - 3 + (i - 1) * 3, boss.y - boss.r - 2, 11)
       end
     end
+  end
+
+  -- draw boss projectiles
+  for proj in all(boss_projectiles) do
+    circfill(proj.x, proj.y, proj.r, proj.col)
+    circ(proj.x, proj.y, proj.r + 1, 7)  -- white outline
   end
 
   -- draw fuel pickups
@@ -1640,8 +1814,8 @@ __sfx__
 001000001d5502055023550275502a5500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0010000018550205502355027550295502c550305503355000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000c5300c5300c5300c53018530185301853018530245302453024530245302d5302d5302d5302d53000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000001f5301f5301f5301f5301f5301f5301f5301f5301f5301f5301f530000001f5301f5301f5301f53000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000001c5301c5301c5301c5301c5301c5301c5301c5301c5301c5301c530000001c5301c5301c5301c53000000000000000000000000000000000000000000000000000000000000000000000000000000
+00100000205302453027530295302c5302d530305303053000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00100000305303053030530285302453020530000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00100000275302753027530275302753027530275302753027530275302753000000275302753027530275300000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000003053030530305303053030530305303053030530305303053030530000003053030530305303053000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000002d5302d5302d5302d5302d5302d5302d5302d5302d5302d5302d53000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
