@@ -70,7 +70,7 @@ high_landing = 0
 new_record = false  -- flag for new record celebration
 
 -- achievement system
-achievements = {}  -- 12 boolean flags for unlocked achievements
+achievements = {}  -- 15 boolean flags for unlocked achievements
 new_achievements = {}  -- achievements unlocked this session
 achievement_names = {
   "first blood",
@@ -84,7 +84,10 @@ achievement_names = {
   "phase 2 survivor",
   "mission complete",
   "hazard dodger",
-  "flawless victory"
+  "flawless victory",
+  "ice master",
+  "fuel conservationist",
+  "magnetic pilot"
 }
 achievement_desc = {
   "complete first landing",
@@ -98,7 +101,10 @@ achievement_desc = {
   "defeat boss in phase 2",
   "reach level 6 (complete all levels)",
   "land near hazard 10 times",
-  "win without shield & no collisions"
+  "win without shield & no collisions",
+  "land near ice zone 5 times",
+  "complete level w/ <30% fuel",
+  "use magnetic pull to land 3 times"
 }
 
 -- achievement progress tracking
@@ -112,6 +118,8 @@ bosses_defeated = 0
 phase2_bosses_defeated = 0
 shield_used_this_game = false
 collisions_this_game = 0
+total_ice_landings = 0
+total_magnetic_landings = 0
 
 -- ship physics
 ship = {}
@@ -164,9 +172,12 @@ end
 
 -- achievement persistence
 function load_achievements()
-  -- slots 3-14 for 12 achievements (0=locked, 1=unlocked)
+  -- slots 3-14 for original 12 achievements, slots 16-18 for new 3 (0=locked, 1=unlocked)
   for i = 1, 12 do
     achievements[i] = dget(2 + i) > 0
+  end
+  for i = 13, 15 do
+    achievements[i] = dget(3 + i) > 0  -- slots 16-18
   end
   _log("load:achievements:"..count_achievements())
 end
@@ -175,12 +186,15 @@ function save_achievements()
   for i = 1, 12 do
     dset(2 + i, achievements[i] and 1 or 0)
   end
+  for i = 13, 15 do
+    dset(3 + i, achievements[i] and 1 or 0)  -- slots 16-18
+  end
   _log("save:achievements")
 end
 
 function count_achievements()
   local count = 0
-  for i = 1, 12 do
+  for i = 1, 15 do
     if achievements[i] then count += 1 end
   end
   return count
@@ -272,6 +286,26 @@ function check_achievements()
   -- 12. flawless victory: win without shield usage and no collisions
   if not achievements[12] and level >= 6 and not shield_used_this_game and collisions_this_game == 0 then
     unlock_achievement(12)
+  end
+
+  -- 13. ice master: land near ice zone 5 times
+  if not achievements[13] and total_ice_landings >= 5 then
+    unlock_achievement(13)
+  end
+
+  -- 14. fuel conservationist: complete level with <30% fuel remaining
+  if not achievements[14] and ship.fuel > 0 then
+    local fuel_table = {80, 70, 60, 50, 40}
+    local fuel_mult = {1.15, 1.0, 0.8}
+    local max_fuel = flr((fuel_table[level] or 40) * fuel_mult[difficulty + 1])
+    if ship.fuel / max_fuel < 0.3 then
+      unlock_achievement(14)
+    end
+  end
+
+  -- 15. magnetic pilot: use magnetic pull to assist landing 3 times
+  if not achievements[15] and total_magnetic_landings >= 3 then
+    unlock_achievement(15)
   end
 end
 
@@ -488,21 +522,31 @@ end
 function draw_achievements()
   print("achievements", 32, 4, 7)
   local unlocked = count_achievements()
-  print(unlocked.."/12 unlocked", 36, 12, unlocked > 0 and 11 or 6)
+  print(unlocked.."/15 unlocked", 36, 12, unlocked > 0 and 11 or 6)
 
-  -- draw achievements in 2 columns
-  for i = 1, 12 do
-    local col_x = (i <= 6) and 2 or 66
-    local row_y = 22 + ((i - 1) % 6) * 16
+  -- draw achievements in 2 columns (8 left, 7 right for 15 total)
+  for i = 1, 15 do
+    local col_x = (i <= 8) and 2 or 66
+    local row_y = 22 + ((i - 1) % 8) * 12
     local locked = not achievements[i]
 
     -- tier number and name
     local tier_col = locked and 5 or 10
     print(i..".", col_x, row_y, tier_col)
-    print(achievement_names[i], col_x + 10, row_y, locked and 6 or 7)
 
-    -- description
-    print(achievement_desc[i], col_x + 2, row_y + 6, locked and 5 or 13)
+    -- show short name (limited space)
+    local short_name = achievement_names[i]
+    if #short_name > 12 then
+      short_name = sub(short_name, 1, 11)
+    end
+    print(short_name, col_x + 10, row_y, locked and 6 or 7)
+
+    -- description (smaller to fit)
+    local short_desc = achievement_desc[i]
+    if #short_desc > 17 then
+      short_desc = sub(short_desc, 1, 16)
+    end
+    print(short_desc, col_x + 2, row_y + 5, locked and 5 or 13)
 
     -- unlock indicator
     if not locked then
@@ -632,7 +676,9 @@ function init_level()
     fuel = flr(base_fuel * fuel_mult[difficulty + 1]),
     gravity = base_grav * grav_mult[difficulty + 1],
     alive = true,
-    thrusting = false
+    thrusting = false,
+    ice_timer = 0,  -- slowdown effect from ice zones
+    near_magnetic = false  -- flag for magnetic pull achievement tracking
   }
 
   -- init camera
@@ -881,7 +927,7 @@ function init_level()
     end
   end
 
-  -- generate thermal hazard zones
+  -- generate hazard zones with type variety
   hazard_zones = {}
   local hazard_counts = {0, 2, 3, 4, 4}  -- level 1: 0, level 2: 2, level 3: 3, level 4+: 4
   local hazard_count = hazard_counts[min(level, 5)]
@@ -936,13 +982,51 @@ function init_level()
     until valid or attempts > 30
 
     if valid then
+      -- determine hazard type based on level and difficulty
+      local htype = "thermal"  -- default
+      if level >= 3 then
+        local roll = rnd(100)
+        if level == 3 then
+          -- level 3: 30% ice, 70% thermal
+          if roll < 30 then htype = "ice" end
+        elseif level == 4 then
+          -- level 4: 25% ice, 25% radiation, 50% thermal
+          if roll < 25 then
+            htype = "ice"
+          elseif roll < 50 then
+            htype = "radiation"
+          end
+        else
+          -- level 5+: 20% each (ice, radiation, magnetic), 40% thermal
+          if difficulty == 2 then
+            -- hard mode: more variety
+            if roll < 25 then
+              htype = "ice"
+            elseif roll < 50 then
+              htype = "radiation"
+            elseif roll < 75 then
+              htype = "magnetic"
+            end
+          else
+            if roll < 20 then
+              htype = "ice"
+            elseif roll < 40 then
+              htype = "radiation"
+            elseif roll < 60 then
+              htype = "magnetic"
+            end
+          end
+        end
+      end
+
       add(hazard_zones, {
         x = hx,
         y = hy,
         r = 6,  -- radius
-        anim = rnd(1)  -- animation offset for variation
+        anim = rnd(1),  -- animation offset for variation
+        type = htype
       })
-      _log("hazard:spawn:"..flr(hx)..","..flr(hy))
+      _log("hazard:spawn:"..htype..":"..flr(hx)..","..flr(hy))
     end
   end
 
@@ -1217,6 +1301,51 @@ function update_play()
     hazard_warning_timer -= 1
   end
 
+  -- update ice slowdown timer
+  if ship.ice_timer > 0 then
+    ship.ice_timer -= 1
+    if ship.ice_timer == 0 then
+      _log("ice:slowdown:end")
+    end
+  end
+
+  -- radiation zone fuel drain (proximity-based)
+  ship.near_magnetic = false
+  for h in all(hazard_zones) do
+    local dx = ship.x - h.x
+    local dy = ship.y - h.y
+    local dist = sqrt(dx * dx + dy * dy)
+
+    if h.type == "radiation" and dist < 40 and ship.alive then
+      -- shield cannot protect against radiation
+      -- drain fuel when within 40px (1 fuel per frame when very close)
+      local drain_rate = max(0, 1 - (dist / 40))  -- 0 to 1
+      if ship.fuel > 0 and drain_rate > 0.5 then
+        ship.fuel -= 1
+        if ship.fuel % 10 == 0 then  -- log every 10 fuel
+          _log("radiation:fuel_drain:"..ship.fuel)
+        end
+      end
+    elseif h.type == "magnetic" and dist < 50 and ship.alive then
+      -- check for shield (blocks magnetic pull)
+      local shield_active = false
+      for p in all(active_powerups) do
+        if p.type == 1 then
+          shield_active = true
+          break
+        end
+      end
+
+      if not shield_active then
+        -- apply attractive force toward magnetic center
+        local angle_to_mag = atan2(dy, dx)
+        ship.vx += cos(angle_to_mag) * 0.8
+        ship.vy += sin(angle_to_mag) * 0.8
+        ship.near_magnetic = true
+      end
+    end
+  end
+
   -- update enemies
   update_enemies()
 
@@ -1239,12 +1368,17 @@ function update_play()
     end
   end
 
-  -- rotation
+  -- rotation (affected by ice slowdown)
+  local rotation_speed = 0.02
+  if ship.ice_timer > 0 then
+    rotation_speed = rotation_speed * 0.5  -- 50% slowdown from ice
+  end
+
   if test_input(0) then  -- left
-    ship.angle = (ship.angle - 0.02) % 1
+    ship.angle = (ship.angle - rotation_speed) % 1
   end
   if test_input(1) then  -- right
-    ship.angle = (ship.angle + 0.02) % 1
+    ship.angle = (ship.angle + rotation_speed) % 1
   end
 
   -- thrust
@@ -1610,11 +1744,14 @@ function update_play()
     end
   end
 
-  -- collision with thermal hazard zones
+  -- collision with hazard zones (type-specific effects)
   for h in all(hazard_zones) do
     local dx = ship.x - h.x
     local dy = ship.y - h.y
-    if sqrt(dx * dx + dy * dy) < 4 + h.r then
+    local dist = sqrt(dx * dx + dy * dy)
+
+    -- contact collision (thermal and ice only)
+    if dist < 4 + h.r and (h.type == "thermal" or h.type == "ice") then
       -- check for shield
       local shield_active = false
       for p in all(active_powerups) do
@@ -1622,9 +1759,15 @@ function update_play()
           shield_active = true
           shield_used_this_game = true
           del(active_powerups, p)
-          _log("shield:absorbed:hazard")
+          _log("shield:absorbed:"..h.type)
 
-          -- shield absorption particles (orange/red)
+          -- shield absorption particles (type-specific colors)
+          local pcol1, pcol2
+          if h.type == "ice" then
+            pcol1, pcol2 = 12, 6  -- cyan/light blue
+          else
+            pcol1, pcol2 = 8, 9  -- red/orange
+          end
           for i = 1, 15 do
             add(particles, {
               x = ship.x,
@@ -1632,7 +1775,7 @@ function update_play()
               vx = rnd(3) - 1.5,
               vy = rnd(3) - 1.5,
               life = 20,
-              col = (i % 2 == 0) and 8 or 9  -- alternating red/orange
+              col = (i % 2 == 0) and pcol1 or pcol2
             })
           end
 
@@ -1648,11 +1791,31 @@ function update_play()
       end
 
       if not shield_active then
-        ship.alive = false
-        collision_count += 1
-        _log("crash:hazard")
-        do_crash()
-        return
+        if h.type == "thermal" then
+          -- thermal: instant death
+          ship.alive = false
+          collision_count += 1
+          _log("crash:hazard:thermal")
+          do_crash()
+          return
+        elseif h.type == "ice" then
+          -- ice: apply slowdown effect (50% rotation for 2 seconds = 60 frames)
+          ship.ice_timer = 60
+          _log("ice:slowdown")
+          sfx(11)  -- distinct ice sfx
+
+          -- ice particles
+          for i = 1, 10 do
+            add(particles, {
+              x = ship.x,
+              y = ship.y,
+              vx = rnd(2) - 1,
+              vy = rnd(2) - 1,
+              life = 15,
+              col = 12  -- cyan
+            })
+          end
+        end
       end
     end
   end
@@ -1921,12 +2084,14 @@ function do_landing(velocity, zone_x, zone_w)
     sfx(19)  -- perfect run sfx
   end
 
-  -- 5. hazard near-miss bonus (landed within 10px of a thermal hazard)
+  -- 5. hazard near-miss bonus (landed within 10px of any hazard)
   local nearest_hazard_dist = 999
+  local nearest_hazard_type = nil
   for h in all(hazard_zones) do
     local dist = abs(ship.x - h.x)
     if dist < nearest_hazard_dist then
       nearest_hazard_dist = dist
+      nearest_hazard_type = h.type
     end
   end
 
@@ -1934,9 +2099,28 @@ function do_landing(velocity, zone_x, zone_w)
     local near_miss_bonus = 25 + rnd(16)  -- 25-40 points
     precision_bonuses += flr(near_miss_bonus)
     total_hazard_landings += 1
-    _log("bonus:hazard_near_miss:"..flr(near_miss_bonus))
+    _log("bonus:hazard_near_miss:"..nearest_hazard_type..":"..flr(near_miss_bonus))
 
-    -- orange/red warning particles
+    -- achievement tracking
+    if nearest_hazard_type == "ice" then
+      total_ice_landings += 1
+    elseif nearest_hazard_type == "magnetic" and ship.near_magnetic then
+      total_magnetic_landings += 1
+      _log("magnetic:assisted_landing")
+    end
+
+    -- type-specific warning particles
+    local pcol1, pcol2
+    if nearest_hazard_type == "ice" then
+      pcol1, pcol2 = 12, 6  -- cyan/light blue
+    elseif nearest_hazard_type == "radiation" then
+      pcol1, pcol2 = 10, 11  -- yellow/green
+    elseif nearest_hazard_type == "magnetic" then
+      pcol1, pcol2 = 15, 13  -- purple/lavender
+    else
+      pcol1, pcol2 = 8, 9  -- red/orange (thermal)
+    end
+
     for i = 1, 10 do
       add(particles, {
         x = ship.x,
@@ -1944,7 +2128,7 @@ function do_landing(velocity, zone_x, zone_w)
         vx = rnd(2.5) - 1.25,
         vy = rnd(2.5) - 1.25,
         life = 22,
-        col = (i % 2 == 0) and 8 or 9  -- alternating red/orange
+        col = (i % 2 == 0) and pcol1 or pcol2
       })
     end
 
@@ -2252,7 +2436,7 @@ function draw_world()
     rectfill(z.x, z.y, z.x + z.w, z.y + z.h, 11)
   end
 
-  -- draw thermal hazard zones (pulsing red/orange circles)
+  -- draw hazard zones (type-specific visuals)
   for h in all(hazard_zones) do
     -- calculate distance from ship to this hazard
     local dx = ship.x - h.x
@@ -2260,38 +2444,98 @@ function draw_world()
     local dist = sqrt(dx * dx + dy * dy)
 
     -- proximity factor: 0 (far) to 1 (very close)
-    -- closer = faster pulse and more intense glow
-    local proximity_threshold = 50  -- distance at which effects start to intensify
+    local proximity_threshold = 50
     local proximity_factor = max(0, 1 - (dist / proximity_threshold))
 
-    -- pulse speed increases with proximity (1.5x base -> 4x when very close)
-    local pulse_speed = 1.5 + (proximity_factor * 2.5)
-    local pulse = sin((t() * pulse_speed + h.anim)) * 2 + h.r
+    if h.type == "thermal" then
+      -- thermal: pulsing red/orange circles (original design)
+      local pulse_speed = 1.5 + (proximity_factor * 2.5)
+      local pulse = sin((t() * pulse_speed + h.anim)) * 2 + h.r
+      local glow_speed = 3 + (proximity_factor * 3)
+      local glow_base = 3 + (proximity_factor * 3)
+      local glow = sin((t() * glow_speed + h.anim)) * 1.5 + glow_base
 
-    -- glow intensity increases with proximity (base 3 -> 6 when very close)
-    local glow_speed = 3 + (proximity_factor * 3)
-    local glow_base = 3 + (proximity_factor * 3)
-    local glow = sin((t() * glow_speed + h.anim)) * 1.5 + glow_base
+      local glow_col = (proximity_factor > 0.5) and 8 or 2
+      circfill(h.x, h.y, glow, glow_col)
 
-    -- outer glow (warning effect - brighter when player is close)
-    local glow_col = (proximity_factor > 0.5) and 8 or 2  -- red when close, dark red otherwise
-    circfill(h.x, h.y, glow, glow_col)
+      local heat_speed = 4 + (proximity_factor * 4)
+      local heat_phase = flr((t() * heat_speed + h.anim) % 2)
+      local heat_col = (heat_phase == 0) and 8 or 9
+      circfill(h.x, h.y, pulse, heat_col)
 
-    -- main hazard circle (alternating colors for heat effect)
-    -- faster color alternation when player is close
-    local heat_speed = 4 + (proximity_factor * 4)
-    local heat_phase = flr((t() * heat_speed + h.anim) % 2)
-    local heat_col = (heat_phase == 0) and 8 or 9  -- alternate red/orange
-    circfill(h.x, h.y, pulse, heat_col)
+      local center_col = (proximity_factor > 0.7) and 7 or 10
+      circfill(h.x, h.y, pulse * 0.5, center_col)
 
-    -- bright center (more intense when player is close)
-    local center_col = (proximity_factor > 0.7) and 7 or 10  -- white when very close, yellow otherwise
-    circfill(h.x, h.y, pulse * 0.5, center_col)
+      if proximity_factor > 0.6 then
+        local warning_r = h.r + 4 + sin(t() * 6) * 2
+        circ(h.x, h.y, warning_r, 9)
+      end
 
-    -- additional warning ring when player is very close
-    if proximity_factor > 0.6 then
-      local warning_r = h.r + 4 + sin(t() * 6) * 2
-      circ(h.x, h.y, warning_r, 9)  -- orange warning ring
+    elseif h.type == "ice" then
+      -- ice: flickering cyan/light blue with fast pulse
+      local pulse_speed = 4 + (proximity_factor * 4)  -- faster than thermal
+      local pulse = sin((t() * pulse_speed + h.anim)) * 1.5 + h.r
+      local glow = sin((t() * pulse_speed + h.anim)) * 1.5 + 4
+
+      local glow_col = (proximity_factor > 0.5) and 6 or 1
+      circfill(h.x, h.y, glow, glow_col)
+
+      local ice_phase = flr((t() * 8 + h.anim) % 2)  -- fast flicker
+      local ice_col = (ice_phase == 0) and 12 or 6  -- cyan/light blue
+      circfill(h.x, h.y, pulse, ice_col)
+
+      circfill(h.x, h.y, pulse * 0.4, 7)  -- white center
+
+      if proximity_factor > 0.6 then
+        local warning_r = h.r + 3 + sin(t() * 8) * 1.5
+        circ(h.x, h.y, warning_r, 12)
+      end
+
+    elseif h.type == "radiation" then
+      -- radiation: slow-pulsing yellow/green circles
+      local pulse_speed = 1 + (proximity_factor * 1.5)  -- slower than thermal
+      local pulse = sin((t() * pulse_speed + h.anim)) * 2.5 + h.r
+      local glow = sin((t() * pulse_speed + h.anim)) * 2 + 5
+
+      local glow_col = (proximity_factor > 0.5) and 10 or 3
+      circfill(h.x, h.y, glow, glow_col)
+
+      local rad_phase = flr((t() * 2 + h.anim) % 2)
+      local rad_col = (rad_phase == 0) and 10 or 11  -- yellow/green
+      circfill(h.x, h.y, pulse, rad_col)
+
+      circfill(h.x, h.y, pulse * 0.3, 10)  -- yellow center
+
+      if proximity_factor > 0.6 then
+        local warning_r = h.r + 5 + sin(t() * 3) * 2
+        circ(h.x, h.y, warning_r, 10)
+      end
+
+    elseif h.type == "magnetic" then
+      -- magnetic: spiral pattern or rotating rings (purple)
+      local pulse = sin((t() * 2 + h.anim)) * 1.5 + h.r
+      local glow = sin((t() * 2 + h.anim)) * 2 + 4
+
+      local glow_col = (proximity_factor > 0.5) and 2 or 0
+      circfill(h.x, h.y, glow, glow_col)
+
+      circfill(h.x, h.y, pulse, 15)  -- purple main circle
+
+      -- rotating rings
+      local angle = (t() + h.anim) % 1
+      for i = 0, 3 do
+        local ring_angle = (angle + i * 0.25) % 1
+        local rx = h.x + cos(ring_angle) * (h.r + 3)
+        local ry = h.y + sin(ring_angle) * (h.r + 3)
+        circfill(rx, ry, 1, 13)  -- small purple dots
+      end
+
+      circfill(h.x, h.y, pulse * 0.3, 6)  -- light blue center
+
+      if proximity_factor > 0.6 then
+        local warning_r = h.r + 4 + sin(t() * 4) * 2
+        circ(h.x, h.y, warning_r, 15)
+      end
     end
   end
 
