@@ -606,7 +606,8 @@ function upp()
       for i=1,flr(rnd(2))+2 do
         queue_spawn(tsv>30 and rnd(100)<20 and "speedy" or (tsv>20 and rnd(100)<30 and "shooter" or "minion"))
       end
-      if tsv>=15 and rnd(100)<(tsv>=60 and 30 or 20)then for i=1,2+flr(rnd(2))do queue_spawn("swarmling")end _log("time_attack:swarmling")end
+      -- swarmlings start at 30s, escalate 10%->20%->30% at 30s/60s/120s, groups of 3-5
+      if tsv>=30 and rnd(100)<(tsv>=120 and 30 or(tsv>=60 and 20 or 10))then for i=1,3+flr(rnd(3))do queue_spawn("swarmling")end _log("time_attack:swarmling")end
     end
   end
 
@@ -1596,6 +1597,8 @@ function spw()
 
   -- boss rush mode
   if gm=="boss_rush" then
+    -- spawn swarmlings BEFORE boss (wave 6+, 15% chance, groups of 3-5)
+    if wave>=6 and rnd(100)<15 then for i=1,3+flr(rnd(3))do queue_spawn("swarmling")end _log("boss_rush:swarmling")end
     local bi=(wave-1)%3
     local bt="heavy"
     if bi==1 then bt="seeker"
@@ -1604,7 +1607,6 @@ function spw()
     music(2)
     _log("music:boss")
     _log("boss_rush:"..bt)
-    if wave>=6 and rnd(100)<25 then for i=1,3+flr(rnd(3))do queue_spawn("swarmling")end _log("boss_rush:swarmling")end
     return
   end
 
