@@ -337,13 +337,9 @@ function inm()
 end
 
 function upm()
-  local input = test_input()
-  if input & 16 > 0 then
-    ims()
-  end
-  if test_inputp(5) then
-    ilv()
-  end
+  local input=test_input()
+  if input&16>0 then ims() end
+  if test_inputp(5) then ilv() end
 end
 
 function ilv()
@@ -362,7 +358,7 @@ function drm()
 
   -- as
   local ach_count = cna()
-  print("as: "..ach_count.."/14", 20, 90, 12)
+  print("as: "..ach_count.."/16", 20, 90, 12)
 
   -- controls
   print("l/r: rotate", 32, 100, 6)
