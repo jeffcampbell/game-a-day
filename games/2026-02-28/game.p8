@@ -99,7 +99,9 @@ ads = {
   end},
   {id=14, name="speed demon", desc="reach 500+ in time attack", check=function()
     return gm == "time_attack" and score >= 500
-  end}
+  end},
+  {id=15, name="relentless", desc="reach wave 20", check=function() return wave >= 20 end},
+  {id=16, name="endless survivor", desc="reach wave 50", check=function() return wave >= 50 end}
 }
 
 p = {}
@@ -162,7 +164,7 @@ end
 function lda()
   local a = {dget(3) or 0, dget(4) or 0, dget(5) or 0, dget(24) or 0}
   as = {}
-  for i=1,14 do
+  for i=1,16 do
     local s = flr((i-1)/4)+1
     if a[s] & (1 << ((i-1) % 4)) > 0 then as[i] = true end
   end
@@ -186,7 +188,7 @@ end
 
 function sva()
   local a = {0,0,0,0}
-  for i=1,14 do
+  for i=1,16 do
     if as[i] then
       local s = flr((i-1)/4)+1
       a[s] = a[s] | (1 << ((i-1) % 4))
@@ -264,7 +266,7 @@ end
 
 function cna()
   local count = 0
-  for i=1,14 do
+  for i=1,16 do
     if as[i] then count += 1 end
   end
   return count
@@ -272,7 +274,7 @@ end
 
 function csa()
   local count = 0
-  for i=1,14 do
+  for i=1,16 do
     if sas[i] then count += 1 end
   end
   return count
@@ -739,7 +741,7 @@ function shp()
     owner = "p",
     size = size,
     dmg = bst > 0 and 2 or 1,
-    col = 10 -- p ps are yellow
+    col = 10
   })
 end
 
@@ -2459,7 +2461,7 @@ function dgo()
     print("new as: "..session_count, 16, ach_y, 12)
     -- show which ones
     local y = ach_y + 8
-    for i=1,13 do
+    for i=1,16 do
       if sas[i] then
         local def = ads[i]
         print("\x97 "..def.name, 8, y, 10)
@@ -2473,7 +2475,7 @@ function dgo()
 
   -- total as
   local total = cna()
-  print("total: "..total.."/13", 42, 112 + (nr and 8 or 0), 14)
+  print("total: "..total.."/16", 42, 112 + (nr and 8 or 0), 14)
 
   print("o:retry x:menu", 28, 120, 6)
 end
