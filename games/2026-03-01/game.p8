@@ -115,12 +115,17 @@ function _draw()
   elseif state == "difficulty_select" then
     draw_difficulty_select()
   elseif state == "play" then
-    draw_play()
+    draw_world()  -- draw world elements in world space
   elseif state == "gameover" then
     draw_gameover()
   end
 
-  camera(0, 0)
+  camera(0, 0)  -- reset camera before HUD
+
+  -- draw HUD in screen space (play state only)
+  if state == "play" then
+    draw_hud()
+  end
 end
 
 -- menu state
@@ -507,7 +512,7 @@ function do_crash()
   _log("chain:reset")
 end
 
-function draw_play()
+function draw_world()
   -- draw moon surface
   rectfill(0, surface_y, 128, 128, 13)
   line(0, surface_y, 128, surface_y, 5)
@@ -552,8 +557,10 @@ function draw_play()
       line(s3x, s3y, fx, fy, 9)
     end
   end
+end
 
-  -- draw hud
+function draw_hud()
+  -- draw hud in screen space (camera independent)
   local vel = sqrt(ship.vx * ship.vx + ship.vy * ship.vy)
   local height = max(0, surface_y - ship.y)
   local angle_deg = flr((ship.angle * 360) % 360)
