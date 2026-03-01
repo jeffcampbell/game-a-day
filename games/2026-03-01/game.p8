@@ -57,6 +57,7 @@ landing_zones = {}
 asteroids = {}
 surface_y = 0
 camera_y = 0
+last_cam_log = -999
 
 function _init()
   _log("state:menu")
@@ -98,13 +99,16 @@ end
 function _draw()
   cls(0)
 
-  -- apply shake
+  -- apply shake and camera offset
   local sx, sy = 0, 0
   if shake_frames > 0 then
     sx = rnd(shake_intensity * 2) - shake_intensity
     sy = rnd(shake_intensity * 2) - shake_intensity
   end
-  camera(sx, sy)
+
+  -- apply camera_y only during play state
+  local cam_y = (state == "play") and camera_y or 0
+  camera(sx, sy + cam_y)
 
   if state == "menu" then
     draw_menu()
@@ -241,6 +245,7 @@ function init_level()
 
   -- init camera
   camera_y = 0
+  last_cam_log = -999
   surface_y = 400 + (level * 50)
 
   -- generate landing zones
@@ -332,6 +337,21 @@ function update_play()
   -- movement
   ship.x += ship.vx
   ship.y += ship.vy
+
+  -- update camera to follow ship smoothly
+  local target_y = ship.y - 60
+  camera_y += (target_y - camera_y) * 0.1
+
+  -- clamp camera
+  camera_y = max(0, camera_y)  -- don't go above world origin
+  camera_y = min(camera_y, surface_y - 64)  -- keep surface visible
+
+  -- log camera at milestones
+  local cam_floor = flr(camera_y)
+  if cam_floor % 50 == 0 and cam_floor > 0 and abs(cam_floor - last_cam_log) > 1 then
+    _log("camera:"..cam_floor)
+    last_cam_log = cam_floor
+  end
 
   -- horizontal bounds check
   if ship.x < 0 or ship.x > 128 then
@@ -489,28 +509,28 @@ end
 
 function draw_play()
   -- draw moon surface
-  rectfill(0, surface_y - camera_y, 128, 128, 13)
-  line(0, surface_y - camera_y, 128, surface_y - camera_y, 5)
+  rectfill(0, surface_y, 128, 128, 13)
+  line(0, surface_y, 128, surface_y, 5)
 
   -- draw landing zones
   for z in all(landing_zones) do
-    rectfill(z.x, z.y - camera_y, z.x + z.w, z.y + z.h - camera_y, 11)
+    rectfill(z.x, z.y, z.x + z.w, z.y + z.h, 11)
   end
 
   -- draw asteroids
   for a in all(asteroids) do
-    circfill(a.x, a.y - camera_y, a.r, 8)
-    circ(a.x, a.y - camera_y, a.r, 2)
+    circfill(a.x, a.y, a.r, 8)
+    circ(a.x, a.y, a.r, 2)
   end
 
   -- draw particles
   for p in all(particles) do
-    pset(p.x, p.y - camera_y, p.col)
+    pset(p.x, p.y, p.col)
   end
 
   -- draw ship
   if ship.alive then
-    local x, y = ship.x, ship.y - camera_y
+    local x, y = ship.x, ship.y
 
     -- ship body (triangle)
     local s1x = x + cos(ship.angle) * 5
