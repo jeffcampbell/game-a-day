@@ -2455,6 +2455,24 @@ function draw_world()
   if ship.alive then
     local x, y = ship.x, ship.y
 
+    -- shield glow aura (when shield power-up is active)
+    local shield_active = false
+    for p in all(active_powerups) do
+      if p.type == 1 then  -- shield type
+        shield_active = true
+        break
+      end
+    end
+
+    if shield_active then
+      -- pulsing animation: oscillates between 8-12px at ~2Hz
+      local pulse_radius = 10 + sin(t() * 2) * 2
+      -- draw concentric circles for glow effect
+      circ(x, y, pulse_radius, 12)  -- outer cyan ring
+      circ(x, y, pulse_radius - 1, 12)  -- middle cyan ring
+      circ(x, y, pulse_radius - 2, 6)  -- inner darker blue ring
+    end
+
     -- ship body (triangle)
     local s1x = x + cos(ship.angle) * 5
     local s1y = y + sin(ship.angle) * 5
