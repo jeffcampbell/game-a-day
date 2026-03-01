@@ -37,8 +37,10 @@ end
 
 -- game state
 state = "menu"
-game_mode = "normal"  -- "normal" or "time_attack"
-menu_cursor = 0  -- 0=normal mode, 1=time attack mode
+game_mode = "normal"  -- "normal", "time_attack", or "practice"
+menu_cursor = 0  -- 0=normal mode, 1=time attack, 2=leaderboard, 3=practice
+practice_level = 1  -- selected practice level (1-5)
+practice_cursor = 0  -- practice level selector cursor (0-4)
 difficulty = 1  -- 0=easy, 1=normal, 2=hard
 difficulty_cursor = 1  -- menu cursor position
 level = 1
@@ -470,6 +472,8 @@ function _update()
     update_menu()
   elseif state == "difficulty_select" then
     update_difficulty_select()
+  elseif state == "practice_select" then
+    update_practice_select()
   elseif state == "achievements" then
     update_achievements()
   elseif state == "leaderboard" then
@@ -523,6 +527,8 @@ function _draw()
     draw_menu()
   elseif state == "difficulty_select" then
     draw_difficulty_select()
+  elseif state == "practice_select" then
+    draw_practice_select()
   elseif state == "achievements" then
     draw_achievements()
   elseif state == "leaderboard" then
@@ -554,7 +560,7 @@ function update_menu()
     menu_cursor = max(0, menu_cursor - 1)
     sfx(4)
   elseif test_inputp(3) then  -- down
-    menu_cursor = min(2, menu_cursor + 1)
+    menu_cursor = min(3, menu_cursor + 1)
     sfx(4)
   end
 
@@ -587,10 +593,16 @@ function update_menu()
       init_level()
       music(1)
       _log("state:play:time_attack")
-    else
+    elseif menu_cursor == 2 then
       -- leaderboard
       state = "leaderboard"
       _log("state:leaderboard")
+    else
+      -- practice mode
+      game_mode = "practice"
+      state = "practice_select"
+      practice_cursor = 0
+      _log("state:practice_select")
     end
   elseif test_inputp(5) then  -- X button - achievements
     state = "achievements"
@@ -619,25 +631,30 @@ function draw_menu()
   local norm_col = (menu_cursor == 0) and 11 or 6
   local time_col = (menu_cursor == 1) and 11 or 6
   local lead_col = (menu_cursor == 2) and 11 or 6
+  local prac_col = (menu_cursor == 3) and 11 or 6
 
   print("\x8e normal mode", 24, 58, norm_col)
   print("\x8e time attack", 24, 66, time_col)
   print("\x8e leaderboard", 24, 74, lead_col)
+  print("\x8e practice mode", 22, 82, prac_col)
 
   -- mode description
   if menu_cursor == 0 then
-    print("classic lander", 24, 86, 13)
-    print("all features", 24, 93, 13)
+    print("classic lander", 24, 92, 13)
+    print("all features", 24, 99, 13)
   elseif menu_cursor == 1 then
-    print("race vs clock!", 24, 86, 13)
-    print("4 min, no power-ups", 14, 93, 13)
+    print("race vs clock!", 24, 92, 13)
+    print("4 min, no power-ups", 14, 99, 13)
+  elseif menu_cursor == 2 then
+    print("top 5 scores", 28, 92, 13)
+    print("with player names", 20, 99, 13)
   else
-    print("top 5 scores", 28, 86, 13)
-    print("with player names", 20, 93, 13)
+    print("select any level", 22, 92, 13)
+    print("no score tracking", 20, 99, 13)
   end
 
-  print("up/down: select", 24, 104, 6)
-  print("o: start  x: achievements", 8, 112, 6)
+  print("up/down: select", 24, 110, 6)
+  print("o: start  x: achievements", 8, 118, 6)
 end
 
 -- achievements state
@@ -732,6 +749,73 @@ function draw_leaderboard()
   end
 
   print("press x/o to return", 20, 119, 6)
+end
+
+-- practice mode level selection
+function update_practice_select()
+  -- up/down navigation
+  if test_inputp(2) then  -- up
+    practice_cursor = max(0, practice_cursor - 1)
+    sfx(4)
+  elseif test_inputp(3) then  -- down
+    practice_cursor = min(4, practice_cursor + 1)
+    sfx(4)
+  end
+
+  if test_inputp(4) then  -- O button - start practice
+    practice_level = practice_cursor + 1
+    level = practice_level
+    score = 0
+    chain = 0
+    difficulty = 1  -- always normal difficulty
+
+    -- reset tracking
+    collision_count = 0
+    total_bonuses = 0
+    new_achievements = {}
+    shield_used_this_game = false
+    collisions_this_game = 0
+
+    state = "play"
+    init_level()
+    music(1)
+    _log("state:play:practice:level"..practice_level)
+  elseif test_inputp(5) then  -- X button - back to menu
+    state = "menu"
+    _log("state:menu")
+  end
+end
+
+function draw_practice_select()
+  print("practice mode", 32, 8, 7)
+  print("select level", 32, 16, 13)
+
+  -- level selection
+  for i = 1, 5 do
+    local y = 30 + i * 14
+    local col = (practice_cursor == i - 1) and 11 or 6
+
+    print("\x8e level "..i, 36, y, col)
+
+    -- level info preview
+    if practice_cursor == i - 1 then
+      local info_y = 112
+      if i == 1 then
+        print("easy start", 32, info_y, 13)
+      elseif i == 2 then
+        print("moderate hazards", 22, info_y, 13)
+      elseif i == 3 then
+        print("boss encounter", 26, info_y, 13)
+      elseif i == 4 then
+        print("harder boss", 30, info_y, 13)
+      else
+        print("final challenge", 24, info_y, 13)
+      end
+    end
+  end
+
+  print("up/down: select", 24, 96, 6)
+  print("o: start  x: back", 24, 104, 6)
 end
 
 -- name entry state
@@ -1488,19 +1572,23 @@ function update_play()
   if not ship.alive then
     -- wait for input after crash
     if test_inputp(4) or test_inputp(5) then
-      check_and_save_records()
+      -- skip records/achievements in practice mode
+      if game_mode ~= "practice" then
+        check_and_save_records()
 
-      -- check if player made leaderboard
-      player_rank = get_leaderboard_rank(score)
-      if player_rank > 0 then
-        player_name = "AAA"
-        name_entry_pos = 0
-        state = "name_entry"
-        _log("state:name_entry:rank:"..player_rank)
-      else
-        state = "gameover"
-        _log("state:gameover")
+        -- check if player made leaderboard
+        player_rank = get_leaderboard_rank(score)
+        if player_rank > 0 then
+          player_name = "AAA"
+          name_entry_pos = 0
+          state = "name_entry"
+          _log("state:name_entry:rank:"..player_rank)
+          return
+        end
       end
+
+      state = "gameover"
+      _log("state:gameover:practice:"..tostr(game_mode == "practice"))
     end
     return
   end
@@ -2477,9 +2565,14 @@ function do_landing(velocity, zone_x, zone_w)
   sfx(3)  -- level up sfx
   _log("levelup:level"..level)
 
-  -- check win condition (reaching level 6)
-  if level >= 6 then
-    -- game complete
+  -- check win condition
+  if game_mode == "practice" then
+    -- practice mode: complete after one level
+    state = "gameover"
+    _log("state:gameover:practice_complete")
+    music(3)  -- victory music
+  elseif level >= 6 then
+    -- game complete (normal/time attack modes)
     check_and_save_records()
 
     -- check if player made leaderboard
@@ -3043,7 +3136,14 @@ function draw_hud()
   print("alt:"..flr(height), 2, 16, 7)
   print("ang:"..angle_deg, 2, 23, 7)
   print("lvl:"..level, 100, 2, 7)
-  print("score:"..score, 80, 9, 10)
+
+  -- practice mode indicator
+  if game_mode == "practice" then
+    print("practice", 46, 123, 11)  -- cyan at bottom
+    print("score:"..score, 80, 9, 6)  -- gray (non-scoring)
+  else
+    print("score:"..score, 80, 9, 10)
+  end
 
   -- time attack timer
   if game_mode == "time_attack" then
@@ -3100,7 +3200,29 @@ function update_gameover()
 end
 
 function draw_gameover()
-  if game_mode == "time_attack" then
+  if game_mode == "practice" then
+    -- practice mode gameover screen
+    if ship.alive then
+      print("practice complete!", 24, 20, 11)
+    else
+      print("practice ended", 32, 20, 8)
+    end
+
+    print("level "..practice_level, 48, 30, 7)
+    print("final score: "..score, 28, 40, 6)
+    print("(not saved)", 38, 48, 5)
+
+    -- bonus breakdown
+    print("bonus breakdown:", 24, 60, 6)
+    print("soft landings: "..soft_landing_count, 8, 68, 7)
+    print("fuel efficient: "..fuel_efficiency_count, 8, 75, 7)
+    print("precision: "..precision_landing_count, 8, 82, 7)
+    print("perfect runs: "..perfect_run_count, 8, 89, 7)
+
+    print("collisions: "..collision_count, 32, 100, collision_count == 0 and 11 or 8)
+
+    print("press o/x to menu", 20, 119, 6)
+  elseif game_mode == "time_attack" then
     -- time attack gameover screen
     if level > 5 then
       print("mission complete!", 24, 20, 11)
