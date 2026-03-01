@@ -65,6 +65,7 @@ thrust_sfx_timer = 0
 landing_zones = {}
 asteroids = {}
 fuel_pickups = {}
+enemies = {}
 surface_y = 0
 camera_y = 0
 last_cam_log = -999
@@ -348,7 +349,72 @@ function init_level()
     end
   end
 
+  -- generate enemies
+  enemies = {}
+  if level >= 2 then
+    local enemy_counts = {1, 2, 3}  -- easy, normal, hard
+    local enemy_count = enemy_counts[difficulty + 1]
+    for i = 1, enemy_count do
+      local patrol_type = flr(rnd(2))  -- 0=horizontal, 1=vertical
+      local ex, ey, evx, evy, patrol_min, patrol_max
+
+      if patrol_type == 0 then
+        -- horizontal patrol
+        ex = 16 + rnd(96)
+        ey = 80 + rnd(surface_y - 160)
+        evx = 0.3 + rnd(0.4)  -- speed 0.3-0.7
+        evy = 0
+        patrol_min = 16
+        patrol_max = 112
+      else
+        -- vertical patrol
+        ex = 20 + rnd(88)
+        ey = 60 + rnd(140)
+        evx = 0
+        evy = 0.3 + rnd(0.4)  -- speed 0.3-0.7
+        patrol_min = 60
+        patrol_max = 200
+      end
+
+      add(enemies, {
+        x = ex,
+        y = ey,
+        vx = evx,
+        vy = evy,
+        r = 5,
+        patrol_type = patrol_type,
+        patrol_min = patrol_min,
+        patrol_max = patrol_max
+      })
+
+      _log("enemy:spawn:"..flr(ex)..","..flr(ey)..":type:"..patrol_type)
+    end
+
+    -- spawn sfx (warning beep)
+    if enemy_count > 0 then
+      sfx(7)
+    end
+  end
+
   particles = {}
+end
+
+function update_enemies()
+  for e in all(enemies) do
+    if e.patrol_type == 0 then
+      -- horizontal patrol
+      e.x += e.vx
+      if e.x < e.patrol_min or e.x > e.patrol_max then
+        e.vx = -e.vx  -- reverse direction
+      end
+    else
+      -- vertical patrol
+      e.y += e.vy
+      if e.y < e.patrol_min or e.y > e.patrol_max then
+        e.vy = -e.vy  -- reverse direction
+      end
+    end
+  end
 end
 
 function update_play()
@@ -360,6 +426,9 @@ function update_play()
     end
     return
   end
+
+  -- update enemies
+  update_enemies()
 
   -- rotation
   if test_input(0) then  -- left
@@ -442,6 +511,19 @@ function update_play()
       ship.alive = false
       collision_count += 1
       _log("crash:asteroid")
+      do_crash()
+      return
+    end
+  end
+
+  -- collision with enemies
+  for e in all(enemies) do
+    local dx = ship.x - e.x
+    local dy = ship.y - e.y
+    if sqrt(dx * dx + dy * dy) < 4 + e.r then
+      ship.alive = false
+      collision_count += 1
+      _log("crash:enemy")
       do_crash()
       return
     end
@@ -748,6 +830,15 @@ function draw_world()
   for a in all(asteroids) do
     circfill(a.x, a.y, a.r, 8)
     circ(a.x, a.y, a.r, 2)
+  end
+
+  -- draw enemies
+  for e in all(enemies) do
+    circfill(e.x, e.y, e.r, 9)  -- orange circle
+    circ(e.x, e.y, e.r, 2)  -- red outline
+    -- cross marker
+    line(e.x - 3, e.y, e.x + 3, e.y, 7)  -- horizontal
+    line(e.x, e.y - 3, e.x, e.y + 3, 7)  -- vertical
   end
 
   -- draw fuel pickups
