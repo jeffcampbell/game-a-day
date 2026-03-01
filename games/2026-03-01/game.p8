@@ -72,6 +72,7 @@ landing_zones = {}
 asteroids = {}
 fuel_pickups = {}
 enemies = {}
+enemy_projectiles = {}
 boss = nil
 boss_projectiles = {}
 powerups = {}
@@ -447,6 +448,10 @@ function init_level()
         patrol_max = 200
       end
 
+      -- fire rate based on difficulty
+      local fire_rates = {120, 90, 60}  -- easy, normal, hard
+      local fire_rate = fire_rates[difficulty + 1]
+
       add(enemies, {
         x = ex,
         y = ey,
@@ -455,7 +460,10 @@ function init_level()
         r = 5,
         patrol_type = patrol_type,
         patrol_min = patrol_min,
-        patrol_max = patrol_max
+        patrol_max = patrol_max,
+        fire_rate = fire_rate,
+        fire_timer = flr(rnd(fire_rate)),  -- random initial delay
+        telegraph_timer = 0
       })
 
       _log("enemy:spawn:"..flr(ex)..","..flr(ey)..":type:"..patrol_type)
@@ -587,6 +595,7 @@ function init_level()
   -- spawn boss in levels 3, 4, 5
   boss = nil
   boss_projectiles = {}
+  enemy_projectiles = {}
   if level >= 3 then
     local bx = 80 + rnd(20)  -- spawn in middle-right area
     local by = 100 + rnd(surface_y - 200)  -- random vertical position
@@ -649,6 +658,18 @@ function update_enemies()
         e.vy = -e.vy  -- reverse direction
       end
     end
+
+    -- enemy firing system
+    e.fire_timer -= 1
+    if e.fire_timer <= 20 then
+      e.telegraph_timer = e.fire_timer
+    end
+    if e.fire_timer <= 0 then
+      -- fire projectile toward player
+      enemy_fire_projectile(e)
+      e.fire_timer = e.fire_rate
+      e.telegraph_timer = 0
+    end
   end
 
   -- update boss
@@ -700,6 +721,16 @@ function update_enemies()
     -- remove projectiles that go off-screen
     if p.x < 0 or p.x > 128 or p.y < 0 or p.y > 128 then
       del(boss_projectiles, p)
+    end
+  end
+
+  -- update enemy projectiles
+  for p in all(enemy_projectiles) do
+    p.x += p.vx
+    p.y += p.vy
+    -- remove projectiles that go off-screen
+    if p.x < 0 or p.x > 128 or p.y < 0 or p.y > 128 then
+      del(enemy_projectiles, p)
     end
   end
 end
@@ -1046,6 +1077,54 @@ function update_play()
         collision_count += 1
         _log("crash:projectile")
         del(boss_projectiles, proj)
+        do_crash()
+        return
+      end
+    end
+  end
+
+  -- collision with enemy projectiles
+  for proj in all(enemy_projectiles) do
+    local dx = ship.x - proj.x
+    local dy = ship.y - proj.y
+    if sqrt(dx * dx + dy * dy) < 4 + proj.r then
+      -- check for shield
+      local shield_active = false
+      for p in all(active_powerups) do
+        if p.type == 1 then  -- shield type
+          shield_active = true
+          del(active_powerups, p)
+          del(enemy_projectiles, proj)
+          _log("shield:absorbed:enemy_projectile")
+
+          -- shield absorption particles
+          for i = 1, 8 do
+            add(particles, {
+              x = ship.x,
+              y = ship.y,
+              vx = rnd(2) - 1,
+              vy = rnd(2) - 1,
+              life = 15,
+              col = 11
+            })
+          end
+
+          -- shield absorption sfx
+          sfx(6)
+
+          -- screen shake
+          shake_frames = 3
+          shake_intensity = 0.3
+
+          break
+        end
+      end
+
+      if not shield_active then
+        ship.alive = false
+        collision_count += 1
+        _log("crash:enemy_projectile")
+        del(enemy_projectiles, proj)
         do_crash()
         return
       end
@@ -1447,6 +1526,39 @@ function do_landing(velocity, zone_x, zone_w)
   end
 end
 
+function enemy_fire_projectile(e)
+  -- calculate direction to player with slight lead
+  local dx = ship.x - e.x
+  local dy = ship.y - e.y
+
+  -- add velocity prediction for better aiming
+  dx += ship.vx * 5
+  dy += ship.vy * 5
+
+  -- normalize direction
+  local dist = sqrt(dx * dx + dy * dy)
+  if dist > 0 then
+    dx /= dist
+    dy /= dist
+  end
+
+  -- projectile speed based on difficulty
+  local proj_speeds = {1.2, 1.5, 1.8}  -- easy, normal, hard
+  local speed = proj_speeds[difficulty + 1]
+
+  add(enemy_projectiles, {
+    x = e.x,
+    y = e.y,
+    vx = dx * speed,
+    vy = dy * speed,
+    r = 1,
+    col = 9  -- orange like enemy
+  })
+
+  _log("enemy:fire")
+  sfx(9, -1, 8)  -- projectile fire sfx with pitch offset
+end
+
 function boss_fire_attack()
   if not boss then return end
 
@@ -1648,6 +1760,12 @@ function draw_world()
 
   -- draw enemies
   for e in all(enemies) do
+    -- telegraph warning (glow when about to fire)
+    if e.telegraph_timer > 0 and e.telegraph_timer <= 20 then
+      local glow_col = (e.telegraph_timer % 8 < 4) and 10 or 7  -- flash yellow/white
+      circ(e.x, e.y, e.r + 2, glow_col)
+    end
+
     circfill(e.x, e.y, e.r, 9)  -- orange circle
     circ(e.x, e.y, e.r, 2)  -- red outline
     -- cross marker
@@ -1706,6 +1824,12 @@ function draw_world()
   -- draw boss projectiles
   for proj in all(boss_projectiles) do
     circfill(proj.x, proj.y, proj.r, proj.col)
+    circ(proj.x, proj.y, proj.r + 1, 7)  -- white outline
+  end
+
+  -- draw enemy projectiles
+  for proj in all(enemy_projectiles) do
+    circfill(proj.x, proj.y, proj.r, proj.col)  -- orange
     circ(proj.x, proj.y, proj.r + 1, 7)  -- white outline
   end
 
