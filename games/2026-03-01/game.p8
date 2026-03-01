@@ -838,7 +838,8 @@ function init_level()
       attack_telegraph = 0,  -- telegraph effect countdown
       attack_cooldown = attack_cooldown,  -- store for reset
       attack_pattern = 0,  -- 0=burst, 1=aimed, 2=ring, 3=homing
-      phase2 = false  -- phase 2 flag
+      phase2 = false,  -- phase 2 flag
+      telegraph_col = 10  -- telegraph warning color (pattern-based)
     }
 
     _log("boss:spawn:"..flr(bx)..","..flr(by)..":level:"..level)
@@ -910,6 +911,13 @@ function update_enemies()
       -- handle telegraph countdown
       if boss.attack_telegraph > 0 then
         boss.attack_telegraph -= 1
+
+        -- repeating charging sound (every 10 frames for audio reinforcement)
+        if boss.attack_telegraph % 10 == 0 and boss.attack_telegraph > 0 then
+          local pitch_offsets = {0, 4, -4, 8}
+          sfx(8, -1, pitch_offsets[boss.attack_pattern + 1] + 2)  -- slight pitch up
+        end
+
         if boss.attack_telegraph == 0 then
           -- fire attack
           boss_fire_attack()
@@ -920,12 +928,21 @@ function update_enemies()
         boss.attack_timer -= 1
         if boss.attack_timer <= 0 then
           -- start telegraph
-          boss.attack_telegraph = 30  -- 30-frame warning
+          boss.attack_telegraph = 45  -- 45-frame warning (extended for clarity)
           -- select pattern: phase 2 can use homing (pattern 3)
           local max_pattern = boss.phase2 and 4 or 3
           boss.attack_pattern = flr(rnd(max_pattern))  -- random pattern
+
+          -- set telegraph color based on attack pattern
+          -- pattern 0 (burst): yellow, 1 (aimed): red, 2 (ring): cyan, 3 (homing): orange
+          local telegraph_colors = {10, 8, 12, 9}
+          boss.telegraph_col = telegraph_colors[boss.attack_pattern + 1]
+
           _log("boss:telegraph:pattern:"..boss.attack_pattern)
-          sfx(8)  -- attack warning sfx
+
+          -- attack warning sfx with pitch variation per pattern
+          local pitch_offsets = {0, 4, -4, 8}  -- different pitch per pattern
+          sfx(8, -1, pitch_offsets[boss.attack_pattern + 1])
         end
       end
     end
@@ -2039,14 +2056,36 @@ function draw_world()
         circ(boss.x, boss.y, aura_r - 1, 7)  -- white inner aura
       end
 
-      -- telegraph warning effect (flashing glow)
-      if boss.attack_telegraph > 0 and boss.attack_telegraph % 6 < 3 then
-        circ(boss.x, boss.y, boss.r + 3, 10)  -- yellow warning glow
-        circ(boss.x, boss.y, boss.r + 4, 9)  -- orange outer warning
+      -- telegraph warning effect (enhanced)
+      local boss_draw_col = boss.col
+      if boss.attack_telegraph > 0 then
+        -- expanding pulse rings (more dramatic)
+        local progress = (45 - boss.attack_telegraph) / 45  -- 0 to 1
+        local expand_r = boss.r + 6 + progress * 8  -- expands outward
+
+        -- outer expanding ring (pulses with telegraph color)
+        circ(boss.x, boss.y, expand_r, boss.telegraph_col)
+        if boss.attack_telegraph % 4 < 2 then
+          circ(boss.x, boss.y, expand_r + 1, 7)  -- white accent flash
+        end
+
+        -- inner warning glow (constant)
+        circ(boss.x, boss.y, boss.r + 3, boss.telegraph_col)
+        circ(boss.x, boss.y, boss.r + 4, 7)  -- white glow
+
+        -- boss color cycling during telegraph (flash warning color)
+        if boss.attack_telegraph % 8 < 4 then
+          boss_draw_col = boss.telegraph_col  -- alternate with pattern color
+        end
+
+        -- exclamation mark indicator (above boss, flashing)
+        if boss.attack_telegraph % 6 < 3 then
+          line(boss.x, boss.y - boss.r - 5, boss.x, boss.y - boss.r - 8, boss.telegraph_col)
+          pset(boss.x, boss.y - boss.r - 3, boss.telegraph_col)
+        end
       end
 
-      -- flash effect when firing
-      local boss_draw_col = boss.col
+      -- flash effect when firing (overrides telegraph)
       if boss.flash_timer and boss.flash_timer > 0 then
         boss_draw_col = 7  -- white flash
         boss.flash_timer -= 1
