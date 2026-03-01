@@ -66,6 +66,8 @@ landing_zones = {}
 asteroids = {}
 fuel_pickups = {}
 enemies = {}
+powerups = {}
+active_powerups = {}
 surface_y = 0
 camera_y = 0
 last_cam_log = -999
@@ -396,6 +398,61 @@ function init_level()
     end
   end
 
+  -- generate power-ups
+  powerups = {}
+  active_powerups = {}
+  local powerup_count = 2 + flr(rnd(2))  -- 2-3 power-ups per level
+  for i = 1, powerup_count do
+    local px, py, valid
+    local attempts = 0
+    repeat
+      px = 20 + rnd(88)
+      py = 60 + rnd(surface_y - 100)
+      valid = true
+      attempts += 1
+
+      -- check distance from asteroids
+      for a in all(asteroids) do
+        local dx = px - a.x
+        local dy = py - a.y
+        if sqrt(dx * dx + dy * dy) < a.r + 20 then
+          valid = false
+          break
+        end
+      end
+
+      -- check distance from enemies
+      for e in all(enemies) do
+        local dx = px - e.x
+        local dy = py - e.y
+        if sqrt(dx * dx + dy * dy) < e.r + 20 then
+          valid = false
+          break
+        end
+      end
+
+      -- check distance from landing zones
+      for z in all(landing_zones) do
+        if py > z.y - 35 and py < z.y + 10 and px > z.x - 10 and px < z.x + z.w + 10 then
+          valid = false
+          break
+        end
+      end
+    until valid or attempts > 20
+
+    if valid then
+      -- power-up types: 1=shield, 2=fuel_restorer, 3=rocket_boost, 4=gravity_reducer
+      local ptype = flr(rnd(4)) + 1
+      add(powerups, {
+        x = px,
+        y = py,
+        type = ptype,
+        anim = rnd(1)  -- animation offset
+      })
+      _log("powerup:spawn:type"..ptype..":"..flr(px)..","..flr(py))
+    end
+  end
+
   particles = {}
 end
 
@@ -430,6 +487,25 @@ function update_play()
   -- update enemies
   update_enemies()
 
+  -- update active power-ups
+  for p in all(active_powerups) do
+    if p.time then
+      p.time -= 1
+
+      -- expiry warning flash (2 blinks in last 2 seconds)
+      if p.time == 120 or p.time == 90 or p.time == 60 or p.time == 30 then
+        shake_frames = 2
+        shake_intensity = 0.15
+      end
+
+      -- remove expired
+      if p.time <= 0 then
+        del(active_powerups, p)
+        _log("powerup:expired:type"..p.type)
+      end
+    end
+  end
+
   -- rotation
   if test_input(0) then  -- left
     ship.angle = (ship.angle - 0.02) % 1
@@ -444,8 +520,14 @@ function update_play()
     ship.thrusting = true
     ship.fuel -= 1
 
-    -- apply thrust force
+    -- apply thrust force (check for rocket boost)
     local thrust = 0.4
+    for p in all(active_powerups) do
+      if p.type == 3 then  -- rocket boost
+        thrust = thrust * 3
+        break
+      end
+    end
     ship.vx += cos(ship.angle) * thrust
     ship.vy += sin(ship.angle) * thrust
 
@@ -473,8 +555,15 @@ function update_play()
     _log("thrust")
   end
 
-  -- gravity
-  ship.vy += ship.gravity
+  -- gravity (check for gravity reducer)
+  local grav = ship.gravity
+  for p in all(active_powerups) do
+    if p.type == 4 then  -- gravity reducer
+      grav = grav * 0.5
+      break
+    end
+  end
+  ship.vy += grav
 
   -- movement
   ship.x += ship.vx
@@ -508,11 +597,44 @@ function update_play()
     local dx = ship.x - a.x
     local dy = ship.y - a.y
     if sqrt(dx * dx + dy * dy) < 4 + a.r then
-      ship.alive = false
-      collision_count += 1
-      _log("crash:asteroid")
-      do_crash()
-      return
+      -- check for shield
+      local shield_active = false
+      for p in all(active_powerups) do
+        if p.type == 1 then  -- shield type
+          shield_active = true
+          del(active_powerups, p)
+          _log("shield:absorbed:asteroid")
+
+          -- shield absorption particles (red)
+          for i = 1, 15 do
+            add(particles, {
+              x = ship.x,
+              y = ship.y,
+              vx = rnd(3) - 1.5,
+              vy = rnd(3) - 1.5,
+              life = 20,
+              col = 8
+            })
+          end
+
+          -- shield absorption sfx
+          sfx(6)
+
+          -- screen shake
+          shake_frames = 5
+          shake_intensity = 0.5
+
+          break
+        end
+      end
+
+      if not shield_active then
+        ship.alive = false
+        collision_count += 1
+        _log("crash:asteroid")
+        do_crash()
+        return
+      end
     end
   end
 
@@ -521,11 +643,44 @@ function update_play()
     local dx = ship.x - e.x
     local dy = ship.y - e.y
     if sqrt(dx * dx + dy * dy) < 4 + e.r then
-      ship.alive = false
-      collision_count += 1
-      _log("crash:enemy")
-      do_crash()
-      return
+      -- check for shield
+      local shield_active = false
+      for p in all(active_powerups) do
+        if p.type == 1 then  -- shield type
+          shield_active = true
+          del(active_powerups, p)
+          _log("shield:absorbed:enemy")
+
+          -- shield absorption particles (red)
+          for i = 1, 15 do
+            add(particles, {
+              x = ship.x,
+              y = ship.y,
+              vx = rnd(3) - 1.5,
+              vy = rnd(3) - 1.5,
+              life = 20,
+              col = 8
+            })
+          end
+
+          -- shield absorption sfx
+          sfx(6)
+
+          -- screen shake
+          shake_frames = 5
+          shake_intensity = 0.5
+
+          break
+        end
+      end
+
+      if not shield_active then
+        ship.alive = false
+        collision_count += 1
+        _log("crash:enemy")
+        do_crash()
+        return
+      end
     end
   end
 
@@ -563,6 +718,70 @@ function update_play()
 
       -- remove pickup
       del(fuel_pickups, pickup)
+    end
+  end
+
+  -- collision with power-ups
+  for pup in all(powerups) do
+    local dx = ship.x - pup.x
+    local dy = ship.y - pup.y
+    if sqrt(dx * dx + dy * dy) < 8 then
+      -- check if already have this type
+      local already_have = false
+      for ap in all(active_powerups) do
+        if ap.type == pup.type then
+          already_have = true
+          break
+        end
+      end
+
+      if not already_have then
+        -- collect power-up
+        local ptype = pup.type
+        local pname = ({"shield", "fuel_restorer", "rocket_boost", "gravity_reducer"})[ptype]
+        local pcol = ({8, 12, 9, 11})[ptype]  -- red, blue, orange, cyan
+
+        _log("powerup:collect:type"..ptype..":"..pname)
+
+        -- instant effects
+        if ptype == 2 then
+          -- fuel restorer: instant refill
+          local fuel_table = {80, 70, 60, 50, 40}
+          local fuel_mult = {1.15, 1.0, 0.8}
+          local max_fuel = flr((fuel_table[level] or 40) * fuel_mult[difficulty + 1])
+          ship.fuel = max_fuel
+          _log("powerup:fuel_restorer:refill:"..max_fuel)
+        else
+          -- add to active power-ups with timer
+          local duration = ({0, 0, 600, 720})[ptype]  -- shield=no timer, fuel=no timer, boost=10s, gravity=12s
+          add(active_powerups, {
+            type = ptype,
+            time = duration
+          })
+        end
+
+        -- power-up particles (color-coded)
+        for i = 1, 12 do
+          add(particles, {
+            x = pup.x,
+            y = pup.y,
+            vx = rnd(2.5) - 1.25,
+            vy = rnd(2.5) - 1.25,
+            life = 18,
+            col = pcol
+          })
+        end
+
+        -- power-up sfx (pitch varies by type)
+        sfx(5, -1, ptype * 2)
+
+        -- screen shake
+        shake_frames = 3
+        shake_intensity = 0.25
+
+        -- remove power-up
+        del(powerups, pup)
+      end
     end
   end
 
@@ -856,6 +1075,39 @@ function draw_world()
     end
   end
 
+  -- draw power-ups
+  for pup in all(powerups) do
+    -- pulsing animation
+    local pulse = sin((t() * 2 + pup.anim)) * 1.5 + 4.5
+    local pcol = ({8, 12, 9, 11})[pup.type]  -- red, blue, orange, cyan
+    local pcol2 = ({2, 6, 4, 3})[pup.type]  -- dark variants
+    circfill(pup.x, pup.y, pulse, pcol)
+    circ(pup.x, pup.y, pulse + 1, pcol2)
+    -- type indicator (small symbol)
+    if pup.type == 1 then
+      -- shield: plus sign
+      line(pup.x - 2, pup.y, pup.x + 2, pup.y, 7)
+      line(pup.x, pup.y - 2, pup.x, pup.y + 2, 7)
+    elseif pup.type == 2 then
+      -- fuel: F
+      pset(pup.x - 1, pup.y - 1, 7)
+      pset(pup.x, pup.y - 1, 7)
+      pset(pup.x - 1, pup.y, 7)
+      pset(pup.x, pup.y, 7)
+      pset(pup.x - 1, pup.y + 1, 7)
+    elseif pup.type == 3 then
+      -- boost: up arrow
+      pset(pup.x, pup.y - 1, 7)
+      pset(pup.x - 1, pup.y, 7)
+      pset(pup.x + 1, pup.y, 7)
+    else
+      -- gravity: down arrow
+      pset(pup.x, pup.y + 1, 7)
+      pset(pup.x - 1, pup.y, 7)
+      pset(pup.x + 1, pup.y, 7)
+    end
+  end
+
   -- draw particles
   for p in all(particles) do
     pset(p.x, p.y, p.col)
@@ -911,6 +1163,26 @@ function draw_hud()
 
   if chain > 1 then
     print("x"..flr((1 + (chain - 1) * 0.5) * 10) / 10, 110, 16, 11)
+  end
+
+  -- active power-ups display
+  local pup_y = 30
+  for p in all(active_powerups) do
+    local pname = ({"shd", "ful", "bst", "grv"})[p.type]
+    local pcol = ({8, 12, 9, 11})[p.type]
+
+    -- draw icon
+    circfill(2, pup_y, 2, pcol)
+
+    -- draw time (if applicable)
+    if p.time then
+      local sec = flr(p.time / 60) + 1
+      print(pname..":"..sec, 6, pup_y - 2, 7)
+    else
+      print(pname, 6, pup_y - 2, 7)
+    end
+
+    pup_y += 6
   end
 
   if not ship.alive then
