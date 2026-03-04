@@ -238,6 +238,7 @@ function update_menu()
   lb_vd=diff_sel
   load_dlb(lb_vd)
   state="lb_view"
+  _log("state:lb_view")
  end
 end
 
@@ -1257,23 +1258,38 @@ function draw_powerups()
 end
 
 -- leaderboard view state
+lb_dnames={"easy","normal","hard","endless"}
+function lb_reload()
+ if lb_vd<4 then load_dlb(lb_vd)
+ else load_elb() end
+end
 function update_lbview()
- if btnp(0) then lb_vd=max(1,lb_vd-1) elseif btnp(1) then lb_vd=min(3,lb_vd+1) end
- load_dlb(lb_vd)
+ local prev=lb_vd
+ if btnp(0) then lb_vd=max(1,lb_vd-1) end
+ if btnp(1) then lb_vd=min(4,lb_vd+1) end
+ if lb_vd!=prev then
+  lb_reload()
+  _log("lb_switch:"..lb_dnames[lb_vd])
+ end
  if btnp(4) or btnp(5) then
   load_dlb(diff_sel)
   state="menu"
+  _log("state:menu")
  end
 end
 
 function draw_lbview()
  cls(0) draw_stars()
  print("leaderboard",28,6,10)
- print("\139 "..diff_names[lb_vd].." \145",40,18,7)
+ local dn=lb_dnames[lb_vd]
+ local dx=64-#dn*2
+ print("\139 "..dn.." \145",dx-4,18,lb_vd==4 and 12 or 7)
+ local ls=lb_vd<4 and lb_scores or elb_scores
+ local ln=lb_vd<4 and lb_names or elb_names
  for i=1,5 do
   local y=28+i*12
-  if lb_scores[i]>0 then
-   print(i..". "..lb_names[i].." "..lb_scores[i],20,y,6)
+  if ls[i] and ls[i]>0 then
+   print(i..". "..ln[i].." "..ls[i],20,y,6)
   else
    print(i..". ---",20,y,1)
   end
