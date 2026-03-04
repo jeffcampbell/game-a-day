@@ -160,11 +160,14 @@ mod_offer={}
 mod_active=0
 mod_sel=1
 mod_count=0
--- leaderboard (top 5)
+-- leaderboard (top 5 per difficulty)
 lb_scores={}
 lb_names={}
 lb_gflag={}
 lb_mflag={}
+lb_bs={42,13,52}
+lb_fs={40,29,62}
+lb_vd=2
 -- endless leaderboard (top 5)
 elb_scores={}
 elb_names={}
@@ -183,41 +186,31 @@ function unpack_name(n)
  local c3=n-c1*676-c2*26
  return chr(65+c1)..chr(65+c2)..chr(65+c3)
 end
-function load_lb()
- lb_scores={}
- lb_names={}
- lb_gflag={}
- lb_mflag={}
- local gf=flr(dget(29))
- local mf=flr(dget(41))
+function load_dlb(d)
+ lb_scores={} lb_names={} lb_gflag={} lb_mflag={}
+ local b=lb_bs[d]
+ local f=flr(dget(lb_fs[d]))
  for i=1,5 do
-  local s=dget(11+i*2)
-  local n=dget(12+i*2)
-  if s>0 then
-   add(lb_scores,s)
-   add(lb_names,unpack_name(n))
-  else
-   add(lb_scores,0)
-   add(lb_names,"---")
-  end
-  add(lb_gflag,band(gf,shl(1,i-1))>0)
-  add(lb_mflag,band(mf,shl(1,i-1))>0)
+  local s=dget(b+i-1)
+  add(lb_scores,s>0 and s or 0)
+  add(lb_names,s>0 and unpack_name(dget(b+4+i)) or "---")
+  add(lb_gflag,band(f,shl(1,i-1))>0)
+  add(lb_mflag,band(f,shl(1,i+4))>0)
  end
 end
-function save_lb()
- local gf,mf=0,0
+function save_dlb(d)
+ local b,f=lb_bs[d],0
  for i=1,5 do
-  dset(11+i*2,lb_scores[i])
-  dset(12+i*2,lb_names[i]=="---" and 0 or pack_name({
+  dset(b+i-1,lb_scores[i])
+  dset(b+4+i,lb_names[i]=="---" and 0 or pack_name({
    ord(sub(lb_names[i],1,1))-65,
    ord(sub(lb_names[i],2,2))-65,
    ord(sub(lb_names[i],3,3))-65
   }))
-  if lb_gflag[i] then gf=bor(gf,shl(1,i-1)) end
-  if lb_mflag[i] then mf=bor(mf,shl(1,i-1)) end
+  if lb_gflag[i] then f=bor(f,shl(1,i-1)) end
+  if lb_mflag[i] then f=bor(f,shl(1,i+4)) end
  end
- dset(29,gf)
- dset(41,mf)
+ dset(lb_fs[d],f)
 end
 function any_rank(s,ls)
  for i=1,5 do
@@ -253,7 +246,7 @@ function _init()
  for i=17,22 do
   achv[i]=dget(i+6)>0
  end
- load_lb()
+ load_dlb(diff_sel)
  load_elb()
  for i=1,40 do
   add(stars,{
@@ -277,6 +270,12 @@ function update_menu()
   state="help"
   _log("state:help")
  end
+ if inp&4>0 then
+  lb_vd=diff_sel
+  load_dlb(lb_vd)
+  state="lb_view"
+  _log("state:lb_view")
+ end
 end
 
 function draw_menu()
@@ -295,7 +294,7 @@ function draw_menu()
  if flr(t()*2)%2==0 then
   print("press \142/\151 to start",22,100,7)
  end
- print("\140 hazard help",36,108,5)
+ print("\131 scores  \132 help",24,108,5)
  -- mini leaderboard on menu
  if lb_scores[1]>0 then
   local mp=lbp(1)
@@ -486,6 +485,7 @@ function draw_modsel()
 end
 
 function start_game()
+ load_dlb(diff_sel)
  state="play"
  score=0
  time_alive=0
@@ -1419,6 +1419,32 @@ function draw_powerups()
  end
 end
 
+-- leaderboard view state
+function update_lbview()
+ if btnp(0) then lb_vd=max(1,lb_vd-1) load_dlb(lb_vd) end
+ if btnp(1) then lb_vd=min(3,lb_vd+1) load_dlb(lb_vd) end
+ if btnp(4) or btnp(5) then
+  load_dlb(diff_sel)
+  state="menu"
+  _log("state:menu")
+ end
+end
+
+function draw_lbview()
+ cls(0) draw_stars()
+ print("leaderboard",28,6,10)
+ print("\139 "..diff_names[lb_vd].." \145",40,18,7)
+ for i=1,5 do
+  local y=28+i*12
+  if lb_scores[i]>0 then
+   print(i..". "..lbp(i)..lb_names[i].." "..lb_scores[i],20,y,6)
+  else
+   print(i..". ---",20,y,1)
+  end
+ end
+ print("\139\145 switch  \142/\151 back",10,110,5)
+end
+
 -- name entry state
 function update_nameentry()
  ne_timer+=1
@@ -1460,7 +1486,7 @@ function update_nameentry()
    hiscore=score
    dset(0,hiscore)
   end
-  if is_endless then save_elb() else save_lb() end
+  if is_endless then save_elb() else save_dlb(diff_sel) end
   sfx(4)
   _log("name_entered:"..name.." rank="..ne_rank)
   state="gameover"
@@ -1614,7 +1640,7 @@ function draw_gameover()
  local lbs=is_endless and elb_scores or lb_scores
  local lbn=is_endless and elb_names or lb_names
  local ly=max(sy+2,86)
- local lbl=is_endless and "-- endless lb --" or "-- leaderboard --"
+ local lbl=is_endless and "-- endless lb --" or "-- "..diff_names[diff_sel].." lb --"
  print(lbl,22,ly,is_endless and 12 or 6)
  ly+=7
  for i=1,5 do
@@ -1703,6 +1729,7 @@ end
 -- main loops
 function _update()
  if state=="menu" then update_menu()
+ elseif state=="lb_view" then update_lbview()
  elseif state=="help" then update_help()
  elseif state=="difficulty_select" then update_difsel()
  elseif state=="mode_select" then update_modesel()
@@ -1715,6 +1742,7 @@ end
 
 function _draw()
  if state=="menu" then draw_menu()
+ elseif state=="lb_view" then draw_lbview()
  elseif state=="help" then draw_help()
  elseif state=="difficulty_select" then draw_difsel()
  elseif state=="mode_select" then draw_modesel()
