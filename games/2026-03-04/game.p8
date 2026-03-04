@@ -85,6 +85,7 @@ dblscore_timer=0
 pu_flash=0
 pu_flash_txt=""
 pu_collected=0
+inv_timer=0
 -- boss meteor wave system
 boss_active=false
 boss_timer=0
@@ -464,6 +465,7 @@ function start_game()
  pu_flash=0
  pu_flash_txt=""
  pu_collected=0
+ inv_timer=0
  -- reset boss wave
  boss_active=false
  boss_timer=0
@@ -784,10 +786,30 @@ function update_play()
  for m in all(meteors) do
   if check_col(ship_x,ship_y,ship_w,6,
    m.x,m.y,m.sz,m.sz) then
-   if shield_count>0 then
+   if inv_timer>0 then
+    -- invincibility: destroy meteor, award points
+    del(meteors,m)
+    score+=5
+    for i=1,4 do
+     ap(m.x+4,m.y+4,rnd(2)-1,rnd(2)-1,10,11)
+    end
+   elseif shield_count>0 then
     -- shield absorbs hit (radioactive costs 2)
     local scost=m.htype==1 and 2 or 1
     shield_count=max(0,shield_count-scost)
+    -- shield burst: destroy nearby meteors
+    for m2 in all(meteors) do
+     if m2!=m then
+      local dx,dy=m2.x-m.x,m2.y-m.y
+      if dx*dx+dy*dy<900 then
+       del(meteors,m2)
+       score+=10
+       for i=1,4 do
+        ap(m2.x+4,m2.y+4,rnd(2)-1,rnd(2)-1,8,14)
+       end
+      end
+     end
+    end
     del(meteors,m)
     shake=3
     sfx(4)
@@ -815,6 +837,7 @@ function update_play()
  slowmo_timer=dk(slowmo_timer)
  ice_slow=dk(ice_slow)
  dblscore_timer=dk(dblscore_timer)
+ inv_timer=dk(inv_timer)
  pu_flash=dk(pu_flash)
  combo_flash=dk(combo_flash)
  achv_flash=dk(achv_flash)
@@ -839,10 +862,10 @@ end
 -- power-up functions
 function spawn_powerup()
  if band(mod_active,1)>0 then return end
- local pn={"shield","slow-mo","2x pts","2x shld"}
- local pc={12,11,10,13}
+ local pn={"shield","slow-mo","2x pts","2x shld","invinci","s.burst","pts bomb"}
+ local pc={12,11,10,13,11,14,10}
  local r=rnd()
- local ti=r<0.35 and 1 or (r<0.6 and 2 or (r<0.85 and 3 or 4))
+ local ti=r<0.25 and 1 or (r<0.45 and 2 or (r<0.65 and 3 or (r<0.8 and 4 or (r<0.85 and 5 or (r<0.93 and 6 or 7)))))
  add(powerups,{
   x=rnd(120),y=-8,
   spd=0.5+rnd(0.3),
@@ -875,6 +898,16 @@ function collect_powerup(p)
   dblscore_timer=120
  elseif p.typ==4 then
   shield_count+=2
+ elseif p.typ==5 then
+  inv_timer=270
+  _log("powerup:invinci")
+ elseif p.typ==6 then
+  shield_count=max(shield_count,1)
+  _log("powerup:sburst")
+ elseif p.typ==7 then
+  local bpts=flr(50*score_mult*(diff_sel==1 and 0.8 or (diff_sel==3 and 1.5 or 1)))
+  score+=bpts
+  _log("powerup:bomb+"..bpts)
  end
  pu_flash=25
  pu_flash_txt="+"..p.name
@@ -1140,6 +1173,10 @@ function draw_play()
     circ(ship_x+3,ship_y+3,gr+1,13)
    end
   end
+  -- invincibility flash
+  if inv_timer>0 and flr(anim_t)%2==0 then
+   circfill(ship_x+3,ship_y+3,6,11)
+  end
   draw_ship(ship_x,ship_y)
  end
 
@@ -1216,6 +1253,12 @@ function draw_play()
   local bw=flr(dblscore_timer/120*28)
   rectfill(1,ty,1+bw,ty+2,10)
   print("2x",31,ty,10)
+  ty+=5
+ end
+ if inv_timer>0 then
+  local bw=flr(inv_timer/270*28)
+  rectfill(1,ty,1+bw,ty+2,11)
+  print("inv",31,ty,11)
  end
 
  -- gauntlet round indicator
