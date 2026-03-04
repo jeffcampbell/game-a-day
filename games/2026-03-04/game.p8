@@ -31,7 +31,7 @@ state="menu"
 score=0
 hiscore=0
 time_alive=0
-go_timer=0 -- gameover input delay
+go_timer=0
 ship_x=60
 ship_y=116
 ship_w=7
@@ -43,7 +43,7 @@ flash=0
 anim_t=0
 -- difficulty
 spawn_timer=0
-spawn_rate=40 -- frames between spawns
+spawn_rate=40
 meteor_speed=1.0
 diff_timer=0
 diff_level=1
@@ -53,12 +53,18 @@ nm_flash=0
 nm_streak=0
 nm_best=0
 nm_last_bonus=0
+-- power-up system
+powerups={}
+shield_count=0
+slowmo_timer=0
+dblscore_timer=0
+pu_flash=0
+pu_flash_txt=""
+pu_collected=0
 
 function _init()
- -- load hiscore from cartdata
  cartdata(1)
  hiscore=dget(0)
- -- init stars
  for i=1,40 do
   add(stars,{
    x=rnd(128),
@@ -81,23 +87,19 @@ end
 function draw_menu()
  cls(0)
  draw_stars()
- -- title
  local ty=20+sin(t()*0.3)*3
  print("\135 meteor dodge \135",16,ty,10)
  print("dodge the falling meteors!",10,40,7)
- -- animated meteors on menu
  for i=0,3 do
   local mx=20+i*28
   local my=60+sin(t()*0.5+i*0.25)*8
   draw_meteor(mx,my,flr(t()*4+i)%2)
  end
- -- instructions
  print("\139\145 move left/right",28,80,6)
- print("survive as long as you can",10,90,5)
+ print("collect power-ups!",28,90,12)
  if flr(t()*2)%2==0 then
   print("press \142/\151 to start",22,108,7)
  end
- -- hiscore
  if hiscore>0 then
   print("hi-score: "..hiscore,34,118,9)
  end
@@ -123,6 +125,14 @@ function start_game()
  nm_streak=0
  nm_best=0
  nm_last_bonus=0
+ -- reset power-ups
+ powerups={}
+ shield_count=0
+ slowmo_timer=0
+ dblscore_timer=0
+ pu_flash=0
+ pu_flash_txt=""
+ pu_collected=0
  _log("state:play")
 end
 
@@ -134,10 +144,13 @@ function update_play()
  if inp&2>0 then ship_x+=2.5 end
  ship_x=mid(0,ship_x,121)
 
+ -- score multiplier
+ local smul=dblscore_timer>0 and 2 or 1
+
  -- update time and score
  time_alive+=1
  if time_alive%30==0 then
-  score+=1
+  score+=smul
   if score%10==0 then
    _log("score:"..score)
   end
@@ -145,7 +158,7 @@ function update_play()
 
  -- difficulty ramp
  diff_timer+=1
- if diff_timer>=180 then -- every 3 seconds
+ if diff_timer>=180 then
   diff_timer=0
   if spawn_rate>10 then
    spawn_rate-=2
@@ -174,12 +187,20 @@ function update_play()
   spawn_meteor()
  end
 
+ -- spawn power-ups (after 60 frames, 2% chance)
+ if time_alive>60 and rnd()<0.02 then
+  spawn_powerup()
+ end
+
+ -- slowmo speed factor
+ local spd_mul=slowmo_timer>0 and 0.5 or 1
+
  -- update meteors
- local scx=ship_x+3 -- ship center
+ local scx=ship_x+3
  local scy=ship_y+3
  local got_near=false
  for m in all(meteors) do
-  m.y+=m.spd
+  m.y+=m.spd*spd_mul
   m.anim+=0.15
   -- trail particles
   if rnd()<0.3 then
@@ -192,22 +213,21 @@ function update_play()
     col=m.col2
    })
   end
-  -- near-miss detection: meteor just passed ship
+  -- near-miss detection
   if not m.scored and m.y>ship_y+6 then
    m.scored=true
    local dx=abs((m.x+m.sz/2)-scx)
-   local dy=abs((m.y-m.spd)-scy)
+   local dy=abs((m.y-m.spd*spd_mul)-scy)
    local dist=sqrt(dx*dx+dy*dy)
    if dist<near_miss_dist then
     got_near=true
-    local bonus=max(1,flr((near_miss_dist-dist)/3))
+    local bonus=max(1,flr((near_miss_dist-dist)/3))*smul
     nm_last_bonus=bonus
     score+=bonus
     nm_streak+=1
     if nm_streak>nm_best then nm_best=nm_streak end
     nm_flash=10
     sfx(nm_streak>=3 and 3 or 2)
-    -- bonus particle burst
     for i=1,4 do
      add(particles,{
       x=scx,y=scy-4,
@@ -221,7 +241,6 @@ function update_play()
    end
   end
  end
- -- reset streak if no near miss this frame and no recent meteors passing
  if not got_near and nm_flash<=0 then
   nm_streak=0
  end
@@ -233,19 +252,36 @@ function update_play()
   end
  end
 
+ -- update and collect power-ups (before collision)
+ update_powerups()
+
  -- collision check
  for m in all(meteors) do
   if check_col(ship_x,ship_y,ship_w,6,
    m.x,m.y,m.sz,m.sz) then
-   game_over()
-   return
+   if shield_count>0 then
+    -- shield absorbs hit
+    shield_count-=1
+    del(meteors,m)
+    shake=3
+    sfx(4)
+    _log("shield_absorb:remaining="..shield_count)
+    for i=1,8 do
+     add(particles,{
+      x=ship_x+3,y=ship_y+3,
+      dx=rnd(2)-1,dy=rnd(2)-1,
+      life=12,col=12
+     })
+    end
+   else
+    game_over()
+    return
+   end
   end
  end
 
- -- update particles
  update_particles()
 
- -- update stars
  for s in all(stars) do
   s.y+=s.spd*0.5
   if s.y>128 then
@@ -254,16 +290,81 @@ function update_play()
   end
  end
 
- -- shake decay
+ -- decay timers
  if shake>0 then shake-=0.5 end
  if flash>0 then flash-=1 end
  if nm_flash>0 then nm_flash-=1 end
+ if slowmo_timer>0 then slowmo_timer-=1 end
+ if dblscore_timer>0 then dblscore_timer-=1 end
+ if pu_flash>0 then pu_flash-=1 end
 
  anim_t+=1
 end
 
+-- power-up functions
+function spawn_powerup()
+ -- types: 1=shield(12), 2=slowmo(11), 3=dblpts(10), 4=rapid shield(13)
+ local typs={
+  {name="shield",col=12},
+  {name="slow-mo",col=11},
+  {name="2x pts",col=10},
+  {name="2x shld",col=13}
+ }
+ -- weighted: shield 35%, slowmo 25%, dblpts 25%, rapid 15%
+ local r=rnd()
+ local ti=r<0.35 and 1 or (r<0.6 and 2 or (r<0.85 and 3 or 4))
+ local tp=typs[ti]
+ add(powerups,{
+  x=rnd(120),y=-8,
+  spd=0.5+rnd(0.3),
+  typ=ti,col=tp.col,
+  name=tp.name,anim=rnd(1)
+ })
+ _log("powerup_spawn:"..tp.name)
+end
+
+function update_powerups()
+ for i=#powerups,1,-1 do
+  local p=powerups[i]
+  p.y+=p.spd
+  p.anim+=0.05
+  -- collect check (slightly larger hitbox for easier pickup)
+  if check_col(ship_x,ship_y,ship_w,6,p.x-1,p.y-1,10,10) then
+   collect_powerup(p)
+   deli(powerups,i)
+  elseif p.y>140 then
+   deli(powerups,i)
+  end
+ end
+end
+
+function collect_powerup(p)
+ if p.typ==1 then
+  shield_count+=1
+ elseif p.typ==2 then
+  slowmo_timer=180
+ elseif p.typ==3 then
+  dblscore_timer=120
+ elseif p.typ==4 then
+  shield_count+=2
+ end
+ pu_flash=25
+ pu_flash_txt="+"..p.name
+ pu_collected+=1
+ sfx(4)
+ _log("powerup_collect:"..p.name)
+ -- particle burst
+ for i=1,6 do
+  add(particles,{
+   x=p.x+4,y=p.y+4,
+   dx=rnd(2)-1,dy=-1-rnd(1),
+   life=15,col=p.col
+  })
+ end
+end
+
 function spawn_meteor()
- local sz=6+flr(rnd(4)) -- 6-9 pixel size
+ local sz=6+flr(rnd(4))
  local m={
   x=rnd(120),
   y=-sz,
@@ -278,7 +379,6 @@ function spawn_meteor()
 end
 
 function check_col(x1,y1,w1,h1,x2,y2,w2,h2)
- -- shrink hitboxes slightly for fairness
  return x1+1<x2+w2-1 and x1+w1-1>x2+1
     and y1+1<y2+h2-1 and y1+h1-1>y2+1
 end
@@ -288,14 +388,12 @@ function game_over()
  _log("state:gameover")
  _log("final_score:"..score)
 
- -- update hiscore
  if score>hiscore then
   hiscore=score
   dset(0,hiscore)
   _log("new_hiscore:"..hiscore)
  end
 
- -- explosion particles
  for i=1,30 do
   local ang=rnd(1)
   local spd=1+rnd(3)
@@ -315,7 +413,6 @@ function game_over()
 end
 
 function draw_play()
- -- camera shake
  local sx,sy=0,0
  if shake>0 then
   sx=rnd(shake)-shake/2
@@ -323,7 +420,6 @@ function draw_play()
  end
  camera(sx,sy)
 
- -- flash effect
  if flash>0 then
   cls(7)
  else
@@ -337,12 +433,28 @@ function draw_play()
   draw_meteor(m.x,m.y,flr(m.anim)%2,m.sz,m.col,m.col2)
  end
 
+ -- draw power-ups
+ draw_powerups()
+
  -- draw particles
  draw_particles()
 
- -- draw ship (only in play state)
+ -- draw ship
  if state=="play" then
+  -- shield glow around ship
+  if shield_count>0 then
+   local gr=5+sin(anim_t*0.02)*2
+   circ(ship_x+3,ship_y+3,gr,12)
+   if shield_count>=2 then
+    circ(ship_x+3,ship_y+3,gr+1,13)
+   end
+  end
   draw_ship(ship_x,ship_y)
+ end
+
+ -- slowmo border effect
+ if slowmo_timer>0 then
+  rect(0,0,127,127,11)
  end
 
  camera(0,0)
@@ -350,10 +462,30 @@ function draw_play()
  -- hud
  print("score:"..score,1,1,7)
  print("hi:"..hiscore,90,1,6)
- -- difficulty level
  print("lv"..diff_level,54,1,diff_level>=7 and 8 or 5)
  local spd_bar=min((meteor_speed-1)*20,30)
  rectfill(68,1,68+spd_bar,4,diff_level>=7 and 8 or 13)
+
+ -- shield indicator
+ if shield_count>0 then
+  for i=1,min(shield_count,4) do
+   circfill(1+i*6,9,2,12)
+  end
+ end
+
+ -- active effect timers
+ local ty=14
+ if slowmo_timer>0 then
+  local bw=flr(slowmo_timer/180*28)
+  rectfill(1,ty,1+bw,ty+2,11)
+  print("slow",31,ty,11)
+  ty+=5
+ end
+ if dblscore_timer>0 then
+  local bw=flr(dblscore_timer/120*28)
+  rectfill(1,ty,1+bw,ty+2,10)
+  print("2x",31,ty,10)
+ end
 
  -- near-miss feedback
  if nm_flash>0 then
@@ -365,13 +497,34 @@ function draw_play()
     ship_x-10,ship_y-20,10)
   end
  end
+
+ -- power-up collection notification (centered top)
+ if pu_flash>0 then
+  local px=64-#pu_flash_txt*2
+  local py=24+flr((25-pu_flash)/3)
+  local c=pu_flash>15 and 7 or 6
+  print(pu_flash_txt,px,py,c)
+ end
+end
+
+-- draw power-up items
+function draw_powerups()
+ for p in all(powerups) do
+  local cx,cy=p.x+4,p.y+4
+  local r=3+sin(p.anim)*0.5
+  circfill(cx,cy,r,p.col)
+  pset(cx-1,cy-1,7)
+  -- pulsing glow ring
+  if sin(p.anim*2)>0 then
+   circ(cx,cy,r+1,7)
+  end
+ end
 end
 
 -- gameover state
 function update_gameover()
  go_timer+=1
  local inp=test_input()
- -- wait a moment before accepting input
  if go_timer>45 then
   if inp&16>0 or inp&32>0 then
    start_game()
@@ -381,12 +534,10 @@ function update_gameover()
  if shake>0 then shake-=0.5 end
  if flash>0 then flash-=1 end
 
- -- drift meteors during gameover
  for m in all(meteors) do
   m.y+=0.2
  end
 
- -- slowly drift stars
  for s in all(stars) do
   s.y+=s.spd*0.2
   if s.y>128 then
@@ -407,7 +558,6 @@ function draw_gameover()
  cls(0)
  draw_stars()
 
- -- still draw meteors drifting
  for m in all(meteors) do
   draw_meteor(m.x,m.y,flr(m.anim)%2,m.sz,m.col,m.col2)
  end
@@ -416,27 +566,28 @@ function draw_gameover()
 
  camera(0,0)
 
- -- game over text
- print("game over",40,26,8)
- print("score: "..score,42,40,7)
- print("hi-score: "..hiscore,34,50,
+ print("game over",40,24,8)
+ print("score: "..score,42,36,7)
+ print("hi-score: "..hiscore,34,44,
   score>=hiscore and 10 or 6)
 
  if score>=hiscore and score>0 then
   if flr(t()*3)%2==0 then
-   print("new hi-score!",34,59,10)
+   print("new hi-score!",34,52,10)
   end
  end
 
  -- stats
  local secs=flr(time_alive/30)
- print("survived: "..secs.."s",34,70,5)
- print("best level: "..diff_level,34,78,5)
+ print("survived: "..secs.."s",34,62,5)
+ print("best level: "..diff_level,34,69,5)
  if nm_best>0 then
-  print("best streak: "..nm_best.."x",34,86,9)
+  print("best streak: "..nm_best.."x",34,76,9)
+ end
+ if pu_collected>0 then
+  print("power-ups: "..pu_collected,34,83,12)
  end
 
- -- restart prompt
  if go_timer>45 then
   if flr(t()*2)%2==0 then
    print("press \142/\151 to retry",22,100,7)
@@ -448,18 +599,13 @@ end
 
 -- drawing helpers
 function draw_ship(x,y)
- -- ship body (triangle shape)
- -- hull
  rectfill(x+2,y+1,x+4,y+5,12)
  pset(x+3,y,12)
- -- wings
  line(x,y+4,x+2,y+2,1)
  line(x+4,y+2,x+6,y+4,1)
  rectfill(x,y+4,x+1,y+5,1)
  rectfill(x+5,y+4,x+6,y+5,1)
- -- cockpit
  pset(x+3,y+2,10)
- -- engine glow
  if anim_t%4<2 then
   pset(x+2,y+6,9)
   pset(x+3,y+6,10)
@@ -474,20 +620,16 @@ function draw_meteor(x,y,frame,sz,col,col2)
  col=col or 8
  col2=col2 or 10
  local r=sz\2
- -- frame 0: round, frame 1: slightly different
  if frame==0 then
   circfill(x+r,y+r,r,col)
-  -- craters
   pset(x+r-1,y+r-1,col2)
   pset(x+r+1,y+r+1,5)
  else
   circfill(x+r,y+r,r,col)
-  -- different crater pattern
   pset(x+r+1,y+r-1,col2)
   pset(x+r-1,y+r+1,5)
   pset(x+r,y+r-1,col2)
  end
- -- glow highlight
  pset(x+r-1,y+1,7)
 end
 
@@ -608,7 +750,6 @@ __label__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -673,10 +814,10 @@ __label__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __sfx__
 000200001505015050150401503015020150101500015000150001500015000150001500015000150001500015000150001500015000150001500015000150001500015000150001500015000150001500015000150000
 001000002a6502a6402a6302a6202a6102a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a600
 000400002965029640296202960029600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000300001d0501d0401d0301d0201d010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300001c0501e050200502204024030260202801028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
