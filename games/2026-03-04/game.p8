@@ -31,6 +31,7 @@ state="menu"
 score=0
 hiscore=0
 time_alive=0
+go_timer=0 -- gameover input delay
 ship_x=60
 ship_y=116
 ship_w=7
@@ -45,6 +46,12 @@ spawn_timer=0
 spawn_rate=40 -- frames between spawns
 meteor_speed=1.0
 diff_timer=0
+diff_level=1
+-- near-miss system
+near_miss_dist=12
+nm_flash=0
+nm_streak=0
+nm_best=0
 
 function _init()
  -- load hiscore from cartdata
@@ -98,6 +105,7 @@ function start_game()
  state="play"
  score=0
  time_alive=0
+ go_timer=0
  ship_x=60
  ship_y=116
  meteors={}
@@ -106,8 +114,12 @@ function start_game()
  spawn_rate=40
  meteor_speed=1.0
  diff_timer=0
+ diff_level=1
  shake=0
  flash=0
+ nm_flash=0
+ nm_streak=0
+ nm_best=0
  _log("state:play")
 end
 
@@ -115,14 +127,8 @@ end
 function update_play()
  local inp=test_input()
  -- ship movement
- if inp&1>0 then
-  ship_x-=2.5
-  _log("move:left")
- end
- if inp&2>0 then
-  ship_x+=2.5
-  _log("move:right")
- end
+ if inp&1>0 then ship_x-=2.5 end
+ if inp&2>0 then ship_x+=2.5 end
  ship_x=mid(0,ship_x,121)
 
  -- update time and score
@@ -142,7 +148,12 @@ function update_play()
    spawn_rate-=2
   end
   meteor_speed+=0.05
-  _log("difficulty_up")
+  local new_lv=min(flr((meteor_speed-1)*10)+1,10)
+  if new_lv>diff_level then
+   sfx(0)
+   _log("level_up:"..new_lv)
+  end
+  diff_level=new_lv
  end
 
  -- spawn meteors
@@ -152,7 +163,7 @@ function update_play()
   spawn_meteor()
  end
 
- -- extra meteor spawn at high scores
+ -- extra meteor spawn at high difficulty
  if score>30 and rnd()<0.02 then
   spawn_meteor()
  end
@@ -161,6 +172,9 @@ function update_play()
  end
 
  -- update meteors
+ local scx=ship_x+3 -- ship center
+ local scy=ship_y+3
+ local got_near=false
  for m in all(meteors) do
   m.y+=m.spd
   m.anim+=0.15
@@ -175,11 +189,42 @@ function update_play()
     col=m.col2
    })
   end
+  -- near-miss detection: meteor just passed ship
+  if not m.scored and m.y>ship_y+6 then
+   m.scored=true
+   local dx=abs((m.x+m.sz/2)-scx)
+   local dy=abs((m.y-m.spd)-scy)
+   local dist=sqrt(dx*dx+dy*dy)
+   if dist<near_miss_dist then
+    got_near=true
+    local bonus=max(1,flr((near_miss_dist-dist)/3))
+    score+=bonus
+    nm_streak+=1
+    if nm_streak>nm_best then nm_best=nm_streak end
+    nm_flash=10
+    sfx(nm_streak>=3 and 3 or 2)
+    -- bonus particle burst
+    for i=1,4 do
+     add(particles,{
+      x=scx,y=scy-4,
+      dx=rnd(2)-1,dy=-1-rnd(1),
+      life=12,col=10
+     })
+    end
+    if nm_streak>=3 then
+     _log("near_miss_streak:"..nm_streak)
+    end
+   end
+  end
+ end
+ -- reset streak if no near miss this frame and no recent meteors passing
+ if not got_near and nm_flash<=0 then
+  nm_streak=0
  end
 
  -- remove off-screen meteors
  for i=#meteors,1,-1 do
-  if meteors[i].y>132 then
+  if meteors[i].y>140 then
    deli(meteors,i)
   end
  end
@@ -208,6 +253,7 @@ function update_play()
  -- shake decay
  if shake>0 then shake-=0.5 end
  if flash>0 then flash-=1 end
+ if nm_flash>0 then nm_flash-=1 end
 
  anim_t+=1
 end
@@ -221,10 +267,10 @@ function spawn_meteor()
   sz=sz,
   anim=rnd(1),
   col=rnd()>0.5 and 8 or 9,
-  col2=rnd()>0.5 and 10 or 4
+  col2=rnd()>0.5 and 10 or 4,
+  scored=false
  }
  add(meteors,m)
- _log("meteor_spawn")
 end
 
 function check_col(x1,y1,w1,h1,x2,y2,w2,h2)
@@ -300,22 +346,33 @@ function draw_play()
  -- hud
  print("score:"..score,1,1,7)
  print("hi:"..hiscore,90,1,6)
- -- speed indicator
+ -- difficulty level
+ print("lv"..diff_level,54,1,diff_level>=7 and 8 or 5)
  local spd_bar=min((meteor_speed-1)*20,30)
- print("spd",54,1,5)
- rectfill(68,1,68+spd_bar,4,8)
+ rectfill(68,1,68+spd_bar,4,diff_level>=7 and 8 or 13)
+
+ -- near-miss feedback
+ if nm_flash>0 then
+  local col=nm_streak>=3 and 10 or 9
+  print("close! +"..max(1,flr((near_miss_dist)/3)),
+   ship_x-6,ship_y-12,col)
+  if nm_streak>=3 then
+   print("x"..nm_streak.." streak!",
+    ship_x-10,ship_y-20,10)
+  end
+ end
 end
 
 -- gameover state
 function update_gameover()
+ go_timer+=1
  local inp=test_input()
  -- wait a moment before accepting input
- if time_alive>30 then
+ if go_timer>45 then
   if inp&16>0 or inp&32>0 then
    start_game()
   end
  end
- time_alive+=1
  update_particles()
  if shake>0 then shake-=0.5 end
  if flash>0 then flash-=1 end
@@ -352,23 +409,27 @@ function draw_gameover()
  camera(0,0)
 
  -- game over text
- print("game over",40,30,8)
- print("score: "..score,42,45,7)
- print("hi-score: "..hiscore,34,55,
+ print("game over",40,26,8)
+ print("score: "..score,42,40,7)
+ print("hi-score: "..hiscore,34,50,
   score>=hiscore and 10 or 6)
 
  if score>=hiscore and score>0 then
   if flr(t()*3)%2==0 then
-   print("new hi-score!",34,65,10)
+   print("new hi-score!",34,59,10)
   end
  end
 
- -- time survived
- local secs=flr(score*0.5)
- print("survived: "..secs.."s",34,75,5)
+ -- stats
+ local secs=flr(time_alive/30)
+ print("survived: "..secs.."s",34,70,5)
+ print("best level: "..diff_level,34,78,5)
+ if nm_best>0 then
+  print("best streak: "..nm_best.."x",34,86,9)
+ end
 
  -- restart prompt
- if time_alive>30 then
+ if go_timer>45 then
   if flr(t()*2)%2==0 then
    print("press \142/\151 to retry",22,100,7)
   end
@@ -609,3 +670,5 @@ __label__
 __sfx__
 000200001505015050150401503015020150101500015000150001500015000150001500015000150001500015000150001500015000150001500015000150001500015000150001500015000150001500015000150000
 001000002a6502a6402a6302a6202a6102a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a6002a600
+000400002965029640296202960029600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300001d0501d0401d0301d0201d010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
