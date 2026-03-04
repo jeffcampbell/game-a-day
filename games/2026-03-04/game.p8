@@ -69,7 +69,6 @@ diff_timer=0
 diff_level=1
 -- difficulty selection
 diff_sel=2 -- 1=easy,2=normal,3=hard
-diff_names={"easy","normal","hard"}
 score_mult=1.0
 -- near-miss system
 near_miss_dist=12
@@ -133,7 +132,7 @@ g_timer=0
 g_trans=0
 g_nodmg=true
 g_won=false
-g_rnames={"radioactive","ice","magnetic","corrupted"}
+g_rnames={"rad","ice","mag","corrupt"}
 g_rcols={9,12,8,3}
 -- endless mode
 is_endless=false
@@ -141,13 +140,13 @@ e_timer=0
 e_nodmg=true
 -- modifier system
 mod_defs={
- {"no powerups","pu disabled",8,1},
- {"2x speed","1.5x meteors",9,2},
- {"tiny rocks","smaller size",11,4},
- {"mirror","l/r flipped",12,8},
- {"fast spawn","1.5x freq",10,16},
- {"hard hazard","stronger fx",14,32},
- {"quick start","begin at lv3",13,64}
+ {"no pu","pu off",8,1},
+ {"2x spd","fast met",9,2},
+ {"tiny","smaller",11,4},
+ {"mirror","l/r flip",12,8},
+ {"fast sp","1.5x freq",10,16},
+ {"hard hz","strong fx",14,32},
+ {"quick","start lv3",13,64}
 }
 mod_offer={}
 mod_active=0
@@ -275,19 +274,14 @@ function update_help()
 end
 
 function draw_help()
- cls(0)
- draw_stars()
+ cls(0) draw_stars()
  print("hazard types",28,2,10)
- print("normal    radioactive",4,12,7)
- print("ice  magnetic  corrupted",4,22,7)
- print("splitter: big rocks split",4,32,14)
- print("power-ups",28,44,10)
- print("invinci",4,54,10)
- print("5s immune+destroy",56,54,6)
- print("s.burst",4,64,14)
- print("aoe blast on shield hit",56,64,6)
- print("pts bomb",4,74,9)
- print("+50 pts (diff scaled)",56,74,6)
+ print("norm rad ice mag",4,12,7)
+ print("corrupt splitter",4,22,7)
+ print("power-ups",28,34,10)
+ print("invinci 5s immune",4,44,10)
+ print("s.burst aoe blast",4,54,14)
+ print("pts bomb +50 pts",4,64,9)
  print("\142/\151 back",36,118,6)
 end
 
@@ -307,7 +301,7 @@ end
 function draw_difsel()
  cls(0) draw_stars()
  print("select difficulty",22,16,10)
- local on=split("easy,normal,hard") local od=split("slower meteors,default challenge,fast & brutal! 1.5x")
+ local on=split("easy,normal,hard") local od=split("slow,default,fast! 1.5x")
  local oc={11,7,8}
  for i=1,3 do
   local y=36+(i-1)*24
@@ -350,7 +344,7 @@ function draw_modesel()
  cls(0) draw_stars()
  print("select mode",32,16,10)
  local on=split("normal,time attack,endless,hazard gauntlet")
- local od=split("classic survival,90s challenge! 1.5x,infinite scaling!,4 rounds+boss! 1.3x")
+ local od=split("classic,90s! 1.5x,infinite!,4 rnds+boss! 1.3x")
  local oc={7,9,12,8}
  for i=1,4 do
   local y=26+(i-1)*18
@@ -360,7 +354,7 @@ function draw_modesel()
   print(on[i],18,y,c)
   print(od[i],18,y+7,sel and 6 or 1)
  end
- print("["..diff_names[diff_sel].."]",44,102,5)
+ print("["..lb_dnames[diff_sel].."]",44,102,5)
  print("\142 select  \151 back",22,114,6)
 end
 
@@ -839,16 +833,14 @@ function update_play()
 end
 
 -- power-up functions
+pu_data=split("shield,12,slow,11,2x,10,2xsh,13,inv,11,sbst,14,bomb,10")
 function spawn_powerup()
  if band(mod_active,1)>0 then return end
- local pn=split("shield,slow-mo,2x pts,2x shld,invinci,s.burst,pts bomb")
- local pc={12,11,10,13,11,14,10}
- -- weighted selection: shield 25%, slow 20%, 2x 20%, 2xshld 15%, invinci 5%, burst 8%, bomb 7%
  local wt={25,45,65,80,85,93,100}
- local r=flr(rnd(100))
- local ti=1
+ local r=flr(rnd(100)) local ti=1
  for i=1,7 do if r<wt[i] then ti=i break end end
- add(powerups,{x=rnd(120),y=-8,spd=0.5+rnd(0.3),typ=ti,col=pc[ti],name=pn[ti],anim=rnd(1)})
+ local bi=(ti-1)*2
+ add(powerups,{x=rnd(120),y=-8,spd=0.5+rnd(0.3),typ=ti,col=pu_data[bi+2]+0,name=pu_data[bi+1],anim=rnd(1)})
 end
 
 function update_powerups()
@@ -1127,7 +1119,7 @@ function draw_play()
   print("hi:"..hiscore,90,1,6)
  end
  local dc=diff_sel==1 and 11 or (diff_sel==3 and 8 or 5)
- print(sub(diff_names[diff_sel],1,1),50,1,dc)
+ print(sub(lb_dnames[diff_sel],1,1),50,1,dc)
  print("lv"..diff_level,56,1,diff_level>=7 and 8 or 5)
  local spd_bar=min((meteor_speed-1)*20,30)
  rectfill(72,1,72+spd_bar,4,diff_level>=7 and 8 or 13)
@@ -1287,22 +1279,28 @@ function update_lbview()
  end
 end
 
+-- shared lb list drawing
+function draw_lb5(ls,ln,x,y,hr)
+ for i=1,5 do
+  if ls[i] and ls[i]>0 then
+   local c=hr==i and 10 or 6
+   print(i..". "..ln[i].." "..ls[i],x,y,c)
+  else
+   print(i..". ---",x,y,1)
+  end
+  y+=7
+ end
+end
+lb_dcols={11,7,8,12}
 function draw_lbview()
  cls(0) draw_stars()
  print("leaderboard",28,6,10)
  local dn=lb_dnames[lb_vd]
- local dx=64-#dn*2
- print("\139 "..dn.." \145",dx-4,18,lb_vd==4 and 12 or 7)
+ local dc=lb_dcols[lb_vd]
+ print("\139 "..dn.." \145",64-#dn*2-4,18,dc)
  local ls=lb_vd<4 and lb_scores or elb_scores
  local ln=lb_vd<4 and lb_names or elb_names
- for i=1,5 do
-  local y=28+i*12
-  if ls[i] and ls[i]>0 then
-   print(i..". "..ln[i].." "..ls[i],20,y,6)
-  else
-   print(i..". ---",20,y,1)
-  end
- end
+ draw_lb5(ls,ln,20,40,0)
  print("\139\145 switch  \142/\151 back",10,110,5)
 end
 
@@ -1367,16 +1365,9 @@ function draw_nameentry()
  print("\142 confirm  \151 back",18,72,6)
  print("+10 bonus pts!",28,82,11)
 
- -- top 3 leaderboard preview
- local lbs=g_ls()
- local lbn=g_ln()
+ -- top 3 preview
  if is_endless then print("[endless]",42,90,12) end
- local ly=94
- for i=1,3 do
-  local c=lbs[i]>0 and 6 or 1
-  print(i..". "..lbn[i].." "..lbs[i],28,ly,c)
-  ly+=7
- end
+ draw_lb5(g_ls(),g_ln(),28,94,0)
  print("\139\145 select  \131\132 letter",10,120,5)
 end
 
@@ -1422,8 +1413,10 @@ function draw_gameover()
 
  camera(0,0)
 
- local mt=is_ta and {"time attack",36,9} or (is_endless and {"endless mode",34,12} or (is_gauntlet and (g_won and {"gauntlet complete!",18,11} or {"fell at "..(g_round<=4 and "round "..g_round or "boss"),30,8}) or nil))
- if mt then print(mt[1],mt[2],17,mt[3]) end
+ if is_ta then print("time attack",36,17,9)
+ elseif is_endless then print("endless",42,17,12)
+ elseif is_gauntlet then print(g_won and "gauntlet win!" or "fell r"..g_round,g_won and 30 or 38,17,g_won and 11 or 8)
+ end
  print(g_won and "victory!" or "game over",40,24,g_won and 11 or 8)
  print("score: "..score,42,36,7)
  print("hi-score: "..hiscore,34,44,
@@ -1436,9 +1429,8 @@ function draw_gameover()
  end
 
  -- stats
- local dtxt="["..diff_names[diff_sel].."]"..(is_ta and " ta" or (is_endless and " end "..score_mult.."x" or (is_gauntlet and " glt" or "")))
- print(dtxt,is_endless and 28 or 44,52,is_endless and 12 or 5)
- print("survived:"..flr(time_alive/30).."s lv:"..diff_level,22,59,5)
+ print("["..lb_dnames[diff_sel].."]",48,52,5)
+ print(flr(time_alive/30).."s lv"..diff_level,42,59,5)
  local sy=66
  if nm_best>0 then print("streak:"..nm_best.."x",34,sy,9) sy+=7 end
  if dodge_best>0 then print("combo:"..dodge_best.."x",34,sy,10) sy+=7 end
@@ -1446,21 +1438,10 @@ function draw_gameover()
  if mod_count>0 then print(mod_count.." mod(s) +"..(mod_count*10).."%",28,sy,14) sy+=7 end
 
  -- leaderboard
- local lbs=g_ls()
- local lbn=g_ln()
+ local lbs=g_ls() local lbn=g_ln()
  local ly=max(sy+2,86)
- local lbl=is_endless and "-- endless lb --" or "-- "..diff_names[diff_sel].." lb --"
- print(lbl,22,ly,is_endless and 12 or 6)
- ly+=7
- for i=1,5 do
-  if lbs[i]>0 then
-   local c=ne_rank==i and 10 or 6
-   print(i..". "..lbn[i].." "..lbs[i],28,ly,c)
-  else
-   print(i..". ---",32,ly,1)
-  end
-  ly+=7
- end
+ print(is_endless and "endless" or lb_dnames[diff_sel],38,ly,is_endless and 12 or 6)
+ draw_lb5(lbs,lbn,28,ly+7,ne_rank)
 
  if go_timer>45 then
   if flr(t()*2)%2==0 then
