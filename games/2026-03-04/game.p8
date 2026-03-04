@@ -117,6 +117,10 @@ bp_del=0
 bd_flash_txt=""
 bd_x=64
 nm_count=0
+-- wave archetype system
+wa=0 wa_t=0 wa_ls=0
+wa_d={{1,0,9},{2,1,12},{3,2,8},{4,3,3},{5,4,14},{6,5,2}}
+wa_n=split("rad surge,ice fall,mag storm,chaos,rift,phantom")
 -- hazard meteor system
 -- 0=normal,1=radioactive,2=ice,3=magnetic,4=corrupted,5=splitter,6=phantom
 ice_slow=0
@@ -226,9 +230,6 @@ function update_menu()
  if inp&16>0 or inp&32>0 then
   state="difficulty_select"
  end
- if inp&8>0 then
-  state="help"
- end
  if inp&4>0 then
   lb_vd=diff_sel
   load_dlb(lb_vd)
@@ -249,28 +250,13 @@ function draw_menu()
  if flr(t()*2)%2==0 then
   print("press \142/\151 to start",22,100,7)
  end
- print("\131 scores  \132 help",24,108,5)
+ print("\131 scores",44,108,5)
  -- mini leaderboard on menu
  if lb_scores[1]>0 then
   print(lb_names[1].." "..lb_scores[1],36,118,9)
  elseif hiscore>0 then
   print("hi-score: "..hiscore,34,118,9)
  end
-end
-
--- help/encyclopedia state
-function update_help()
- if btnp(4) or btnp(5) then
-  state="menu"
- end
-end
-
-function draw_help()
- cls(0) draw_stars()
- print("hazard types",28,6,10)
- print("norm rad ice mag",10,18,7)
- print("corrupt split phantom",10,28,7)
- print("\142/\151 back",36,118,6)
 end
 
 -- difficulty select state
@@ -406,7 +392,7 @@ function start_game()
  boss_timer,boss_flash,last_boss_score,tele_timer,tele_dur,boss_vuln=0,0,0,0,0,0
  dodge_combo,dodge_best,combo_flash=0,0,0
  boss_waves,boss_tier,boss_n,bd_flash,nm_count,achv_flash,bp_del=0,0,0,0,0,0,0
- ice_slow,sp_frag,ph_dodged,g_timer,g_trans,e_timer=0,0,0,0,0,0
+ ice_slow,sp_frag,ph_dodged,g_timer,g_trans,e_timer,wa,wa_t,wa_ls=0,0,0,0,0,0,0,0,0
  boss_active,shld_burst,dbl_atk,g_won=false,false,false,false
  ta_nodmg,g_nodmg,e_nodmg=true,true,true
  pu_flash_txt,combo_flash_txt,bd_flash_txt="","",""
@@ -527,6 +513,14 @@ function update_play()
   diff_level=new_lv
  end
 
+ -- wave archetype trigger
+ if wa==0 and score>=wa_ls+50 then
+  wa_ls=score
+  wa=1+flr(rnd(6))
+  wa_t=ds(180,130,100)
+  _log("arch:"..wa_n[wa])
+ end
+ if wa_t>0 then wa_t-=1 if wa_t<=0 then wa=0 end end
  -- spawn meteors
  spawn_timer+=1
  if spawn_timer>=spawn_rate then
@@ -652,6 +646,7 @@ function update_play()
    local dist=sqrt(dx*dx+dy*dy)
    local nm_d=m.htype==2 and 9 or 12
    local hzmul=m.htype>0 and ({1.2,1,1.5,2,1,1.3})[m.htype] or 1
+    if wa>0 and m.htype==wa_d[wa][1] then hzmul*=1.2 end
    if dist<nm_d then
     got_near=true
     local bvmul=(m.boss and boss_vuln>0) and 2 or 1
@@ -828,11 +823,14 @@ end
 function spawn_meteor()
  local sz=6+flr(rnd(4))
  if band(mod_active,4)>0 then sz=max(3,sz-3) end
- -- hazard type selection based on difficulty
+ -- hazard type selection
  local ht=0
  -- gauntlet: force hazard type per round
  if is_gauntlet and g_round>=1 and g_round<=4 then
   ht=g_round
+ elseif wa>0 then
+  local ad=wa_d[wa]
+  ht=rnd()<0.7 and ad[1] or ad[2]
  elseif diff_level>=2 then
   local r=rnd()
   if diff_level>=5 and r<0.15 then ht=4
@@ -1001,39 +999,28 @@ function draw_play()
     circ(cx,cy,gr+4+sin(anim_t*0.08)*3,7)
    end
   end
-  -- hazard aura effects
-  if m.htype==1 then
-   -- radioactive: pulsing glow
-   circ(cx,cy,m.sz\2+1+sin(anim_t*0.04)*2,9)
-  elseif m.htype==2 then
-   -- ice: cold shimmer
-   if anim_t%6<3 then circ(cx,cy,m.sz\2+1,12) end
-  elseif m.htype==3 then
-   -- magnetic: attraction rings
-   circ(cx,cy,m.sz\2+3+sin(anim_t*0.05)*3,8)
-  elseif m.htype==4 then
-   -- corrupted: erratic flicker
-   if rnd()<0.4 then circ(cx,cy,m.sz\2+rnd(3),3) end
-  elseif m.htype==5 then
-   circ(cx,cy,m.sz\2+2+sin(anim_t*0.06)*2,14)
-  elseif m.htype==6 then
-   -- phantom: pulsing ghost effect
-   if anim_t%4<2 then circ(cx,cy,m.sz\2+2,2) end
+  -- hazard aura
+  if m.htype>0 then
+   local hc=({9,12,8,3,14,2})[m.htype]
+   local hr=m.sz\2+2+sin(anim_t*0.05)*2
+   if m.htype==4 then
+    if rnd()<0.4 then circ(cx,cy,m.sz\2+rnd(3),hc) end
+   elseif m.htype==2 or m.htype==6 then
+    if anim_t%5<3 then circ(cx,cy,hr,hc) end
+   else
+    circ(cx,cy,hr,hc)
+   end
   end
   draw_meteor(m.x,m.y,flr(m.anim)%2,m.sz,m.col,m.col2)
  end
 
- -- boss telegraph effect (difficulty-colored)
+ -- boss telegraph
  if tele_timer>0 then
   local pg=1-tele_timer/tele_dur
-  local tc=ds(11,7,8)
-  local tc2=ds(7,6,14)
-  local pc=flr(anim_t/2)%2==0 and tc or tc2
-  if boss_atk==1 then circ(tele_x,4,pg*20,pc) line(tele_x-pg*14,4,tele_x+pg*14,4,tc) line(tele_x,4-pg*10,tele_x,4+pg*14,tc) if pg>0.5 then circfill(tele_x,4,2+sin(anim_t*0.1)*2,pc) end
-  elseif boss_atk==2 then for i=0,5 do local a=pg*0.3+i/6 circ(tele_x+cos(a)*pg*16,6,2+pg*3,pc) end
-  elseif boss_atk==3 then circ(64,64,10+pg*55,pc) circ(64,64,12+pg*55,tc2) if pg>0.3 then circ(64,64,pg*30,tc) end
-  else circ(ship_x+3,ship_y,6+sin(anim_t*0.08)*3,pc) line(ship_x+3,0,ship_x+3,ship_y-8,tc) if pg>0.4 then line(ship_x,ship_y-12,ship_x+3,ship_y-7,pc) line(ship_x+6,ship_y-12,ship_x+3,ship_y-7,pc) end
-  end
+  local pc=flr(anim_t/2)%2==0 and 7 or 6
+  local cx=boss_atk==3 and 64 or tele_x
+  local cy=boss_atk==3 and 64 or (boss_atk==4 and ship_y or 4)
+  circ(cx,cy,pg*(boss_atk==3 and 55 or 20),pc)
  end
 
  -- draw power-ups
@@ -1129,6 +1116,11 @@ function draw_play()
   end
  end
 
+ -- wave archetype indicator
+ if wa>0 and not boss_active and boss_flash<=0 then
+  local wn=wa_n[wa]
+  print(wn,64-#wn*2,9,flr(anim_t/3)%2==0 and wa_d[wa][3] or 5)
+ end
  -- active effect timers
  local ty=14
  local ef={{slowmo_timer,180,"slow",11},{dblscore_timer,120,"2x",10},{inv_timer,150,"inv",11}}
@@ -1462,7 +1454,6 @@ end
 function _update()
  if state=="menu" then update_menu()
  elseif state=="lb_view" then update_lbview()
- elseif state=="help" then update_help()
  elseif state=="difficulty_select" then update_difsel()
  elseif state=="mode_select" then update_modesel()
  elseif state=="mod_select" then update_modsel()
@@ -1475,7 +1466,6 @@ end
 function _draw()
  if state=="menu" then draw_menu()
  elseif state=="lb_view" then draw_lbview()
- elseif state=="help" then draw_help()
  elseif state=="difficulty_select" then draw_difsel()
  elseif state=="mode_select" then draw_modesel()
  elseif state=="mod_select" then draw_modsel()
