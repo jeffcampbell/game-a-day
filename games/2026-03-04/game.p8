@@ -89,11 +89,17 @@ achv_names={
  "boss slayer","survivor",
  "hard mode","precision",
  "speed demon","legendary",
- "time master","flawless 90s"
+ "time master","flawless 90s",
+ "rad dodger","ice rider",
+ "magnet ace","chaos surfer"
 }
 boss_waves=0
 nm_count=0
 run_achv=0 -- achievements this run
+-- hazard meteor system
+-- 0=normal,1=radioactive,2=ice,3=magnetic,4=corrupted
+ice_slow=0
+hz_rd=0 hz_md=0 hz_cd=0 hz_inm=0
 -- time attack mode
 is_ta=false
 ta_time=0
@@ -152,7 +158,7 @@ end
 function _init()
  cartdata(1)
  hiscore=dget(0)
- for i=1,12 do
+ for i=1,16 do
   achv[i]=dget(i)>0
  end
  load_lb()
@@ -334,6 +340,9 @@ function start_game()
  nm_count=0
  run_achv=0
  achv_flash=0
+ -- reset hazard trackers
+ ice_slow=0
+ hz_rd=0 hz_md=0 hz_cd=0 hz_inm=0
  -- time attack setup
  ta_time=is_ta and 2700 or 0
  ta_nodmg=true
@@ -356,9 +365,10 @@ end
 -- play state
 function update_play()
  local inp=test_input()
- -- ship movement
- if inp&1>0 then ship_x-=2.5 end
- if inp&2>0 then ship_x+=2.5 end
+ -- ship movement (ice hazard slows by 50%)
+ local mspd=ice_slow>0 and 1.25 or 2.5
+ if inp&1>0 then ship_x-=mspd end
+ if inp&2>0 then ship_x+=mspd end
  ship_x=mid(0,ship_x,121)
 
  -- score multiplier
@@ -462,6 +472,22 @@ function update_play()
    m.y+=m.dy*spd_mul
   else
    m.y+=m.spd*spd_mul
+   -- corrupted: horizontal drift & edge bounce
+   if m.htype==4 and m.cdx then
+    m.x+=m.cdx*spd_mul
+    if m.x<0 or m.x>120 then m.cdx=-m.cdx end
+   end
+  end
+  -- magnetic: pull ship toward meteor
+  if m.htype==3 and m.y>0 and m.y<128 then
+   local mdx=m.x+m.sz/2-(ship_x+3)
+   if abs(mdx)<40 then ship_x+=sgn(mdx)*0.3 end
+  end
+  -- ice: proximity slowdown
+  if m.htype==2 and m.y>0 then
+   local idx=abs(m.x+m.sz/2-scx)
+   local idy=abs(m.y+m.sz/2-scy)
+   if idx<12 and idy<12 then ice_slow=60 end
   end
   m.anim+=0.15
   -- trail particles
@@ -491,12 +517,23 @@ function update_play()
    local dx=abs((m.x+m.sz/2)-scx)
    local dy=abs((m.y-m.spd*spd_mul)-scy)
    local dist=sqrt(dx*dx+dy*dy)
-   if dist<near_miss_dist then
+   -- ice reduces near-miss distance, others give bonus multipliers
+   local nm_d=m.htype==2 and near_miss_dist*0.75 or near_miss_dist
+   local hzmul=1
+   if m.htype==1 then hzmul=1.2
+   elseif m.htype==3 then hzmul=1.5
+   elseif m.htype==4 then hzmul=2 end
+   if dist<nm_d then
     got_near=true
-    local bonus=max(1,flr((near_miss_dist-dist)/3))*smul*score_mult
+    local bonus=max(1,flr((nm_d-dist)/3*hzmul))*smul*score_mult
     nm_last_bonus=bonus
     score+=bonus
     nm_streak+=1
+    -- hazard achievement tracking
+    if m.htype==1 then hz_rd+=1 if hz_rd>=10 then check_achv(13) end end
+    if m.htype==2 then hz_inm+=1 if hz_inm>=3 then check_achv(14) end end
+    if m.htype==3 then hz_md+=1 if hz_md>=5 then check_achv(15) end end
+    if m.htype==4 then hz_cd+=1 if hz_cd>=15 then check_achv(16) end end
     if nm_streak>nm_best then nm_best=nm_streak end
     nm_count+=1
     nm_flash=10
@@ -518,6 +555,7 @@ function update_play()
  end
  if not got_near and nm_flash<=0 then
   nm_streak=0
+  hz_inm=0
  end
 
  -- remove off-screen meteors
@@ -536,8 +574,9 @@ function update_play()
   if check_col(ship_x,ship_y,ship_w,6,
    m.x,m.y,m.sz,m.sz) then
    if shield_count>0 then
-    -- shield absorbs hit
-    shield_count-=1
+    -- shield absorbs hit (radioactive costs 2)
+    local scost=m.htype==1 and 2 or 1
+    shield_count=max(0,shield_count-scost)
     del(meteors,m)
     shake=3
     sfx(4)
@@ -574,6 +613,7 @@ function update_play()
  if flash>0 then flash-=1 end
  if nm_flash>0 then nm_flash-=1 end
  if slowmo_timer>0 then slowmo_timer-=1 end
+ if ice_slow>0 then ice_slow-=1 end
  if dblscore_timer>0 then dblscore_timer-=1 end
  if pu_flash>0 then pu_flash-=1 end
  if combo_flash>0 then combo_flash-=1 end
@@ -659,17 +699,30 @@ end
 
 function spawn_meteor()
  local sz=6+flr(rnd(4))
- local m={
-  x=rnd(120),
-  y=-sz,
-  spd=meteor_speed+rnd(0.5),
-  sz=sz,
-  anim=rnd(1),
-  col=rnd()>0.5 and 8 or 9,
-  col2=rnd()>0.5 and 10 or 4,
-  scored=false,boss=false
- }
- add(meteors,m)
+ -- hazard type selection based on difficulty
+ local ht=0
+ if diff_level>=2 then
+  local r=rnd()
+  if diff_level>=5 and r<0.12 then ht=4
+  elseif diff_level>=4 and r<0.2 then ht=3
+  elseif diff_level>=3 and r<0.3 then ht=2
+  elseif r<0.35 then ht=1
+  end
+ end
+ -- hazard colors: radio=9, ice=12, mag=8, corrupt=3
+ local c1,c2=rnd()>0.5 and 8 or 9,rnd()>0.5 and 10 or 4
+ if ht==1 then c1=9 c2=10
+ elseif ht==2 then c1=12 c2=7
+ elseif ht==3 then c1=8 c2=2
+ elseif ht==4 then c1=3 c2=11 end
+ add(meteors,{
+  x=rnd(120),y=-sz,
+  spd=meteor_speed+rnd(0.5)*(ht==4 and 1.3 or 1),
+  sz=sz,anim=rnd(1),
+  col=c1,col2=c2,
+  scored=false,boss=false,htype=ht,
+  cdx=ht==4 and rnd(1)-0.5 or nil
+ })
 end
 
 -- spawn directional boss meteor
@@ -679,7 +732,7 @@ function spawn_boss_dir(x,y,dx,dy)
   x=x,y=y,dx=dx,dy=dy,
   spd=0,sz=sz,anim=rnd(1),
   col=2,col2=9,
-  scored=y>ship_y,boss=true
+  scored=y>ship_y,boss=true,htype=0
  })
 end
 
@@ -828,10 +881,25 @@ function draw_play()
 
  -- draw meteors
  for m in all(meteors) do
+  local cx,cy=m.x+m.sz\2,m.y+m.sz\2
   -- boss glow effect
   if m.boss then
    local gr=m.sz\2+2+sin(anim_t*0.03)*2
-   circ(m.x+m.sz\2,m.y+m.sz\2,gr,9)
+   circ(cx,cy,gr,9)
+  end
+  -- hazard aura effects
+  if m.htype==1 then
+   -- radioactive: pulsing glow
+   circ(cx,cy,m.sz\2+1+sin(anim_t*0.04)*2,9)
+  elseif m.htype==2 then
+   -- ice: cold shimmer
+   if anim_t%6<3 then circ(cx,cy,m.sz\2+1,12) end
+  elseif m.htype==3 then
+   -- magnetic: attraction rings
+   circ(cx,cy,m.sz\2+3+sin(anim_t*0.05)*3,8)
+  elseif m.htype==4 then
+   -- corrupted: erratic flicker
+   if rnd()<0.4 then circ(cx,cy,m.sz\2+rnd(3),3) end
   end
   draw_meteor(m.x,m.y,flr(m.anim)%2,m.sz,m.col,m.col2)
  end
@@ -884,6 +952,10 @@ function draw_play()
  -- slowmo border effect
  if slowmo_timer>0 then
   rect(0,0,127,127,11)
+ end
+ -- ice slow border effect
+ if ice_slow>0 then
+  rect(1,1,126,126,12)
  end
 
  camera(0,0)
