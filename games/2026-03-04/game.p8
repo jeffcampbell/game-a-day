@@ -95,6 +95,11 @@ tele_timer=0
 tele_dur=0
 tele_x=64
 boss_vuln=0
+-- boss type variety: inferno(1),void(2),crystal(3)
+boss_type=1
+bt_cols={{8,10},{2,9},{11,12}} -- {main,accent} per type
+bt_spd={1.0,1.2,0.8} -- speed mult
+bt_sz={0,0,3} -- size bonus
 -- dodge combo system
 dodge_combo=0
 dodge_best=0
@@ -509,6 +514,7 @@ function start_game()
  boss_flash=0
  last_boss_score=0
  boss_atk=1
+ boss_type=1
  tele_timer=0
  tele_dur=0
  boss_vuln=0
@@ -699,12 +705,13 @@ function update_play()
    bd_x=tele_x bd_y=40
    shake+=8
    sfx(6)
+   local bc=bt_cols[boss_type]
    for i=1,10 do
     local ang=i/10
     add(particles,{
      x=tele_x,y=40,
      dx=cos(ang)*2,dy=sin(ang)*2,
-     life=20,col=10
+     life=20,col=i%2==0 and bc[1] or bc[2]
     })
    end
    -- gauntlet victory
@@ -979,11 +986,13 @@ end
 
 -- spawn directional boss meteor
 function spawn_boss_dir(x,y,dx,dy)
- local sz=10+flr(rnd(4))
+ local bc=bt_cols[boss_type]
+ local sm=bt_spd[boss_type]
+ local sz=10+flr(rnd(4))+bt_sz[boss_type]
  add(meteors,{
-  x=x,y=y,dx=dx,dy=dy,
+  x=x,y=y,dx=dx*sm,dy=dy*sm,
   spd=0,sz=sz,anim=rnd(1),
-  col=2,col2=9,
+  col=bc[1],col2=bc[2],
   scored=y>ship_y,boss=true,htype=0
  })
 end
@@ -991,11 +1000,13 @@ end
 -- trigger boss wave: start telegraph phase
 function trigger_boss_wave()
  boss_active=true
+ boss_type=flr(score/100)%3+1
  tele_dur=diff_sel==1 and 30 or (diff_sel==3 and 15 or 20)
  tele_timer=tele_dur
  tele_x=boss_atk==3 and 64 or 20+rnd(88)
  boss_flash=tele_dur
  sfx(5)
+ _log("boss_type:"..boss_type)
 end
 
 -- execute attack when telegraph completes
@@ -1135,7 +1146,7 @@ function draw_play()
   -- boss glow effect
   if m.boss then
    local gr=m.sz\2+2+sin(anim_t*0.03)*2
-   circ(cx,cy,gr,boss_vuln>0 and 10 or 9)
+   circ(cx,cy,gr,boss_vuln>0 and 10 or m.col2)
    if boss_vuln>0 then
     circfill(cx,cy,m.sz\2+1,10)
    end
@@ -1160,7 +1171,8 @@ function draw_play()
  -- boss telegraph effect
  if tele_timer>0 then
   local prog=1-tele_timer/tele_dur
-  local pc=flr(anim_t/2)%2==0 and 8 or 10
+  local bc=bt_cols[boss_type]
+  local pc=flr(anim_t/2)%2==0 and bc[1] or bc[2]
   if boss_atk==1 then
    -- burst: expanding cross at origin
    circ(tele_x,4,prog*20,pc)
@@ -1264,7 +1276,8 @@ function draw_play()
    local vc=flr(anim_t/2)%2==0 and 10 or 7
    print("weak!",50,9,vc)
   else
-   local bc=is_endless and (flr(anim_t/3)%2==0 and 12 or 6) or (flr(anim_t/3)%2==0 and 8 or 2)
+   local btc=bt_cols[boss_type]
+   local bc=flr(anim_t/3)%2==0 and btc[1] or btc[2]
    print("boss!",50,9,bc)
   end
  end
