@@ -93,7 +93,8 @@ achv_names={
  "time master","flawless 90s",
  "rad dodger","ice rider",
  "magnet ace","chaos surfer",
- "glt master","hz scientist","glt victor"
+ "glt master","hz scientist","glt victor",
+ "end survivor","end climber","untouchable"
 }
 boss_waves=0
 nm_count=0
@@ -117,10 +118,17 @@ g_won=false
 g_rnames={"radioactive","ice","magnetic","corrupted"}
 g_rdesc={"fuel drain","rot. slow","attract pull","fast move"}
 g_rcols={9,12,8,3}
+-- endless mode
+is_endless=false
+e_timer=0
+e_nodmg=true
 -- leaderboard (top 5)
 lb_scores={}
 lb_names={}
 lb_gflag={}
+-- endless leaderboard (top 5)
+elb_scores={}
+elb_names={}
 -- name entry state
 ne_pos=1
 ne_chars={1,1,1}
@@ -173,6 +181,31 @@ function lb_rank(s)
  end
  return 0
 end
+function load_elb()
+ elb_scores={} elb_names={}
+ for i=1,5 do
+  local s=dget(29+i)
+  local n=dget(34+i)
+  add(elb_scores,s>0 and s or 0)
+  add(elb_names,s>0 and unpack_name(n) or "---")
+ end
+end
+function save_elb()
+ for i=1,5 do
+  dset(29+i,elb_scores[i])
+  dset(34+i,elb_names[i]=="---" and 0 or pack_name({
+   ord(sub(elb_names[i],1,1))-65,
+   ord(sub(elb_names[i],2,2))-65,
+   ord(sub(elb_names[i],3,3))-65
+  }))
+ end
+end
+function elb_rank(s)
+ for i=1,5 do
+  if s>elb_scores[i] then return i end
+ end
+ return 0
+end
 
 function _init()
  cartdata(1)
@@ -180,10 +213,11 @@ function _init()
  for i=1,16 do
   achv[i]=dget(i)>0
  end
- for i=17,19 do
+ for i=17,22 do
   achv[i]=dget(i+6)>0
  end
  load_lb()
+ load_elb()
  for i=1,40 do
   add(stars,{
    x=rnd(128),
@@ -271,12 +305,13 @@ end
 -- mode select state
 function update_modesel()
  if btnp(2) then mode_sel=max(1,mode_sel-1) end
- if btnp(3) then mode_sel=min(3,mode_sel+1) end
+ if btnp(3) then mode_sel=min(4,mode_sel+1) end
  if btnp(4) then
   is_ta=mode_sel==2
-  is_gauntlet=mode_sel==3
-  local mname=is_ta and "time_attack" or (is_gauntlet and "gauntlet" or "normal")
-  _log("mode:"..mname)
+  is_endless=mode_sel==3
+  is_gauntlet=mode_sel==4
+  local mn={"normal","time_attack","endless","gauntlet"}
+  _log("mode:"..mn[mode_sel])
   start_game()
  end
  if btnp(5) then
@@ -292,21 +327,22 @@ function draw_modesel()
  local opts={
   {"normal","classic survival",7},
   {"time attack","90s challenge! 1.5x",9},
+  {"endless","infinite scaling!",12},
   {"hazard gauntlet","4 rounds+boss! 1.3x",8}
  }
- for i=1,3 do
-  local y=30+(i-1)*22
+ for i=1,4 do
+  local y=26+(i-1)*18
   local sel=i==mode_sel
   local col=sel and opts[i][3] or 5
   if sel then
-   rectfill(10,y-2,117,y+14,1)
-   print("\139",4,y+2,col)
+   rectfill(10,y-2,117,y+12,1)
+   print("\139",4,y+1,col)
   end
   print(opts[i][1],18,y,col)
-  print(opts[i][2],18,y+8,sel and 6 or 1)
+  print(opts[i][2],18,y+7,sel and 6 or 1)
  end
- print("["..diff_names[diff_sel].."]",44,100,5)
- print("\142 select  \151 back",22,112,6)
+ print("["..diff_names[diff_sel].."]",44,102,5)
+ print("\142 select  \151 back",22,114,6)
 end
 
 function start_game()
@@ -382,9 +418,14 @@ function start_game()
  g_nodmg=true
  g_won=false
  if is_gauntlet then score_mult*=1.3 end
+ -- endless setup
+ e_timer=0
+ e_nodmg=true
+ if is_endless then score_mult=1.0 end
  _log("state:play")
  if is_ta then _log("time_attack:start") end
  if is_gauntlet then _log("gauntlet:start round=1") end
+ if is_endless then _log("endless:start") end
 end
 
 function check_achv(id)
@@ -464,14 +505,25 @@ function update_play()
   end
  end
 
- -- difficulty ramp
- diff_timer+=1
- if diff_timer>=180 then
-  diff_timer=0
-  if spawn_rate>10 then
-   spawn_rate-=2
+ -- endless multiplier: +0.1x per 2 min, cap 3.0
+ if is_endless then
+  e_timer+=1
+  if e_timer>=3600 then
+   e_timer=0
+   score_mult=min(3.0,score_mult+0.1)
+   _log("endless_mult:"..score_mult)
   end
-  meteor_speed+=0.05
+ end
+ -- difficulty ramp (endless: faster)
+ diff_timer+=1
+ local ramp_int=is_endless and 120 or 180
+ if diff_timer>=ramp_int then
+  diff_timer=0
+  local sr_min=is_endless and 6 or 10
+  if spawn_rate>sr_min then
+   spawn_rate-=(is_endless and 3 or 2)
+  end
+  meteor_speed+=(is_endless and 0.08 or 0.05)
   local new_lv=min(flr((meteor_speed-1)*10)+1,10)
   if new_lv>diff_level then
    sfx(0)
@@ -500,10 +552,11 @@ function update_play()
   spawn_powerup()
  end
 
- -- boss wave trigger: every 100 pts or at diff_level 5+
+ -- boss wave trigger (endless: every 50 pts)
  if not boss_active then
-  local next_boss=last_boss_score+100
-  if score>=next_boss or (diff_level>=5 and score>=last_boss_score+50) then
+  local bt=is_endless and 50 or 100
+  local next_boss=last_boss_score+bt
+  if score>=next_boss or (diff_level>=5 and score>=last_boss_score+flr(bt/2)) then
    last_boss_score=score
    trigger_boss_wave()
   end
@@ -663,6 +716,7 @@ function update_play()
     dodge_combo=0
     ta_nodmg=false
     g_nodmg=false
+    e_nodmg=false
     _log("shield_absorb:remaining="..shield_count)
     _log("combo_reset:shield")
     for i=1,8 do
@@ -707,6 +761,11 @@ function update_play()
  if diff_level>=8 then check_achv(9) end
  if score>=500 then check_achv(10) end
  if diff_sel==3 and score>=100 then check_achv(7) end
+ -- endless achievements
+ if is_endless then
+  if time_alive>=9000 then check_achv(20) end
+  if time_alive>=18000 then check_achv(21) end
+ end
 
  anim_t+=1
 end
@@ -912,6 +971,9 @@ function game_over()
  if is_gauntlet and not g_won then
   _log("gauntlet_failed:round="..g_round)
  end
+ if is_endless and e_nodmg and time_alive>=9000 then
+  check_achv(22)
+ end
  _log("final_score:"..score)
 
  if score>hiscore then
@@ -938,7 +1000,7 @@ function game_over()
  sfx(1)
 
  -- check leaderboard qualification
- ne_rank=lb_rank(score)
+ ne_rank=is_endless and elb_rank(score) or lb_rank(score)
  go_timer=0
  if ne_rank>0 then
   state="name_entry"
@@ -1053,9 +1115,21 @@ function draw_play()
  camera(0,0)
 
  -- hud
- print("score:"..score,1,1,7)
- -- time attack timer
- if is_ta then
+ local hcol=is_endless and 12 or 7
+ print("score:"..score,1,1,hcol)
+ -- endless timer + multiplier
+ if is_endless then
+  local es=flr(time_alive/30)
+  local em=flr(es/60)
+  local ess=es%60
+  local etstr=em..":"
+  if ess<10 then etstr=etstr.."0" end
+  etstr=etstr..ess
+  print(etstr,90,1,12)
+  -- show current multiplier
+  local mtxt=score_mult.."x"
+  print(mtxt,104,1,score_mult>=2 and 11 or 12)
+ elseif is_ta then
   local secs=flr(ta_time/30)
   local mm=flr(secs/60)
   local ss=secs%60
@@ -1090,7 +1164,7 @@ function draw_play()
    local vc=flr(anim_t/2)%2==0 and 10 or 7
    print("weak!",50,9,vc)
   else
-   local bc=flr(anim_t/3)%2==0 and 8 or 2
+   local bc=is_endless and (flr(anim_t/3)%2==0 and 12 or 6) or (flr(anim_t/3)%2==0 and 8 or 2)
    print("boss!",50,9,bc)
   end
  end
@@ -1230,20 +1304,22 @@ function update_nameentry()
   -- confirm name
   local name=chr(64+ne_chars[1])..chr(64+ne_chars[2])..chr(64+ne_chars[3])
   -- insert into leaderboard at rank
+  local ls=is_endless and elb_scores or lb_scores
+  local ln=is_endless and elb_names or lb_names
   for i=5,ne_rank+1,-1 do
-   lb_scores[i]=lb_scores[i-1]
-   lb_names[i]=lb_names[i-1]
-   lb_gflag[i]=lb_gflag[i-1]
+   ls[i]=ls[i-1]
+   ln[i]=ln[i-1]
+   if not is_endless then lb_gflag[i]=lb_gflag[i-1] end
   end
-  lb_scores[ne_rank]=score+10 -- 10 bonus pts for entering name
-  lb_names[ne_rank]=name
-  lb_gflag[ne_rank]=is_gauntlet
+  ls[ne_rank]=score+10
+  ln[ne_rank]=name
+  if not is_endless then lb_gflag[ne_rank]=is_gauntlet end
   score+=10
   if score>hiscore then
    hiscore=score
    dset(0,hiscore)
   end
-  save_lb()
+  if is_endless then save_elb() else save_lb() end
   sfx(4)
   _log("name_entered:"..name.." rank="..ne_rank)
   state="gameover"
@@ -1291,11 +1367,14 @@ function draw_nameentry()
  print("+10 bonus pts!",28,82,11)
 
  -- top 3 leaderboard preview
+ local lbs=is_endless and elb_scores or lb_scores
+ local lbn=is_endless and elb_names or lb_names
+ if is_endless then print("[endless]",42,90,12) end
  local ly=94
  for i=1,3 do
-  local c=lb_scores[i]>0 and 6 or 1
-  local pfx=lb_gflag[i] and "[g]" or ""
-  print(i..". "..pfx..lb_names[i].." "..lb_scores[i],28,ly,c)
+  local c=lbs[i]>0 and 6 or 1
+  local pfx=(not is_endless and lb_gflag[i]) and "[g]" or ""
+  print(i..". "..pfx..lbn[i].." "..lbs[i],28,ly,c)
   ly+=7
  end
  print("\139\145 select  \131\132 letter",10,120,5)
@@ -1352,6 +1431,8 @@ function draw_gameover()
 
  if is_ta then
   print("time attack",36,17,9)
+ elseif is_endless then
+  print("endless mode",34,17,12)
  elseif is_gauntlet then
   if g_won then
    print("gauntlet complete!",18,17,11)
@@ -1375,8 +1456,9 @@ function draw_gameover()
  -- stats
  local dtxt="["..diff_names[diff_sel].."]"
  if is_ta then dtxt=dtxt.." ta"
+ elseif is_endless then dtxt=dtxt.." end "..score_mult.."x"
  elseif is_gauntlet then dtxt=dtxt.." glt" end
- print(dtxt,44,52,5)
+ print(dtxt,is_endless and 28 or 44,52,is_endless and 12 or 5)
  local secs=flr(time_alive/30)
  print("survived:"..secs.."s lv:"..diff_level,22,59,5)
  local sy=66
@@ -1394,14 +1476,17 @@ function draw_gameover()
  end
 
  -- leaderboard
+ local lbs=is_endless and elb_scores or lb_scores
+ local lbn=is_endless and elb_names or lb_names
  local ly=max(sy+2,86)
- print("-- leaderboard --",22,ly,6)
+ local lbl=is_endless and "-- endless lb --" or "-- leaderboard --"
+ print(lbl,22,ly,is_endless and 12 or 6)
  ly+=7
  for i=1,5 do
-  if lb_scores[i]>0 then
+  if lbs[i]>0 then
    local c=ne_rank==i and 10 or 6
-   local pfx=lb_gflag[i] and "[g]" or ""
-   print(i..". "..pfx..lb_names[i].." "..lb_scores[i],28,ly,c)
+   local pfx=(not is_endless and lb_gflag[i]) and "[g]" or ""
+   print(i..". "..pfx..lbn[i].." "..lbs[i],28,ly,c)
   else
    print(i..". ---",32,ly,1)
   end
