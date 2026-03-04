@@ -310,7 +310,6 @@ end
 function update_help()
  if btnp(4) or btnp(5) then
   state="menu"
-  _log("state:menu")
  end
 end
 
@@ -649,7 +648,6 @@ function update_play()
   local new_lv=min(flr((meteor_speed-1)*10)+1,10)
   if new_lv>diff_level then
    sfx(0)
-   _log("level_up:"..new_lv)
   end
   diff_level=new_lv
  end
@@ -726,6 +724,8 @@ function update_play()
  end
  if boss_flash>0 then boss_flash-=1 end
  if boss_vuln>0 then boss_vuln-=1 end
+ -- vuln particles
+ if boss_vuln>0 and anim_t%2==0 then for m in all(meteors) do if m.boss then add(particles,{x=m.x+rnd(m.sz),y=m.y+rnd(m.sz),dx=rnd(2)-1,dy=-rnd(1),life=8,col=10}) end end end
 
  -- slowmo speed factor
  local spd_mul=slowmo_timer>0 and 0.5 or 1
@@ -1006,7 +1006,6 @@ function trigger_boss_wave()
  tele_x=boss_atk==3 and 64 or 20+rnd(88)
  boss_flash=tele_dur
  sfx(5)
- _log("boss_type:"..boss_type)
 end
 
 -- execute attack when telegraph completes
@@ -1149,6 +1148,7 @@ function draw_play()
    circ(cx,cy,gr,boss_vuln>0 and 10 or m.col2)
    if boss_vuln>0 then
     circfill(cx,cy,m.sz\2+1,10)
+    circ(cx,cy,gr+4+sin(anim_t*0.08)*3,7)
    end
   end
   -- hazard aura effects
@@ -1407,8 +1407,8 @@ end
 
 -- leaderboard view state
 function update_lbview()
- if btnp(0) then lb_vd=max(1,lb_vd-1) load_dlb(lb_vd) end
- if btnp(1) then lb_vd=min(3,lb_vd+1) load_dlb(lb_vd) end
+ if btnp(0) then lb_vd=max(1,lb_vd-1) elseif btnp(1) then lb_vd=min(3,lb_vd+1) end
+ load_dlb(lb_vd)
  if btnp(4) or btnp(5) then
   load_dlb(diff_sel)
   state="menu"
