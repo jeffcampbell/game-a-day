@@ -18,12 +18,29 @@ function _capture()
  if testmode then add(test_log,"SCREEN:"..tostr(stat(0))) end
 end
 
-function test_input(b)
+function test_input()
  if testmode and test_input_idx<#test_inputs then
   test_input_idx+=1
   return test_inputs[test_input_idx] or 0
  end
  return btn()
+end
+
+-- helpers
+function dk(v,d)
+ return v>0 and v-(d or 1) or 0
+end
+function upd_stars(m)
+ for s in all(stars) do
+  s.y+=s.spd*m
+  if s.y>128 then s.y=0 s.x=rnd(128) end
+ end
+end
+function lbp(i)
+ if is_endless then return "" end
+ if lb_gflag[i] then return "[g]" end
+ if lb_mflag[i] then return "[m]" end
+ return ""
 end
 
 -- game state
@@ -200,9 +217,9 @@ function save_lb()
  dset(29,gf)
  dset(41,mf)
 end
-function lb_rank(s)
+function any_rank(s,ls)
  for i=1,5 do
-  if s>lb_scores[i] then return i end
+  if s>ls[i] then return i end
  end
  return 0
 end
@@ -225,13 +242,6 @@ function save_elb()
   }))
  end
 end
-function elb_rank(s)
- for i=1,5 do
-  if s>elb_scores[i] then return i end
- end
- return 0
-end
-
 function _init()
  cartdata(1)
  hiscore=dget(0)
@@ -281,7 +291,7 @@ function draw_menu()
  end
  -- mini leaderboard on menu
  if lb_scores[1]>0 then
-  local mp=lb_gflag[1] and "[g]" or (lb_mflag[1] and "[m]" or "")
+  local mp=lbp(1)
   print(mp..lb_names[1].." "..lb_scores[1],36,112,9)
  elseif hiscore>0 then
   print("hi-score: "..hiscore,34,112,9)
@@ -451,19 +461,9 @@ function start_game()
  particles={}
  spawn_timer=0
  -- apply difficulty settings
- if diff_sel==1 then
-  spawn_rate=50
-  meteor_speed=0.8
-  score_mult=1.0
- elseif diff_sel==3 then
-  spawn_rate=30
-  meteor_speed=1.2
-  score_mult=1.5
- else
-  spawn_rate=40
-  meteor_speed=1.0
-  score_mult=1.0
- end
+ local ds={{50,0.8,1.0},{40,1.0,1.0},{30,1.2,1.5}}
+ local d=ds[diff_sel]
+ spawn_rate=d[1] meteor_speed=d[2] score_mult=d[3]
  diff_timer=0
  diff_level=1
  shake=0
@@ -514,6 +514,7 @@ function start_game()
  g_trans=0
  g_nodmg=true
  g_won=false
+ g_rdur=diff_sel==1 and 2700 or (diff_sel==3 and 1800 or 2250)
  if is_gauntlet then score_mult*=1.3 end
  -- endless setup
  e_timer=0
@@ -553,10 +554,7 @@ function update_play()
  if is_gauntlet and g_trans>0 then
   g_trans-=1
   update_particles()
-  for s in all(stars) do
-   s.y+=s.spd*0.5
-   if s.y>128 then s.y=0 s.x=rnd(128) end
-  end
+  upd_stars(0.5)
   if g_trans<=0 then
    g_round+=1
    g_timer=0
@@ -607,8 +605,7 @@ function update_play()
  -- gauntlet round timer
  if is_gauntlet and g_round>=1 and g_round<=4 then
   g_timer+=1
-  local rdur=diff_sel==1 and 2700 or (diff_sel==3 and 1800 or 2250)
-  if g_timer>=rdur then
+  if g_timer>=g_rdur then
    if g_round==2 then check_achv(18) end
    g_trans=60
    _log("gauntlet_round_done:"..g_round)
@@ -862,26 +859,19 @@ function update_play()
  end
 
  update_particles()
-
- for s in all(stars) do
-  s.y+=s.spd*0.5
-  if s.y>128 then
-   s.y=0
-   s.x=rnd(128)
-  end
- end
+ upd_stars(0.5)
 
  -- decay timers
- if shake>0 then shake-=0.5 end
- if flash>0 then flash-=1 end
- if nm_flash>0 then nm_flash-=1 end
- if slowmo_timer>0 then slowmo_timer-=1 end
- if ice_slow>0 then ice_slow-=1 end
- if dblscore_timer>0 then dblscore_timer-=1 end
- if pu_flash>0 then pu_flash-=1 end
- if combo_flash>0 then combo_flash-=1 end
- if achv_flash>0 then achv_flash-=1 end
- if bd_flash>0 then bd_flash-=1 end
+ shake=dk(shake,0.5)
+ flash=dk(flash)
+ nm_flash=dk(nm_flash)
+ slowmo_timer=dk(slowmo_timer)
+ ice_slow=dk(ice_slow)
+ dblscore_timer=dk(dblscore_timer)
+ pu_flash=dk(pu_flash)
+ combo_flash=dk(combo_flash)
+ achv_flash=dk(achv_flash)
+ bd_flash=dk(bd_flash)
 
  -- achievement checks
  if dodge_combo>=5 then check_achv(1) end
@@ -977,10 +967,10 @@ function spawn_meteor()
   ht=g_round
  elseif diff_level>=2 then
   local r=rnd()
-  if diff_level>=5 and r<0.12 then ht=4
-  elseif diff_level>=4 and r<0.2 then ht=3
-  elseif diff_level>=3 and r<0.3 then ht=2
-  elseif r<0.35 then ht=1
+  if diff_level>=5 and r<0.15 then ht=4
+  elseif diff_level>=4 and r<0.22 then ht=3
+  elseif diff_level>=3 and r<0.28 then ht=2
+  elseif r<0.33 then ht=1
   end
  end
  -- hazard colors: radio=9, ice=12, mag=8, corrupt=3
@@ -1131,7 +1121,7 @@ function game_over()
  sfx(1)
 
  -- check leaderboard qualification
- ne_rank=is_endless and elb_rank(score) or lb_rank(score)
+ ne_rank=any_rank(score,is_endless and elb_scores or lb_scores)
  go_timer=0
  if ne_rank>0 then
   state="name_entry"
@@ -1333,8 +1323,7 @@ function draw_play()
   local rc=rn<=4 and g_rcols[rn] or 8
   print(rtxt,1,122,rc)
   if rn<=4 then
-   local rdur=diff_sel==1 and 2700 or (diff_sel==3 and 1800 or 2250)
-   local pct=min(g_timer/rdur,1)
+   local pct=min(g_timer/g_rdur,1)
    rectfill(1,118,1+pct*40,120,rc)
    rect(1,118,41,120,5)
   end
@@ -1485,12 +1474,9 @@ function update_nameentry()
   _log("state:gameover")
  end
  update_particles()
- if shake>0 then shake-=0.5 end
- if flash>0 then flash-=1 end
- for s in all(stars) do
-  s.y+=s.spd*0.2
-  if s.y>128 then s.y=0 s.x=rnd(128) end
- end
+ shake=dk(shake,0.5)
+ flash=dk(flash)
+ upd_stars(0.2)
 end
 
 function draw_nameentry()
@@ -1531,8 +1517,7 @@ function draw_nameentry()
  local ly=94
  for i=1,3 do
   local c=lbs[i]>0 and 6 or 1
-  local pfx="" if not is_endless then if lb_gflag[i] then pfx="[g]" elseif lb_mflag[i] then pfx="[m]" end end
-  print(i..". "..pfx..lbn[i].." "..lbs[i],28,ly,c)
+  print(i..". "..lbp(i)..lbn[i].." "..lbs[i],28,ly,c)
   ly+=7
  end
  print("\139\145 select  \131\132 letter",10,120,5)
@@ -1551,21 +1536,15 @@ function update_gameover()
   end
  end
  update_particles()
- if shake>0 then shake-=0.5 end
- if flash>0 then flash-=1 end
- if achv_flash>0 then achv_flash-=1 end
+ shake=dk(shake,0.5)
+ flash=dk(flash)
+ achv_flash=dk(achv_flash)
 
  for m in all(meteors) do
   m.y+=0.2
  end
 
- for s in all(stars) do
-  s.y+=s.spd*0.2
-  if s.y>128 then
-   s.y=0
-   s.x=rnd(128)
-  end
- end
+ upd_stars(0.2)
 end
 
 function draw_gameover()
@@ -1647,8 +1626,7 @@ function draw_gameover()
  for i=1,5 do
   if lbs[i]>0 then
    local c=ne_rank==i and 10 or 6
-   local pfx="" if not is_endless then if lb_gflag[i] then pfx="[g]" elseif lb_mflag[i] then pfx="[m]" end end
-   print(i..". "..pfx..lbn[i].." "..lbs[i],28,ly,c)
+   print(i..". "..lbp(i)..lbn[i].." "..lbs[i],28,ly,c)
   else
    print(i..". ---",32,ly,1)
   end
