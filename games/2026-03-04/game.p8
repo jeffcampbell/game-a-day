@@ -45,9 +45,6 @@ function fmt_t(f)
  s=s%60
  return m..":"..( s<10 and "0" or "")..s
 end
-function lbp(i)
- return is_endless and "" or lb_gflag[i] and "[g]" or lb_mflag[i] and "[m]" or ""
-end
 
 -- game state
 state="menu"
@@ -112,18 +109,6 @@ combo_flash_txt=""
 achv={}
 achv_flash=0
 achv_flash_txt=""
-achv_names={
- "first blood","dodgemaster",
- "close call","collector",
- "boss slayer","survivor",
- "hard mode","precision",
- "speed demon","legendary",
- "time master","flawless 90s",
- "rad dodger","ice rider",
- "magnet ace","chaos surfer",
- "glt master","hz scientist","glt victor",
- "end survivor","end climber","untouchable"
-}
 boss_waves=0
 boss_tier=0 boss_n=0
 -- boss death fanfare
@@ -148,7 +133,6 @@ g_trans=0
 g_nodmg=true
 g_won=false
 g_rnames={"radioactive","ice","magnetic","corrupted"}
-g_rdesc={"fuel drain","rot. slow","attract pull","fast move"}
 g_rcols={9,12,8,3}
 -- endless mode
 is_endless=false
@@ -171,10 +155,7 @@ mod_count=0
 -- leaderboard (top 5 per difficulty)
 lb_scores={}
 lb_names={}
-lb_gflag={}
-lb_mflag={}
 lb_bs={42,13,52}
-lb_fs={40,29,62}
 lb_vd=2
 -- endless leaderboard (top 5)
 elb_scores={}
@@ -194,26 +175,20 @@ function unpack_name(n)
  return chr(65+c1)..chr(65+c2)..chr(65+c3)
 end
 function load_dlb(d)
- lb_scores={} lb_names={} lb_gflag={} lb_mflag={}
+ lb_scores={} lb_names={}
  local b=lb_bs[d]
- local f=flr(dget(lb_fs[d]))
  for i=1,5 do
   local s=dget(b+i-1)
   add(lb_scores,s>0 and s or 0)
   add(lb_names,s>0 and unpack_name(dget(b+4+i)) or "---")
-  add(lb_gflag,band(f,shl(1,i-1))>0)
-  add(lb_mflag,band(f,shl(1,i+4))>0)
  end
 end
 function save_dlb(d)
- local b,f=lb_bs[d],0
+ local b=lb_bs[d]
  for i=1,5 do
   dset(b+i-1,lb_scores[i])
   dset(b+4+i,lb_names[i]=="---" and 0 or pkn(lb_names[i]))
-  if lb_gflag[i] then f=bor(f,shl(1,i-1)) end
-  if lb_mflag[i] then f=bor(f,shl(1,i+4)) end
  end
- dset(lb_fs[d],f)
 end
 function any_rank(s,ls)
  for i=1,5 do
@@ -293,8 +268,7 @@ function draw_menu()
  print("\131 scores  \132 help",24,108,5)
  -- mini leaderboard on menu
  if lb_scores[1]>0 then
-  local mp=lbp(1)
-  print(mp..lb_names[1].." "..lb_scores[1],36,118,9)
+  print(lb_names[1].." "..lb_scores[1],36,118,9)
  elseif hiscore>0 then
   print("hi-score: "..hiscore,34,118,9)
  end
@@ -310,22 +284,18 @@ end
 function draw_help()
  cls(0)
  draw_stars()
- print("hazard encyclopedia",14,4,10)
- local hd={
-  {"normal",8,10,"dodge meteors, earn pts"},
-  {"radioactive",9,10,"shield costs 2x"},
-  {"ice",12,7,"slows move, -25% nm dist"},
-  {"magnetic",8,2,"pulls ship toward it"},
-  {"corrupted",3,11,"bounces, 2x nm bonus"}
- }
- for i=1,5 do
-  local h=hd[i]
-  local y=16+(i-1)*20
-  draw_meteor(6,y+2,flr(t()*3)%2,7,h[2],h[3])
-  print(h[1],18,y,h[2])
-  print(h[4],18,y+8,6)
- end
- print("\142/\151 back to menu",18,118,6)
+ print("hazard types",28,4,10)
+ print("normal",18,18,8)
+ print("dodge meteors, earn pts",18,26,6)
+ print("radioactive",18,38,9)
+ print("shield costs 2x",18,46,6)
+ print("ice",18,58,12)
+ print("slows,-25% nm dist",18,66,6)
+ print("magnetic",18,78,8)
+ print("pulls ship toward it",18,86,6)
+ print("corrupted",18,98,3)
+ print("bounces, 2x nm bonus",18,106,6)
+ print("\142/\151 back",36,118,6)
 end
 
 -- difficulty select state
@@ -550,12 +520,10 @@ end
 function check_achv(id)
  if achv[id] then return end
  achv[id]=true
- local slot=id>=17 and id+6 or id
- dset(slot,1)
+ dset(id>=17 and id+6 or id,1)
  achv_flash=45
- achv_flash_txt=achv_names[id]
+ achv_flash_txt="achv #"..id
  sfx(4)
- _log("achievement:"..achv_names[id])
 end
 
 -- play state
@@ -976,7 +944,7 @@ function trigger_boss_wave()
  tele_x=boss_atk==3 and 64 or 20+rnd(88)
  boss_flash=tele_dur
  sfx(5)
- _log("boss_tier:"..boss_tier)
+ _log("boss")
 end
 
 -- execute attack when telegraph completes
@@ -1055,7 +1023,7 @@ function game_over()
  if is_endless and e_nodmg and time_alive>=9000 then
   check_achv(22)
  end
- _log("final_score:"..score)
+ _log("gameover")
 
  if score>hiscore then
   hiscore=score
@@ -1221,14 +1189,7 @@ function draw_play()
 
  -- modifier indicator
  if mod_count>0 then
-  local mx=126
-  for i=1,7 do
-   if band(mod_active,mod_defs[i][4])>0 then
-    pset(mx,9,mod_defs[i][3])
-    pset(mx,10,mod_defs[i][3])
-    mx-=2
-   end
-  end
+  print("m",124,9,14)
  end
 
  -- boss wave indicator
@@ -1296,10 +1257,6 @@ function draw_play()
    (dodge_combo>=10 and 9 or
    (dodge_combo>=5 and 10 or 7)))
   print(dodge_combo.."x",1,121,cc)
-  -- pulsing glow at milestones
-  if dodge_combo>=5 and anim_t%8<4 then
-   print(dodge_combo.."x",2,121,cc)
-  end
  end
 
  -- combo milestone notification
@@ -1339,8 +1296,7 @@ function draw_play()
    local nr=g_round+1
    print("round "..nr,44,38,7)
    print(g_rnames[nr],44,50,g_rcols[nr])
-   print(g_rdesc[nr],36,62,6)
-   print("get ready!",40,78,
+   print("get ready!",40,70,
     anim_t%8<4 and 7 or 5)
   else
    print("final boss!",36,46,8)
@@ -1383,7 +1339,7 @@ function draw_lbview()
  for i=1,5 do
   local y=28+i*12
   if lb_scores[i]>0 then
-   print(i..". "..lbp(i)..lb_names[i].." "..lb_scores[i],20,y,6)
+   print(i..". "..lb_names[i].." "..lb_scores[i],20,y,6)
   else
    print(i..". ---",20,y,1)
   end
@@ -1415,17 +1371,9 @@ function update_nameentry()
   for i=5,ne_rank+1,-1 do
    ls[i]=ls[i-1]
    ln[i]=ln[i-1]
-   if not is_endless then
-    lb_gflag[i]=lb_gflag[i-1]
-    lb_mflag[i]=lb_mflag[i-1]
-   end
   end
   ls[ne_rank]=score+10
   ln[ne_rank]=name
-  if not is_endless then
-   lb_gflag[ne_rank]=is_gauntlet
-   lb_mflag[ne_rank]=mod_active>0
-  end
   score+=10
   if score>hiscore then
    hiscore=score
@@ -1480,7 +1428,7 @@ function draw_nameentry()
  local ly=94
  for i=1,3 do
   local c=lbs[i]>0 and 6 or 1
-  print(i..". "..lbp(i)..lbn[i].." "..lbs[i],28,ly,c)
+  print(i..". "..lbn[i].." "..lbs[i],28,ly,c)
   ly+=7
  end
  print("\139\145 select  \131\132 letter",10,120,5)
@@ -1587,7 +1535,7 @@ function draw_gameover()
  for i=1,5 do
   if lbs[i]>0 then
    local c=ne_rank==i and 10 or 6
-   print(i..". "..lbp(i)..lbn[i].." "..lbs[i],28,ly,c)
+   print(i..". "..lbn[i].." "..lbs[i],28,ly,c)
   else
    print(i..". ---",32,ly,1)
   end
