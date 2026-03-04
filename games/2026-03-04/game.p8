@@ -119,9 +119,10 @@ bd_flash_txt=""
 bd_x=64
 nm_count=0
 -- hazard meteor system
--- 0=normal,1=radioactive,2=ice,3=magnetic,4=corrupted
+-- 0=normal,1=radioactive,2=ice,3=magnetic,4=corrupted,5=splitter,6=phantom
 ice_slow=0
-hz_ct={0,0,0,0} sp_frag=0
+hz_ct={0,0,0,0,0} sp_frag=0
+ph_dodged=0
 -- time attack mode
 is_ta=false
 ta_time=0
@@ -275,7 +276,7 @@ function draw_help()
  cls(0) draw_stars()
  print("hazard types",28,6,10)
  print("norm rad ice mag",10,18,7)
- print("corrupt splitter",10,28,7)
+ print("corrupt split phantom",10,28,7)
  print("\142/\151 back",36,118,6)
 end
 
@@ -458,7 +459,8 @@ function start_game()
  achv_flash=0
  -- reset hazard trackers
  ice_slow=0
- hz_ct={0,0,0,0} sp_frag=0
+ hz_ct={0,0,0,0,0} sp_frag=0
+ ph_dodged=0
  -- time attack setup
  ta_time=is_ta and 1500 or 0
  ta_nodmg=true
@@ -698,7 +700,7 @@ function update_play()
    local dy=abs((m.y-m.spd*spd_mul)-scy)
    local dist=sqrt(dx*dx+dy*dy)
    local nm_d=m.htype==2 and near_miss_dist*0.75 or near_miss_dist
-   local hzm={1.2,1,1.5,2}
+   local hzm={1.2,1,1.5,2,1,1.3}
    local hzmul=m.htype>0 and hzm[m.htype] or 1
    if dist<nm_d then
     got_near=true
@@ -708,11 +710,12 @@ function update_play()
     score+=bonus
     nm_streak+=1
     -- hazard achievement tracking
-    if m.htype>=1 and m.htype<=4 then
+    if m.htype>=1 and m.htype<=5 then
      hz_ct[m.htype]+=1
-     local ht={10,3,5,15}
+     local ht={10,3,5,15,8}
      if hz_ct[m.htype]>=ht[m.htype] then check_achv(12+m.htype) end
     end
+    if m.htype==6 then ph_dodged+=1 end
     -- splitter: spawn fragments on near-miss
     if m.htype==5 then
      for j=1,2+flr(rnd(2)) do
@@ -761,7 +764,7 @@ function update_play()
     end
    elseif shield_count>0 then
     -- shield absorbs hit (radioactive costs 2)
-    local scost=m.htype==1 and 2 or 1
+    local scost=(m.htype==1 or m.htype==6) and 2 or 1
     shield_count=max(0,shield_count-scost)
     -- shield burst: destroy nearby meteors (only with burst power-up)
     if shld_burst then
@@ -892,13 +895,15 @@ function spawn_meteor()
   local sp=diff_level>=5 and 0.35 or (diff_level>=3 and 0.2 or 0)
   if rnd()<sp then ht=5 end
  end
+ -- phantom: diff 4+ (slower, shield-costly)
+ if ht==0 and diff_level>=4 and rnd()<(diff_level>=5 and 0.18 or 0.1) then ht=6 end
  -- hazard colors
- local hc={{9,10},{12,7},{8,2},{3,11},{14,7}}
+ local hc={{9,10},{12,7},{8,2},{3,11},{14,7},{2,13}}
  local c1,c2=rnd()>0.5 and 8 or 9,rnd()>0.5 and 10 or 4
  if ht>0 then c1=hc[ht][1] c2=hc[ht][2] end
  add(meteors,{
   x=rnd(120),y=-sz,
-  spd=meteor_speed+rnd(0.5)*(ht==4 and 1.3 or 1),
+  spd=(meteor_speed+rnd(0.5)*(ht==4 and 1.3 or 1))*(ht==6 and 0.85 or 1),
   sz=sz,anim=rnd(1),
   col=c1,col2=c2,
   scored=false,boss=false,htype=ht,
@@ -1059,6 +1064,9 @@ function draw_play()
    if rnd()<0.4 then circ(cx,cy,m.sz\2+rnd(3),3) end
   elseif m.htype==5 then
    circ(cx,cy,m.sz\2+2+sin(anim_t*0.06)*2,14)
+  elseif m.htype==6 then
+   -- phantom: pulsing ghost effect
+   if anim_t%4<2 then circ(cx,cy,m.sz\2+2,2) end
   end
   draw_meteor(m.x,m.y,flr(m.anim)%2,m.sz,m.col,m.col2)
  end
