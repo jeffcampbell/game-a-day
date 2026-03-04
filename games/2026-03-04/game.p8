@@ -70,6 +70,11 @@ boss_active=false
 boss_timer=0
 boss_flash=0
 last_boss_score=0
+-- dodge combo system
+dodge_combo=0
+dodge_best=0
+combo_flash=0
+combo_flash_txt=""
 
 function _init()
  cartdata(1)
@@ -197,6 +202,11 @@ function start_game()
  boss_timer=0
  boss_flash=0
  last_boss_score=0
+ -- reset dodge combo
+ dodge_combo=0
+ dodge_best=0
+ combo_flash=0
+ combo_flash_txt=""
  _log("state:play")
 end
 
@@ -295,6 +305,10 @@ function update_play()
   -- near-miss detection
   if not m.scored and m.y>ship_y+6 then
    m.scored=true
+   -- dodge combo tracking
+   dodge_combo+=1
+   if dodge_combo>dodge_best then dodge_best=dodge_combo end
+   check_combo_milestone()
    -- boss meteors: 5x dodge bonus
    if m.boss then
     local bpts=flr(5*smul*score_mult)
@@ -350,7 +364,9 @@ function update_play()
     del(meteors,m)
     shake=3
     sfx(4)
+    dodge_combo=0
     _log("shield_absorb:remaining="..shield_count)
+    _log("combo_reset:shield")
     for i=1,8 do
      add(particles,{
       x=ship_x+3,y=ship_y+3,
@@ -382,6 +398,7 @@ function update_play()
  if slowmo_timer>0 then slowmo_timer-=1 end
  if dblscore_timer>0 then dblscore_timer-=1 end
  if pu_flash>0 then pu_flash-=1 end
+ if combo_flash>0 then combo_flash-=1 end
 
  anim_t+=1
 end
@@ -437,6 +454,10 @@ function collect_powerup(p)
  pu_flash_txt="+"..p.name
  pu_collected+=1
  sfx(4)
+ if dodge_combo>0 then
+  _log("combo_reset:powerup")
+ end
+ dodge_combo=0
  _log("powerup_collect:"..p.name)
  -- particle burst
  for i=1,6 do
@@ -490,6 +511,35 @@ function trigger_boss_wave()
  sfx(5)
  shake=4
  _log("boss_wave:count="..count)
+end
+
+-- combo milestones: 5x,10x,15x,20x
+function check_combo_milestone()
+ local dm={5,10,15,20}
+ local db={10,25,50,100}
+ local dc={10,9,8,14}
+ for i=1,4 do
+  if dodge_combo==dm[i] then
+   local diff_m=diff_sel==3 and 1.2 or 1.0
+   local pts=flr(db[i]*diff_m*score_mult)
+   score+=pts
+   combo_flash=30
+   combo_flash_txt=dm[i].."x combo! +"..pts
+   shake=i
+   flash=i>=3 and i-1 or 0
+   sfx(i>=3 and 5 or 3)
+   -- particle burst
+   for j=1,4+i*2 do
+    local ang=rnd(1)
+    add(particles,{
+     x=ship_x+3,y=ship_y-4,
+     dx=cos(ang)*1.5,dy=sin(ang)*1.5-1,
+     life=15+i*3,col=dc[i]
+    })
+   end
+   _log("combo_milestone:"..dm[i].."x pts="..pts)
+  end
+ end
 end
 
 function check_col(x1,y1,w1,h1,x2,y2,w2,h2)
@@ -632,6 +682,28 @@ function draw_play()
   local c=pu_flash>15 and 7 or 6
   print(pu_flash_txt,px,py,c)
  end
+
+ -- dodge combo counter (bottom-left)
+ if dodge_combo>=3 then
+  local cc=dodge_combo>=20 and 14 or
+   (dodge_combo>=15 and 8 or
+   (dodge_combo>=10 and 9 or
+   (dodge_combo>=5 and 10 or 7)))
+  print(dodge_combo.."x",1,121,cc)
+  -- pulsing glow at milestones
+  if dodge_combo>=5 and anim_t%8<4 then
+   print(dodge_combo.."x",2,121,cc)
+  end
+ end
+
+ -- combo milestone notification
+ if combo_flash>0 then
+  local cx=64-#combo_flash_txt*2
+  local cy=40+flr((30-combo_flash)/3)
+  local cc=combo_flash>20 and 10 or
+   (combo_flash>10 and 9 or 5)
+  print(combo_flash_txt,cx,cy,cc)
+ end
 end
 
 -- draw power-up items
@@ -715,8 +787,11 @@ function draw_gameover()
  if nm_best>0 then
   print("best streak: "..nm_best.."x",34,76,9)
  end
+ if dodge_best>0 then
+  print("best combo: "..dodge_best.."x",34,83,10)
+ end
  if pu_collected>0 then
-  print("power-ups: "..pu_collected,34,83,12)
+  print("power-ups: "..pu_collected,34,90,12)
  end
 
  if go_timer>45 then
