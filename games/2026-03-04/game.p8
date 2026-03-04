@@ -127,10 +127,25 @@ g_rcols={9,12,8,3}
 is_endless=false
 e_timer=0
 e_nodmg=true
+-- modifier system
+mod_defs={
+ {"no powerups","pu disabled",8,1},
+ {"2x speed","1.5x meteors",9,2},
+ {"tiny rocks","smaller size",11,4},
+ {"mirror","l/r flipped",12,8},
+ {"fast spawn","1.5x freq",10,16},
+ {"hard hazard","stronger fx",14,32},
+ {"quick start","begin at lv3",13,64}
+}
+mod_offer={}
+mod_active=0
+mod_sel=1
+mod_count=0
 -- leaderboard (top 5)
 lb_scores={}
 lb_names={}
 lb_gflag={}
+lb_mflag={}
 -- endless leaderboard (top 5)
 elb_scores={}
 elb_names={}
@@ -153,7 +168,9 @@ function load_lb()
  lb_scores={}
  lb_names={}
  lb_gflag={}
+ lb_mflag={}
  local gf=flr(dget(29))
+ local mf=flr(dget(41))
  for i=1,5 do
   local s=dget(11+i*2)
   local n=dget(12+i*2)
@@ -165,10 +182,11 @@ function load_lb()
    add(lb_names,"---")
   end
   add(lb_gflag,band(gf,shl(1,i-1))>0)
+  add(lb_mflag,band(mf,shl(1,i-1))>0)
  end
 end
 function save_lb()
- local gf=0
+ local gf,mf=0,0
  for i=1,5 do
   dset(11+i*2,lb_scores[i])
   dset(12+i*2,lb_names[i]=="---" and 0 or pack_name({
@@ -177,8 +195,10 @@ function save_lb()
    ord(sub(lb_names[i],3,3))-65
   }))
   if lb_gflag[i] then gf=bor(gf,shl(1,i-1)) end
+  if lb_mflag[i] then mf=bor(mf,shl(1,i-1)) end
  end
  dset(29,gf)
+ dset(41,mf)
 end
 function lb_rank(s)
  for i=1,5 do
@@ -261,7 +281,7 @@ function draw_menu()
  end
  -- mini leaderboard on menu
  if lb_scores[1]>0 then
-  local mp=lb_gflag[1] and "[g]" or ""
+  local mp=lb_gflag[1] and "[g]" or (lb_mflag[1] and "[m]" or "")
   print(mp..lb_names[1].." "..lb_scores[1],36,112,9)
  elseif hiscore>0 then
   print("hi-score: "..hiscore,34,112,9)
@@ -317,7 +337,19 @@ function update_modesel()
   is_gauntlet=mode_sel==4
   local mn={"normal","time_attack","endless","gauntlet"}
   _log("mode:"..mn[mode_sel])
-  start_game()
+  -- set up modifier selection
+  state="mod_select"
+  mod_offer={}
+  mod_active=0
+  mod_sel=1
+  mod_count=0
+  local pool={1,2,3,4,5,6,7}
+  for i=7,2,-1 do
+   local j=1+flr(rnd(i))
+   pool[i],pool[j]=pool[j],pool[i]
+  end
+  for i=1,4 do add(mod_offer,pool[i]) end
+  _log("state:mod_select")
  end
  if btnp(5) then
   state="difficulty_select"
@@ -348,6 +380,64 @@ function draw_modesel()
  end
  print("["..diff_names[diff_sel].."]",44,102,5)
  print("\142 select  \151 back",22,114,6)
+end
+
+-- modifier select state
+function update_modsel()
+ if btnp(2) then mod_sel=max(1,mod_sel-1) end
+ if btnp(3) then mod_sel=min(#mod_offer,mod_sel+1) end
+ if btnp(4) then
+  -- toggle modifier
+  local md=mod_defs[mod_offer[mod_sel]]
+  mod_active=bxor(mod_active,md[4])
+  -- recount active mods
+  mod_count=0
+  local v=mod_active
+  while v>0 do
+   if v%2==1 then mod_count+=1 end
+   v=flr(v/2)
+  end
+  sfx(2)
+  _log("mod_toggle:"..md[1])
+ end
+ if btnp(5) then
+  _log("modifiers:"..mod_active.." count="..mod_count)
+  start_game()
+ end
+ if btnp(0) then
+  state="mode_select"
+  _log("state:mode_select")
+ end
+end
+
+function draw_modsel()
+ cls(0)
+ draw_stars()
+ print("challenge modifiers",14,6,10)
+ print("\142 toggle  \151 go!",20,16,6)
+ for i=1,#mod_offer do
+  local mi=mod_offer[i]
+  local md=mod_defs[mi]
+  local y=26+(i-1)*20
+  local sel=i==mod_sel
+  local on=band(mod_active,md[4])>0
+  if sel then rectfill(6,y-1,121,y+13,1) end
+  -- checkbox
+  if on then
+   rectfill(8,y+2,14,y+8,md[3])
+  else
+   rect(8,y+2,14,y+8,5)
+  end
+  local nc=on and md[3] or (sel and 7 or 5)
+  print(md[1],18,y+1,nc)
+  print(md[2],18,y+8,sel and 6 or 1)
+ end
+ if mod_count>0 then
+  print("+"..mod_count*10 .."%score bonus!",22,108,10)
+ else
+  print("select or skip \151",22,108,5)
+ end
+ print("\139 back",1,122,5)
 end
 
 function start_game()
@@ -429,10 +519,20 @@ function start_game()
  e_timer=0
  e_nodmg=true
  if is_endless then score_mult=1.0 end
+ -- apply modifier effects
+ if band(mod_active,2)>0 then meteor_speed*=1.5 end
+ if band(mod_active,16)>0 then spawn_rate=flr(spawn_rate*0.67) end
+ if band(mod_active,64)>0 then
+  diff_level=3
+  meteor_speed+=0.15
+  spawn_rate=max(15,spawn_rate-8)
+ end
+ if mod_count>0 then score_mult+=mod_count*0.1 end
  _log("state:play")
  if is_ta then _log("time_attack:start") end
  if is_gauntlet then _log("gauntlet:start round=1") end
  if is_endless then _log("endless:start") end
+ if mod_count>0 then _log("modifiers:"..mod_active.." count="..mod_count) end
 end
 
 function check_achv(id)
@@ -472,8 +572,11 @@ function update_play()
  local inp=test_input()
  -- ship movement (ice hazard slows by 50%)
  local mspd=ice_slow>0 and 1.25 or 2.5
- if inp&1>0 then ship_x-=mspd end
- if inp&2>0 then ship_x+=mspd end
+ -- mirror mode: swap left/right
+ local ml,mr=1,2
+ if band(mod_active,8)>0 then ml,mr=2,1 end
+ if inp&ml>0 then ship_x-=mspd end
+ if inp&mr>0 then ship_x+=mspd end
  ship_x=mid(0,ship_x,121)
 
  -- score multiplier
@@ -636,13 +739,14 @@ function update_play()
   -- magnetic: pull ship toward meteor
   if m.htype==3 and m.y>0 and m.y<128 then
    local mdx=m.x+m.sz/2-(ship_x+3)
-   if abs(mdx)<40 then ship_x+=sgn(mdx)*0.3 end
+   local mpull=band(mod_active,32)>0 and 0.5 or 0.3
+   if abs(mdx)<40 then ship_x+=sgn(mdx)*mpull end
   end
   -- ice: proximity slowdown
   if m.htype==2 and m.y>0 then
    local idx=abs(m.x+m.sz/2-scx)
    local idy=abs(m.y+m.sz/2-scy)
-   if idx<12 and idy<12 then ice_slow=60 end
+   if idx<12 and idy<12 then ice_slow=band(mod_active,32)>0 and 90 or 60 end
   end
   m.anim+=0.15
   -- trail particles
@@ -797,6 +901,7 @@ end
 
 -- power-up functions
 function spawn_powerup()
+ if band(mod_active,1)>0 then return end
  -- types: 1=shield(12), 2=slowmo(11), 3=dblpts(10), 4=rapid shield(13)
  local typs={
   {name="shield",col=12},
@@ -864,6 +969,7 @@ end
 
 function spawn_meteor()
  local sz=6+flr(rnd(4))
+ if band(mod_active,4)>0 then sz=max(3,sz-3) end
  -- hazard type selection based on difficulty
  local ht=0
  -- gauntlet: force hazard type per round
@@ -1183,6 +1289,18 @@ function draw_play()
   end
  end
 
+ -- modifier indicator
+ if mod_count>0 then
+  local mx=126
+  for i=1,7 do
+   if band(mod_active,mod_defs[i][4])>0 then
+    pset(mx,9,mod_defs[i][3])
+    pset(mx,10,mod_defs[i][3])
+    mx-=2
+   end
+  end
+ end
+
  -- boss wave indicator
  if boss_active or boss_flash>0 then
   if boss_vuln>0 then
@@ -1343,11 +1461,17 @@ function update_nameentry()
   for i=5,ne_rank+1,-1 do
    ls[i]=ls[i-1]
    ln[i]=ln[i-1]
-   if not is_endless then lb_gflag[i]=lb_gflag[i-1] end
+   if not is_endless then
+    lb_gflag[i]=lb_gflag[i-1]
+    lb_mflag[i]=lb_mflag[i-1]
+   end
   end
   ls[ne_rank]=score+10
   ln[ne_rank]=name
-  if not is_endless then lb_gflag[ne_rank]=is_gauntlet end
+  if not is_endless then
+   lb_gflag[ne_rank]=is_gauntlet
+   lb_mflag[ne_rank]=mod_active>0
+  end
   score+=10
   if score>hiscore then
    hiscore=score
@@ -1407,7 +1531,7 @@ function draw_nameentry()
  local ly=94
  for i=1,3 do
   local c=lbs[i]>0 and 6 or 1
-  local pfx=(not is_endless and lb_gflag[i]) and "[g]" or ""
+  local pfx="" if not is_endless then if lb_gflag[i] then pfx="[g]" elseif lb_mflag[i] then pfx="[m]" end end
   print(i..". "..pfx..lbn[i].." "..lbs[i],28,ly,c)
   ly+=7
  end
@@ -1508,6 +1632,10 @@ function draw_gameover()
   print("power-ups:"..pu_collected,34,sy,12)
   sy+=7
  end
+ if mod_count>0 then
+  print(mod_count.." mod(s) +"..(mod_count*10).."%",28,sy,14)
+  sy+=7
+ end
 
  -- leaderboard
  local lbs=is_endless and elb_scores or lb_scores
@@ -1519,7 +1647,7 @@ function draw_gameover()
  for i=1,5 do
   if lbs[i]>0 then
    local c=ne_rank==i and 10 or 6
-   local pfx=(not is_endless and lb_gflag[i]) and "[g]" or ""
+   local pfx="" if not is_endless then if lb_gflag[i] then pfx="[g]" elseif lb_mflag[i] then pfx="[m]" end end
    print(i..". "..pfx..lbn[i].." "..lbs[i],28,ly,c)
   else
    print(i..". ---",32,ly,1)
@@ -1605,6 +1733,7 @@ function _update()
  if state=="menu" then update_menu()
  elseif state=="difficulty_select" then update_difsel()
  elseif state=="mode_select" then update_modesel()
+ elseif state=="mod_select" then update_modsel()
  elseif state=="play" then update_play()
  elseif state=="name_entry" then update_nameentry()
  elseif state=="gameover" then update_gameover()
@@ -1615,6 +1744,7 @@ function _draw()
  if state=="menu" then draw_menu()
  elseif state=="difficulty_select" then draw_difsel()
  elseif state=="mode_select" then draw_modesel()
+ elseif state=="mod_select" then draw_modsel()
  elseif state=="play" then draw_play()
  elseif state=="name_entry" then draw_nameentry()
  elseif state=="gameover" then draw_gameover()
