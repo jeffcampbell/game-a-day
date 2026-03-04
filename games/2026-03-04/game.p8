@@ -70,6 +70,10 @@ boss_active=false
 boss_timer=0
 boss_flash=0
 last_boss_score=0
+boss_atk=1 -- 1=burst,2=spiral,3=ring,4=aimed
+tele_timer=0
+tele_dur=0
+tele_x=64
 -- dodge combo system
 dodge_combo=0
 dodge_best=0
@@ -264,6 +268,9 @@ function start_game()
  boss_timer=0
  boss_flash=0
  last_boss_score=0
+ boss_atk=1
+ tele_timer=0
+ tele_dur=0
  -- reset dodge combo
  dodge_combo=0
  dodge_best=0
@@ -370,6 +377,13 @@ function update_play()
    trigger_boss_wave()
   end
  end
+ -- telegraph countdown
+ if tele_timer>0 then
+  tele_timer-=1
+  if tele_timer<=0 then
+   execute_boss_attack()
+  end
+ end
  -- decay boss timer
  if boss_timer>0 then
   boss_timer-=1
@@ -390,7 +404,12 @@ function update_play()
  local scy=ship_y+3
  local got_near=false
  for m in all(meteors) do
-  m.y+=m.spd*spd_mul
+  if m.dx then
+   m.x+=m.dx*spd_mul
+   m.y+=m.dy*spd_mul
+  else
+   m.y+=m.spd*spd_mul
+  end
   m.anim+=0.15
   -- trail particles
   if rnd()<0.3 then
@@ -450,7 +469,8 @@ function update_play()
 
  -- remove off-screen meteors
  for i=#meteors,1,-1 do
-  if meteors[i].y>140 then
+  local mi=meteors[i]
+  if mi.y>140 or mi.x<-20 or mi.x>148 then
    deli(meteors,i)
   end
  end
@@ -599,33 +619,67 @@ function spawn_meteor()
  add(meteors,m)
 end
 
--- boss meteor: larger, red/magenta, 5x score
-function spawn_boss_meteor()
- local sz=12+flr(rnd(5))
- local m={
-  x=rnd(112),
-  y=-sz,
-  spd=meteor_speed*0.7+rnd(0.3),
-  sz=sz,
-  anim=rnd(1),
+-- spawn directional boss meteor
+function spawn_boss_dir(x,y,dx,dy)
+ local sz=10+flr(rnd(4))
+ add(meteors,{
+  x=x,y=y,dx=dx,dy=dy,
+  spd=0,sz=sz,anim=rnd(1),
   col=2,col2=9,
-  scored=false,boss=true
- }
- add(meteors,m)
+  scored=y>ship_y,boss=true
+ })
 end
 
--- trigger a boss wave: 1-3 boss meteors
+-- trigger boss wave: start telegraph phase
 function trigger_boss_wave()
  boss_active=true
- boss_timer=90
- boss_flash=20
- local count=1+flr(rnd(3))
- for i=1,count do
-  spawn_boss_meteor()
- end
+ tele_dur=diff_sel==1 and 30 or (diff_sel==3 and 15 or 20)
+ tele_timer=tele_dur
+ tele_x=boss_atk==3 and 64 or 20+rnd(88)
+ boss_flash=tele_dur
  sfx(5)
+ _log("boss_telegraph:type="..boss_atk)
+end
+
+-- execute attack when telegraph completes
+function execute_boss_attack()
+ boss_timer=90
  shake=4
- _log("boss_wave:count="..count)
+ flash=2
+ local atk=boss_atk
+ if atk==1 then
+  -- burst: 8 meteors radiating from point
+  for i=0,7 do
+   local ang=i/8
+   spawn_boss_dir(tele_x,0,cos(ang)*1.2,abs(sin(ang))*0.8+0.5)
+  end
+ elseif atk==2 then
+  -- spiral: 6 meteors staggered across top
+  for i=0,5 do
+   local ang=i/6
+   spawn_boss_dir(20+i*18,-8-i*6,cos(ang)*0.5,meteor_speed*0.8)
+  end
+ elseif atk==3 then
+  -- ring: 8 meteors from edges toward center
+  for i=0,7 do
+   local ang=i/8
+   local ox=64+cos(ang)*72
+   local oy=64+sin(ang)*72
+   spawn_boss_dir(ox,oy,(64-ox)*0.025,(64-oy)*0.025)
+  end
+ else
+  -- aimed: 4 meteors toward player
+  for i=0,3 do
+   local sx=rnd(128)
+   local dx=ship_x+3-sx
+   local dy=ship_y+10
+   local d=max(sqrt(dx*dx+dy*dy),1)
+   spawn_boss_dir(sx,-10,dx/d*1.2,dy/d*1.2)
+  end
+ end
+ boss_atk=boss_atk%4+1
+ sfx(5)
+ _log("boss_attack:"..atk)
 end
 
 -- combo milestones: 5x,10x,15x,20x
@@ -715,6 +769,32 @@ function draw_play()
    circ(m.x+m.sz\2,m.y+m.sz\2,gr,9)
   end
   draw_meteor(m.x,m.y,flr(m.anim)%2,m.sz,m.col,m.col2)
+ end
+
+ -- boss telegraph effect
+ if tele_timer>0 then
+  local prog=1-tele_timer/tele_dur
+  local pc=flr(anim_t/2)%2==0 and 8 or 10
+  if boss_atk==1 then
+   -- burst: expanding cross at origin
+   circ(tele_x,4,prog*20,pc)
+   line(tele_x-prog*12,4,tele_x+prog*12,4,9)
+   line(tele_x,4-prog*8,tele_x,4+prog*12,9)
+  elseif boss_atk==2 then
+   -- spiral: pulsing dots across top
+   for i=0,5 do
+    circ(20+i*18,-8+prog*12,2+prog*3,pc)
+   end
+  elseif boss_atk==3 then
+   -- ring: expanding ring from center
+   circ(64,64,10+prog*55,pc)
+   circ(64,64,12+prog*55,9)
+  else
+   -- aimed: target reticle on player
+   local r=6+sin(anim_t*0.08)*3
+   circ(ship_x+3,ship_y,r,pc)
+   line(ship_x+3,0,ship_x+3,ship_y-r,8)
+  end
  end
 
  -- draw power-ups
