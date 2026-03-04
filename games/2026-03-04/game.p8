@@ -65,6 +65,11 @@ dblscore_timer=0
 pu_flash=0
 pu_flash_txt=""
 pu_collected=0
+-- boss meteor wave system
+boss_active=false
+boss_timer=0
+boss_flash=0
+last_boss_score=0
 
 function _init()
  cartdata(1)
@@ -187,6 +192,11 @@ function start_game()
  pu_flash=0
  pu_flash_txt=""
  pu_collected=0
+ -- reset boss wave
+ boss_active=false
+ boss_timer=0
+ boss_flash=0
+ last_boss_score=0
  _log("state:play")
 end
 
@@ -246,6 +256,21 @@ function update_play()
   spawn_powerup()
  end
 
+ -- boss wave trigger: every 100 pts or at diff_level 5+
+ if not boss_active then
+  local next_boss=last_boss_score+100
+  if score>=next_boss or (diff_level>=5 and score>=last_boss_score+50) then
+   last_boss_score=score
+   trigger_boss_wave()
+  end
+ end
+ -- decay boss timer
+ if boss_timer>0 then
+  boss_timer-=1
+  if boss_timer<=0 then boss_active=false end
+ end
+ if boss_flash>0 then boss_flash-=1 end
+
  -- slowmo speed factor
  local spd_mul=slowmo_timer>0 and 0.5 or 1
 
@@ -270,6 +295,12 @@ function update_play()
   -- near-miss detection
   if not m.scored and m.y>ship_y+6 then
    m.scored=true
+   -- boss meteors: 5x dodge bonus
+   if m.boss then
+    local bpts=flr(5*smul*score_mult)
+    score+=bpts
+    _log("boss_dodge:+"..bpts)
+   end
    local dx=abs((m.x+m.sz/2)-scx)
    local dy=abs((m.y-m.spd*spd_mul)-scy)
    local dist=sqrt(dx*dx+dy*dy)
@@ -427,9 +458,38 @@ function spawn_meteor()
   anim=rnd(1),
   col=rnd()>0.5 and 8 or 9,
   col2=rnd()>0.5 and 10 or 4,
-  scored=false
+  scored=false,boss=false
  }
  add(meteors,m)
+end
+
+-- boss meteor: larger, red/magenta, 5x score
+function spawn_boss_meteor()
+ local sz=12+flr(rnd(5))
+ local m={
+  x=rnd(112),
+  y=-sz,
+  spd=meteor_speed*0.7+rnd(0.3),
+  sz=sz,
+  anim=rnd(1),
+  col=2,col2=9,
+  scored=false,boss=true
+ }
+ add(meteors,m)
+end
+
+-- trigger a boss wave: 1-3 boss meteors
+function trigger_boss_wave()
+ boss_active=true
+ boss_timer=90
+ boss_flash=20
+ local count=1+flr(rnd(3))
+ for i=1,count do
+  spawn_boss_meteor()
+ end
+ sfx(5)
+ shake=4
+ _log("boss_wave:count="..count)
 end
 
 function check_col(x1,y1,w1,h1,x2,y2,w2,h2)
@@ -484,6 +544,11 @@ function draw_play()
 
  -- draw meteors
  for m in all(meteors) do
+  -- boss glow effect
+  if m.boss then
+   local gr=m.sz\2+2+sin(anim_t*0.03)*2
+   circ(m.x+m.sz\2,m.y+m.sz\2,gr,9)
+  end
   draw_meteor(m.x,m.y,flr(m.anim)%2,m.sz,m.col,m.col2)
  end
 
@@ -527,6 +592,12 @@ function draw_play()
   for i=1,min(shield_count,4) do
    circfill(1+i*6,9,2,12)
   end
+ end
+
+ -- boss wave indicator
+ if boss_active or boss_flash>0 then
+  local bc=flr(anim_t/3)%2==0 and 8 or 2
+  print("boss!",50,9,bc)
  end
 
  -- active effect timers
@@ -883,3 +954,4 @@ __sfx__
 000400002965029640296202960029600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000300001d0501d0401d0301d0201d010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000300001c0501e050200502204024030260202801028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000500001505018050200502405028050240502005018050150500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
