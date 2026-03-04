@@ -126,6 +126,8 @@ wa_n=split("rad surge,ice fall,mag storm,chaos,rift,phantom")
 ice_slow=0
 hz_ct={0,0,0,0,0} sp_frag=0
 ph_dodged=0
+-- hazard mastery system
+hm_h=0 hm_c=0 hm_t=0
 -- time attack mode
 is_ta=false
 ta_time=0
@@ -392,7 +394,7 @@ function start_game()
  boss_timer,boss_flash,last_boss_score,tele_timer,tele_dur,boss_vuln=0,0,0,0,0,0
  dodge_combo,dodge_best,combo_flash=0,0,0
  boss_waves,boss_tier,boss_n,bd_flash,nm_count,achv_flash,bp_del=0,0,0,0,0,0,0
- ice_slow,sp_frag,ph_dodged,g_timer,g_trans,e_timer,wa,wa_t,wa_ls=0,0,0,0,0,0,0,0,0
+ ice_slow,sp_frag,ph_dodged,g_timer,g_trans,e_timer,wa,wa_t,wa_ls,hm_h,hm_c,hm_t=0,0,0,0,0,0,0,0,0,0,0,0
  boss_active,shld_burst,dbl_atk,g_won=false,false,false,false
  ta_nodmg,g_nodmg,e_nodmg=true,true,true
  pu_flash_txt,combo_flash_txt,bd_flash_txt="","",""
@@ -458,8 +460,9 @@ function update_play()
  if inp&mr>0 then ship_x+=mspd end
  ship_x=mid(0,ship_x,121)
 
- -- score multiplier
+ -- score multiplier (includes hazard mastery)
  local smul=dblscore_timer>0 and 2 or 1
+ if hm_t>0 then smul*=2 end
 
  -- time attack countdown
  if is_ta then
@@ -635,6 +638,11 @@ function update_play()
    dodge_combo+=1
    if dodge_combo>dodge_best then dodge_best=dodge_combo end
    check_combo_milestone()
+   -- hazard mastery: consecutive same-type dodges
+   if m.htype>0 then
+    if m.htype==hm_h then hm_c+=1 else hm_h=m.htype hm_c=1 end
+    if hm_c>=5 and hm_c%5==0 then hm_t=300 sfx(3) _log("mastery:"..hm_c) end
+   end
    -- boss meteors: 5x dodge bonus (2x during vulnerability)
    if m.boss then
     local vmul=boss_vuln>0 and 2 or 1
@@ -730,6 +738,7 @@ function update_play()
     shake=3
     sfx(4)
     dodge_combo=0
+    hm_h=0 hm_c=0
     ta_nodmg=false
     g_nodmg=false
     e_nodmg=false
@@ -758,6 +767,7 @@ function update_play()
  combo_flash=dk(combo_flash)
  achv_flash=dk(achv_flash)
  bd_flash=dk(bd_flash)
+ hm_t=dk(hm_t)
 
  -- achievement checks
  if dodge_combo>=5 then check_achv(1) end
@@ -1171,6 +1181,12 @@ function draw_play()
    (dodge_combo>=10 and 9 or
    (dodge_combo>=5 and 10 or 7)))
   print(dodge_combo.."x",1,121,cc)
+ end
+
+ -- hazard mastery meter
+ if hm_c>=2 and hm_h>0 then
+  local hc=({9,12,8,3,14,2})[hm_h]
+  rectfill(90,121,90+min(hm_c,5)*6,123,hm_t>0 and hc or 5)
  end
 
  -- combo milestone notification
