@@ -91,7 +91,8 @@ achv_names={
  "speed demon","legendary",
  "time master","flawless 90s",
  "rad dodger","ice rider",
- "magnet ace","chaos surfer"
+ "magnet ace","chaos surfer",
+ "glt master","hz scientist","glt victor"
 }
 boss_waves=0
 nm_count=0
@@ -105,9 +106,20 @@ is_ta=false
 ta_time=0
 ta_nodmg=true
 mode_sel=1
+-- gauntlet mode
+is_gauntlet=false
+g_round=0
+g_timer=0
+g_trans=0
+g_nodmg=true
+g_won=false
+g_rnames={"radioactive","ice","magnetic","corrupted"}
+g_rdesc={"fuel drain","rot. slow","attract pull","fast move"}
+g_rcols={9,12,8,3}
 -- leaderboard (top 5)
 lb_scores={}
 lb_names={}
+lb_gflag={}
 -- name entry state
 ne_pos=1
 ne_chars={1,1,1}
@@ -126,6 +138,8 @@ end
 function load_lb()
  lb_scores={}
  lb_names={}
+ lb_gflag={}
+ local gf=flr(dget(29))
  for i=1,5 do
   local s=dget(11+i*2)
   local n=dget(12+i*2)
@@ -136,9 +150,11 @@ function load_lb()
    add(lb_scores,0)
    add(lb_names,"---")
   end
+  add(lb_gflag,band(gf,shl(1,i-1))>0)
  end
 end
 function save_lb()
+ local gf=0
  for i=1,5 do
   dset(11+i*2,lb_scores[i])
   dset(12+i*2,lb_names[i]=="---" and 0 or pack_name({
@@ -146,7 +162,9 @@ function save_lb()
    ord(sub(lb_names[i],2,2))-65,
    ord(sub(lb_names[i],3,3))-65
   }))
+  if lb_gflag[i] then gf=bor(gf,shl(1,i-1)) end
  end
+ dset(29,gf)
 end
 function lb_rank(s)
  for i=1,5 do
@@ -160,6 +178,9 @@ function _init()
  hiscore=dget(0)
  for i=1,16 do
   achv[i]=dget(i)>0
+ end
+ for i=17,19 do
+  achv[i]=dget(i+6)>0
  end
  load_lb()
  for i=1,40 do
@@ -200,7 +221,8 @@ function draw_menu()
  end
  -- mini leaderboard on menu
  if lb_scores[1]>0 then
-  print(lb_names[1].." "..lb_scores[1],36,112,9)
+  local mp=lb_gflag[1] and "[g]" or ""
+  print(mp..lb_names[1].." "..lb_scores[1],36,112,9)
  elseif hiscore>0 then
   print("hi-score: "..hiscore,34,112,9)
  end
@@ -247,10 +269,13 @@ end
 
 -- mode select state
 function update_modesel()
- if btnp(2) or btnp(3) then mode_sel=3-mode_sel end
+ if btnp(2) then mode_sel=max(1,mode_sel-1) end
+ if btnp(3) then mode_sel=min(3,mode_sel+1) end
  if btnp(4) then
   is_ta=mode_sel==2
-  _log("mode:"..(is_ta and "time_attack" or "normal"))
+  is_gauntlet=mode_sel==3
+  local mname=is_ta and "time_attack" or (is_gauntlet and "gauntlet" or "normal")
+  _log("mode:"..mname)
   start_game()
  end
  if btnp(5) then
@@ -265,10 +290,11 @@ function draw_modesel()
  print("select mode",32,16,10)
  local opts={
   {"normal","classic survival",7},
-  {"time attack","90s challenge! 1.5x",9}
+  {"time attack","90s challenge! 1.5x",9},
+  {"hazard gauntlet","4 rounds+boss! 1.3x",8}
  }
- for i=1,2 do
-  local y=40+(i-1)*28
+ for i=1,3 do
+  local y=30+(i-1)*22
   local sel=i==mode_sel
   local col=sel and opts[i][3] or 5
   if sel then
@@ -278,7 +304,7 @@ function draw_modesel()
   print(opts[i][1],18,y,col)
   print(opts[i][2],18,y+8,sel and 6 or 1)
  end
- print("["..diff_names[diff_sel].."]",44,92,5)
+ print("["..diff_names[diff_sel].."]",44,100,5)
  print("\142 select  \151 back",22,112,6)
 end
 
@@ -347,14 +373,23 @@ function start_game()
  ta_time=is_ta and 2700 or 0
  ta_nodmg=true
  if is_ta then score_mult*=1.5 end
+ -- gauntlet setup
+ g_round=is_gauntlet and 1 or 0
+ g_timer=0
+ g_trans=0
+ g_nodmg=true
+ g_won=false
+ if is_gauntlet then score_mult*=1.3 end
  _log("state:play")
  if is_ta then _log("time_attack:start") end
+ if is_gauntlet then _log("gauntlet:start round=1") end
 end
 
 function check_achv(id)
  if achv[id] then return end
  achv[id]=true
- dset(id,1)
+ local slot=id>=17 and id+6 or id
+ dset(slot,1)
  achv_flash=45
  achv_flash_txt=achv_names[id]
  run_achv+=1
@@ -364,6 +399,26 @@ end
 
 -- play state
 function update_play()
+ -- gauntlet transition pause
+ if is_gauntlet and g_trans>0 then
+  g_trans-=1
+  update_particles()
+  for s in all(stars) do
+   s.y+=s.spd*0.5
+   if s.y>128 then s.y=0 s.x=rnd(128) end
+  end
+  if g_trans<=0 then
+   g_round+=1
+   g_timer=0
+   if g_round>=5 then
+    trigger_boss_wave()
+    _log("gauntlet_boss_start")
+   end
+   _log("gauntlet_round:"..g_round)
+  end
+  anim_t+=1
+  return
+ end
  local inp=test_input()
  -- ship movement (ice hazard slows by 50%)
  local mspd=ice_slow>0 and 1.25 or 2.5
@@ -393,6 +448,17 @@ function update_play()
   score+=flr(smul*score_mult)
   if score%10==0 then
    _log("score:"..score)
+  end
+ end
+
+ -- gauntlet round timer
+ if is_gauntlet and g_round>=1 and g_round<=4 then
+  g_timer+=1
+  local rdur=diff_sel==1 and 2700 or (diff_sel==3 and 1800 or 2250)
+  if g_timer>=rdur then
+   if g_round==2 then check_achv(18) end
+   g_trans=60
+   _log("gauntlet_round_done:"..g_round)
   end
  end
 
@@ -455,6 +521,15 @@ function update_play()
    boss_waves+=1
    if boss_waves>=5 then check_achv(5) end
    _log("boss_survived:"..boss_waves)
+   -- gauntlet victory
+   if is_gauntlet and g_round>=5 then
+    check_achv(19)
+    if g_nodmg then check_achv(17) end
+    g_won=true
+    _log("gauntlet_complete")
+    game_over()
+    return
+   end
   end
  end
  if boss_flash>0 then boss_flash-=1 end
@@ -582,6 +657,7 @@ function update_play()
     sfx(4)
     dodge_combo=0
     ta_nodmg=false
+    g_nodmg=false
     _log("shield_absorb:remaining="..shield_count)
     _log("combo_reset:shield")
     for i=1,8 do
@@ -701,7 +777,10 @@ function spawn_meteor()
  local sz=6+flr(rnd(4))
  -- hazard type selection based on difficulty
  local ht=0
- if diff_level>=2 then
+ -- gauntlet: force hazard type per round
+ if is_gauntlet and g_round>=1 and g_round<=4 then
+  ht=g_round
+ elseif diff_level>=2 then
   local r=rnd()
   if diff_level>=5 and r<0.12 then ht=4
   elseif diff_level>=4 and r<0.2 then ht=3
@@ -823,6 +902,9 @@ function check_col(x1,y1,w1,h1,x2,y2,w2,h2)
 end
 
 function game_over()
+ if is_gauntlet and not g_won then
+  _log("gauntlet_failed:round="..g_round)
+ end
  _log("final_score:"..score)
 
  if score>hiscore then
@@ -1012,6 +1094,20 @@ function draw_play()
   print("2x",31,ty,10)
  end
 
+ -- gauntlet round indicator
+ if is_gauntlet then
+  local rn=g_round<=4 and g_round or 5
+  local rtxt=rn<=4 and "r"..rn..":"..g_rnames[rn] or "boss!"
+  local rc=rn<=4 and g_rcols[rn] or 8
+  print(rtxt,1,122,rc)
+  if rn<=4 then
+   local rdur=diff_sel==1 and 2700 or (diff_sel==3 and 1800 or 2250)
+   local pct=min(g_timer/rdur,1)
+   rectfill(1,118,1+pct*40,120,rc)
+   rect(1,118,41,120,5)
+  end
+ end
+
  -- near-miss feedback
  if nm_flash>0 then
   local col=nm_streak>=3 and 10 or 9
@@ -1063,6 +1159,26 @@ function draw_play()
   print("\135 "..achv_flash_txt.." \135",
    64-#achv_flash_txt*2-4,ay,ac)
  end
+
+ -- gauntlet transition overlay
+ if is_gauntlet and g_trans>0 then
+  rectfill(10,30,117,98,0)
+  rect(10,30,117,98,5)
+  if g_round<4 then
+   local nr=g_round+1
+   print("round "..nr,44,38,7)
+   print(g_rnames[nr],44,50,g_rcols[nr])
+   print(g_rdesc[nr],36,62,6)
+   print("get ready!",40,78,
+    anim_t%8<4 and 7 or 5)
+  else
+   print("final boss!",36,46,8)
+   print("survive the onslaught!",14,62,9)
+   if anim_t%6<3 then
+    rect(12,32,115,96,8)
+   end
+  end
+ end
 end
 
 -- draw power-up items
@@ -1102,9 +1218,11 @@ function update_nameentry()
   for i=5,ne_rank+1,-1 do
    lb_scores[i]=lb_scores[i-1]
    lb_names[i]=lb_names[i-1]
+   lb_gflag[i]=lb_gflag[i-1]
   end
   lb_scores[ne_rank]=score+10 -- 10 bonus pts for entering name
   lb_names[ne_rank]=name
+  lb_gflag[ne_rank]=is_gauntlet
   score+=10
   if score>hiscore then
    hiscore=score
@@ -1161,7 +1279,8 @@ function draw_nameentry()
  local ly=94
  for i=1,3 do
   local c=lb_scores[i]>0 and 6 or 1
-  print(i..". "..lb_names[i].." "..lb_scores[i],32,ly,c)
+  local pfx=lb_gflag[i] and "[g]" or ""
+  print(i..". "..pfx..lb_names[i].." "..lb_scores[i],28,ly,c)
   ly+=7
  end
  print("\139\145 select  \131\132 letter",10,120,5)
@@ -1218,8 +1337,16 @@ function draw_gameover()
 
  if is_ta then
   print("time attack",36,17,9)
+ elseif is_gauntlet then
+  if g_won then
+   print("gauntlet complete!",18,17,11)
+  else
+   local rtxt=g_round<=4 and "round "..g_round or "boss"
+   print("fell at "..rtxt,30,17,8)
+  end
  end
- print("game over",40,24,8)
+ print(g_won and "victory!" or "game over",
+  g_won and 42 or 40,24,g_won and 11 or 8)
  print("score: "..score,42,36,7)
  print("hi-score: "..hiscore,34,44,
   score>=hiscore and 10 or 6)
@@ -1232,7 +1359,8 @@ function draw_gameover()
 
  -- stats
  local dtxt="["..diff_names[diff_sel].."]"
- if is_ta then dtxt=dtxt.." ta" end
+ if is_ta then dtxt=dtxt.." ta"
+ elseif is_gauntlet then dtxt=dtxt.." glt" end
  print(dtxt,44,52,5)
  local secs=flr(time_alive/30)
  print("survived:"..secs.."s lv:"..diff_level,22,59,5)
@@ -1257,7 +1385,8 @@ function draw_gameover()
  for i=1,5 do
   if lb_scores[i]>0 then
    local c=ne_rank==i and 10 or 6
-   print(i..". "..lb_names[i].." "..lb_scores[i],32,ly,c)
+   local pfx=lb_gflag[i] and "[g]" or ""
+   print(i..". "..pfx..lb_names[i].." "..lb_scores[i],28,ly,c)
   else
    print(i..". ---",32,ly,1)
   end
