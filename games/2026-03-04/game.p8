@@ -113,6 +113,7 @@ boss_tier=0 boss_n=0
 -- boss death fanfare
 dbl_atk=false
 bd_flash=0
+bp_del=0
 bd_flash_txt=""
 bd_x=64
 nm_count=0
@@ -404,7 +405,7 @@ function start_game()
  shield_count,slowmo_timer,dblscore_timer,pu_flash,pu_collected,inv_timer=0,0,0,0,0,0
  boss_timer,boss_flash,last_boss_score,tele_timer,tele_dur,boss_vuln=0,0,0,0,0,0
  dodge_combo,dodge_best,combo_flash=0,0,0
- boss_waves,boss_tier,boss_n,bd_flash,nm_count,achv_flash=0,0,0,0,0,0
+ boss_waves,boss_tier,boss_n,bd_flash,nm_count,achv_flash,bp_del=0,0,0,0,0,0,0
  ice_slow,sp_frag,ph_dodged,g_timer,g_trans,e_timer=0,0,0,0,0,0
  boss_active,shld_burst,dbl_atk,g_won=false,false,false,false
  ta_nodmg,g_nodmg,e_nodmg=true,true,true
@@ -579,6 +580,8 @@ function update_play()
    local bc=bt_cols[boss_type]
    local pn=mn and 5 or 10
    for i=1,pn do local a=i/pn ap(tele_x,40,cos(a)*2,sin(a)*2,20,i%2==0 and bc[1] or bc[2]) end
+   -- boss power-up drop (major bosses only)
+   if not mn then bp_del=30 end
    -- gauntlet victory
    if is_gauntlet and g_round>=5 then
     check_achv(19)
@@ -592,6 +595,8 @@ function update_play()
  if boss_flash>0 then boss_flash-=1 end
  if boss_vuln>0 then boss_vuln-=1 end
  if boss_vuln>0 and anim_t%2==0 then for m in all(meteors) do if m.boss then ap(m.x+rnd(m.sz),m.y+rnd(m.sz),rnd(2)-1,-rnd(1),8,10) end end end
+ -- boss power-up spawn delay
+ if bp_del>0 then bp_del-=1 if bp_del<=0 then add(powerups,{x=tele_x-4,y=36,spd=0.4,typ=8+flr(rnd(2)),col=10,name="boss",anim=0,bpu=true}) end end
 
  -- slowmo speed factor
  local spd_mul=slowmo_timer>0 and 0.5 or 1
@@ -646,8 +651,7 @@ function update_play()
    local dy=abs((m.y-m.spd*spd_mul)-scy)
    local dist=sqrt(dx*dx+dy*dy)
    local nm_d=m.htype==2 and 9 or 12
-   local hzm={1.2,1,1.5,2,1,1.3}
-   local hzmul=m.htype>0 and hzm[m.htype] or 1
+   local hzmul=m.htype>0 and ({1.2,1,1.5,2,1,1.3})[m.htype] or 1
    if dist<nm_d then
     got_near=true
     local bvmul=(m.boss and boss_vuln>0) and 2 or 1
@@ -658,8 +662,7 @@ function update_play()
     -- hazard achievement tracking
     if m.htype>=1 and m.htype<=5 then
      hz_ct[m.htype]+=1
-     local ht={10,3,5,15,8}
-     if hz_ct[m.htype]>=ht[m.htype] then check_achv(12+m.htype) end
+     if hz_ct[m.htype]>=({10,3,5,15,8})[m.htype] then check_achv(12+m.htype) end
     end
     if m.htype==6 then ph_dodged+=1 end
     -- splitter: spawn fragments on near-miss
@@ -812,10 +815,12 @@ function collect_powerup(p)
  elseif t==5 then inv_timer=150
  elseif t==6 then shield_count=max(shield_count,1) shld_burst=true
  elseif t==7 then score+=flr(50*score_mult*ds(0.8,1,1.5))
+ elseif t==8 then shield_count+=3
+ elseif t==9 then slowmo_timer=300
  end
  _log("powerup:"..p.name)
  pu_flash=25 pu_flash_txt="+"..p.name
- pu_collected+=1 sfx(4) dodge_combo=0
+ pu_collected+=1 sfx(p.bpu and 6 or 4) dodge_combo=0
  if pu_collected>=10 then check_achv(4) end
  for i=1,6 do ap(p.x+4,p.y+4,rnd(2)-1,-1-rnd(1),15,p.col) end
 end
@@ -945,10 +950,9 @@ function game_over()
   dset(0,hiscore)
  end
 
- local dc={10,9,7}
  for i=1,30 do
   local a=rnd(1) local sp=1+rnd(3)
-  ap(ship_x+3,ship_y+3,cos(a)*sp,sin(a)*sp,20+rnd(20),dc[1+flr(rnd(3))])
+  ap(ship_x+3,ship_y+3,cos(a)*sp,sin(a)*sp,20+rnd(20),({10,9,7})[1+flr(rnd(3))])
  end
 
  shake=8
@@ -1035,7 +1039,12 @@ function draw_play()
  -- draw power-ups
  for p in all(powerups) do
   local cx,cy=p.x+4,p.y+4
-  circfill(cx,cy,3+sin(p.anim)*0.5,p.col)
+  if p.bpu then
+   circ(cx,cy,6+sin(anim_t*0.04)*2,7)
+   circfill(cx,cy,4+sin(p.anim)*1,p.col)
+  else
+   circfill(cx,cy,3+sin(p.anim)*0.5,p.col)
+  end
   pset(cx-1,cy-1,7)
  end
 
