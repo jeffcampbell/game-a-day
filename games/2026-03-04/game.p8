@@ -271,6 +271,10 @@ function update_menu()
   state="difficulty_select"
   _log("state:difficulty_select")
  end
+ if inp&8>0 then
+  state="help"
+  _log("state:help")
+ end
 end
 
 function draw_menu()
@@ -289,13 +293,43 @@ function draw_menu()
  if flr(t()*2)%2==0 then
   print("press \142/\151 to start",22,100,7)
  end
+ print("\140 hazard help",36,108,5)
  -- mini leaderboard on menu
  if lb_scores[1]>0 then
   local mp=lbp(1)
-  print(mp..lb_names[1].." "..lb_scores[1],36,112,9)
+  print(mp..lb_names[1].." "..lb_scores[1],36,118,9)
  elseif hiscore>0 then
-  print("hi-score: "..hiscore,34,112,9)
+  print("hi-score: "..hiscore,34,118,9)
  end
+end
+
+-- help/encyclopedia state
+function update_help()
+ if btnp(4) or btnp(5) then
+  state="menu"
+  _log("state:menu")
+ end
+end
+
+function draw_help()
+ cls(0)
+ draw_stars()
+ print("hazard encyclopedia",14,4,10)
+ local hd={
+  {"normal",8,10,"dodge meteors, earn pts"},
+  {"radioactive",9,10,"shield costs 2x"},
+  {"ice",12,7,"slows move, -25% nm dist"},
+  {"magnetic",8,2,"pulls ship toward it"},
+  {"corrupted",3,11,"bounces, 2x nm bonus"}
+ }
+ for i=1,5 do
+  local h=hd[i]
+  local y=16+(i-1)*20
+  draw_meteor(6,y+2,flr(t()*3)%2,7,h[2],h[3])
+  print(h[1],18,y,h[2])
+  print(h[4],18,y+8,6)
+ end
+ print("\142/\151 back to menu",18,118,6)
 end
 
 -- difficulty select state
@@ -1709,6 +1743,7 @@ end
 -- main loops
 function _update()
  if state=="menu" then update_menu()
+ elseif state=="help" then update_help()
  elseif state=="difficulty_select" then update_difsel()
  elseif state=="mode_select" then update_modesel()
  elseif state=="mod_select" then update_modsel()
@@ -1720,6 +1755,7 @@ end
 
 function _draw()
  if state=="menu" then draw_menu()
+ elseif state=="help" then draw_help()
  elseif state=="difficulty_select" then draw_difsel()
  elseif state=="mode_select" then draw_modesel()
  elseif state=="mod_select" then draw_modsel()
