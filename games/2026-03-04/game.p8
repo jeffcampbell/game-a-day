@@ -121,7 +121,7 @@ nm_count=0
 -- hazard meteor system
 -- 0=normal,1=radioactive,2=ice,3=magnetic,4=corrupted
 ice_slow=0
-hz_rd=0 hz_md=0 hz_cd=0 hz_inm=0 sp_frag=0
+hz_ct={0,0,0,0} sp_frag=0
 -- time attack mode
 is_ta=false
 ta_time=0
@@ -249,11 +249,7 @@ function draw_menu()
  local ty=20+sin(t()*0.3)*3
  print("\135 meteor dodge \135",16,ty,10)
  print("dodge the falling meteors!",10,40,7)
- for i=0,3 do
-  local mx=20+i*28
-  local my=60+sin(t()*0.5+i*0.25)*8
-  draw_meteor(mx,my,flr(t()*4+i)%2)
- end
+ draw_meteor(64,60+sin(t()*0.5)*6,flr(t()*4)%2)
  print("\139\145 move left/right",28,80,6)
  print("collect power-ups!",28,90,12)
  if flr(t()*2)%2==0 then
@@ -277,13 +273,9 @@ end
 
 function draw_help()
  cls(0) draw_stars()
- print("hazard types",28,2,10)
- print("norm rad ice mag",4,12,7)
- print("corrupt splitter",4,22,7)
- print("power-ups",28,34,10)
- print("invinci 5s immune",4,44,10)
- print("s.burst aoe blast",4,54,14)
- print("pts bomb +50 pts",4,64,9)
+ print("hazard types",28,6,10)
+ print("norm rad ice mag",10,18,7)
+ print("corrupt splitter",10,28,7)
  print("\142/\151 back",36,118,6)
 end
 
@@ -466,7 +458,7 @@ function start_game()
  achv_flash=0
  -- reset hazard trackers
  ice_slow=0
- hz_rd=0 hz_md=0 hz_cd=0 hz_inm=0 sp_frag=0
+ hz_ct={0,0,0,0} sp_frag=0
  -- time attack setup
  ta_time=is_ta and 1500 or 0
  ta_nodmg=true
@@ -716,10 +708,11 @@ function update_play()
     score+=bonus
     nm_streak+=1
     -- hazard achievement tracking
-    if m.htype==1 then hz_rd+=1 if hz_rd>=10 then check_achv(13) end end
-    if m.htype==2 then hz_inm+=1 if hz_inm>=3 then check_achv(14) end end
-    if m.htype==3 then hz_md+=1 if hz_md>=5 then check_achv(15) end end
-    if m.htype==4 then hz_cd+=1 if hz_cd>=15 then check_achv(16) end end
+    if m.htype>=1 and m.htype<=4 then
+     hz_ct[m.htype]+=1
+     local ht={10,3,5,15}
+     if hz_ct[m.htype]>=ht[m.htype] then check_achv(12+m.htype) end
+    end
     -- splitter: spawn fragments on near-miss
     if m.htype==5 then
      for j=1,2+flr(rnd(2)) do
@@ -741,7 +734,7 @@ function update_play()
  end
  if not got_near and nm_flash<=0 then
   nm_streak=0
-  hz_inm=0
+  hz_ct[2]=0
  end
 
  -- remove off-screen meteors
@@ -979,12 +972,8 @@ function check_combo_milestone()
    combo_flash=30
    combo_flash_txt=cm[b+1].."x combo! +"..pts
    shake=i+1
-   flash=i>=2 and i or 0
    sfx(i>=2 and 5 or 3)
-   for j=1,6+i*2 do
-    local ang=rnd(1)
-    ap(ship_x+3,ship_y-4,cos(ang)*1.5,sin(ang)*1.5-1,18+i*3,cm[b+3])
-   end
+   ap(ship_x+3,ship_y-4,0,-1,15,cm[b+3])
   end
  end
 end
@@ -1074,15 +1063,17 @@ function draw_play()
   draw_meteor(m.x,m.y,flr(m.anim)%2,m.sz,m.col,m.col2)
  end
 
- -- boss telegraph effect
+ -- boss telegraph effect (difficulty-colored)
  if tele_timer>0 then
   local pg=1-tele_timer/tele_dur
-  local bc=bt_cols[boss_type]
-  local pc=flr(anim_t/2)%2==0 and bc[1] or bc[2]
-  if boss_atk==1 then circ(tele_x,4,pg*20,pc) line(tele_x-pg*12,4,tele_x+pg*12,4,9) line(tele_x,4-pg*8,tele_x,4+pg*12,9)
-  elseif boss_atk==2 then for i=0,5 do circ(20+i*18,-8+pg*12,2+pg*3,pc) end
-  elseif boss_atk==3 then circ(64,64,10+pg*55,pc) circ(64,64,12+pg*55,9)
-  else local r=6+sin(anim_t*0.08)*3 circ(ship_x+3,ship_y,r,pc) line(ship_x+3,0,ship_x+3,ship_y-r,8) end
+  local tc=ds(11,7,8)
+  local tc2=ds(7,6,14)
+  local pc=flr(anim_t/2)%2==0 and tc or tc2
+  if boss_atk==1 then circ(tele_x,4,pg*20,pc) line(tele_x-pg*14,4,tele_x+pg*14,4,tc) line(tele_x,4-pg*10,tele_x,4+pg*14,tc) if pg>0.5 then circfill(tele_x,4,2+sin(anim_t*0.1)*2,pc) end
+  elseif boss_atk==2 then for i=0,5 do local a=pg*0.3+i/6 circ(tele_x+cos(a)*pg*16,6,2+pg*3,pc) end
+  elseif boss_atk==3 then circ(64,64,10+pg*55,pc) circ(64,64,12+pg*55,tc2) if pg>0.3 then circ(64,64,pg*30,tc) end
+  else circ(ship_x+3,ship_y,6+sin(anim_t*0.08)*3,pc) line(ship_x+3,0,ship_x+3,ship_y-8,tc) if pg>0.4 then line(ship_x,ship_y-12,ship_x+3,ship_y-7,pc) line(ship_x+6,ship_y-12,ship_x+3,ship_y-7,pc) end
+  end
  end
 
  -- draw power-ups
@@ -1252,20 +1243,13 @@ function draw_play()
 
  -- gauntlet transition overlay
  if is_gauntlet and g_trans>0 then
-  rectfill(10,30,117,98,0)
-  rect(10,30,117,98,5)
+  rectfill(10,38,117,78,0) rect(10,38,117,78,5)
   if g_round<4 then
    local nr=g_round+1
-   print("round "..nr,44,38,7)
-   print(g_rnames[nr],44,50,g_rcols[nr])
-   print("get ready!",40,70,
-    anim_t%8<4 and 7 or 5)
+   print("round "..nr,44,48,7)
+   print(g_rnames[nr],44,60,g_rcols[nr])
   else
-   print("final boss!",36,46,8)
-   print("survive the onslaught!",14,62,9)
-   if anim_t%6<3 then
-    rect(12,32,115,96,8)
-   end
+   print("final boss!",36,55,anim_t%6<3 and 8 or 5)
   end
  end
 end
@@ -1443,11 +1427,6 @@ function draw_gameover()
  print("hi-score: "..hiscore,34,44,
   score>=hiscore and 10 or 6)
 
- if score>=hiscore and score>0 then
-  if flr(t()*3)%2==0 then
-   print("new hi-score!",34,52,10)
-  end
- end
 
  -- stats
  print("["..lb_dnames[diff_sel].."]",48,52,5)
