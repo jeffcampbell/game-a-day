@@ -74,6 +74,7 @@ boss_atk=1 -- 1=burst,2=spiral,3=ring,4=aimed
 tele_timer=0
 tele_dur=0
 tele_x=64
+boss_vuln=0
 -- dodge combo system
 dodge_combo=0
 dodge_best=0
@@ -356,6 +357,7 @@ function start_game()
  boss_atk=1
  tele_timer=0
  tele_dur=0
+ boss_vuln=0
  -- reset dodge combo
  dodge_combo=0
  dodge_best=0
@@ -533,6 +535,7 @@ function update_play()
   end
  end
  if boss_flash>0 then boss_flash-=1 end
+ if boss_vuln>0 then boss_vuln-=1 end
 
  -- slowmo speed factor
  local spd_mul=slowmo_timer>0 and 0.5 or 1
@@ -583,9 +586,10 @@ function update_play()
    dodge_combo+=1
    if dodge_combo>dodge_best then dodge_best=dodge_combo end
    check_combo_milestone()
-   -- boss meteors: 5x dodge bonus
+   -- boss meteors: 5x dodge bonus (2x during vulnerability)
    if m.boss then
-    local bpts=flr(5*smul*score_mult)
+    local vmul=boss_vuln>0 and 2 or 1
+    local bpts=flr(5*smul*score_mult*vmul)
     score+=bpts
     _log("boss_dodge:+"..bpts)
    end
@@ -600,7 +604,8 @@ function update_play()
    elseif m.htype==4 then hzmul=2 end
    if dist<nm_d then
     got_near=true
-    local bonus=max(1,flr((nm_d-dist)/3*hzmul))*smul*score_mult
+    local bvmul=(m.boss and boss_vuln>0) and 2 or 1
+    local bonus=max(1,flr((nm_d-dist)/3*hzmul))*smul*score_mult*bvmul
     nm_last_bonus=bonus
     score+=bonus
     nm_streak+=1
@@ -863,8 +868,10 @@ function execute_boss_attack()
   end
  end
  boss_atk=boss_atk%4+1
+ boss_vuln=10
  sfx(5)
  _log("boss_attack:"..atk)
+ _log("boss:vulnerable")
 end
 
 -- combo milestones: 5x,10x,15x,20x
@@ -967,7 +974,10 @@ function draw_play()
   -- boss glow effect
   if m.boss then
    local gr=m.sz\2+2+sin(anim_t*0.03)*2
-   circ(cx,cy,gr,9)
+   circ(cx,cy,gr,boss_vuln>0 and 10 or 9)
+   if boss_vuln>0 then
+    circfill(cx,cy,m.sz\2+1,10)
+   end
   end
   -- hazard aura effects
   if m.htype==1 then
@@ -1076,8 +1086,13 @@ function draw_play()
 
  -- boss wave indicator
  if boss_active or boss_flash>0 then
-  local bc=flr(anim_t/3)%2==0 and 8 or 2
-  print("boss!",50,9,bc)
+  if boss_vuln>0 then
+   local vc=flr(anim_t/2)%2==0 and 10 or 7
+   print("weak!",50,9,vc)
+  else
+   local bc=flr(anim_t/3)%2==0 and 8 or 2
+   print("boss!",50,9,bc)
+  end
  end
 
  -- active effect timers
