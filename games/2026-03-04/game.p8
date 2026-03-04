@@ -47,6 +47,10 @@ spawn_rate=40
 meteor_speed=1.0
 diff_timer=0
 diff_level=1
+-- difficulty selection
+diff_sel=2 -- 1=easy,2=normal,3=hard
+diff_names={"easy","normal","hard"}
+score_mult=1.0
 -- near-miss system
 near_miss_dist=12
 nm_flash=0
@@ -80,7 +84,8 @@ end
 function update_menu()
  local inp=test_input()
  if inp&16>0 or inp&32>0 then
-  start_game()
+  state="difficulty_select"
+  _log("state:difficulty_select")
  end
 end
 
@@ -105,6 +110,43 @@ function draw_menu()
  end
 end
 
+-- difficulty select state
+function update_difsel()
+ if btnp(2) then diff_sel=max(1,diff_sel-1) end
+ if btnp(3) then diff_sel=min(3,diff_sel+1) end
+ if btnp(4) then
+  _log("difficulty:"..diff_names[diff_sel])
+  start_game()
+ end
+ if btnp(5) then
+  state="menu"
+  _log("state:menu")
+ end
+end
+
+function draw_difsel()
+ cls(0)
+ draw_stars()
+ print("select difficulty",22,16,10)
+ local opts={
+  {"easy","slower meteors, relaxed",11},
+  {"normal","default challenge",7},
+  {"hard","fast & brutal! 1.5x",8}
+ }
+ for i=1,3 do
+  local y=36+(i-1)*24
+  local sel=i==diff_sel
+  local col=sel and opts[i][3] or 5
+  if sel then
+   rectfill(10,y-2,117,y+14,1)
+   print("\139",4,y+2,col)
+  end
+  print(opts[i][1],18,y,col)
+  print(opts[i][2],18,y+8,sel and 6 or 1)
+ end
+ print("\142 select  \151 back",22,112,6)
+end
+
 function start_game()
  state="play"
  score=0
@@ -115,8 +157,20 @@ function start_game()
  meteors={}
  particles={}
  spawn_timer=0
- spawn_rate=40
- meteor_speed=1.0
+ -- apply difficulty settings
+ if diff_sel==1 then
+  spawn_rate=50
+  meteor_speed=0.8
+  score_mult=1.0
+ elseif diff_sel==3 then
+  spawn_rate=30
+  meteor_speed=1.2
+  score_mult=1.5
+ else
+  spawn_rate=40
+  meteor_speed=1.0
+  score_mult=1.0
+ end
  diff_timer=0
  diff_level=1
  shake=0
@@ -150,7 +204,7 @@ function update_play()
  -- update time and score
  time_alive+=1
  if time_alive%30==0 then
-  score+=smul
+  score+=flr(smul*score_mult)
   if score%10==0 then
    _log("score:"..score)
   end
@@ -221,7 +275,7 @@ function update_play()
    local dist=sqrt(dx*dx+dy*dy)
    if dist<near_miss_dist then
     got_near=true
-    local bonus=max(1,flr((near_miss_dist-dist)/3))*smul
+    local bonus=max(1,flr((near_miss_dist-dist)/3))*smul*score_mult
     nm_last_bonus=bonus
     score+=bonus
     nm_streak+=1
@@ -462,9 +516,11 @@ function draw_play()
  -- hud
  print("score:"..score,1,1,7)
  print("hi:"..hiscore,90,1,6)
- print("lv"..diff_level,54,1,diff_level>=7 and 8 or 5)
+ local dc=diff_sel==1 and 11 or (diff_sel==3 and 8 or 5)
+ print(sub(diff_names[diff_sel],1,1),50,1,dc)
+ print("lv"..diff_level,56,1,diff_level>=7 and 8 or 5)
  local spd_bar=min((meteor_speed-1)*20,30)
- rectfill(68,1,68+spd_bar,4,diff_level>=7 and 8 or 13)
+ rectfill(72,1,72+spd_bar,4,diff_level>=7 and 8 or 13)
 
  -- shield indicator
  if shield_count>0 then
@@ -526,8 +582,11 @@ function update_gameover()
  go_timer+=1
  local inp=test_input()
  if go_timer>45 then
-  if inp&16>0 or inp&32>0 then
+  if inp&16>0 then
    start_game()
+  elseif inp&32>0 then
+   state="difficulty_select"
+   _log("state:difficulty_select")
   end
  end
  update_particles()
@@ -578,6 +637,7 @@ function draw_gameover()
  end
 
  -- stats
+ print("["..diff_names[diff_sel].."]",48,54,5)
  local secs=flr(time_alive/30)
  print("survived: "..secs.."s",34,62,5)
  print("best level: "..diff_level,34,69,5)
@@ -590,7 +650,7 @@ function draw_gameover()
 
  if go_timer>45 then
   if flr(t()*2)%2==0 then
-   print("press \142/\151 to retry",22,100,7)
+   print("\142 retry  \151 change diff",10,100,7)
   end
  end
 
@@ -666,6 +726,7 @@ end
 -- main loops
 function _update()
  if state=="menu" then update_menu()
+ elseif state=="difficulty_select" then update_difsel()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
  end
@@ -673,6 +734,7 @@ end
 
 function _draw()
  if state=="menu" then draw_menu()
+ elseif state=="difficulty_select" then draw_difsel()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
  end
