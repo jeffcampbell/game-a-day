@@ -36,6 +36,9 @@ function upd_stars(m)
   if s.y>128 then s.y=0 s.x=rnd(128) end
  end
 end
+function ap(x,y,dx,dy,l,c)
+ add(particles,{x=x,y=y,dx=dx,dy=dy,life=l,col=c})
+end
 function fmt_t(f)
  local s=flr(f/30)
  local m=flr(s/60)
@@ -126,7 +129,6 @@ boss_waves=0
 bd_flash=0
 bd_flash_txt=""
 bd_x=64
-bd_y=40
 nm_count=0
 -- hazard meteor system
 -- 0=normal,1=radioactive,2=ice,3=magnetic,4=corrupted
@@ -180,10 +182,9 @@ elb_names={}
 ne_pos=1
 ne_chars={1,1,1}
 ne_rank=0
-ne_timer=0
 
-function pack_name(c)
- return c[1]*676+c[2]*26+c[3]
+function pkn(n)
+ return (ord(sub(n,1,1))-65)*676+(ord(sub(n,2,2))-65)*26+ord(sub(n,3,3))-65
 end
 function unpack_name(n)
  local c1=flr(n/676)
@@ -207,11 +208,7 @@ function save_dlb(d)
  local b,f=lb_bs[d],0
  for i=1,5 do
   dset(b+i-1,lb_scores[i])
-  dset(b+4+i,lb_names[i]=="---" and 0 or pack_name({
-   ord(sub(lb_names[i],1,1))-65,
-   ord(sub(lb_names[i],2,2))-65,
-   ord(sub(lb_names[i],3,3))-65
-  }))
+  dset(b+4+i,lb_names[i]=="---" and 0 or pkn(lb_names[i]))
   if lb_gflag[i] then f=bor(f,shl(1,i-1)) end
   if lb_mflag[i] then f=bor(f,shl(1,i+4)) end
  end
@@ -235,11 +232,7 @@ end
 function save_elb()
  for i=1,5 do
   dset(29+i,elb_scores[i])
-  dset(34+i,elb_names[i]=="---" and 0 or pack_name({
-   ord(sub(elb_names[i],1,1))-65,
-   ord(sub(elb_names[i],2,2))-65,
-   ord(sub(elb_names[i],3,3))-65
-  }))
+  dset(34+i,elb_names[i]=="---" and 0 or pkn(elb_names[i]))
  end
 end
 function _init()
@@ -428,14 +421,8 @@ function update_modsel()
  if btnp(4) then
   -- toggle modifier
   local md=mod_defs[mod_offer[mod_sel]]
+  if band(mod_active,md[4])>0 then mod_count-=1 else mod_count+=1 end
   mod_active=bxor(mod_active,md[4])
-  -- recount active mods
-  mod_count=0
-  local v=mod_active
-  while v>0 do
-   if v%2==1 then mod_count+=1 end
-   v=flr(v/2)
-  end
   sfx(2)
  end
  if btnp(5) then
@@ -483,7 +470,6 @@ function start_game()
  time_alive=0
  go_timer=0
  ship_x=60
- ship_y=116
  meteors={}
  particles={}
  spawn_timer=0
@@ -700,17 +686,13 @@ function update_play()
    score+=bpts
    bd_flash=30
    bd_flash_txt="+"..(bpts).." boss!"
-   bd_x=tele_x bd_y=40
+   bd_x=tele_x
    shake+=8
    sfx(6)
    local bc=bt_cols[boss_type]
    for i=1,10 do
     local ang=i/10
-    add(particles,{
-     x=tele_x,y=40,
-     dx=cos(ang)*2,dy=sin(ang)*2,
-     life=20,col=i%2==0 and bc[1] or bc[2]
-    })
+    ap(tele_x,40,cos(ang)*2,sin(ang)*2,20,i%2==0 and bc[1] or bc[2])
    end
    -- gauntlet victory
    if is_gauntlet and g_round>=5 then
@@ -725,7 +707,7 @@ function update_play()
  if boss_flash>0 then boss_flash-=1 end
  if boss_vuln>0 then boss_vuln-=1 end
  -- vuln particles
- if boss_vuln>0 and anim_t%2==0 then for m in all(meteors) do if m.boss then add(particles,{x=m.x+rnd(m.sz),y=m.y+rnd(m.sz),dx=rnd(2)-1,dy=-rnd(1),life=8,col=10}) end end end
+ if boss_vuln>0 and anim_t%2==0 then for m in all(meteors) do if m.boss then ap(m.x+rnd(m.sz),m.y+rnd(m.sz),rnd(2)-1,-rnd(1),8,10) end end end
 
  -- slowmo speed factor
  local spd_mul=slowmo_timer>0 and 0.5 or 1
@@ -761,14 +743,7 @@ function update_play()
   m.anim+=0.15
   -- trail particles
   if rnd()<0.3 then
-   add(particles,{
-    x=m.x+rnd(6),
-    y=m.y,
-    dx=rnd(1)-0.5,
-    dy=-rnd(0.5),
-    life=8+rnd(8),
-    col=m.col2
-   })
+   ap(m.x+rnd(6),m.y,rnd(1)-0.5,-rnd(0.5),8+rnd(8),m.col2)
   end
   -- near-miss detection
   if not m.scored and m.y>ship_y+6 then
@@ -811,11 +786,7 @@ function update_play()
     if nm_streak>=10 then check_achv(3) end
     if nm_count>=5 then check_achv(8) end
     for i=1,4 do
-     add(particles,{
-      x=scx,y=scy-4,
-      dx=rnd(2)-1,dy=-1-rnd(1),
-      life=12,col=10
-     })
+     ap(scx,scy-4,rnd(2)-1,-1-rnd(1),12,10)
     end
    end
   end
@@ -852,11 +823,7 @@ function update_play()
     g_nodmg=false
     e_nodmg=false
     for i=1,8 do
-     add(particles,{
-      x=ship_x+3,y=ship_y+3,
-      dx=rnd(2)-1,dy=rnd(2)-1,
-      life=12,col=12
-     })
+     ap(ship_x+3,ship_y+3,rnd(2)-1,rnd(2)-1,12,12)
     end
    else
     game_over()
@@ -944,11 +911,7 @@ function collect_powerup(p)
  if pu_collected>=10 then check_achv(4) end
  -- particle burst
  for i=1,6 do
-  add(particles,{
-   x=p.x+4,y=p.y+4,
-   dx=rnd(2)-1,dy=-1-rnd(1),
-   life=15,col=p.col
-  })
+  ap(p.x+4,p.y+4,rnd(2)-1,-1-rnd(1),15,p.col)
  end
 end
 
@@ -1067,11 +1030,7 @@ function check_combo_milestone()
    -- particle burst
    for j=1,4+i*2 do
     local ang=rnd(1)
-    add(particles,{
-     x=ship_x+3,y=ship_y-4,
-     dx=cos(ang)*1.5,dy=sin(ang)*1.5-1,
-     life=15+i*3,col=dc[i]
-    })
+    ap(ship_x+3,ship_y-4,cos(ang)*1.5,sin(ang)*1.5-1,15+i*3,dc[i])
    end
   end
  end
@@ -1096,14 +1055,7 @@ function game_over()
  for i=1,30 do
   local ang=rnd(1)
   local spd=1+rnd(3)
-  add(particles,{
-   x=ship_x+3,
-   y=ship_y+3,
-   dx=cos(ang)*spd,
-   dy=sin(ang)*spd,
-   life=20+rnd(20),
-   col=rnd()>0.5 and 10 or (rnd()>0.5 and 9 or 7)
-  })
+  ap(ship_x+3,ship_y+3,cos(ang)*spd,sin(ang)*spd,20+rnd(20),rnd()>0.5 and 10 or (rnd()>0.5 and 9 or 7))
  end
 
  shake=8
@@ -1117,7 +1069,6 @@ function game_over()
   state="name_entry"
   ne_pos=1
   ne_chars={1,1,1}
-  ne_timer=0
  else
   state="gameover"
  end
@@ -1353,7 +1304,7 @@ function draw_play()
  -- boss death fanfare popup
  if bd_flash>0 then
   local bx=bd_x-#bd_flash_txt*2
-  local by=bd_y-flr((30-bd_flash)/2)
+  local by=40-flr((30-bd_flash)/2)
   local bc=bd_flash>20 and 10 or
    (bd_flash>10 and 9 or 5)
   print(bd_flash_txt,bx,by,bc)
@@ -1432,7 +1383,6 @@ end
 
 -- name entry state
 function update_nameentry()
- ne_timer+=1
  if btnp(0) then ne_pos=max(1,ne_pos-1) end
  if btnp(1) then ne_pos=min(3,ne_pos+1) end
  if btnp(2) then
@@ -1502,7 +1452,7 @@ function draw_nameentry()
   if sel then
    print("\131",bx+3,by-7,10)
    print("\132",bx+3,by+14,10)
-   if ne_timer%20<14 then
+   if flr(t()*2)%2==0 then
     rectfill(bx+1,by+1,bx+11,by+11,1)
    end
   end
@@ -1576,8 +1526,7 @@ function draw_gameover()
   if g_won then
    print("gauntlet complete!",18,17,11)
   else
-   local rtxt=g_round<=4 and "round "..g_round or "boss"
-   print("fell at "..rtxt,30,17,8)
+   print("fell at "..(g_round<=4 and "round "..g_round or "boss"),30,17,8)
   end
  end
  print(g_won and "victory!" or "game over",
