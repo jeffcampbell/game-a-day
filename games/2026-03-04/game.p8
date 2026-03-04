@@ -125,6 +125,7 @@ achv_names={
  "end survivor","end climber","untouchable"
 }
 boss_waves=0
+boss_tier=0 boss_n=0
 -- boss death fanfare
 bd_flash=0
 bd_flash_txt=""
@@ -510,6 +511,7 @@ function start_game()
  combo_flash_txt=""
  -- reset per-run achievement trackers
  boss_waves=0
+ boss_tier=0 boss_n=0
  bd_flash=0
  bd_flash_txt=""
  nm_count=0
@@ -658,12 +660,12 @@ function update_play()
   spawn_powerup()
  end
 
- -- boss wave trigger (endless: every 50 pts)
+ -- boss wave trigger: every 50 pts, alternate mini/major
  if not boss_active then
-  local bt=is_endless and 50 or 100
-  local next_boss=last_boss_score+bt
-  if score>=next_boss or (diff_level>=5 and score>=last_boss_score+flr(bt/2)) then
+  if score>=last_boss_score+50 or (diff_level>=5 and score>=last_boss_score+25) then
    last_boss_score=score
+   boss_n+=1
+   boss_tier=boss_n%2==1 and 1 or 2
    trigger_boss_wave()
   end
  end
@@ -679,19 +681,22 @@ function update_play()
   boss_timer-=1
   if boss_timer<=0 then
    boss_active=false
-   boss_waves+=1
-   if boss_waves>=5 then check_achv(5) end
-   -- boss death fanfare
-   local bpts=flr(100*score_mult)
+   local mini=boss_tier==1
+   if not mini then
+    boss_waves+=1
+    if boss_waves>=5 then check_achv(5) end
+   end
+   local bpts=mini and 25 or flr(100*score_mult)
    score+=bpts
-   bd_flash=30
-   bd_flash_txt="+"..(bpts).." boss!"
+   bd_flash=mini and 15 or 30
+   bd_flash_txt="+"..bpts..(mini and " mini!" or " boss!")
    bd_x=tele_x
-   shake+=8
-   sfx(6)
+   shake+=mini and 3 or 8
+   sfx(mini and 2 or 6)
    local bc=bt_cols[boss_type]
-   for i=1,10 do
-    local ang=i/10
+   local pn=mini and 5 or 10
+   for i=1,pn do
+    local ang=i/pn
     ap(tele_x,40,cos(ang)*2,sin(ang)*2,20,i%2==0 and bc[1] or bc[2])
    end
    -- gauntlet victory
@@ -949,9 +954,10 @@ end
 
 -- spawn directional boss meteor
 function spawn_boss_dir(x,y,dx,dy)
- local bc=bt_cols[boss_type]
- local sm=bt_spd[boss_type]
- local sz=10+flr(rnd(4))+bt_sz[boss_type]
+ local mini=boss_tier==1
+ local bc=mini and {10,7} or bt_cols[boss_type]
+ local sm=mini and 1.1 or bt_spd[boss_type]
+ local sz=mini and 7+flr(rnd(3)) or 10+flr(rnd(4))+bt_sz[boss_type]
  add(meteors,{
   x=x,y=y,dx=dx*sm,dy=dy*sm,
   spd=0,sz=sz,anim=rnd(1),
@@ -963,24 +969,28 @@ end
 -- trigger boss wave: start telegraph phase
 function trigger_boss_wave()
  boss_active=true
- boss_type=flr(score/100)%3+1
+ boss_type=boss_tier==2 and flr(score/100)%3+1 or 1
  tele_dur=diff_sel==1 and 30 or (diff_sel==3 and 15 or 20)
+ if boss_tier==1 then tele_dur=flr(tele_dur*0.7) boss_atk=rnd()<0.6 and 1 or 4 end
  tele_timer=tele_dur
  tele_x=boss_atk==3 and 64 or 20+rnd(88)
  boss_flash=tele_dur
  sfx(5)
+ _log("boss_tier:"..boss_tier)
 end
 
 -- execute attack when telegraph completes
 function execute_boss_attack()
- boss_timer=90
- shake=4
+ local mini=boss_tier==1
+ boss_timer=mini and 45 or 90
+ shake=mini and 2 or 4
  flash=2
  local atk=boss_atk
  if atk==1 then
-  -- burst: 8 meteors radiating from point
-  for i=0,7 do
-   local ang=i/8
+  -- burst: 5(mini)/8(major) meteors radiating
+  local n=mini and 4 or 7
+  for i=0,n do
+   local ang=i/(n+1)
    spawn_boss_dir(tele_x,0,cos(ang)*1.2,abs(sin(ang))*0.8+0.5)
   end
  elseif atk==2 then
@@ -998,8 +1008,8 @@ function execute_boss_attack()
    spawn_boss_dir(ox,oy,(64-ox)*0.025,(64-oy)*0.025)
   end
  else
-  -- aimed: 4 meteors toward player
-  for i=0,3 do
+  -- aimed: 2(mini)/4(major) meteors toward player
+  for i=0,(mini and 1 or 3) do
    local sx=rnd(128)
    local dx=ship_x+3-sx
    local dy=ship_y+10
@@ -1227,9 +1237,9 @@ function draw_play()
    local vc=flr(anim_t/2)%2==0 and 10 or 7
    print("weak!",50,9,vc)
   else
-   local btc=bt_cols[boss_type]
+   local btc=boss_tier==1 and {10,7} or bt_cols[boss_type]
    local bc=flr(anim_t/3)%2==0 and btc[1] or btc[2]
-   print("boss!",50,9,bc)
+   print(boss_tier==1 and "mini!" or "boss!",50,9,bc)
   end
  end
 
