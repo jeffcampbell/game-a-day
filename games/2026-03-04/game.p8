@@ -99,6 +99,55 @@ is_ta=false
 ta_time=0
 ta_nodmg=true
 mode_sel=1
+-- leaderboard (top 5)
+lb_scores={}
+lb_names={}
+-- name entry state
+ne_pos=1
+ne_chars={1,1,1}
+ne_rank=0
+ne_timer=0
+
+function pack_name(c)
+ return c[1]*676+c[2]*26+c[3]
+end
+function unpack_name(n)
+ local c1=flr(n/676)
+ local c2=flr((n-c1*676)/26)
+ local c3=n-c1*676-c2*26
+ return chr(65+c1)..chr(65+c2)..chr(65+c3)
+end
+function load_lb()
+ lb_scores={}
+ lb_names={}
+ for i=1,5 do
+  local s=dget(11+i*2)
+  local n=dget(12+i*2)
+  if s>0 then
+   add(lb_scores,s)
+   add(lb_names,unpack_name(n))
+  else
+   add(lb_scores,0)
+   add(lb_names,"---")
+  end
+ end
+end
+function save_lb()
+ for i=1,5 do
+  dset(11+i*2,lb_scores[i])
+  dset(12+i*2,lb_names[i]=="---" and 0 or pack_name({
+   ord(sub(lb_names[i],1,1))-65,
+   ord(sub(lb_names[i],2,2))-65,
+   ord(sub(lb_names[i],3,3))-65
+  }))
+ end
+end
+function lb_rank(s)
+ for i=1,5 do
+  if s>lb_scores[i] then return i end
+ end
+ return 0
+end
 
 function _init()
  cartdata(1)
@@ -106,6 +155,7 @@ function _init()
  for i=1,12 do
   achv[i]=dget(i)>0
  end
+ load_lb()
  for i=1,40 do
   add(stars,{
    x=rnd(128),
@@ -140,10 +190,13 @@ function draw_menu()
  print("\139\145 move left/right",28,80,6)
  print("collect power-ups!",28,90,12)
  if flr(t()*2)%2==0 then
-  print("press \142/\151 to start",22,108,7)
+  print("press \142/\151 to start",22,100,7)
  end
- if hiscore>0 then
-  print("hi-score: "..hiscore,34,118,9)
+ -- mini leaderboard on menu
+ if lb_scores[1]>0 then
+  print(lb_names[1].." "..lb_scores[1],36,112,9)
+ elseif hiscore>0 then
+  print("hi-score: "..hiscore,34,112,9)
  end
 end
 
@@ -717,8 +770,6 @@ function check_col(x1,y1,w1,h1,x2,y2,w2,h2)
 end
 
 function game_over()
- state="gameover"
- _log("state:gameover")
  _log("final_score:"..score)
 
  if score>hiscore then
@@ -743,6 +794,20 @@ function game_over()
  shake=8
  flash=4
  sfx(1)
+
+ -- check leaderboard qualification
+ ne_rank=lb_rank(score)
+ go_timer=0
+ if ne_rank>0 then
+  state="name_entry"
+  ne_pos=1
+  ne_chars={1,1,1}
+  ne_timer=0
+  _log("state:name_entry rank="..ne_rank)
+ else
+  state="gameover"
+  _log("state:gameover")
+ end
 end
 
 function draw_play()
@@ -942,6 +1007,94 @@ function draw_powerups()
  end
 end
 
+-- name entry state
+function update_nameentry()
+ ne_timer+=1
+ if btnp(0) then ne_pos=max(1,ne_pos-1) end
+ if btnp(1) then ne_pos=min(3,ne_pos+1) end
+ if btnp(2) then
+  ne_chars[ne_pos]=(ne_chars[ne_pos])%26+1
+ end
+ if btnp(3) then
+  ne_chars[ne_pos]=(ne_chars[ne_pos]-2)%26+1
+ end
+ if btnp(5) then
+  -- backspace: clear current char and move left
+  ne_chars[ne_pos]=1
+  ne_pos=max(1,ne_pos-1)
+ end
+ if btnp(4) then
+  -- confirm name
+  local name=chr(64+ne_chars[1])..chr(64+ne_chars[2])..chr(64+ne_chars[3])
+  -- insert into leaderboard at rank
+  for i=5,ne_rank+1,-1 do
+   lb_scores[i]=lb_scores[i-1]
+   lb_names[i]=lb_names[i-1]
+  end
+  lb_scores[ne_rank]=score+10 -- 10 bonus pts for entering name
+  lb_names[ne_rank]=name
+  score+=10
+  if score>hiscore then
+   hiscore=score
+   dset(0,hiscore)
+  end
+  save_lb()
+  sfx(4)
+  _log("name_entered:"..name.." rank="..ne_rank)
+  state="gameover"
+  go_timer=0
+  _log("state:gameover")
+ end
+ update_particles()
+ if shake>0 then shake-=0.5 end
+ if flash>0 then flash-=1 end
+ for s in all(stars) do
+  s.y+=s.spd*0.2
+  if s.y>128 then s.y=0 s.x=rnd(128) end
+ end
+end
+
+function draw_nameentry()
+ cls(0)
+ draw_stars()
+ draw_particles()
+
+ print("new high score!",26,10,10)
+ print("score: "..score,42,20,7)
+ print("rank #"..ne_rank,46,28,9)
+
+ print("enter your name:",24,40,6)
+ -- draw 3 letter boxes
+ for i=1,3 do
+  local bx=40+(i-1)*18
+  local by=50
+  local sel=i==ne_pos
+  local c=sel and 7 or 5
+  rect(bx,by,bx+12,by+12,c)
+  if sel then
+   print("\131",bx+3,by-7,10)
+   print("\132",bx+3,by+14,10)
+   if ne_timer%20<14 then
+    rectfill(bx+1,by+1,bx+11,by+11,1)
+   end
+  end
+  local ch=chr(64+ne_chars[i])
+  print(ch,bx+3,by+3,sel and 10 or 7)
+ end
+
+ print("\142 confirm  \151 back",18,72,6)
+ print("+10 bonus pts!",28,82,11)
+
+ -- top 3 leaderboard preview
+ local ly=94
+ for i=1,3 do
+  local c=lb_scores[i]>0 and 6 or 1
+  print(i..". "..lb_names[i].." "..lb_scores[i],32,ly,c)
+  ly+=7
+ end
+ print("\139\145 select  \131\132 letter",10,120,5)
+end
+
 -- gameover state
 function update_gameover()
  go_timer+=1
@@ -1025,29 +1178,25 @@ function draw_gameover()
   sy+=7
  end
 
- -- achievement grid
- local total=0
- for i=1,12 do if achv[i] then total+=1 end end
- local ay=max(sy+2,88)
- print("achievements:"..total.."/12",22,ay,total>=12 and 10 or 6)
- ay+=7
- for i=1,12 do
-  local ax=10+(i-1)*9
-  if achv[i] then
-   circfill(ax,ay+2,3,10)
-   pset(ax-1,ay+1,7)
+ -- leaderboard
+ local ly=max(sy+2,86)
+ print("-- leaderboard --",22,ly,6)
+ ly+=7
+ for i=1,5 do
+  if lb_scores[i]>0 then
+   local c=ne_rank==i and 10 or 6
+   print(i..". "..lb_names[i].." "..lb_scores[i],32,ly,c)
   else
-   circ(ax,ay+2,3,1)
+   print(i..". ---",32,ly,1)
   end
+  ly+=7
  end
 
  if go_timer>45 then
   if flr(t()*2)%2==0 then
-   print("\142 retry  \151 change mode",10,108,7)
+   print("\142 retry  \151 change mode",10,120,7)
   end
  end
-
- print("\135 meteor dodge \135",16,120,1)
 end
 
 -- drawing helpers
@@ -1122,6 +1271,7 @@ function _update()
  elseif state=="difficulty_select" then update_difsel()
  elseif state=="mode_select" then update_modesel()
  elseif state=="play" then update_play()
+ elseif state=="name_entry" then update_nameentry()
  elseif state=="gameover" then update_gameover()
  end
 end
@@ -1131,6 +1281,7 @@ function _draw()
  elseif state=="difficulty_select" then draw_difsel()
  elseif state=="mode_select" then draw_modesel()
  elseif state=="play" then draw_play()
+ elseif state=="name_entry" then draw_nameentry()
  elseif state=="gameover" then draw_gameover()
  end
 end
