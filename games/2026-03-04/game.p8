@@ -75,10 +75,27 @@ dodge_combo=0
 dodge_best=0
 combo_flash=0
 combo_flash_txt=""
+-- achievement system
+achv={}
+achv_flash=0
+achv_flash_txt=""
+achv_names={
+ "first blood","dodgemaster",
+ "close call","collector",
+ "boss slayer","survivor",
+ "hard mode","precision",
+ "speed demon","legendary"
+}
+boss_waves=0
+nm_count=0
+run_achv=0 -- achievements this run
 
 function _init()
  cartdata(1)
  hiscore=dget(0)
+ for i=1,10 do
+  achv[i]=dget(i)>0
+ end
  for i=1,40 do
   add(stars,{
    x=rnd(128),
@@ -207,7 +224,23 @@ function start_game()
  dodge_best=0
  combo_flash=0
  combo_flash_txt=""
+ -- reset per-run achievement trackers
+ boss_waves=0
+ nm_count=0
+ run_achv=0
+ achv_flash=0
  _log("state:play")
+end
+
+function check_achv(id)
+ if achv[id] then return end
+ achv[id]=true
+ dset(id,1)
+ achv_flash=45
+ achv_flash_txt=achv_names[id]
+ run_achv+=1
+ sfx(4)
+ _log("achievement:"..achv_names[id])
 end
 
 -- play state
@@ -277,7 +310,12 @@ function update_play()
  -- decay boss timer
  if boss_timer>0 then
   boss_timer-=1
-  if boss_timer<=0 then boss_active=false end
+  if boss_timer<=0 then
+   boss_active=false
+   boss_waves+=1
+   if boss_waves>=5 then check_achv(5) end
+   _log("boss_survived:"..boss_waves)
+  end
  end
  if boss_flash>0 then boss_flash-=1 end
 
@@ -325,8 +363,11 @@ function update_play()
     score+=bonus
     nm_streak+=1
     if nm_streak>nm_best then nm_best=nm_streak end
+    nm_count+=1
     nm_flash=10
     sfx(nm_streak>=3 and 3 or 2)
+    if nm_streak>=10 then check_achv(3) end
+    if nm_count>=5 then check_achv(8) end
     for i=1,4 do
      add(particles,{
       x=scx,y=scy-4,
@@ -399,6 +440,15 @@ function update_play()
  if dblscore_timer>0 then dblscore_timer-=1 end
  if pu_flash>0 then pu_flash-=1 end
  if combo_flash>0 then combo_flash-=1 end
+ if achv_flash>0 then achv_flash-=1 end
+
+ -- achievement checks
+ if dodge_combo>=5 then check_achv(1) end
+ if dodge_combo>=20 then check_achv(2) end
+ if time_alive>=1800 then check_achv(6) end
+ if diff_level>=8 then check_achv(9) end
+ if score>=500 then check_achv(10) end
+ if diff_sel==3 and score>=100 then check_achv(7) end
 
  anim_t+=1
 end
@@ -459,6 +509,7 @@ function collect_powerup(p)
  end
  dodge_combo=0
  _log("powerup_collect:"..p.name)
+ if pu_collected>=10 then check_achv(4) end
  -- particle burst
  for i=1,6 do
   add(particles,{
@@ -704,6 +755,17 @@ function draw_play()
    (combo_flash>10 and 9 or 5)
   print(combo_flash_txt,cx,cy,cc)
  end
+
+ -- achievement unlock notification
+ if achv_flash>0 then
+  local ay=32+flr((45-achv_flash)/4)
+  local ac=achv_flash>30 and 10 or
+   (achv_flash>15 and 9 or 5)
+  rectfill(8,ay-1,119,ay+7,0)
+  rect(8,ay-1,119,ay+7,ac)
+  print("\135 "..achv_flash_txt.." \135",
+   64-#achv_flash_txt*2-4,ay,ac)
+ end
 end
 
 -- draw power-up items
@@ -735,6 +797,7 @@ function update_gameover()
  update_particles()
  if shake>0 then shake-=0.5 end
  if flash>0 then flash-=1 end
+ if achv_flash>0 then achv_flash-=1 end
 
  for m in all(meteors) do
   m.y+=0.2
@@ -780,27 +843,46 @@ function draw_gameover()
  end
 
  -- stats
- print("["..diff_names[diff_sel].."]",48,54,5)
+ print("["..diff_names[diff_sel].."]",48,52,5)
  local secs=flr(time_alive/30)
- print("survived: "..secs.."s",34,62,5)
- print("best level: "..diff_level,34,69,5)
+ print("survived:"..secs.."s lv:"..diff_level,22,59,5)
+ local sy=66
  if nm_best>0 then
-  print("best streak: "..nm_best.."x",34,76,9)
+  print("streak:"..nm_best.."x",34,sy,9)
+  sy+=7
  end
  if dodge_best>0 then
-  print("best combo: "..dodge_best.."x",34,83,10)
+  print("combo:"..dodge_best.."x",34,sy,10)
+  sy+=7
  end
  if pu_collected>0 then
-  print("power-ups: "..pu_collected,34,90,12)
+  print("power-ups:"..pu_collected,34,sy,12)
+  sy+=7
+ end
+
+ -- achievement grid
+ local total=0
+ for i=1,10 do if achv[i] then total+=1 end end
+ local ay=max(sy+2,88)
+ print("achievements:"..total.."/10",22,ay,total>=10 and 10 or 6)
+ ay+=7
+ for i=1,10 do
+  local ax=14+(i-1)*10
+  if achv[i] then
+   circfill(ax,ay+2,3,10)
+   pset(ax-1,ay+1,7)
+  else
+   circ(ax,ay+2,3,1)
+  end
  end
 
  if go_timer>45 then
   if flr(t()*2)%2==0 then
-   print("\142 retry  \151 change diff",10,100,7)
+   print("\142 retry  \151 change diff",10,108,7)
   end
  end
 
- print("\135 meteor dodge \135",16,118,1)
+ print("\135 meteor dodge \135",16,120,1)
 end
 
 -- drawing helpers
