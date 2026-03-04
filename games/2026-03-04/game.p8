@@ -39,6 +39,7 @@ end
 function ap(x,y,dx,dy,l,c)
  add(particles,{x=x,y=y,dx=dx,dy=dy,life=l,col=c})
 end
+function ds(e,n,h) return diff_sel==1 and e or (diff_sel==3 and h or n) end
 function fmt_t(f)
  local s=flr(f/30)
  local m=flr(s/60)
@@ -112,6 +113,7 @@ achv_flash_txt=""
 boss_waves=0
 boss_tier=0 boss_n=0
 -- boss death fanfare
+dbl_atk=false
 bd_flash=0
 bd_flash_txt=""
 bd_x=64
@@ -449,6 +451,7 @@ function start_game()
  tele_timer=0
  tele_dur=0
  boss_vuln=0
+ dbl_atk=false
  -- reset dodge combo
  dodge_combo=0
  dodge_best=0
@@ -474,7 +477,7 @@ function start_game()
  g_trans=0
  g_nodmg=true
  g_won=false
- g_rdur=diff_sel==1 and 1500 or (diff_sel==3 and 1800 or 2250)
+ g_rdur=ds(1500,2250,1800)
  if is_gauntlet then score_mult*=1.3 end
  -- endless setup
  e_timer=0
@@ -866,7 +869,7 @@ function collect_powerup(p)
  elseif t==4 then shield_count+=2
  elseif t==5 then inv_timer=150
  elseif t==6 then shield_count=max(shield_count,1) shld_burst=true
- elseif t==7 then score+=flr(50*score_mult*(diff_sel==1 and 0.8 or (diff_sel==3 and 1.5 or 1)))
+ elseif t==7 then score+=flr(50*score_mult*ds(0.8,1,1.5))
  end
  _log("powerup:"..p.name)
  pu_flash=25 pu_flash_txt="+"..p.name
@@ -921,29 +924,47 @@ end
 function trigger_boss_wave()
  boss_active=true
  boss_type=boss_tier==2 and flr(score/100)%3+1 or 1
- tele_dur=diff_sel==1 and 30 or (diff_sel==3 and 15 or 20)
- if boss_tier==1 then tele_dur=flr(tele_dur*0.7) boss_atk=rnd()<0.6 and 1 or 4 end
+ tele_dur=ds(30,20,15)
+ if boss_tier==1 then tele_dur=flr(tele_dur*0.7) boss_atk=rnd()<0.6 and 1 or 4
+ elseif diff_sel!=2 then
+  local r=flr(rnd(4))+1
+  if diff_sel==1 and r>2 and rnd()<0.5 then r=flr(rnd(2))+1
+  elseif diff_sel==3 and r<3 and rnd()<0.5 then r=flr(rnd(2))+3 end
+  boss_atk=r
+ end
  tele_timer=tele_dur tele_x=boss_atk==3 and 64 or 20+rnd(88)
  boss_flash=tele_dur sfx(5) _log("boss")
 end
 
 function execute_boss_attack()
  local mn=boss_tier==1
- boss_timer=mn and 45 or 90
+ local pc=ds(0.7,1,1.5)
+ boss_timer=flr((mn and 45 or 90)*ds(1.3,1,0.67))
  shake=mn and 2 or 4
  flash=2
  if boss_atk==1 then
-  local n=mn and 4 or 7
+  local n=flr((mn and 4 or 7)*pc)
   for i=0,n do local a=i/(n+1) spawn_boss_dir(tele_x,0,cos(a)*1.2,abs(sin(a))*0.8+0.5) end
  elseif boss_atk==2 then
   for i=0,5 do local a=i/6 spawn_boss_dir(20+i*18,-8-i*6,cos(a)*0.5,meteor_speed*0.8) end
  elseif boss_atk==3 then
-  for i=0,7 do local a=i/8 local ox,oy=64+cos(a)*72,64+sin(a)*72 spawn_boss_dir(ox,oy,(64-ox)*0.025,(64-oy)*0.025) end
+  local n=flr(7*pc)
+  for i=0,n do local a=i/(n+1) local ox,oy=64+cos(a)*72,64+sin(a)*72 spawn_boss_dir(ox,oy,(64-ox)*0.025,(64-oy)*0.025) end
  else
-  for i=0,(mn and 1 or 3) do local sx=rnd(128) local dx,dy=ship_x+3-sx,ship_y+10 local d=max(sqrt(dx*dx+dy*dy),1) spawn_boss_dir(sx,-10,dx/d*1.2,dy/d*1.2) end
+  local n=flr((mn and 1 or 3)*pc)
+  for i=0,n do local sx=rnd(128) local dx,dy=ship_x+3-sx,ship_y+10 local d=max(sqrt(dx*dx+dy*dy),1) spawn_boss_dir(sx,-10,dx/d*1.2,dy/d*1.2) end
  end
  boss_atk=boss_atk%4+1
- boss_vuln=10
+ boss_vuln=ds(15,10,7)
+ -- hard mode double attack (30% chance)
+ if diff_sel==3 and not dbl_atk and rnd()<0.3 then
+  dbl_atk=true
+  tele_timer=8 tele_dur=8
+  tele_x=boss_atk==3 and 64 or 20+rnd(88)
+  _log("boss_dbl")
+ else
+  dbl_atk=false
+ end
  sfx(5)
 end
 
@@ -1118,7 +1139,7 @@ function draw_play()
  else
   print("hi:"..hiscore,90,1,6)
  end
- local dc=diff_sel==1 and 11 or (diff_sel==3 and 8 or 5)
+ local dc=ds(11,5,8)
  print(sub(lb_dnames[diff_sel],1,1),50,1,dc)
  print("lv"..diff_level,56,1,diff_level>=7 and 8 or 5)
  local spd_bar=min((meteor_speed-1)*20,30)
