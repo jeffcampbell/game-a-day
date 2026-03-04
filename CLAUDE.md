@@ -23,7 +23,7 @@ games/
 - **Display**: 128x128 pixels
 - **Colors**: 16 fixed palette (0-15)
 - **Language**: Lua (PICO-8 dialect)
-- **Token limit**: 8192 tokens
+- **Token limit**: 8192 tokens (use `python3 tools/p8tokens.py <game.p8>` to count)
 - **Sprite sheet**: 128 8x8 sprites (shared with map)
 - **Map**: 128x32 tiles (shares memory with bottom half of sprite sheet)
 - **Sound**: 64 SFX slots, 64 music patterns
