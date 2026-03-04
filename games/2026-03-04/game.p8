@@ -264,17 +264,14 @@ function update_menu()
  local inp=test_input()
  if inp&16>0 or inp&32>0 then
   state="difficulty_select"
-  _log("state:difficulty_select")
  end
  if inp&8>0 then
   state="help"
-  _log("state:help")
  end
  if inp&4>0 then
   lb_vd=diff_sel
   load_dlb(lb_vd)
   state="lb_view"
-  _log("state:lb_view")
  end
 end
 
@@ -338,14 +335,11 @@ function update_difsel()
  if btnp(2) then diff_sel=max(1,diff_sel-1) end
  if btnp(3) then diff_sel=min(3,diff_sel+1) end
  if btnp(4) then
-  _log("difficulty:"..diff_names[diff_sel])
   state="mode_select"
   mode_sel=1
-  _log("state:mode_select")
  end
  if btnp(5) then
   state="menu"
-  _log("state:menu")
  end
 end
 
@@ -380,8 +374,6 @@ function update_modesel()
   is_ta=mode_sel==2
   is_endless=mode_sel==3
   is_gauntlet=mode_sel==4
-  local mn={"normal","time_attack","endless","gauntlet"}
-  _log("mode:"..mn[mode_sel])
   -- set up modifier selection
   state="mod_select"
   mod_offer={}
@@ -394,11 +386,9 @@ function update_modesel()
    pool[i],pool[j]=pool[j],pool[i]
   end
   for i=1,4 do add(mod_offer,pool[i]) end
-  _log("state:mod_select")
  end
  if btnp(5) then
   state="difficulty_select"
-  _log("state:difficulty_select")
  end
 end
 
@@ -445,12 +435,10 @@ function update_modsel()
   sfx(2)
  end
  if btnp(5) then
-  _log("modifiers:"..mod_active.." count="..mod_count)
   start_game()
  end
  if btnp(0) then
   state="mode_select"
-  _log("state:mode_select")
  end
 end
 
@@ -590,7 +578,6 @@ function update_play()
    if g_round>=5 then
     trigger_boss_wave()
    end
-   _log("gauntlet_round:"..g_round)
   end
   anim_t+=1
   return
@@ -615,7 +602,6 @@ function update_play()
    ta_time=0
    if score>500 then check_achv(11) end
    if ta_nodmg then check_achv(12) end
-   _log("time_attack_complete:score="..score)
    game_over()
    return
   end
@@ -633,7 +619,6 @@ function update_play()
   if g_timer>=g_rdur then
    if g_round==2 then check_achv(18) end
    g_trans=60
-   _log("gauntlet_round_done:"..g_round)
   end
  end
 
@@ -722,13 +707,11 @@ function update_play()
      life=20,col=10
     })
    end
-   _log("boss_defeated:+"..bpts)
    -- gauntlet victory
    if is_gauntlet and g_round>=5 then
     check_achv(19)
     if g_nodmg then check_achv(17) end
     g_won=true
-    _log("gauntlet_complete")
     game_over()
     return
    end
@@ -861,7 +844,6 @@ function update_play()
     ta_nodmg=false
     g_nodmg=false
     e_nodmg=false
-    _log("shield_absorb:remaining="..shield_count)
     for i=1,8 do
      add(particles,{
       x=ship_x+3,y=ship_y+3,
@@ -952,7 +934,6 @@ function collect_powerup(p)
  pu_collected+=1
  sfx(4)
  dodge_combo=0
- _log("powerup_collect:"..p.name)
  if pu_collected>=10 then check_achv(4) end
  -- particle burst
  for i=1,6 do
@@ -1015,7 +996,6 @@ function trigger_boss_wave()
  tele_x=boss_atk==3 and 64 or 20+rnd(88)
  boss_flash=tele_dur
  sfx(5)
- _log("boss_telegraph:type="..boss_atk)
 end
 
 -- execute attack when telegraph completes
@@ -1057,7 +1037,6 @@ function execute_boss_attack()
  boss_atk=boss_atk%4+1
  boss_vuln=10
  sfx(5)
- _log("boss_attack:"..atk)
 end
 
 -- combo milestones: 5x,10x,15x,20x
@@ -1084,7 +1063,6 @@ function check_combo_milestone()
      life=15+i*3,col=dc[i]
     })
    end
-   _log("combo_milestone:"..dm[i].."x pts="..pts)
   end
  end
 end
@@ -1095,9 +1073,6 @@ function check_col(x1,y1,w1,h1,x2,y2,w2,h2)
 end
 
 function game_over()
- if is_gauntlet and not g_won then
-  _log("gauntlet_failed:round="..g_round)
- end
  if is_endless and e_nodmg and time_alive>=9000 then
   check_achv(22)
  end
@@ -1133,10 +1108,8 @@ function game_over()
   ne_pos=1
   ne_chars={1,1,1}
   ne_timer=0
-  _log("state:name_entry rank="..ne_rank)
  else
   state="gameover"
-  _log("state:gameover")
  end
 end
 
@@ -1426,7 +1399,6 @@ function update_lbview()
  if btnp(4) or btnp(5) then
   load_dlb(diff_sel)
   state="menu"
-  _log("state:menu")
  end
 end
 
@@ -1488,10 +1460,8 @@ function update_nameentry()
   end
   if is_endless then save_elb() else save_dlb(diff_sel) end
   sfx(4)
-  _log("name_entered:"..name.." rank="..ne_rank)
   state="gameover"
   go_timer=0
-  _log("state:gameover")
  end
  update_particles()
  shake=dk(shake,0.5)
@@ -1552,7 +1522,6 @@ function update_gameover()
    start_game()
   elseif inp&32>0 then
    state="mode_select"
-   _log("state:mode_select")
   end
  end
  update_particles()
@@ -1611,13 +1580,13 @@ function draw_gameover()
  end
 
  -- stats
- local dtxt="["..diff_names[diff_sel].."]"
+ local dn=diff_names[diff_sel]
+ local dtxt="["..dn.."]"
  if is_ta then dtxt=dtxt.." ta"
  elseif is_endless then dtxt=dtxt.." end "..score_mult.."x"
  elseif is_gauntlet then dtxt=dtxt.." glt" end
  print(dtxt,is_endless and 28 or 44,52,is_endless and 12 or 5)
- local secs=flr(time_alive/30)
- print("survived:"..secs.."s lv:"..diff_level,22,59,5)
+ print("survived:"..flr(time_alive/30).."s lv:"..diff_level,22,59,5)
  local sy=66
  if nm_best>0 then
   print("streak:"..nm_best.."x",34,sy,9)
