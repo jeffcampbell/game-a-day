@@ -52,6 +52,7 @@ near_miss_dist=12
 nm_flash=0
 nm_streak=0
 nm_best=0
+nm_last_bonus=0
 
 function _init()
  -- load hiscore from cartdata
@@ -78,6 +79,7 @@ function update_menu()
 end
 
 function draw_menu()
+ cls(0)
  draw_stars()
  -- title
  local ty=20+sin(t()*0.3)*3
@@ -120,6 +122,7 @@ function start_game()
  nm_flash=0
  nm_streak=0
  nm_best=0
+ nm_last_bonus=0
  _log("state:play")
 end
 
@@ -198,6 +201,7 @@ function update_play()
    if dist<near_miss_dist then
     got_near=true
     local bonus=max(1,flr((near_miss_dist-dist)/3))
+    nm_last_bonus=bonus
     score+=bonus
     nm_streak+=1
     if nm_streak>nm_best then nm_best=nm_streak end
@@ -354,7 +358,7 @@ function draw_play()
  -- near-miss feedback
  if nm_flash>0 then
   local col=nm_streak>=3 and 10 or 9
-  print("close! +"..max(1,flr((near_miss_dist)/3)),
+  print("close! +"..nm_last_bonus,
    ship_x-6,ship_y-12,col)
   if nm_streak>=3 then
    print("x"..nm_streak.." streak!",
@@ -376,6 +380,11 @@ function update_gameover()
  update_particles()
  if shake>0 then shake-=0.5 end
  if flash>0 then flash-=1 end
+
+ -- drift meteors during gameover
+ for m in all(meteors) do
+  m.y+=0.2
+ end
 
  -- slowly drift stars
  for s in all(stars) do
@@ -400,7 +409,6 @@ function draw_gameover()
 
  -- still draw meteors drifting
  for m in all(meteors) do
-  m.y+=0.2
   draw_meteor(m.x,m.y,flr(m.anim)%2,m.sz,m.col,m.col2)
  end
 
