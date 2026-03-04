@@ -120,7 +120,7 @@ nm_count=0
 -- hazard meteor system
 -- 0=normal,1=radioactive,2=ice,3=magnetic,4=corrupted
 ice_slow=0
-hz_rd=0 hz_md=0 hz_cd=0 hz_inm=0
+hz_rd=0 hz_md=0 hz_cd=0 hz_inm=0 sp_frag=0
 -- time attack mode
 is_ta=false
 ta_time=0
@@ -209,7 +209,7 @@ function _init()
  for i=1,16 do
   achv[i]=dget(i)>0
  end
- for i=17,22 do
+ for i=17,23 do
   achv[i]=dget(i+6)>0
  end
  load_dlb(diff_sel)
@@ -280,13 +280,14 @@ function draw_help()
  print("hazard types",28,2,10)
  print("normal    radioactive",4,12,7)
  print("ice  magnetic  corrupted",4,22,7)
- print("power-ups",28,38,10)
- print("invinci",4,48,10)
- print("5s immune+destroy",56,48,6)
- print("s.burst",4,58,14)
- print("aoe blast on shield hit",56,58,6)
- print("pts bomb",4,68,9)
- print("+50 pts (diff scaled)",56,68,6)
+ print("splitter: big rocks split",4,32,14)
+ print("power-ups",28,44,10)
+ print("invinci",4,54,10)
+ print("5s immune+destroy",56,54,6)
+ print("s.burst",4,64,14)
+ print("aoe blast on shield hit",56,64,6)
+ print("pts bomb",4,74,9)
+ print("+50 pts (diff scaled)",56,74,6)
  print("\142/\151 back",36,118,6)
 end
 
@@ -468,7 +469,7 @@ function start_game()
  achv_flash=0
  -- reset hazard trackers
  ice_slow=0
- hz_rd=0 hz_md=0 hz_cd=0 hz_inm=0
+ hz_rd=0 hz_md=0 hz_cd=0 hz_inm=0 sp_frag=0
  -- time attack setup
  ta_time=is_ta and 1500 or 0
  ta_nodmg=true
@@ -722,6 +723,13 @@ function update_play()
     if m.htype==2 then hz_inm+=1 if hz_inm>=3 then check_achv(14) end end
     if m.htype==3 then hz_md+=1 if hz_md>=5 then check_achv(15) end end
     if m.htype==4 then hz_cd+=1 if hz_cd>=15 then check_achv(16) end end
+    -- splitter: spawn fragments on near-miss
+    if m.htype==5 then
+     for j=1,2+flr(rnd(2)) do
+      add(meteors,{x=m.x+rnd(24)-12,y=-rnd(12),spd=meteor_speed+rnd(0.3),sz=3+flr(rnd(2)),anim=0,col=14,col2=7,scored=false,boss=false,htype=0,frag=true})
+     end shake=2 sfx(3)
+    end
+    if m.frag then sp_frag+=1 if sp_frag>=10 then check_achv(23) end end
     if nm_streak>nm_best then nm_best=nm_streak end
     nm_count+=1
     nm_flash=10
@@ -768,7 +776,6 @@ function update_play()
     -- shield burst: destroy nearby meteors (only with burst power-up)
     if shld_burst then
      shld_burst=false
-     _log("shield_burst_triggered")
      for m2 in all(meteors) do
       if m2!=m then
        local dx,dy=m2.x-m.x,m2.y-m.y
@@ -892,8 +899,13 @@ function spawn_meteor()
   elseif r<0.33 then ht=1
   end
  end
+ -- splitter: large meteors at diff 3+
+ if ht==0 and sz>=8 then
+  local sp=diff_level>=5 and 0.35 or (diff_level>=3 and 0.2 or 0)
+  if rnd()<sp then ht=5 end
+ end
  -- hazard colors
- local hc={{9,10},{12,7},{8,2},{3,11}}
+ local hc={{9,10},{12,7},{8,2},{3,11},{14,7}}
  local c1,c2=rnd()>0.5 and 8 or 9,rnd()>0.5 and 10 or 4
  if ht>0 then c1=hc[ht][1] c2=hc[ht][2] end
  add(meteors,{
@@ -1043,6 +1055,8 @@ function draw_play()
   elseif m.htype==4 then
    -- corrupted: erratic flicker
    if rnd()<0.4 then circ(cx,cy,m.sz\2+rnd(3),3) end
+  elseif m.htype==5 then
+   circ(cx,cy,m.sz\2+2+sin(anim_t*0.06)*2,14)
   end
   draw_meteor(m.x,m.y,flr(m.anim)%2,m.sz,m.col,m.col2)
  end
@@ -1247,13 +1261,8 @@ end
 function draw_powerups()
  for p in all(powerups) do
   local cx,cy=p.x+4,p.y+4
-  local r=3+sin(p.anim)*0.5
-  circfill(cx,cy,r,p.col)
+  circfill(cx,cy,3+sin(p.anim)*0.5,p.col)
   pset(cx-1,cy-1,7)
-  -- pulsing glow ring
-  if sin(p.anim*2)>0 then
-   circ(cx,cy,r+1,7)
-  end
  end
 end
 
@@ -1345,19 +1354,14 @@ function draw_nameentry()
  -- draw 3 letter boxes
  for i=1,3 do
   local bx=40+(i-1)*18
-  local by=50
   local sel=i==ne_pos
-  local c=sel and 7 or 5
-  rect(bx,by,bx+12,by+12,c)
+  rect(bx,50,bx+12,62,sel and 7 or 5)
   if sel then
-   print("\131",bx+3,by-7,10)
-   print("\132",bx+3,by+14,10)
-   if flr(t()*2)%2==0 then
-    rectfill(bx+1,by+1,bx+11,by+11,1)
-   end
+   print("\131",bx+3,43,10)
+   print("\132",bx+3,64,10)
+   if flr(t()*2)%2==0 then rectfill(bx+1,51,bx+11,61,1) end
   end
-  local ch=chr(64+ne_chars[i])
-  print(ch,bx+3,by+3,sel and 10 or 7)
+  print(chr(64+ne_chars[i]),bx+3,53,sel and 10 or 7)
  end
 
  print("\142 confirm  \151 back",18,72,6)
