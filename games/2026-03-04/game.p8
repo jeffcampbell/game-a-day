@@ -84,16 +84,22 @@ achv_names={
  "close call","collector",
  "boss slayer","survivor",
  "hard mode","precision",
- "speed demon","legendary"
+ "speed demon","legendary",
+ "time master","flawless 90s"
 }
 boss_waves=0
 nm_count=0
 run_achv=0 -- achievements this run
+-- time attack mode
+is_ta=false
+ta_time=0
+ta_nodmg=true
+mode_sel=1
 
 function _init()
  cartdata(1)
  hiscore=dget(0)
- for i=1,10 do
+ for i=1,12 do
   achv[i]=dget(i)>0
  end
  for i=1,40 do
@@ -143,7 +149,9 @@ function update_difsel()
  if btnp(3) then diff_sel=min(3,diff_sel+1) end
  if btnp(4) then
   _log("difficulty:"..diff_names[diff_sel])
-  start_game()
+  state="mode_select"
+  mode_sel=1
+  _log("state:mode_select")
  end
  if btnp(5) then
   state="menu"
@@ -171,6 +179,43 @@ function draw_difsel()
   print(opts[i][1],18,y,col)
   print(opts[i][2],18,y+8,sel and 6 or 1)
  end
+ print("\142 select  \151 back",22,112,6)
+end
+
+-- mode select state
+function update_modesel()
+ if btnp(2) or btnp(3) then mode_sel=3-mode_sel end
+ if btnp(4) then
+  is_ta=mode_sel==2
+  _log("mode:"..(is_ta and "time_attack" or "normal"))
+  start_game()
+ end
+ if btnp(5) then
+  state="difficulty_select"
+  _log("state:difficulty_select")
+ end
+end
+
+function draw_modesel()
+ cls(0)
+ draw_stars()
+ print("select mode",32,16,10)
+ local opts={
+  {"normal","classic survival",7},
+  {"time attack","90s challenge! 1.5x",9}
+ }
+ for i=1,2 do
+  local y=40+(i-1)*28
+  local sel=i==mode_sel
+  local col=sel and opts[i][3] or 5
+  if sel then
+   rectfill(10,y-2,117,y+14,1)
+   print("\139",4,y+2,col)
+  end
+  print(opts[i][1],18,y,col)
+  print(opts[i][2],18,y+8,sel and 6 or 1)
+ end
+ print("["..diff_names[diff_sel].."]",44,92,5)
  print("\142 select  \151 back",22,112,6)
 end
 
@@ -229,7 +274,12 @@ function start_game()
  nm_count=0
  run_achv=0
  achv_flash=0
+ -- time attack setup
+ ta_time=is_ta and 2700 or 0
+ ta_nodmg=true
+ if is_ta then score_mult*=1.5 end
  _log("state:play")
+ if is_ta then _log("time_attack:start") end
 end
 
 function check_achv(id)
@@ -253,6 +303,19 @@ function update_play()
 
  -- score multiplier
  local smul=dblscore_timer>0 and 2 or 1
+
+ -- time attack countdown
+ if is_ta then
+  ta_time-=1
+  if ta_time<=0 then
+   ta_time=0
+   if score>500 then check_achv(11) end
+   if ta_nodmg then check_achv(12) end
+   _log("time_attack_complete:score="..score)
+   game_over()
+   return
+  end
+ end
 
  -- update time and score
  time_alive+=1
@@ -406,6 +469,7 @@ function update_play()
     shake=3
     sfx(4)
     dodge_combo=0
+    ta_nodmg=false
     _log("shield_absorb:remaining="..shield_count)
     _log("combo_reset:shield")
     for i=1,8 do
@@ -681,7 +745,23 @@ function draw_play()
 
  -- hud
  print("score:"..score,1,1,7)
- print("hi:"..hiscore,90,1,6)
+ -- time attack timer
+ if is_ta then
+  local secs=flr(ta_time/30)
+  local mm=flr(secs/60)
+  local ss=secs%60
+  local tstr=mm..":"
+  if ss<10 then tstr=tstr.."0" end
+  tstr=tstr..ss
+  local tc=secs>30 and 11 or (secs>10 and 10 or 8)
+  print(tstr,104,1,tc)
+  -- flash warning under 10s
+  if secs<=10 and anim_t%4<2 then
+   rect(0,0,127,127,8)
+  end
+ else
+  print("hi:"..hiscore,90,1,6)
+ end
  local dc=diff_sel==1 and 11 or (diff_sel==3 and 8 or 5)
  print(sub(diff_names[diff_sel],1,1),50,1,dc)
  print("lv"..diff_level,56,1,diff_level>=7 and 8 or 5)
@@ -790,8 +870,8 @@ function update_gameover()
   if inp&16>0 then
    start_game()
   elseif inp&32>0 then
-   state="difficulty_select"
-   _log("state:difficulty_select")
+   state="mode_select"
+   _log("state:mode_select")
   end
  end
  update_particles()
@@ -831,6 +911,9 @@ function draw_gameover()
 
  camera(0,0)
 
+ if is_ta then
+  print("time attack",36,17,9)
+ end
  print("game over",40,24,8)
  print("score: "..score,42,36,7)
  print("hi-score: "..hiscore,34,44,
@@ -843,7 +926,9 @@ function draw_gameover()
  end
 
  -- stats
- print("["..diff_names[diff_sel].."]",48,52,5)
+ local dtxt="["..diff_names[diff_sel].."]"
+ if is_ta then dtxt=dtxt.." ta" end
+ print(dtxt,44,52,5)
  local secs=flr(time_alive/30)
  print("survived:"..secs.."s lv:"..diff_level,22,59,5)
  local sy=66
@@ -862,12 +947,12 @@ function draw_gameover()
 
  -- achievement grid
  local total=0
- for i=1,10 do if achv[i] then total+=1 end end
+ for i=1,12 do if achv[i] then total+=1 end end
  local ay=max(sy+2,88)
- print("achievements:"..total.."/10",22,ay,total>=10 and 10 or 6)
+ print("achievements:"..total.."/12",22,ay,total>=12 and 10 or 6)
  ay+=7
- for i=1,10 do
-  local ax=14+(i-1)*10
+ for i=1,12 do
+  local ax=10+(i-1)*9
   if achv[i] then
    circfill(ax,ay+2,3,10)
    pset(ax-1,ay+1,7)
@@ -878,7 +963,7 @@ function draw_gameover()
 
  if go_timer>45 then
   if flr(t()*2)%2==0 then
-   print("\142 retry  \151 change diff",10,108,7)
+   print("\142 retry  \151 change mode",10,108,7)
   end
  end
 
@@ -955,6 +1040,7 @@ end
 function _update()
  if state=="menu" then update_menu()
  elseif state=="difficulty_select" then update_difsel()
+ elseif state=="mode_select" then update_modesel()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
  end
@@ -963,6 +1049,7 @@ end
 function _draw()
  if state=="menu" then draw_menu()
  elseif state=="difficulty_select" then draw_difsel()
+ elseif state=="mode_select" then draw_modesel()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
  end
