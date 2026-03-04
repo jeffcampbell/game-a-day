@@ -399,7 +399,7 @@ function start_game()
  state="play"
  ship_x=60
  meteors,particles,powerups={},{},{}
- score,time_alive,go_timer,spawn_timer,shake,flash=0,0,0,0,0,0
+ score,time_alive,go_timer,spawn_timer,shake,flash,diff_timer=0,0,0,0,0,0,0
  nm_flash,nm_streak,nm_best,nm_last_bonus=0,0,0,0
  shield_count,slowmo_timer,dblscore_timer,pu_flash,pu_collected,inv_timer=0,0,0,0,0,0
  boss_timer,boss_flash,last_boss_score,tele_timer,tele_dur,boss_vuln=0,0,0,0,0,0
