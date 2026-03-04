@@ -97,6 +97,11 @@ achv_names={
  "end survivor","end climber","untouchable"
 }
 boss_waves=0
+-- boss death fanfare
+bd_flash=0
+bd_flash_txt=""
+bd_x=64
+bd_y=40
 nm_count=0
 run_achv=0 -- achievements this run
 -- hazard meteor system
@@ -401,6 +406,8 @@ function start_game()
  combo_flash_txt=""
  -- reset per-run achievement trackers
  boss_waves=0
+ bd_flash=0
+ bd_flash_txt=""
  nm_count=0
  run_achv=0
  achv_flash=0
@@ -575,6 +582,23 @@ function update_play()
    boss_active=false
    boss_waves+=1
    if boss_waves>=5 then check_achv(5) end
+   -- boss death fanfare
+   local bpts=flr(100*score_mult)
+   score+=bpts
+   bd_flash=30
+   bd_flash_txt="+"..(bpts).." boss!"
+   bd_x=tele_x bd_y=40
+   shake+=8
+   sfx(6)
+   for i=1,10 do
+    local ang=i/10
+    add(particles,{
+     x=tele_x,y=40,
+     dx=cos(ang)*2,dy=sin(ang)*2,
+     life=20,col=10
+    })
+   end
+   _log("boss_defeated:+"..bpts)
    _log("boss_survived:"..boss_waves)
    -- gauntlet victory
    if is_gauntlet and g_round>=5 then
@@ -753,6 +777,7 @@ function update_play()
  if pu_flash>0 then pu_flash-=1 end
  if combo_flash>0 then combo_flash-=1 end
  if achv_flash>0 then achv_flash-=1 end
+ if bd_flash>0 then bd_flash-=1 end
 
  -- achievement checks
  if dodge_combo>=5 then check_achv(1) end
@@ -1236,6 +1261,15 @@ function draw_play()
   local cc=combo_flash>20 and 10 or
    (combo_flash>10 and 9 or 5)
   print(combo_flash_txt,cx,cy,cc)
+ end
+
+ -- boss death fanfare popup
+ if bd_flash>0 then
+  local bx=bd_x-#bd_flash_txt*2
+  local by=bd_y-flr((30-bd_flash)/2)
+  local bc=bd_flash>20 and 10 or
+   (bd_flash>10 and 9 or 5)
+  print(bd_flash_txt,bx,by,bc)
  end
 
  -- achievement unlock notification
@@ -1731,3 +1765,4 @@ __sfx__
 000300001d0501d0401d0301d0201d010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000300001c0501e050200502204024030260202801028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000500001505018050200502405028050240502005018050150500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000800001505018050200502405028050300503405038050340503005028050240502005018050150500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
