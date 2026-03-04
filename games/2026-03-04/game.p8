@@ -55,7 +55,6 @@ time_alive=0
 go_timer=0
 ship_x=60
 ship_y=116
-ship_w=7
 meteors={}
 particles={}
 stars={}
@@ -72,7 +71,6 @@ diff_level=1
 diff_sel=2 -- 1=easy,2=normal,3=hard
 score_mult=1.0
 -- near-miss system
-near_miss_dist=12
 nm_flash=0
 nm_streak=0
 nm_best=0
@@ -193,16 +191,10 @@ function load_dlb(d)
  lb_scores={} lb_names={}
  lb_load(lb_bs[d],lb_scores,lb_names)
 end
-function save_dlb(d) lb_save(lb_bs[d],lb_scores,lb_names) end
-function any_rank(s,ls)
- for i=1,5 do if s>ls[i] then return i end end
- return 0
-end
 function load_elb()
  elb_scores={} elb_names={}
  lb_load(lb_bs[4],elb_scores,elb_names)
 end
-function save_elb() lb_save(lb_bs[4],elb_scores,elb_names) end
 function g_ls() return is_endless and elb_scores or lb_scores end
 function g_ln() return is_endless and elb_names or lb_names end
 function _init()
@@ -250,7 +242,7 @@ function draw_menu()
  local ty=20+sin(t()*0.3)*3
  print("\135 meteor dodge \135",16,ty,10)
  print("dodge the falling meteors!",10,40,7)
- draw_meteor(64,60+sin(t()*0.5)*6,flr(t()*4)%2)
+ draw_meteor(64,60+sin(t()*0.5)*6,flr(t()*4)%2,7,8,10)
  print("\139\145 move left/right",28,80,6)
  print("collect power-ups!",28,90,12)
  if flr(t()*2)%2==0 then
@@ -405,77 +397,31 @@ end
 function start_game()
  load_dlb(diff_sel)
  state="play"
- score=0
- time_alive=0
- go_timer=0
  ship_x=60
- meteors={}
- particles={}
- spawn_timer=0
+ meteors,particles,powerups={},{},{}
+ score,time_alive,go_timer,spawn_timer,shake,flash,diff_timer=0,0,0,0,0,0,0
+ nm_flash,nm_streak,nm_best,nm_last_bonus=0,0,0,0
+ shield_count,slowmo_timer,dblscore_timer,pu_flash,pu_collected,inv_timer=0,0,0,0,0,0
+ boss_timer,boss_flash,last_boss_score,tele_timer,tele_dur,boss_vuln=0,0,0,0,0,0
+ dodge_combo,dodge_best,combo_flash=0,0,0
+ boss_waves,boss_tier,boss_n,bd_flash,nm_count,achv_flash=0,0,0,0,0,0
+ ice_slow,sp_frag,ph_dodged,g_timer,g_trans,e_timer=0,0,0,0,0,0
+ boss_active,shld_burst,dbl_atk,g_won=false,false,false,false
+ ta_nodmg,g_nodmg,e_nodmg=true,true,true
+ pu_flash_txt,combo_flash_txt,bd_flash_txt="","",""
+ boss_atk,boss_type,diff_level=1,1,1
+ hz_ct={0,0,0,0,0}
  -- apply difficulty settings
  local ds={{50,0.8,1.0},{40,1.0,1.0},{30,1.2,1.5}}
  local d=ds[diff_sel]
  spawn_rate=d[1] meteor_speed=d[2] score_mult=d[3]
- diff_timer=0
- diff_level=1
- shake=0
- flash=0
- nm_flash=0
- nm_streak=0
- nm_best=0
- nm_last_bonus=0
- -- reset power-ups
- powerups={}
- shield_count=0
- slowmo_timer=0
- dblscore_timer=0
- pu_flash=0
- pu_flash_txt=""
- pu_collected=0
- inv_timer=0
- shld_burst=false
- -- reset boss wave
- boss_active=false
- boss_timer=0
- boss_flash=0
- last_boss_score=0
- boss_atk=1
- boss_type=1
- tele_timer=0
- tele_dur=0
- boss_vuln=0
- dbl_atk=false
- -- reset dodge combo
- dodge_combo=0
- dodge_best=0
- combo_flash=0
- combo_flash_txt=""
- -- reset per-run achievement trackers
- boss_waves=0
- boss_tier=0 boss_n=0
- bd_flash=0
- bd_flash_txt=""
- nm_count=0
- achv_flash=0
- -- reset hazard trackers
- ice_slow=0
- hz_ct={0,0,0,0,0} sp_frag=0
- ph_dodged=0
  -- time attack setup
  ta_time=is_ta and 1500 or 0
- ta_nodmg=true
  if is_ta then score_mult*=1.5 end
  -- gauntlet setup
  g_round=is_gauntlet and 1 or 0
- g_timer=0
- g_trans=0
- g_nodmg=true
- g_won=false
- g_rdur=ds(1500,2250,1800)
  if is_gauntlet then score_mult*=1.3 end
  -- endless setup
- e_timer=0
- e_nodmg=true
  if is_endless then score_mult=1.0 end
  -- apply modifier effects
  if band(mod_active,2)>0 then meteor_speed*=1.5 end
@@ -549,7 +495,7 @@ function update_play()
  -- gauntlet round timer
  if is_gauntlet and g_round>=1 and g_round<=4 then
   g_timer+=1
-  if g_timer>=g_rdur then
+  if g_timer>=ds(1500,2250,1800) then
    if g_round==2 then check_achv(18) end
    g_trans=60
   end
@@ -699,7 +645,7 @@ function update_play()
    local dx=abs((m.x+m.sz/2)-scx)
    local dy=abs((m.y-m.spd*spd_mul)-scy)
    local dist=sqrt(dx*dx+dy*dy)
-   local nm_d=m.htype==2 and near_miss_dist*0.75 or near_miss_dist
+   local nm_d=m.htype==2 and 9 or 12
    local hzm={1.2,1,1.5,2,1,1.3}
    local hzmul=m.htype>0 and hzm[m.htype] or 1
    if dist<nm_d then
@@ -753,7 +699,7 @@ function update_play()
 
  -- collision check
  for m in all(meteors) do
-  if check_col(ship_x,ship_y,ship_w,6,
+  if check_col(ship_x,ship_y,7,6,
    m.x,m.y,m.sz,m.sz) then
    if inv_timer>0 then
     -- invincibility: destroy meteor, award points
@@ -848,7 +794,7 @@ function update_powerups()
   p.y+=p.spd
   p.anim+=0.05
   -- collect check (slightly larger hitbox for easier pickup)
-  if check_col(ship_x,ship_y,ship_w,6,p.x-1,p.y-1,10,10) then
+  if check_col(ship_x,ship_y,7,6,p.x-1,p.y-1,10,10) then
    collect_powerup(p)
    deli(powerups,i)
   elseif p.y>140 then
@@ -1010,7 +956,9 @@ function game_over()
  sfx(1)
 
  -- check leaderboard qualification
- ne_rank=any_rank(score,g_ls())
+ ne_rank=0
+ local _r=g_ls()
+ for i=1,5 do if score>_r[i] then ne_rank=i break end end
  go_timer=0
  if ne_rank>0 then
   state="name_entry"
@@ -1085,7 +1033,11 @@ function draw_play()
  end
 
  -- draw power-ups
- draw_powerups()
+ for p in all(powerups) do
+  local cx,cy=p.x+4,p.y+4
+  circfill(cx,cy,3+sin(p.anim)*0.5,p.col)
+  pset(cx-1,cy-1,7)
+ end
 
  -- draw particles
  draw_particles()
@@ -1186,7 +1138,7 @@ function draw_play()
   local rc=rn<=4 and g_rcols[rn] or 8
   print(rtxt,1,122,rc)
   if rn<=4 then
-   local pct=min(g_timer/g_rdur,1)
+   local pct=min(g_timer/ds(1500,2250,1800),1)
    rectfill(1,118,1+pct*40,120,rc)
    rect(1,118,41,120,5)
   end
@@ -1262,27 +1214,14 @@ function draw_play()
  end
 end
 
--- draw power-up items
-function draw_powerups()
- for p in all(powerups) do
-  local cx,cy=p.x+4,p.y+4
-  circfill(cx,cy,3+sin(p.anim)*0.5,p.col)
-  pset(cx-1,cy-1,7)
- end
-end
-
 -- leaderboard view state
 lb_dnames={"easy","normal","hard","endless"}
-function lb_reload()
- if lb_vd<4 then load_dlb(lb_vd)
- else load_elb() end
-end
 function update_lbview()
  local prev=lb_vd
  if btnp(0) then lb_vd=max(1,lb_vd-1) end
  if btnp(1) then lb_vd=min(4,lb_vd+1) end
  if lb_vd!=prev then
-  lb_reload()
+  if lb_vd<4 then load_dlb(lb_vd) else load_elb() end
   _log("lb_switch:"..lb_dnames[lb_vd])
  end
  if btnp(4) or btnp(5) then
@@ -1341,7 +1280,7 @@ function update_nameentry()
    hiscore=score
    dset(0,hiscore)
   end
-  if is_endless then save_elb() else save_dlb(diff_sel) end
+  if is_endless then lb_save(lb_bs[4],elb_scores,elb_names) else lb_save(lb_bs[diff_sel],lb_scores,lb_names) end
   sfx(4)
   state="gameover"
   go_timer=0
@@ -1477,7 +1416,6 @@ function draw_ship(x,y)
 end
 
 function draw_meteor(x,y,frame,sz,col,col2)
- sz=sz or 7 col=col or 8 col2=col2 or 10
  local r=sz\2
  local d=frame==0 and -1 or 1
  circfill(x+r,y+r,r,col)
