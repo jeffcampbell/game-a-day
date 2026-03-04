@@ -36,11 +36,14 @@ function upd_stars(m)
   if s.y>128 then s.y=0 s.x=rnd(128) end
  end
 end
+function fmt_t(f)
+ local s=flr(f/30)
+ local m=flr(s/60)
+ s=s%60
+ return m..":"..( s<10 and "0" or "")..s
+end
 function lbp(i)
- if is_endless then return "" end
- if lb_gflag[i] then return "[g]" end
- if lb_mflag[i] then return "[m]" end
- return ""
+ return is_endless and "" or lb_gflag[i] and "[g]" or lb_mflag[i] and "[m]" or ""
 end
 
 -- game state
@@ -120,7 +123,6 @@ bd_flash_txt=""
 bd_x=64
 bd_y=40
 nm_count=0
-run_achv=0 -- achievements this run
 -- hazard meteor system
 -- 0=normal,1=radioactive,2=ice,3=magnetic,4=corrupted
 ice_slow=0
@@ -442,7 +444,6 @@ function update_modsel()
    v=flr(v/2)
   end
   sfx(2)
-  _log("mod_toggle:"..md[1])
  end
  if btnp(5) then
   _log("modifiers:"..mod_active.." count="..mod_count)
@@ -533,7 +534,6 @@ function start_game()
  bd_flash=0
  bd_flash_txt=""
  nm_count=0
- run_achv=0
  achv_flash=0
  -- reset hazard trackers
  ice_slow=0
@@ -564,10 +564,6 @@ function start_game()
  end
  if mod_count>0 then score_mult+=mod_count*0.1 end
  _log("state:play")
- if is_ta then _log("time_attack:start") end
- if is_gauntlet then _log("gauntlet:start round=1") end
- if is_endless then _log("endless:start") end
- if mod_count>0 then _log("modifiers:"..mod_active.." count="..mod_count) end
 end
 
 function check_achv(id)
@@ -577,7 +573,6 @@ function check_achv(id)
  dset(slot,1)
  achv_flash=45
  achv_flash_txt=achv_names[id]
- run_achv+=1
  sfx(4)
  _log("achievement:"..achv_names[id])
 end
@@ -594,7 +589,6 @@ function update_play()
    g_timer=0
    if g_round>=5 then
     trigger_boss_wave()
-    _log("gauntlet_boss_start")
    end
    _log("gauntlet_round:"..g_round)
   end
@@ -631,9 +625,6 @@ function update_play()
  time_alive+=1
  if time_alive%30==0 then
   score+=flr(smul*score_mult)
-  if score%10==0 then
-   _log("score:"..score)
-  end
  end
 
  -- gauntlet round timer
@@ -652,7 +643,6 @@ function update_play()
   if e_timer>=3600 then
    e_timer=0
    score_mult=min(3.0,score_mult+0.1)
-   _log("endless_mult:"..score_mult)
   end
  end
  -- difficulty ramp (endless: faster)
@@ -733,7 +723,6 @@ function update_play()
     })
    end
    _log("boss_defeated:+"..bpts)
-   _log("boss_survived:"..boss_waves)
    -- gauntlet victory
    if is_gauntlet and g_round>=5 then
     check_achv(19)
@@ -803,7 +792,6 @@ function update_play()
     local vmul=boss_vuln>0 and 2 or 1
     local bpts=flr(5*smul*score_mult*vmul)
     score+=bpts
-    _log("boss_dodge:+"..bpts)
    end
    local dx=abs((m.x+m.sz/2)-scx)
    local dy=abs((m.y-m.spd*spd_mul)-scy)
@@ -838,9 +826,6 @@ function update_play()
       dx=rnd(2)-1,dy=-1-rnd(1),
       life=12,col=10
      })
-    end
-    if nm_streak>=3 then
-     _log("near_miss_streak:"..nm_streak)
     end
    end
   end
@@ -877,7 +862,6 @@ function update_play()
     g_nodmg=false
     e_nodmg=false
     _log("shield_absorb:remaining="..shield_count)
-    _log("combo_reset:shield")
     for i=1,8 do
      add(particles,{
       x=ship_x+3,y=ship_y+3,
@@ -926,24 +910,16 @@ end
 -- power-up functions
 function spawn_powerup()
  if band(mod_active,1)>0 then return end
- -- types: 1=shield(12), 2=slowmo(11), 3=dblpts(10), 4=rapid shield(13)
- local typs={
-  {name="shield",col=12},
-  {name="slow-mo",col=11},
-  {name="2x pts",col=10},
-  {name="2x shld",col=13}
- }
- -- weighted: shield 35%, slowmo 25%, dblpts 25%, rapid 15%
+ local pn={"shield","slow-mo","2x pts","2x shld"}
+ local pc={12,11,10,13}
  local r=rnd()
  local ti=r<0.35 and 1 or (r<0.6 and 2 or (r<0.85 and 3 or 4))
- local tp=typs[ti]
  add(powerups,{
   x=rnd(120),y=-8,
   spd=0.5+rnd(0.3),
-  typ=ti,col=tp.col,
-  name=tp.name,anim=rnd(1)
+  typ=ti,col=pc[ti],
+  name=pn[ti],anim=rnd(1)
  })
- _log("powerup_spawn:"..tp.name)
 end
 
 function update_powerups()
@@ -975,9 +951,6 @@ function collect_powerup(p)
  pu_flash_txt="+"..p.name
  pu_collected+=1
  sfx(4)
- if dodge_combo>0 then
-  _log("combo_reset:powerup")
- end
  dodge_combo=0
  _log("powerup_collect:"..p.name)
  if pu_collected>=10 then check_achv(4) end
@@ -1085,7 +1058,6 @@ function execute_boss_attack()
  boss_vuln=10
  sfx(5)
  _log("boss_attack:"..atk)
- _log("boss:vulnerable")
 end
 
 -- combo milestones: 5x,10x,15x,20x
@@ -1134,7 +1106,6 @@ function game_over()
  if score>hiscore then
   hiscore=score
   dset(0,hiscore)
-  _log("new_hiscore:"..hiscore)
  end
 
  for i=1,30 do
@@ -1274,25 +1245,14 @@ function draw_play()
  print("score:"..score,1,1,hcol)
  -- endless timer + multiplier
  if is_endless then
-  local es=flr(time_alive/30)
-  local em=flr(es/60)
-  local ess=es%60
-  local etstr=em..":"
-  if ess<10 then etstr=etstr.."0" end
-  etstr=etstr..ess
-  print(etstr,90,1,12)
+  print(fmt_t(time_alive),90,1,12)
   -- show current multiplier
   local mtxt=score_mult.."x"
   print(mtxt,104,1,score_mult>=2 and 11 or 12)
  elseif is_ta then
   local secs=flr(ta_time/30)
-  local mm=flr(secs/60)
-  local ss=secs%60
-  local tstr=mm..":"
-  if ss<10 then tstr=tstr.."0" end
-  tstr=tstr..ss
   local tc=secs>30 and 11 or (secs>10 and 10 or 8)
-  print(tstr,104,1,tc)
+  print(fmt_t(ta_time),104,1,tc)
   -- flash warning under 10s
   if secs<=10 and anim_t%4<2 then
    rect(0,0,127,127,8)
