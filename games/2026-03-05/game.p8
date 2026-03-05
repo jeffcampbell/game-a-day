@@ -38,6 +38,9 @@ state="menu"
 score,combo,level=0,0,1
 target=1000
 diff=2 -- 1=easy,2=normal,3=hard
+gmode=1 -- 1=normal, 2=time attack
+timer=0 -- frames remaining (time attack)
+tbonus=0 -- time bonus score
 ncols=7 -- number of gem colors
 grid={}
 cx,cy=1,1 -- cursor position
@@ -66,17 +69,19 @@ name_chars="abcdefghijklmnopqrstuvwxyz "
 function _init()
  -- load hiscore
  hiscore=dget(0)
- for i=0,4 do
-  local s=dget(i*2+1)
+ for i=0,9 do
+  local base=i*3+1
+  local s=dget(base)
+  local nv=dget(base+1)
+  local md=dget(base+2)
   local n=""
-  local nv=dget(i*2+2)
   -- decode name from number
   if s>0 then
    for j=0,2 do
     local c=flr(nv/(27^(2-j)))%27
     n=n..sub(name_chars,c+1,c+1)
    end
-   add(lb,{score=s,name=n})
+   add(lb,{score=s,name=n,mode=md>0 and md or 1})
   end
  end
  _log("state:menu")
@@ -430,6 +435,12 @@ function start_game()
  else
   ncols=6 target=1500
  end
+ tbonus=0
+ if gmode==2 then
+  timer=90*30 -- 90 seconds at 30fps
+ else
+  timer=0
+ end
  make_grid()
  state="play"
  _log("state:play")
@@ -439,6 +450,7 @@ end
 -- update functions
 function _update()
  if state=="menu" then update_menu()
+ elseif state=="mode" then update_mode()
  elseif state=="diff" then update_diff()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
@@ -465,9 +477,27 @@ end
 function update_menu()
  local b=test_input()
  if b&16>0 then -- O button
+  state="mode"
+  _log("state:mode")
+  sfx(0)
+ end
+end
+
+function update_mode()
+ local b=test_input()
+ if b&4>0 or b&8>0 then
+  gmode=3-gmode -- toggle 1<->2
+  sfx(1)
+ end
+ if b&16>0 then
   state="diff"
   _log("state:diff")
+  _log("mode:"..(gmode==1 and "normal" or "timeattack"))
   sfx(0)
+ end
+ if b&32>0 then
+  state="menu"
+  _log("state:menu")
  end
 end
 
@@ -497,6 +527,21 @@ function update_play()
    _log("state:menu")
   end
   return
+ end
+
+ -- time attack timer
+ if gmode==2 and not swapping and not falling then
+  timer-=1
+  if timer<=0 then
+   timer=0
+   tbonus=0
+   state="gameover"
+   _log("state:gameover")
+   _log("time_up")
+   _log("final_score:"..score)
+   sfx(5)
+   return
+  end
  end
 
  -- combo decay
@@ -577,11 +622,10 @@ function update_play()
     fall_t=0
    else
     falling=false
-    -- check win
-    if score>=target then
+    -- check win (normal mode only)
+    if gmode==1 and score>=target then
      level+=1
      _log("level:"..level)
-     score=score -- keep score
      target+=500
      ncols=max(5,ncols-1)
      make_grid()
@@ -591,10 +635,17 @@ function update_play()
     -- check no moves
     if not has_valid_move() then
      no_moves=true
-     state="gameover"
-     _log("state:gameover")
-     _log("final_score:"..score)
-     sfx(5)
+     if gmode==2 then
+      -- in time attack, reshuffle instead of game over
+      make_grid()
+      add_float("reshuffle!",34,60,9)
+      sfx(1)
+     else
+      state="gameover"
+      _log("state:gameover")
+      _log("final_score:"..score)
+      sfx(5)
+     end
     end
    end
   end
@@ -638,11 +689,17 @@ function update_play()
  end
 end
 
+function final_score()
+ return score+tbonus
+end
+
 function update_gameover()
  local b=test_input()
  if b&16>0 then
-  -- check leaderboard
-  if #lb<5 or score>lb[#lb].score then
+  local fs=final_score()
+  -- check leaderboard (mode-filtered)
+  local mlb=get_mode_lb()
+  if #mlb<5 or fs>mlb[#mlb].score then
    state="name_entry"
    name_buf="aaa"
    name_idx=1
@@ -652,6 +709,14 @@ function update_gameover()
    _log("state:menu")
   end
  end
+end
+
+function get_mode_lb()
+ local r={}
+ for e in all(lb) do
+  if (e.mode or 1)==gmode then add(r,e) end
+ end
+ return r
 end
 
 function update_name()
@@ -680,7 +745,7 @@ function update_name()
   name_idx+=1
   if name_idx>3 then
    -- save to leaderboard
-   add(lb,{score=score,name=name_buf})
+   add(lb,{score=final_score(),name=name_buf,mode=gmode})
    -- sort descending
    for i=1,#lb do
     for j=i+1,#lb do
@@ -689,8 +754,14 @@ function update_name()
      end
     end
    end
-   -- trim to 5
-   while #lb>5 do deli(lb,#lb) end
+   -- trim to 5 per mode
+   local cnt1,cnt2=0,0
+   for i=#lb,1,-1 do
+    local m=lb[i].mode or 1
+    if m==1 then cnt1+=1 if cnt1>5 then deli(lb,i) end
+    else cnt2+=1 if cnt2>5 then deli(lb,i) end
+    end
+   end
    -- persist
    save_lb()
    _log("leaderboard_saved")
@@ -705,8 +776,9 @@ end
 
 function save_lb()
  dset(0,lb[1] and lb[1].score or 0)
- for i=1,min(5,#lb) do
-  dset(i*2-1,lb[i].score)
+ for i=1,min(#lb,10) do
+  local base=(i-1)*3+1
+  dset(base,lb[i].score)
   -- encode name as number
   local nv=0
   for j=1,3 do
@@ -718,7 +790,13 @@ function save_lb()
     end
    end
   end
-  dset(i*2,nv)
+  dset(base+1,nv)
+  dset(base+2,lb[i].mode or 1)
+ end
+ -- clear unused slots
+ for i=#lb+1,10 do
+  local base=(i-1)*3+1
+  dset(base,0)
  end
 end
 
@@ -729,6 +807,7 @@ function _draw()
  camera(sx,sy)
  cls(1)
  if state=="menu" then draw_menu()
+ elseif state=="mode" then draw_mode()
  elseif state=="diff" then draw_diff()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
@@ -752,13 +831,28 @@ function draw_menu()
  print("match-3 puzzle",30,32,7)
  rectfill(30,50,98,62,5)
  print("press \x97 to start",32,54,10)
- -- leaderboard
- if #lb>0 then
-  print("-- high scores --",22,72,6)
-  for i=1,min(5,#lb) do
-   print(i..". "..lb[i].name.." "..lb[i].score,30,80+i*8,7)
+ -- leaderboard (show current mode)
+ local mlb=get_mode_lb()
+ if #mlb>0 then
+  local mn=gmode==1 and "normal" or "time atk"
+  print("-- "..mn.." scores --",18,72,6)
+  for i=1,min(5,#mlb) do
+   print(i..". "..mlb[i].name.." "..mlb[i].score,30,80+i*8,7)
   end
  end
+end
+
+function draw_mode()
+ print("game mode",38,20,10)
+ local modes={"normal","time attack"}
+ local descs={"reach target scores","90 second score rush"}
+ for i=1,2 do
+  local c=6
+  if i==gmode then c=10 end
+  print(modes[i],42,40+i*16,c)
+  print(descs[i],22,48+i*16,5)
+ end
+ print("\x83/\x84 select  \x97 confirm",14,110,6)
 end
 
 function draw_diff()
@@ -778,11 +872,24 @@ function draw_play()
  -- ui bar
  rectfill(0,0,127,15,0)
  print("score:"..score,2,2,7)
- print("lvl:"..level,90,2,7)
+ if gmode==2 then
+  -- time attack: show timer
+  local secs=flr(timer/30)
+  local m=flr(secs/60)
+  local s=secs%60
+  local ts=tostr(m)..":"..( s<10 and "0"..tostr(s) or tostr(s))
+  local tc=7
+  if secs<=10 then tc=8 end
+  if secs<=5 then tc=flr(t()*4)%2==0 and 8 or 7 end
+  print(ts,90,2,tc)
+  print("time attack",34,9,9)
+ else
+  print("lvl:"..level,90,2,7)
+  print("goal:"..target,2,9,6)
+ end
  if combo>1 then
   print(combo.."x",58,2,10)
  end
- print("goal:"..target,2,9,6)
 
  -- draw grid bg
  rectfill(gox-1,goy-1,gox+gw*gs,goy+gh*gs,0)
@@ -856,14 +963,22 @@ end
 function draw_gameover()
  rectfill(15,25,113,105,0)
  rect(15,25,113,105,7)
- if no_moves then
-  print("no moves left!",28,32,8)
+ if gmode==2 then
+  print("time's up!",36,32,8)
+  print("score: "..score,38,48,10)
+  print("time bonus: +"..tbonus,26,58,9)
+  print("final: "..(score+tbonus),34,68,10)
+  print("combo max: "..combo,30,78,11)
  else
-  print("game over",38,32,8)
+  if no_moves then
+   print("no moves left!",28,32,8)
+  else
+   print("game over",38,32,8)
+  end
+  print("score: "..score,38,48,10)
+  print("level: "..level,38,58,7)
+  print("combo max: "..combo,30,68,11)
  end
- print("score: "..score,38,48,10)
- print("level: "..level,38,58,7)
- print("combo max: "..combo,30,68,11)
  print("press \x97",46,90,6)
 end
 
@@ -871,7 +986,7 @@ function draw_name()
  rectfill(15,30,113,98,0)
  rect(15,30,113,98,7)
  print("new high score!",26,36,10)
- print("score: "..score,38,48,7)
+ print("score: "..final_score(),38,48,7)
  print("enter name:",32,60,6)
  for i=1,3 do
   local ch=sub(name_buf,i,i)
