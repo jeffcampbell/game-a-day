@@ -59,6 +59,10 @@ float_texts={}
 shake=0
 combo_timer=0
 hiscore=0
+-- cascade tracking
+casc=0 -- current cascade count
+casc_max=0 -- max cascade this game
+casc_total=0 -- total cascades this game
 e_bg=1 -- endless bg color
 -- leaderboard
 lb={}
@@ -83,6 +87,9 @@ ach_defs={
  {n="conqueror",d="500+ on hard",th=500,t="hardscore"},
  {n="big spender",d="score 5000+ pts",th=5000,t="score"},
  {n="marathon",d="endless lvl 10",th=10,t="endless"},
+ {n="chain react",d="2+ cascade",th=2,t="casc"},
+ {n="unstop casc",d="4+ cascade",th=4,t="casc"},
+ {n="casc master",d="10 cascades/game",th=10,t="cascg"},
 }
 ach_unlocked={}
 ach_popup=nil -- {name,timer}
@@ -170,6 +177,10 @@ function check_achs()
  if diff==3 and score>=500 then try_ach(12) end
  -- marathon runner: endless lvl 10
  if gmode==3 and level>=10 then try_ach(14) end
+ -- cascade achievements
+ if casc>=2 then try_ach(15) end
+ if casc>=4 then try_ach(16) end
+ if casc_total>=10 then try_ach(17) end
 end
 
 function make_grid()
@@ -525,6 +536,7 @@ function start_game()
   ncols=6 target=1500
  end
  tbonus=0
+ casc,casc_max,casc_total=0,0,0
  if gmode==2 then
   timer=90*30 -- 90 seconds at 30fps
  else
@@ -698,6 +710,7 @@ function update_play()
     sfx(3)
    else
     -- process matches
+    casc=0 -- reset cascade on new move
     combo+=1
     combo_timer=45
     local pts=cnt*10*combo
@@ -738,9 +751,17 @@ function update_play()
    -- check for cascades
    local m,cnt,grps=find_matches()
    if cnt>0 then
+    casc+=1
+    casc_total+=1
+    if casc>casc_max then casc_max=casc end
     combo+=1
     combo_timer=45
-    local pts=cnt*10*combo+5
+    -- cascade multiplier: 1.0 base, +0.5 per cascade level
+    local cmult=1+casc*0.5
+    local pts=flr((cnt*10*combo+5)*cmult)
+    -- cascade bonus on top
+    local cbonus=casc*100
+    pts+=cbonus
     local had_pup=clear_matches(m,grps)
     if had_pup then
      pts=flr(pts*1.5)
@@ -749,13 +770,21 @@ function update_play()
     score+=pts
     total_gems+=cnt
     check_achs()
-    _log("cascade:"..cnt.." combo:"..combo.." score:"..score)
-    shake=3
+    _log("cascade:"..casc)
+    _log("cascade_bonus:"..cbonus)
+    _log("cascade_match:"..cnt.." combo:"..combo.." score:"..score)
+    -- cascade visual: scaled shake + color-coded text
+    shake=min(3+casc*2,10)
     sfx(2)
+    -- cascade color: white->yellow->orange->red
+    local ccol=casc>=4 and 8 or casc>=3 and 9 or casc>=2 and 10 or 7
+    add_float("cascade x"..casc.."!",24,30,ccol)
     add_float(pts.."",64,50,had_pup and 14 or 11)
-    if combo>=2 then
-     add_float(combo.."x!",64,40,
-      combo>=4 and 8 or combo>=3 and 9 or 10)
+    -- extra particles for cascades
+    for i=1,casc*4 do
+     add(particles,{x=64,y=64,
+      dx=rnd(8)-4,dy=rnd(8)-4,
+      life=20+rnd(15),c=ccol})
     end
     fall_t=0
    else
@@ -1079,6 +1108,10 @@ function draw_play()
  if combo>1 then
   print(combo.."x",58,2,10)
  end
+ if casc>0 then
+  local ccol=casc>=4 and 8 or casc>=3 and 9 or casc>=2 and 10 or 7
+  print("casc:"..casc,90,9,ccol)
+ end
 
  -- draw grid bg
  rectfill(gox-1,goy-1,gox+gw*gs,goy+gh*gs,0)
@@ -1161,30 +1194,36 @@ function draw_play()
 end
 
 function draw_gameover()
- rectfill(15,25,113,105,0)
- rect(15,25,113,105,7)
+ rectfill(15,20,113,110,0)
+ rect(15,20,113,110,7)
  if gmode==2 then
-  print("time's up!",36,32,8)
-  print("score: "..score,38,48,10)
-  print("time bonus: +"..tbonus,26,58,9)
-  print("final: "..(score+tbonus),34,68,10)
-  print("combo max: "..combo,30,78,11)
- elseif gmode==3 then
-  print("endless over!",30,32,12)
-  print("survived "..level.." levels",22,48,11)
-  print("score: "..score,38,58,10)
+  print("time's up!",36,26,8)
+  print("score: "..score,38,38,10)
+  print("time bonus: +"..tbonus,26,48,9)
+  print("final: "..(score+tbonus),34,58,10)
   print("combo max: "..combo,30,68,11)
+ elseif gmode==3 then
+  print("endless over!",30,26,12)
+  print("survived "..level.." levels",22,38,11)
+  print("score: "..score,38,48,10)
+  print("combo max: "..combo,30,58,11)
  else
   if no_moves then
-   print("no moves left!",28,32,8)
+   print("no moves left!",28,26,8)
   else
-   print("game over",38,32,8)
+   print("game over",38,26,8)
   end
-  print("score: "..score,38,48,10)
-  print("level: "..level,38,58,7)
-  print("combo max: "..combo,30,68,11)
+  print("score: "..score,38,38,10)
+  print("level: "..level,38,48,7)
+  print("combo max: "..combo,30,58,11)
  end
- print("press \x97",46,90,6)
+ -- cascade stats
+ local cy2=gmode==2 and 78 or 68
+ if casc_max>0 or casc_total>0 then
+  print("max cascade: "..casc_max,26,cy2,9)
+  print("total cascades: "..casc_total,20,cy2+10,9)
+ end
+ print("press \x97",46,100,6)
 end
 
 function draw_name()
