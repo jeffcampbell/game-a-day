@@ -65,6 +65,32 @@ name_buf=""
 name_idx=1
 name_chars="abcdefghijklmnopqrstuvwxyz "
 
+-- achievements
+-- {name, desc, threshold, slot(dget/dset offset from 31)}
+ach_defs={
+ {n="unstoppable",d="5+ combo",th=5,t="combo"},
+ {n="rampage",d="10+ combo",th=10,t="combo"},
+ {n="master",d="15+ combo",th=15,t="combo"},
+ {n="crusher",d="clear 100 gems",th=100,t="gems"},
+ {n="annihilator",d="clear 500 gems",th=500,t="gems"},
+ {n="gem lord",d="clear 1000 gems",th=1000,t="gems"},
+ {n="explosive",d="5 bombs activated",th=5,t="bombs"},
+ {n="striped",d="5 stripes activated",th=5,t="stripes"},
+ {n="colorful",d="5 color bombs used",th=5,t="cbombs"},
+ {n="speed runner",d="time atk under 45s",th=1,t="speed"},
+ {n="pioneer",d="reach lvl 3 normal",th=3,t="level"},
+ {n="conqueror",d="500+ on hard",th=500,t="hardscore"},
+ {n="big spender",d="score 5000+ pts",th=5000,t="score"},
+}
+ach_unlocked={}
+ach_popup=nil -- {name,timer}
+-- persistent stats
+total_gems=0
+total_bombs=0
+total_stripes=0
+total_cbombs=0
+max_combo_ever=0
+
 -- init
 function _init()
  -- load hiscore
@@ -84,7 +110,62 @@ function _init()
    add(lb,{score=s,name=n,mode=md>0 and md or 1})
   end
  end
+ -- load achievements + persistent stats
+ for i=1,#ach_defs do
+  ach_unlocked[i]=dget(30+i)>0
+ end
+ total_gems=dget(44)
+ total_bombs=dget(45)
+ total_stripes=dget(46)
+ total_cbombs=dget(47)
+ max_combo_ever=dget(48)
  _log("state:menu")
+end
+
+function save_ach()
+ for i=1,#ach_defs do
+  dset(30+i,ach_unlocked[i] and 1 or 0)
+ end
+ dset(44,total_gems)
+ dset(45,total_bombs)
+ dset(46,total_stripes)
+ dset(47,total_cbombs)
+ dset(48,max_combo_ever)
+end
+
+function try_ach(idx)
+ if not ach_unlocked[idx] then
+  ach_unlocked[idx]=true
+  ach_popup={n=ach_defs[idx].n,t=90}
+  shake=5
+  sfx(4)
+  save_ach()
+  _log("ach_unlock:"..ach_defs[idx].n)
+ end
+end
+
+function check_achs()
+ -- combo achievements
+ if combo>=5 then try_ach(1) end
+ if combo>=10 then try_ach(2) end
+ if combo>=15 then try_ach(3) end
+ if max_combo_ever<combo then max_combo_ever=combo end
+ -- gem clearing (persistent)
+ if total_gems>=100 then try_ach(4) end
+ if total_gems>=500 then try_ach(5) end
+ if total_gems>=1000 then try_ach(6) end
+ -- power-up usage (persistent)
+ if total_bombs>=5 then try_ach(7) end
+ if total_stripes>=5 then try_ach(8) end
+ if total_cbombs>=5 then try_ach(9) end
+ -- speed runner: 500+ pts in time atk with 45+s left
+ if gmode==2 and score>=500 and timer>45*30 then try_ach(10) end
+ -- score achievement
+ if score>=5000 then try_ach(13) end
+ -- level achievement (normal mode)
+ if gmode==1 and level>=3 then try_ach(11) end
+ -- hard mode score
+ if diff==3 and score>=500 then try_ach(12) end
 end
 
 function make_grid()
@@ -299,6 +380,10 @@ function activate_powerup(x,y)
  local pt=grid[x][y].pt
  local gc=grid[x][y].c
  _log("powerup_activate:"..pt.." at:"..x..","..y)
+ if pt==1 then total_bombs+=1
+ elseif pt==2 then total_stripes+=1
+ elseif pt==3 then total_cbombs+=1
+ end
  if pt==1 then
   -- bomb: clear 3x3 area
   for dx=-1,1 do
@@ -455,6 +540,7 @@ function _update()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
  elseif state=="name_entry" then update_name()
+ elseif state=="achs" then update_achs()
  end
  -- update particles
  for i=#particles,1,-1 do
@@ -463,6 +549,11 @@ function _update()
   p.dy+=0.1
   p.life-=1
   if p.life<=0 then deli(particles,i) end
+ end
+ -- update achievement popup
+ if ach_popup then
+  ach_popup.t-=1
+  if ach_popup.t<=0 then ach_popup=nil end
  end
  -- update float texts
  for i=#float_texts,1,-1 do
@@ -480,6 +571,23 @@ function update_menu()
   state="mode"
   _log("state:mode")
   sfx(0)
+ end
+ if b&32>0 then -- X button = achievements
+  ach_scroll=0
+  state="achs"
+  _log("state:achs")
+ end
+end
+
+ach_scroll=0
+
+function update_achs()
+ local b=test_input()
+ if b&4>0 then ach_scroll=max(0,ach_scroll-1) end
+ if b&8>0 then ach_scroll=min(max(0,#ach_defs-6),ach_scroll+1) end
+ if b&32>0 or b&16>0 then
+  state="menu"
+  _log("state:menu")
  end
 end
 
@@ -535,6 +643,7 @@ function update_play()
   if timer<=0 then
    timer=0
    tbonus=0
+   save_ach()
    state="gameover"
    _log("state:gameover")
    _log("time_up")
@@ -573,6 +682,8 @@ function update_play()
      _log("powerup_bonus")
     end
     score+=pts
+    total_gems+=cnt
+    check_achs()
     _log("match:"..cnt.." combo:"..combo.." score:"..score)
     shake=4
     sfx(2)
@@ -611,6 +722,8 @@ function update_play()
      _log("powerup_cascade_bonus")
     end
     score+=pts
+    total_gems+=cnt
+    check_achs()
     _log("cascade:"..cnt.." combo:"..combo.." score:"..score)
     shake=3
     sfx(2)
@@ -641,6 +754,7 @@ function update_play()
       add_float("reshuffle!",34,60,9)
       sfx(1)
      else
+      save_ach()
       state="gameover"
       _log("state:gameover")
       _log("final_score:"..score)
@@ -812,6 +926,7 @@ function _draw()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
  elseif state=="name_entry" then draw_name()
+ elseif state=="achs" then draw_achs()
  end
  -- draw particles
  for p in all(particles) do
@@ -831,15 +946,42 @@ function draw_menu()
  print("match-3 puzzle",30,32,7)
  rectfill(30,50,98,62,5)
  print("press \x97 to start",32,54,10)
+ -- count unlocked achievements
+ local ac=0
+ for i=1,#ach_defs do if ach_unlocked[i] then ac+=1 end end
+ print("\x8e achievements ("..ac.."/"..#ach_defs..")",10,68,6)
  -- leaderboard (show current mode)
  local mlb=get_mode_lb()
  if #mlb>0 then
   local mn=gmode==1 and "normal" or "time atk"
-  print("-- "..mn.." scores --",18,72,6)
-  for i=1,min(5,#mlb) do
-   print(i..". "..mlb[i].name.." "..mlb[i].score,30,80+i*8,7)
+  print("-- "..mn.." scores --",18,80,6)
+  for i=1,min(4,#mlb) do
+   print(i..". "..mlb[i].name.." "..mlb[i].score,30,88+i*8,7)
   end
  end
+end
+
+function draw_achs()
+ print("achievements",30,4,10)
+ local ac=0
+ for i=1,#ach_defs do if ach_unlocked[i] then ac+=1 end end
+ print(ac.."/"..#ach_defs.." unlocked",34,14,6)
+ for i=1,min(7,#ach_defs-ach_scroll) do
+  local idx=i+ach_scroll
+  local a=ach_defs[idx]
+  local y=22+(i-1)*14
+  local unlocked=ach_unlocked[idx]
+  local nc=unlocked and 10 or 5
+  local dc=unlocked and 7 or 5
+  local ic=unlocked and "\x96" or "\x97"
+  rectfill(4,y,124,y+12,unlocked and 1 or 0)
+  rect(4,y,124,y+12,nc)
+  print(ic.." "..a.n,8,y+2,nc)
+  print(a.d,60,y+2,dc)
+ end
+ if ach_scroll>0 then print("\x83",60,20,6) end
+ if ach_scroll<#ach_defs-7 then print("\x84",60,122,6) end
+ print("\x8e/\x97 back",44,122,6)
 end
 
 function draw_mode()
@@ -957,6 +1099,17 @@ function draw_play()
   print("paused",48,52,7)
   print("\x8e resume",40,64,6)
   print("\x97 quit",44,74,6)
+ end
+ -- achievement popup
+ if ach_popup then
+  local ay=2
+  if ach_popup.t>80 then ay=2-(ach_popup.t-80)*2
+  elseif ach_popup.t<10 then ay=2-(10-ach_popup.t)*2
+  end
+  rectfill(8,ay,120,ay+14,0)
+  rect(8,ay,120,ay+14,10)
+  print("\x96 "..ach_popup.n.." \x96",14,ay+2,10)
+  print("achievement unlocked!",14,ay+9,6)
  end
 end
 
