@@ -40,6 +40,9 @@ function ap(x,y,dx,dy,l,c)
  add(particles,{x=x,y=y,dx=dx,dy=dy,life=l,col=c})
 end
 function ds(e,n,h) return diff_sel==1 and e or (diff_sel==3 and h or n) end
+function shk()
+ if shake>0 then camera(rnd(shake)-shake/2,rnd(shake)-shake/2) end
+end
 function fmt_t(f)
  local s=flr(f/30)
  local m=flr(s/60)
@@ -48,7 +51,7 @@ function fmt_t(f)
 end
 
 -- game state
-state="menu"
+state=1
 score=0
 hiscore=0
 time_alive=0
@@ -123,6 +126,7 @@ wa_d={{1,0,9},{2,1,12},{3,2,8},{4,3,3},{5,4,14},{6,5,2}}
 wa_n=split("rad surge,ice fall,mag storm,chaos,rift,phantom")
 -- hazard meteor system
 -- 0=normal,1=radioactive,2=ice,3=magnetic,4=corrupted,5=splitter,6=phantom
+hzc={9,12,8,3,14,2}
 ice_slow=0
 hz_ct={0,0,0,0,0} sp_frag=0
 ph_dodged=0
@@ -230,12 +234,12 @@ end
 function update_menu()
  local inp=test_input()
  if inp&16>0 or inp&32>0 then
-  state="difficulty_select"
+  state=3
  end
  if inp&4>0 then
   lb_vd=diff_sel
   load_dlb(lb_vd)
-  state="lb_view"
+  state=2
   _log("state:lb_view")
  end
 end
@@ -266,11 +270,11 @@ function update_difsel()
  if btnp(2) then diff_sel=max(1,diff_sel-1) end
  if btnp(3) then diff_sel=min(3,diff_sel+1) end
  if btnp(4) then
-  state="mode_select"
+  state=4
   mode_sel=1
  end
  if btnp(5) then
-  state="menu"
+  state=1
  end
 end
 
@@ -299,7 +303,7 @@ function update_modesel()
   is_endless=mode_sel==3
   is_gauntlet=mode_sel==4
   -- set up modifier selection
-  state="mod_select"
+  state=5
   mod_offer={}
   mod_active=0
   mod_sel=1
@@ -312,7 +316,7 @@ function update_modesel()
   for i=1,4 do add(mod_offer,pool[i]) end
  end
  if btnp(5) then
-  state="difficulty_select"
+  state=3
  end
 end
 
@@ -349,7 +353,7 @@ function update_modsel()
   start_game()
  end
  if btnp(0) then
-  state="mode_select"
+  state=4
  end
 end
 
@@ -385,7 +389,7 @@ end
 
 function start_game()
  load_dlb(diff_sel)
- state="play"
+ state=6
  ship_x=60
  meteors,particles,powerups={},{},{}
  score,time_alive,go_timer,spawn_timer,shake,flash,diff_timer=0,0,0,0,0,0,0
@@ -546,7 +550,7 @@ function update_play()
 
  -- boss wave trigger: every 50 pts, alternate mini/major
  if not boss_active then
-  if score>=last_boss_score+50 or (diff_level>=5 and score>=last_boss_score+25) then
+  if score>=last_boss_score+(diff_level>=5 and 25 or 50) then
    last_boss_score=score
    boss_n+=1
    boss_tier=boss_n%2==1 and 1 or 2
@@ -671,7 +675,7 @@ function update_play()
     -- splitter: spawn fragments on near-miss
     if m.htype==5 then
      for j=1,2+flr(rnd(2)) do
-      add(meteors,{x=m.x+rnd(24)-12,y=-rnd(12),spd=meteor_speed+rnd(0.3),sz=3+flr(rnd(2)),anim=0,col=14,col2=7,scored=false,boss=false,htype=0,frag=true})
+      add(meteors,{x=m.x+rnd(24)-12,y=-rnd(12),spd=meteor_speed+rnd(0.3),sz=3+flr(rnd(2)),anim=0,col=14,col2=7,htype=0,frag=true})
      end shake=2 sfx(3)
     end
     if m.frag then sp_frag+=1 if sp_frag>=10 then check_achv(23) end end
@@ -756,18 +760,7 @@ function update_play()
  upd_stars(0.5)
 
  -- decay timers
- shake=dk(shake,0.5)
- flash=dk(flash)
- nm_flash=dk(nm_flash)
- slowmo_timer=dk(slowmo_timer)
- ice_slow=dk(ice_slow)
- dblscore_timer=dk(dblscore_timer)
- inv_timer=dk(inv_timer)
- pu_flash=dk(pu_flash)
- combo_flash=dk(combo_flash)
- achv_flash=dk(achv_flash)
- bd_flash=dk(bd_flash)
- hm_t=dk(hm_t)
+ shake,flash,nm_flash,slowmo_timer,ice_slow,dblscore_timer,inv_timer,pu_flash,combo_flash,achv_flash,bd_flash,hm_t=dk(shake,0.5),dk(flash),dk(nm_flash),dk(slowmo_timer),dk(ice_slow),dk(dblscore_timer),dk(inv_timer),dk(pu_flash),dk(combo_flash),dk(achv_flash),dk(bd_flash),dk(hm_t)
 
  -- achievement checks
  if dodge_combo>=5 then check_achv(1) end
@@ -865,8 +858,8 @@ function spawn_meteor()
   spd=(meteor_speed+rnd(0.5)*(ht==4 and 1.3 or 1))*(ht==6 and 0.85 or 1),
   sz=sz,anim=rnd(1),
   col=c1,col2=c2,
-  scored=false,boss=false,htype=ht,
-  cdx=ht==4 and rnd(1)-0.5 or nil
+  htype=ht,
+  cdx=ht==4 and rnd(1)-0.5
  })
 end
 
@@ -960,7 +953,7 @@ function game_over()
 
  for i=1,30 do
   local a=rnd(1) local sp=1+rnd(3)
-  ap(ship_x+3,ship_y+3,cos(a)*sp,sin(a)*sp,20+rnd(20),({10,9,7})[1+flr(rnd(3))])
+  ap(ship_x+3,ship_y+3,cos(a)*sp,sin(a)*sp,20+rnd(20),rnd({10,9,7}))
  end
 
  shake=8
@@ -973,21 +966,16 @@ function game_over()
  for i=1,5 do if score>_r[i] then ne_rank=i break end end
  go_timer=0
  if ne_rank>0 then
-  state="name_entry"
+  state=7
   ne_pos=1
   ne_chars={1,1,1}
  else
-  state="gameover"
+  state=8
  end
 end
 
 function draw_play()
- local sx,sy=0,0
- if shake>0 then
-  sx=rnd(shake)-shake/2
-  sy=rnd(shake)-shake/2
- end
- camera(sx,sy)
+ shk()
 
  if flash>0 then
   cls(7)
@@ -1011,7 +999,7 @@ function draw_play()
   end
   -- hazard aura
   if m.htype>0 then
-   local hc=({9,12,8,3,14,2})[m.htype]
+   local hc=hzc[m.htype]
    local hr=m.sz\2+2+sin(anim_t*0.05)*2
    if m.htype==4 then
     if rnd()<0.4 then circ(cx,cy,m.sz\2+rnd(3),hc) end
@@ -1049,7 +1037,7 @@ function draw_play()
  draw_particles()
 
  -- draw ship
- if state=="play" then
+ if state==6 then
   -- shield glow around ship
   if shield_count>0 then
    local gr=5+sin(anim_t*0.02)*2
@@ -1185,7 +1173,7 @@ function draw_play()
 
  -- hazard mastery meter
  if hm_c>=2 and hm_h>0 then
-  local hc=({9,12,8,3,14,2})[hm_h]
+  local hc=hzc[hm_h]
   rectfill(90,121,90+min(hm_c,5)*6,123,hm_t>0 and hc or 5)
  end
 
@@ -1243,7 +1231,7 @@ function update_lbview()
  end
  if btnp(4) or btnp(5) then
   load_dlb(diff_sel)
-  state="menu"
+  state=1
   _log("state:menu")
  end
 end
@@ -1299,7 +1287,7 @@ function update_nameentry()
   end
   if is_endless then lb_save(lb_bs[4],elb_scores,elb_names) else lb_save(lb_bs[diff_sel],lb_scores,lb_names) end
   sfx(4)
-  state="gameover"
+  state=8
   go_timer=0
  end
  update_particles()
@@ -1348,7 +1336,7 @@ function update_gameover()
   if inp&16>0 then
    start_game()
   elseif inp&32>0 then
-   state="mode_select"
+   state=4
   end
  end
  update_particles()
@@ -1364,12 +1352,7 @@ function update_gameover()
 end
 
 function draw_gameover()
- local sx,sy=0,0
- if shake>0 then
-  sx=rnd(shake)-shake/2
-  sy=rnd(shake)-shake/2
- end
- camera(sx,sy)
+ shk()
 
  cls(0)
  draw_stars()
@@ -1466,30 +1449,11 @@ function draw_particles()
  end
 end
 
--- main loops
-function _update()
- if state=="menu" then update_menu()
- elseif state=="lb_view" then update_lbview()
- elseif state=="difficulty_select" then update_difsel()
- elseif state=="mode_select" then update_modesel()
- elseif state=="mod_select" then update_modsel()
- elseif state=="play" then update_play()
- elseif state=="name_entry" then update_nameentry()
- elseif state=="gameover" then update_gameover()
- end
-end
-
-function _draw()
- if state=="menu" then draw_menu()
- elseif state=="lb_view" then draw_lbview()
- elseif state=="difficulty_select" then draw_difsel()
- elseif state=="mode_select" then draw_modesel()
- elseif state=="mod_select" then draw_modsel()
- elseif state=="play" then draw_play()
- elseif state=="name_entry" then draw_nameentry()
- elseif state=="gameover" then draw_gameover()
- end
-end
+-- main loops (1=menu,2=lb,3=diff,4=mode,5=mod,6=play,7=name,8=go)
+_uf={update_menu,update_lbview,update_difsel,update_modesel,update_modsel,update_play,update_nameentry,update_gameover}
+_df={draw_menu,draw_lbview,draw_difsel,draw_modesel,draw_modsel,draw_play,draw_nameentry,draw_gameover}
+function _update() _uf[state]() end
+function _draw() _df[state]() end
 
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
