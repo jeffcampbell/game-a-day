@@ -38,7 +38,7 @@ state="menu"
 score,combo,level=0,0,1
 target=1000
 diff=2 -- 1=easy,2=normal,3=hard
-gmode=1 -- 1=normal, 2=time attack
+gmode=1 -- 1=normal, 2=time attack, 3=endless
 timer=0 -- frames remaining (time attack)
 tbonus=0 -- time bonus score
 ncols=7 -- number of gem colors
@@ -59,6 +59,7 @@ float_texts={}
 shake=0
 combo_timer=0
 hiscore=0
+e_bg=1 -- endless bg color
 -- leaderboard
 lb={}
 name_buf=""
@@ -81,6 +82,7 @@ ach_defs={
  {n="pioneer",d="reach lvl 3 normal",th=3,t="level"},
  {n="conqueror",d="500+ on hard",th=500,t="hardscore"},
  {n="big spender",d="score 5000+ pts",th=5000,t="score"},
+ {n="marathon",d="endless lvl 10",th=10,t="endless"},
 }
 ach_unlocked={}
 ach_popup=nil -- {name,timer}
@@ -166,6 +168,8 @@ function check_achs()
  if gmode==1 and level>=3 then try_ach(11) end
  -- hard mode score
  if diff==3 and score>=500 then try_ach(12) end
+ -- marathon runner: endless lvl 10
+ if gmode==3 and level>=10 then try_ach(14) end
 end
 
 function make_grid()
@@ -526,10 +530,13 @@ function start_game()
  else
   timer=0
  end
+ -- endless mode: progressive vars
+ e_bg=1 -- background color shifts
  make_grid()
  state="play"
  _log("state:play")
  _log("difficulty:"..diff)
+ if gmode==3 then _log("mode:endless") end
 end
 
 -- update functions
@@ -568,6 +575,9 @@ end
 function update_menu()
  local b=test_input()
  if b&16>0 then -- O button
+  -- set mode_sel from gmode (inverse of mode_map)
+  local rmap={[1]=1,[3]=2,[2]=3}
+  mode_sel=rmap[gmode] or 1
   state="mode"
   _log("state:mode")
   sfx(0)
@@ -591,16 +601,21 @@ function update_achs()
  end
 end
 
+-- mode display order: 1=normal,2=endless,3=time attack
+-- gmode values: 1=normal,2=time attack,3=endless
+mode_sel=1
+mode_map={1,3,2} -- display->gmode
+
 function update_mode()
  local b=test_input()
- if b&4>0 or b&8>0 then
-  gmode=3-gmode -- toggle 1<->2
-  sfx(1)
- end
+ if b&4>0 then mode_sel=max(1,mode_sel-1) sfx(1) end
+ if b&8>0 then mode_sel=min(3,mode_sel+1) sfx(1) end
  if b&16>0 then
+  gmode=mode_map[mode_sel]
   state="diff"
   _log("state:diff")
-  _log("mode:"..(gmode==1 and "normal" or "timeattack"))
+  local mnames={"normal","timeattack","endless"}
+  _log("mode:"..mnames[gmode])
   sfx(0)
  end
  if b&32>0 then
@@ -631,8 +646,16 @@ function update_play()
    _log("unpause")
   end
   if b&16>0 then
-   state="menu"
-   _log("state:menu")
+   if gmode==3 then
+    save_ach()
+    state="gameover"
+    _log("state:gameover")
+    _log("final_score:"..score)
+    sfx(5)
+   else
+    state="menu"
+    _log("state:menu")
+   end
   end
   return
  end
@@ -653,9 +676,11 @@ function update_play()
   end
  end
 
- -- combo decay
+ -- combo decay (faster in endless at higher levels)
+ local cdecay=1
+ if gmode==3 then cdecay=1+level*0.05 end
  if combo_timer>0 then
-  combo_timer-=1
+  combo_timer-=cdecay
   if combo_timer<=0 then combo=0 end
  end
 
@@ -735,7 +760,7 @@ function update_play()
     fall_t=0
    else
     falling=false
-    -- check win (normal mode only)
+    -- check level up
     if gmode==1 and score>=target then
      level+=1
      _log("level:"..level)
@@ -744,12 +769,29 @@ function update_play()
      make_grid()
      sfx(4)
      add_float("level "..level.."!",40,60,11)
+    elseif gmode==3 then
+     -- endless: level = floor(score/1000)+1
+     local nl=flr(score/1000)+1
+     if nl>level then
+      level=nl
+      _log("endless_level:"..level)
+      check_achs()
+      -- every 3 levels: reduce combo timer, fewer colors
+      if level%3==1 and level>1 then
+       ncols=max(5,ncols-1)
+       shake=8
+       e_bg=((level\3)%5)+1
+       _log("endless_difficulty_up:"..level)
+      end
+      sfx(4)
+      add_float("level "..level.."!",40,60,11)
+     end
     end
     -- check no moves
     if not has_valid_move() then
      no_moves=true
-     if gmode==2 then
-      -- in time attack, reshuffle instead of game over
+     if gmode==2 or gmode==3 then
+      -- time attack & endless: reshuffle
       make_grid()
       add_float("reshuffle!",34,60,9)
       sfx(1)
@@ -869,12 +911,11 @@ function update_name()
     end
    end
    -- trim to 5 per mode
-   local cnt1,cnt2=0,0
+   local mcnt={0,0,0}
    for i=#lb,1,-1 do
     local m=lb[i].mode or 1
-    if m==1 then cnt1+=1 if cnt1>5 then deli(lb,i) end
-    else cnt2+=1 if cnt2>5 then deli(lb,i) end
-    end
+    mcnt[m]+=1
+    if mcnt[m]>5 then deli(lb,i) end
    end
    -- persist
    save_lb()
@@ -919,7 +960,9 @@ function _draw()
  local sx,sy=0,0
  if shake>0 then sx=rnd(3)-1 sy=rnd(3)-1 end
  camera(sx,sy)
- cls(1)
+ local bgc=1
+ if gmode==3 and state=="play" then bgc=e_bg end
+ cls(bgc)
  if state=="menu" then draw_menu()
  elseif state=="mode" then draw_mode()
  elseif state=="diff" then draw_diff()
@@ -953,7 +996,8 @@ function draw_menu()
  -- leaderboard (show current mode)
  local mlb=get_mode_lb()
  if #mlb>0 then
-  local mn=gmode==1 and "normal" or "time atk"
+  local mns={"normal","time atk","endless"}
+  local mn=mns[gmode] or "normal"
   print("-- "..mn.." scores --",18,80,6)
   for i=1,min(4,#mlb) do
    print(i..". "..mlb[i].name.." "..mlb[i].score,30,88+i*8,7)
@@ -986,13 +1030,13 @@ end
 
 function draw_mode()
  print("game mode",38,20,10)
- local modes={"normal","time attack"}
- local descs={"reach target scores","90 second score rush"}
- for i=1,2 do
+ local modes={"normal","endless","time attack"}
+ local descs={"reach target scores","survive forever!","90 second score rush"}
+ for i=1,3 do
   local c=6
-  if i==gmode then c=10 end
-  print(modes[i],42,40+i*16,c)
-  print(descs[i],22,48+i*16,5)
+  if i==mode_sel then c=10 end
+  print(modes[i],42,32+i*14,c)
+  print(descs[i],22,40+i*14,5)
  end
  print("\x83/\x84 select  \x97 confirm",14,110,6)
 end
@@ -1025,6 +1069,9 @@ function draw_play()
   if secs<=5 then tc=flr(t()*4)%2==0 and 8 or 7 end
   print(ts,90,2,tc)
   print("time attack",34,9,9)
+ elseif gmode==3 then
+  print("level "..level,86,2,11)
+  print("endless",44,9,12)
  else
   print("lvl:"..level,90,2,7)
   print("goal:"..target,2,9,6)
@@ -1122,6 +1169,11 @@ function draw_gameover()
   print("time bonus: +"..tbonus,26,58,9)
   print("final: "..(score+tbonus),34,68,10)
   print("combo max: "..combo,30,78,11)
+ elseif gmode==3 then
+  print("endless over!",30,32,12)
+  print("survived "..level.." levels",22,48,11)
+  print("score: "..score,38,58,10)
+  print("combo max: "..combo,30,68,11)
  else
   if no_moves then
    print("no moves left!",28,32,8)
