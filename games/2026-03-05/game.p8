@@ -116,11 +116,11 @@ function _init()
  for i=1,#ach_defs do
   ach_unlocked[i]=dget(30+i)>0
  end
- total_gems=dget(44)
- total_bombs=dget(45)
- total_stripes=dget(46)
- total_cbombs=dget(47)
- max_combo_ever=dget(48)
+ total_gems=dget(45)
+ total_bombs=dget(46)
+ total_stripes=dget(47)
+ total_cbombs=dget(48)
+ max_combo_ever=dget(49)
  _log("state:menu")
 end
 
@@ -128,11 +128,11 @@ function save_ach()
  for i=1,#ach_defs do
   dset(30+i,ach_unlocked[i] and 1 or 0)
  end
- dset(44,total_gems)
- dset(45,total_bombs)
- dset(46,total_stripes)
- dset(47,total_cbombs)
- dset(48,max_combo_ever)
+ dset(45,total_gems)
+ dset(46,total_bombs)
+ dset(47,total_stripes)
+ dset(48,total_cbombs)
+ dset(49,max_combo_ever)
 end
 
 function try_ach(idx)
