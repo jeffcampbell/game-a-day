@@ -70,6 +70,31 @@ name_buf=""
 name_idx=1
 name_chars="abcdefghijklmnopqrstuvwxyz "
 
+-- challenge modifiers (bitfield)
+mods=0 -- active modifier bitmask
+mod_cur=1 -- cursor in mod select menu
+-- mod defs: {name, short, desc}
+-- bit 0=no powerups,1=mono,2=speed,3=limited,4=bomb heavy,5=score pen,6=perfect
+mod_defs={
+ {n="no powerups",s="nopw",d="no power-up gems"},
+ {n="monochrome",s="mono",d="only 2 gem colors"},
+ {n="speed run",s="fast",d="30% faster animations"},
+ {n="limited colors",s="ltd3",d="start with 3 colors"},
+ {n="bomb heavy",s="bomb",d="1.5x power-up freq"},
+ {n="score penalty",s="x0.7",d="scores x0.7"},
+ {n="perfect scorer",s="perf",d="combo resets if <3"},
+}
+
+function has_mod(n)
+ return band(mods,shl(1,n-1))>0
+end
+
+function mod_count()
+ local c=0
+ for i=1,7 do if has_mod(i) then c+=1 end end
+ return c
+end
+
 -- achievements
 -- {name, desc, threshold, slot(dget/dset offset from 31)}
 ach_defs={
@@ -334,16 +359,15 @@ end
 function clear_matches(matched,groups)
  local pup_spawns={} -- track power-up spawn positions
  -- determine power-up spawns from groups
- if groups then
+ if groups and not has_mod(1) then
+  -- bomb-heavy: lower thresholds by 1
+  local bh=has_mod(5) and 1 or 0
   for g in all(groups) do
-   if g.len>=6 then
-    -- color bomb for 6+ match
+   if g.len>=6-bh then
     add(pup_spawns,{x=g.cx,y=g.cy,pt=3})
-   elseif g.len==5 then
-    -- stripe for 5-match
+   elseif g.len>=5-bh then
     add(pup_spawns,{x=g.cx,y=g.cy,pt=2})
-   elseif g.len==4 then
-    -- bomb for 4-match
+   elseif g.len>=4-bh then
     add(pup_spawns,{x=g.cx,y=g.cy,pt=1})
    end
   end
@@ -511,6 +535,12 @@ function apply_gravity()
  return moved
 end
 
+function add_score(pts)
+ if has_mod(6) then pts=flr(pts*0.7) end
+ score+=pts
+ return pts
+end
+
 function add_float(txt,x,y,c)
  add(float_texts,{txt=txt,x=x,y=y,c=c,life=40})
 end
@@ -535,6 +565,10 @@ function start_game()
  else
   ncols=6 target=1500
  end
+ -- modifier overrides
+ if has_mod(2) then ncols=2 -- monochrome
+ elseif has_mod(4) then ncols=3 -- limited colors
+ end
  tbonus=0
  casc,casc_max,casc_total=0,0,0
  if gmode==2 then
@@ -548,6 +582,7 @@ function start_game()
  state="play"
  _log("state:play")
  _log("difficulty:"..diff)
+ _log("mods:"..mods)
  if gmode==3 then _log("mode:endless") end
 end
 
@@ -556,6 +591,7 @@ function _update()
  if state=="menu" then update_menu()
  elseif state=="mode" then update_mode()
  elseif state=="diff" then update_diff()
+ elseif state=="mods" then update_mods()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
  elseif state=="name_entry" then update_name()
@@ -641,12 +677,42 @@ function update_diff()
  if b&4>0 then diff=max(1,diff-1) sfx(1) end
  if b&8>0 then diff=min(3,diff+1) sfx(1) end
  if b&16>0 then
-  start_game()
+  mod_cur=1
+  mods=0
+  state="mods"
+  _log("state:mods")
   sfx(0)
  end
  if b&32>0 then
   state="menu"
   _log("state:menu")
+ end
+end
+
+function update_mods()
+ local b=test_input()
+ if b&4>0 then mod_cur=max(1,mod_cur-1) sfx(1) end
+ if b&8>0 then mod_cur=min(7,mod_cur+1) sfx(1) end
+ -- toggle modifier with O
+ if b&16>0 then
+  local bit=shl(1,mod_cur-1)
+  if band(mods,bit)>0 then
+   -- deactivate
+   mods=bxor(mods,bit)
+   sfx(1)
+  elseif mod_count()<3 then
+   -- activate (max 3)
+   mods=bor(mods,bit)
+   sfx(0)
+  else
+   sfx(3) -- error: max 3
+  end
+  _log("mods:"..mods)
+ end
+ -- X to confirm and start
+ if b&32>0 then
+  start_game()
+  sfx(0)
  end
 end
 
@@ -693,12 +759,20 @@ function update_play()
  if gmode==3 then cdecay=1+level*0.05 end
  if combo_timer>0 then
   combo_timer-=cdecay
-  if combo_timer<=0 then combo=0 end
+  if combo_timer<=0 then
+   -- perfect scorer: penalty if combo < 3
+   if has_mod(7) and combo>0 and combo<3 then
+    score=max(0,score-50)
+    add_float("-50!",64,40,8)
+    _log("perfect_penalty")
+   end
+   combo=0
+  end
  end
 
  -- handle animations
  if swapping then
-  swap_t+=1
+  swap_t+=has_mod(3) and 2 or 1
   if swap_t>=6 then
    -- complete swap
    swap_cells(swap_from[1],swap_from[2],swap_to[1],swap_to[2])
@@ -719,7 +793,7 @@ function update_play()
      pts=flr(pts*1.5)
      _log("powerup_bonus")
     end
-    score+=pts
+    pts=add_score(pts)
     total_gems+=cnt
     check_achs()
     _log("match:"..cnt.." combo:"..combo.." score:"..score)
@@ -745,7 +819,7 @@ function update_play()
  end
 
  if falling then
-  fall_t+=1
+  fall_t+=has_mod(3) and 2 or 1
   if fall_t>=4 then
    apply_gravity()
    -- check for cascades
@@ -767,7 +841,7 @@ function update_play()
      pts=flr(pts*1.5)
      _log("powerup_cascade_bonus")
     end
-    score+=pts
+    pts=add_score(pts)
     total_gems+=cnt
     check_achs()
     _log("cascade:"..casc)
@@ -995,6 +1069,7 @@ function _draw()
  if state=="menu" then draw_menu()
  elseif state=="mode" then draw_mode()
  elseif state=="diff" then draw_diff()
+ elseif state=="mods" then draw_mods()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
  elseif state=="name_entry" then draw_name()
@@ -1083,6 +1158,23 @@ function draw_diff()
  print("\x83/\x84 select  \x97 confirm",14,110,6)
 end
 
+function draw_mods()
+ print("challenge modifiers",18,4,10)
+ print("select up to 3 (optional)",8,14,6)
+ for i=1,7 do
+  local y=22+(i-1)*14
+  local on=has_mod(i)
+  local c=6
+  if i==mod_cur then c=10 end
+  local icon=on and "\x96" or "\x97"
+  rectfill(4,y,124,y+12,on and 1 or 0)
+  if i==mod_cur then rect(4,y,124,y+12,10) end
+  print(icon.." "..mod_defs[i].n,8,y+2,c)
+  print(mod_defs[i].d,60,y+2,on and 11 or 5)
+ end
+ print(mod_count().."/3 active  \x97 toggle  \x8e start",4,122,mod_count()>=3 and 8 or 6)
+end
+
 function draw_play()
  -- ui bar
  rectfill(0,0,127,15,0)
@@ -1111,6 +1203,16 @@ function draw_play()
  if casc>0 then
   local ccol=casc>=4 and 8 or casc>=3 and 9 or casc>=2 and 10 or 7
   print("casc:"..casc,90,9,ccol)
+ end
+ -- active modifiers display
+ if mods>0 then
+  local mx=2
+  for i=1,7 do
+   if has_mod(i) then
+    print(mod_defs[i].s,mx,128-6,8)
+    mx+=#mod_defs[i].s*4+4
+   end
+  end
  end
 
  -- draw grid bg
@@ -1222,6 +1324,17 @@ function draw_gameover()
  if casc_max>0 or casc_total>0 then
   print("max cascade: "..casc_max,26,cy2,9)
   print("total cascades: "..casc_total,20,cy2+10,9)
+ end
+ -- show active modifiers
+ if mods>0 then
+  local ms=""
+  for i=1,7 do
+   if has_mod(i) then
+    if #ms>0 then ms=ms.." " end
+    ms=ms..mod_defs[i].s
+   end
+  end
+  print("mods: "..ms,18,cy2+22,8)
  end
  print("press \x97",46,100,6)
 end
