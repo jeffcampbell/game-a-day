@@ -596,6 +596,7 @@ function _update()
  elseif state=="gameover" then update_gameover()
  elseif state=="name_entry" then update_name()
  elseif state=="achs" then update_achs()
+ elseif state=="help" then update_help()
  end
  -- update particles
  for i=#particles,1,-1 do
@@ -635,6 +636,11 @@ function update_menu()
   state="achs"
   _log("state:achs")
  end
+ if b&4>0 then -- up = help
+  help_scr=0
+  state="help"
+  _log("state:help")
+ end
 end
 
 ach_scroll=0
@@ -643,6 +649,18 @@ function update_achs()
  local b=test_input()
  if b&4>0 then ach_scroll=max(0,ach_scroll-1) end
  if b&8>0 then ach_scroll=min(max(0,#ach_defs-6),ach_scroll+1) end
+ if b&32>0 or b&16>0 then
+  state="menu"
+  _log("state:menu")
+ end
+end
+
+help_scr=0
+
+function update_help()
+ local b=test_input()
+ if b&4>0 then help_scr=max(0,help_scr-1) end
+ if b&8>0 then help_scr=min(8,help_scr+1) end
  if b&32>0 or b&16>0 then
   state="menu"
   _log("state:menu")
@@ -1074,6 +1092,7 @@ function _draw()
  elseif state=="gameover" then draw_gameover()
  elseif state=="name_entry" then draw_name()
  elseif state=="achs" then draw_achs()
+ elseif state=="help" then draw_help()
  end
  -- draw particles
  for p in all(particles) do
@@ -1096,15 +1115,16 @@ function draw_menu()
  -- count unlocked achievements
  local ac=0
  for i=1,#ach_defs do if ach_unlocked[i] then ac+=1 end end
- print("\x8e achievements ("..ac.."/"..#ach_defs..")",10,68,6)
+ print("\x83 help/tutorial",36,68,11)
+ print("\x8e achievements ("..ac.."/"..#ach_defs..")",10,76,6)
  -- leaderboard (show current mode)
  local mlb=get_mode_lb()
  if #mlb>0 then
   local mns={"normal","time atk","endless"}
   local mn=mns[gmode] or "normal"
-  print("-- "..mn.." scores --",18,80,6)
-  for i=1,min(4,#mlb) do
-   print(i..". "..mlb[i].name.." "..mlb[i].score,30,88+i*8,7)
+  print("-- "..mn.." scores --",18,86,6)
+  for i=1,min(3,#mlb) do
+   print(i..". "..mlb[i].name.." "..mlb[i].score,30,94+i*8,7)
   end
  end
 end
@@ -1130,6 +1150,73 @@ function draw_achs()
  if ach_scroll>0 then print("\x83",60,20,6) end
  if ach_scroll<#ach_defs-7 then print("\x84",60,122,6) end
  print("\x8e/\x97 back",44,122,6)
+end
+
+function draw_help()
+ -- help content as scrollable pages
+ local pages={
+  {t="how to play",c=10,lines={
+   "select a gem with \x97",
+   "select adjacent gem to swap",
+   "match 3+ same-color gems",
+   "matched gems clear for pts",
+   "combos: chain matches fast",
+   "for 2x, 3x multipliers!"}},
+  {t="power-ups",c=11,lines={
+   "match 4: \x96bomb\x96 3x3 blast",
+   "match 5: \x96stripe\x96 row+col",
+   "match 6: \x96color bomb\x96",
+   "clears all gems of a color",
+   "power-ups chain together!"}},
+  {t="cascades",c=9,lines={
+   "when gems fall after a clear",
+   "new matches form auto!",
+   "each cascade = bonus pts",
+   "+0.5x multiplier per level",
+   "+100 bonus per cascade!"}},
+  {t="game modes",c=12,lines={
+   "normal: reach score targets",
+   "endless: survive forever!",
+   "  levels up every 1000pts",
+   "time atk: 90s score rush"}},
+  {t="difficulty",c=14,lines={
+   "easy: 8 colors, 500 target",
+   "normal: 7 colors, 1000 tgt",
+   "hard: 6 colors, 1500 tgt",
+   "fewer colors = harder!"}},
+  {t="modifiers (1/2)",c=8,lines={
+   "up to 3 optional mods:",
+   "no powerups: no pup gems",
+   "monochrome: only 2 colors",
+   "speed run: 30% faster anim",
+   "limited: start w/ 3 colors"}},
+  {t="modifiers (2/2)",c=8,lines={
+   "bomb heavy: 1.5x pup freq",
+   "score pen: scores x0.7",
+   "perfect: combo resets if<3",
+   "mods stack for challenge!"}},
+  {t="tips",c=10,lines={
+   "plan swaps for cascades",
+   "keep combos alive!",
+   "power-ups = massive pts",
+   "x to pause during play",
+   "good luck!"}},
+ }
+ -- clamp scroll
+ local pg=mid(1,help_scr+1,#pages)
+ local p=pages[pg]
+ -- header
+ print("-- help ("..pg.."/"..#pages..") --",20,2,6)
+ rectfill(4,10,124,12,p.c)
+ print(p.t,64-#p.t*2,16,p.c)
+ -- content
+ for i,ln in ipairs(p.lines) do
+  print(ln,6,28+(i-1)*12,7)
+ end
+ -- nav
+ if pg>1 then print("\x83 prev",4,120,6) end
+ if pg<#pages then print("next \x84",90,120,6) end
+ print("\x97/\x8e back",40,120,6)
 end
 
 function draw_mode()
