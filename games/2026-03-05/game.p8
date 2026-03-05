@@ -63,6 +63,8 @@ hiscore=0
 casc=0 -- current cascade count
 casc_max=0 -- max cascade this game
 casc_total=0 -- total cascades this game
+casc_ms=0 -- milestone flags (bitmask: 1=3+,2=5+,4=10+,8=15+)
+casc_big=0 -- count of 3+ cascades this game
 e_bg=1 -- endless bg color
 pups_made=0 -- power-ups created this game
 -- leaderboard
@@ -116,6 +118,8 @@ ach_defs={
  {n="chain react",d="2+ cascade",th=2,t="casc"},
  {n="unstop casc",d="4+ cascade",th=4,t="casc"},
  {n="casc master",d="10 cascades/game",th=10,t="cascg"},
+ {n="casc expert",d="15+ cascade",th=15,t="casc"},
+ {n="casc pro",d="3+ big casc/game",th=3,t="cascbig"},
 }
 ach_unlocked={}
 ach_popup=nil -- {name,timer}
@@ -207,6 +211,8 @@ function check_achs()
  if casc>=2 then try_ach(15) end
  if casc>=4 then try_ach(16) end
  if casc_total>=10 then try_ach(17) end
+ if casc>=15 then try_ach(18) end
+ if casc_big>=3 then try_ach(19) end
 end
 
 function make_grid()
@@ -571,6 +577,34 @@ function add_float(txt,x,y,c)
  add(float_texts,{txt=txt,x=x,y=y,c=c,life=40})
 end
 
+-- cascade milestone celebrations
+-- milestones: 3+(bit0), 5+(bit1), 10+(bit2), 15+(bit3)
+function check_casc_milestone()
+ local ms={{3,1,10,100},{5,2,12,250},{10,4,7,500},{15,8,13,1000}}
+ for m in all(ms) do
+  local th,bit,col,bonus=m[1],m[2],m[3],m[4]
+  if casc>=th and band(casc_ms,bit)==0 then
+   casc_ms=bor(casc_ms,bit)
+   local bpts=add_score(bonus)
+   _log("cascade_milestone:"..th)
+   _log("milestone_bonus:"..bpts)
+   -- visual: shake scales with tier
+   shake=min(4+th,15)
+   -- particles: more and bigger for higher tiers
+   local np=th*3
+   for i=1,np do
+    add(particles,{x=64,y=64,dx=rnd(10)-5,dy=rnd(10)-5,life=25+rnd(20),c=col})
+   end
+   add_float("cascade x"..casc.."! +"..bonus,10,20,col)
+   sfx(th>=10 and 5 or 4)
+  end
+ end
+ -- track big cascades (3+)
+ if casc==3 then
+  casc_big+=1
+ end
+end
+
 -- start game
 function start_game()
  score,combo,level=0,0,1
@@ -596,7 +630,7 @@ function start_game()
  elseif has_mod(4) then ncols=3 -- limited colors
  end
  tbonus=0
- casc,casc_max,casc_total=0,0,0
+ casc,casc_max,casc_total,casc_ms,casc_big=0,0,0,0,0
  pups_made=0
  if gmode==2 then
   timer=90*30 -- 90 seconds at 30fps
@@ -829,7 +863,7 @@ function update_play()
     sfx(3)
    else
     -- process matches
-    casc=0 -- reset cascade on new move
+    casc,casc_ms=0,0 -- reset cascade on new move
     combo+=1
     combo_timer=45
     local pts=cnt*10*combo
@@ -905,6 +939,8 @@ function update_play()
       dx=rnd(8)-4,dy=rnd(8)-4,
       life=20+rnd(15),c=ccol})
     end
+    -- milestone celebrations
+    check_casc_milestone()
     fall_t=0
    else
     falling=false
