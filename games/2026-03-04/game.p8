@@ -132,6 +132,8 @@ hz_ct={0,0,0,0,0} sp_frag=0
 ph_dodged=0
 -- hazard mastery system
 hm_h=0 hm_c=0 hm_t=0
+-- variety bonus (multi-hazard elimination)
+vb_w={} vb_m=1 vb_f=0
 -- time attack mode
 is_ta=false
 ta_time=0
@@ -398,7 +400,8 @@ function start_game()
  boss_timer,boss_flash,last_boss_score,tele_timer,tele_dur,boss_vuln=0,0,0,0,0,0
  dodge_combo,dodge_best,combo_flash=0,0,0
  boss_waves,boss_tier,boss_n,bd_flash,nm_count,achv_flash,bp_del=0,0,0,0,0,0,0
- ice_slow,sp_frag,ph_dodged,g_timer,g_trans,e_timer,wa,wa_t,wa_ls,hm_h,hm_c,hm_t=0,0,0,0,0,0,0,0,0,0,0,0
+ ice_slow,sp_frag,ph_dodged,g_timer,g_trans,e_timer,wa,wa_t,wa_ls,hm_h,hm_c,hm_t,vb_m,vb_f=0,0,0,0,0,0,0,0,0,0,0,0,1,0
+ vb_w={}
  boss_active,shld_burst,dbl_atk,g_won=false,false,false,false
  ta_nodmg,g_nodmg,e_nodmg=true,true,true
  pu_flash_txt,combo_flash_txt,bd_flash_txt="","",""
@@ -662,7 +665,7 @@ function update_play()
    if dist<nm_d then
     got_near=true
     local bvmul=(m.boss and boss_vuln>0) and 2 or 1
-    local bonus=max(1,flr((nm_d-dist)/3*hzmul))*smul*score_mult*bvmul
+    local bonus=max(1,flr((nm_d-dist)/3*hzmul))*smul*score_mult*bvmul*vb_m
     nm_last_bonus=bonus
     score+=bonus
     nm_streak+=1
@@ -672,6 +675,7 @@ function update_play()
      if hz_ct[m.htype]>=({10,3,5,15,8})[m.htype] then check_achv(12+m.htype) end
     end
     if m.htype==6 then ph_dodged+=1 end
+    if m.htype>0 then add(vb_w,{m.htype,10}) end
     -- splitter: spawn fragments on near-miss
     if m.htype==5 then
      for j=1,2+flr(rnd(2)) do
@@ -714,7 +718,7 @@ function update_play()
    if inv_timer>0 then
     -- invincibility: destroy meteor, award points
     del(meteors,m)
-    score+=5
+    score+=5*vb_m
     for i=1,4 do
      ap(m.x+4,m.y+4,rnd(2)-1,rnd(2)-1,10,11)
     end
@@ -722,6 +726,7 @@ function update_play()
     -- shield absorbs hit (radioactive costs 2)
     local scost=(m.htype==1 or m.htype==6) and 2 or 1
     shield_count=max(0,shield_count-scost)
+    if m.htype>0 then add(vb_w,{m.htype,10}) end
     -- shield burst: destroy nearby meteors (only with burst power-up)
     if shld_burst then
      shld_burst=false
@@ -759,21 +764,22 @@ function update_play()
  update_particles()
  upd_stars(0.5)
 
+ -- variety bonus: decay window, count unique types via bitmask
+ local vbb=0
+ for i=#vb_w,1,-1 do vb_w[i][2]-=1 if vb_w[i][2]<=0 then deli(vb_w,i) else vbb=bor(vbb,shl(1,vb_w[i][1])) end end
+ local vc=0 for i=0,6 do if band(vbb,shl(1,i))>0 then vc+=1 end end
+ vb_m=vc>=4 and 2 or vc>=3 and 1.5 or 1
+ if vc>=3 and vb_f<=0 then vb_f=20 sfx(3) end
  -- decay timers
- shake,flash,nm_flash,slowmo_timer,ice_slow,dblscore_timer,inv_timer,pu_flash,combo_flash,achv_flash,bd_flash,hm_t=dk(shake,0.5),dk(flash),dk(nm_flash),dk(slowmo_timer),dk(ice_slow),dk(dblscore_timer),dk(inv_timer),dk(pu_flash),dk(combo_flash),dk(achv_flash),dk(bd_flash),dk(hm_t)
+ shake,flash,nm_flash,slowmo_timer,ice_slow,dblscore_timer,inv_timer,pu_flash,combo_flash,achv_flash,bd_flash,hm_t,vb_f=dk(shake,0.5),dk(flash),dk(nm_flash),dk(slowmo_timer),dk(ice_slow),dk(dblscore_timer),dk(inv_timer),dk(pu_flash),dk(combo_flash),dk(achv_flash),dk(bd_flash),dk(hm_t),dk(vb_f)
 
  -- achievement checks
- if dodge_combo>=5 then check_achv(1) end
- if dodge_combo>=20 then check_achv(2) end
+ if dodge_combo>=5 then check_achv(1) if dodge_combo>=20 then check_achv(2) end end
  if time_alive>=1800 then check_achv(6) end
  if diff_level>=8 then check_achv(9) end
  if score>=500 then check_achv(10) end
  if diff_sel==3 and score>=100 then check_achv(7) end
- -- endless achievements
- if is_endless then
-  if time_alive>=9000 then check_achv(20) end
-  if time_alive>=18000 then check_achv(21) end
- end
+ if is_endless and time_alive>=9000 then check_achv(20) if time_alive>=18000 then check_achv(21) end end
 
  anim_t+=1
 end
@@ -1177,6 +1183,7 @@ function draw_play()
   rectfill(90,121,90+min(hm_c,5)*6,123,hm_t>0 and hc or 5)
  end
 
+ if vb_f>0 then print("variety "..vb_m.."x",38,ship_y-28,11) end
  -- combo milestone notification
  if combo_flash>0 then
   local cx=64-#combo_flash_txt*2
