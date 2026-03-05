@@ -64,6 +64,7 @@ casc=0 -- current cascade count
 casc_max=0 -- max cascade this game
 casc_total=0 -- total cascades this game
 e_bg=1 -- endless bg color
+pups_made=0 -- power-ups created this game
 -- leaderboard
 lb={}
 name_buf=""
@@ -403,7 +404,7 @@ function clear_matches(matched,groups)
     local gc2=grid[x][y].c
     grid[x][y].c=gc2
     grid[x][y].pt=spawn_at[k]
-    _log("powerup_spawn:"..spawn_at[k].." at:"..x..","..y)
+    celebrate_pup(x,y,spawn_at[k])
     spawn_at[k]=nil -- only spawn once
    else
     grid[x][y].c=0
@@ -505,6 +506,31 @@ function spawn_clear_fx(x,y)
  end
 end
 
+-- celebrate power-up gem creation
+function celebrate_pup(x,y,pt)
+ local px=gox+(x-1)*gs+gs/2
+ local py=goy+(y-1)*gs+gs/2
+ local names={"bomb!","stripe!","colorful!"}
+ local cols={8,12,14}
+ local sfxn={6,7,8}
+ -- particles: 6-8 larger ones
+ for i=1,7 do
+  add(particles,{x=px,y=py,
+   dx=rnd(6)-3,dy=rnd(6)-3,
+   life=25+rnd(10),
+   c=cols[pt] or 7})
+ end
+ -- float text
+ add_float(names[pt] or "power!",px-10,py-10,cols[pt] or 14)
+ -- screen shake + sfx
+ shake=max(shake,3)
+ sfx(sfxn[pt] or 6)
+ -- score bonus
+ add_score(50)
+ pups_made+=1
+ _log("power_up_created:"..names[pt])
+end
+
 function apply_gravity()
  local moved=false
  for x=1,gw do
@@ -571,6 +597,7 @@ function start_game()
  end
  tbonus=0
  casc,casc_max,casc_total=0,0,0
+ pups_made=0
  if gmode==2 then
   timer=90*30 -- 90 seconds at 30fps
  else
@@ -1591,3 +1618,6 @@ __sfx__
 000300001505012050100500e0500c0500a050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000500001c0502005024050280502c050300503405038050000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000500002405020050180501005008050060500405003050000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300001c0502005024050280502c0502c0500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300002405028050300503405038050380500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000400002c050300503405038050380503c050380503405030050000000000000000000000000000000000000000000000000000000000000000000000000000000000
