@@ -108,7 +108,8 @@ end
 function new_gem(x,y)
  return {c=flr(rnd(ncols))+1,x=x,y=y,
   dx=0,dy=0,falling=false,ft=0,
-  clearing=false,ct=0}
+  clearing=false,ct=0,pt=nil}
+ -- pt: nil=normal, 1=bomb, 2=stripe, 3=color bomb
 end
 
 function has_match_at(x,y)
@@ -171,10 +172,11 @@ function swap_cells(x1,y1,x2,y2)
  grid[x2][y2].y=y2
 end
 
--- find and mark matches
+-- find and mark matches, returns matched set, count, and groups for power-ups
 function find_matches()
  local matched={}
  local count=0
+ local groups={} -- {len,cx,cy,dir} for power-up spawning
  -- horizontal
  for y=1,gh do
   local run=1
@@ -187,6 +189,7 @@ function find_matches()
       matched[i..","..y]=true
       count+=1
      end
+     add(groups,{len=run,cx=flr(x-run/2),cy=y,dir="h"})
     end
     run=1
    end
@@ -196,6 +199,7 @@ function find_matches()
     matched[i..","..y]=true
     count+=1
    end
+   add(groups,{len=run,cx=flr(gw-run/2+1),cy=y,dir="h"})
   end
  end
  -- vertical
@@ -210,6 +214,7 @@ function find_matches()
       matched[x..","..i]=true
       count+=1
      end
+     add(groups,{len=run,cx=x,cy=flr(y-run/2),dir="v"})
     end
     run=1
    end
@@ -219,21 +224,45 @@ function find_matches()
     matched[x..","..i]=true
     count+=1
    end
+   add(groups,{len=run,cx=x,cy=flr(gh-run/2+1),dir="v"})
   end
  end
- return matched,count
+ return matched,count,groups
 end
 
-function clear_matches(matched)
+function clear_matches(matched,groups)
+ local pup_spawns={} -- track power-up spawn positions
+ -- determine power-up spawns from groups
+ if groups then
+  for g in all(groups) do
+   if g.len>=6 then
+    -- color bomb for 6+ match
+    add(pup_spawns,{x=g.cx,y=g.cy,pt=3})
+   elseif g.len==5 then
+    -- stripe for 5-match
+    add(pup_spawns,{x=g.cx,y=g.cy,pt=2})
+   elseif g.len==4 then
+    -- bomb for 4-match
+    add(pup_spawns,{x=g.cx,y=g.cy,pt=1})
+   end
+  end
+ end
+ -- build spawn lookup
+ local spawn_at={}
+ for s in all(pup_spawns) do
+  spawn_at[s.x..","..s.y]=s.pt
+ end
+ local had_pup=false
  for k,_ in pairs(matched) do
-  local x=tonum(sub(k,1,1))
-  local sep=2
-  if #k>3 then sep=2 end
-  -- parse x,y
   local parts=split(k,",")
-  x=tonum(parts[1])
+  local x=tonum(parts[1])
   local y=tonum(parts[2])
   if x and y and grid[x] and grid[x][y] then
+   -- check if power-up gem being cleared (activate it)
+   if grid[x][y].pt then
+    activate_powerup(x,y)
+    had_pup=true
+   end
    -- spawn particles
    local gc=grid[x][y].c
    local px=gox+(x-1)*gs+gs/2
@@ -244,8 +273,106 @@ function clear_matches(matched)
      life=15+rnd(10),
      c=colors[gc] or 7})
    end
-   grid[x][y].c=0
+   -- spawn power-up or clear
+   if spawn_at[k] then
+    local gc2=grid[x][y].c
+    grid[x][y].c=gc2
+    grid[x][y].pt=spawn_at[k]
+    _log("powerup_spawn:"..spawn_at[k].." at:"..x..","..y)
+    spawn_at[k]=nil -- only spawn once
+   else
+    grid[x][y].c=0
+    grid[x][y].pt=nil
+   end
   end
+ end
+ return had_pup
+end
+
+-- activate a power-up gem's special ability
+function activate_powerup(x,y)
+ local pt=grid[x][y].pt
+ local gc=grid[x][y].c
+ _log("powerup_activate:"..pt.." at:"..x..","..y)
+ if pt==1 then
+  -- bomb: clear 3x3 area
+  for dx=-1,1 do
+   for dy=-1,1 do
+    local nx,ny=x+dx,y+dy
+    if nx>=1 and nx<=gw and ny>=1 and ny<=gh then
+     spawn_clear_fx(nx,ny)
+     if grid[nx][ny].pt then
+      -- chain: activate neighboring power-ups
+      local pt2=grid[nx][ny].pt
+      grid[nx][ny].pt=nil
+      grid[nx][ny].c=0
+      -- delayed chain handled by cascade
+     end
+     grid[nx][ny].c=0
+     grid[nx][ny].pt=nil
+    end
+   end
+  end
+  shake=6
+  sfx(4)
+ elseif pt==2 then
+  -- stripe: clear row + column
+  for i=1,gw do
+   spawn_clear_fx(i,y)
+   grid[i][y].c=0
+   grid[i][y].pt=nil
+  end
+  for i=1,gh do
+   spawn_clear_fx(x,i)
+   grid[x][i].c=0
+   grid[x][i].pt=nil
+  end
+  shake=6
+  sfx(4)
+ elseif pt==3 then
+  -- color bomb: clear all gems of matched color
+  -- find adjacent gem color to target
+  local tc=0
+  for dx=-1,1 do
+   for dy=-1,1 do
+    if not(dx==0 and dy==0) then
+     local nx,ny=x+dx,y+dy
+     if nx>=1 and nx<=gw and ny>=1 and ny<=gh and grid[nx][ny].c>0 then
+      tc=grid[nx][ny].c
+      break
+     end
+    end
+    if tc>0 then break end
+   end
+   if tc>0 then break end
+  end
+  if tc>0 then
+   for gx=1,gw do
+    for gy=1,gh do
+     if grid[gx][gy].c==tc then
+      spawn_clear_fx(gx,gy)
+      grid[gx][gy].c=0
+      grid[gx][gy].pt=nil
+     end
+    end
+   end
+  end
+  shake=8
+  sfx(4)
+ end
+end
+
+-- spawn explosion particles at grid position
+function spawn_clear_fx(x,y)
+ if grid[x][y].c<=0 then return end
+ local px=gox+(x-1)*gs+gs/2
+ local py=goy+(y-1)*gs+gs/2
+ local gc=grid[x][y].c
+ for i=1,4 do
+  add(particles,{x=px,y=py,
+   dx=rnd(6)-3,dy=rnd(6)-3,
+   life=20+rnd(10),
+   c=colors[gc] or 7})
  end
 end
 
@@ -258,7 +385,9 @@ function apply_gravity()
     for y2=y-1,1,-1 do
      if grid[x][y2].c>0 then
       grid[x][y].c=grid[x][y2].c
+      grid[x][y].pt=grid[x][y2].pt
       grid[x][y2].c=0
+      grid[x][y2].pt=nil
       moved=true
       break
      end
@@ -269,6 +398,7 @@ function apply_gravity()
   for y=1,gh do
    if grid[x][y].c==0 then
     grid[x][y].c=flr(rnd(ncols))+1
+    grid[x][y].pt=nil
     moved=true
    end
   end
@@ -382,7 +512,7 @@ function update_play()
    -- complete swap
    swap_cells(swap_from[1],swap_from[2],swap_to[1],swap_to[2])
    -- check if valid
-   local m,cnt=find_matches()
+   local m,cnt,grps=find_matches()
    if cnt==0 then
     -- swap back
     swap_cells(swap_from[1],swap_from[2],swap_to[1],swap_to[2])
@@ -392,17 +522,24 @@ function update_play()
     combo+=1
     combo_timer=45
     local pts=cnt*10*combo
+    local had_pup=clear_matches(m,grps)
+    if had_pup then
+     pts=flr(pts*1.5)
+     _log("powerup_bonus")
+    end
     score+=pts
     _log("match:"..cnt.." combo:"..combo.." score:"..score)
-    clear_matches(m)
     shake=4
     sfx(2)
     local mx=gox+(swap_from[1]-1)*gs
     local my=goy+(swap_from[2]-1)*gs
-    add_float(pts.."",mx,my,10)
+    add_float(pts.."",mx,my,had_pup and 14 or 10)
     if combo>=2 then
      add_float(combo.."x!",64,60,
       combo>=4 and 8 or combo>=3 and 9 or 10)
+    end
+    if had_pup then
+     add_float("power!",64,50,14)
     end
     falling=true
     fall_t=0
@@ -418,17 +555,21 @@ function update_play()
   if fall_t>=4 then
    apply_gravity()
    -- check for cascades
-   local m,cnt=find_matches()
+   local m,cnt,grps=find_matches()
    if cnt>0 then
     combo+=1
     combo_timer=45
     local pts=cnt*10*combo+5
+    local had_pup=clear_matches(m,grps)
+    if had_pup then
+     pts=flr(pts*1.5)
+     _log("powerup_cascade_bonus")
+    end
     score+=pts
     _log("cascade:"..cnt.." combo:"..combo.." score:"..score)
-    clear_matches(m)
     shake=3
     sfx(2)
-    add_float(pts.."",64,50,11)
+    add_float(pts.."",64,50,had_pup and 14 or 11)
     if combo>=2 then
      add_float(combo.."x!",64,40,
       combo>=4 and 8 or combo>=3 and 9 or 10)
@@ -660,6 +801,29 @@ function draw_play()
     rectfill(px+2,py+2,px+4,py+3,7)
     -- gem border
     rect(px+1,py+1,px+gs-2,py+gs-2,col-1>0 and col-1 or 5)
+    -- power-up visuals
+    if g.pt==1 then
+     -- bomb: x pattern
+     local cx2=px+gs/2-1
+     local cy2=py+gs/2-1
+     line(px+2,py+2,px+gs-3,py+gs-3,0)
+     line(px+gs-3,py+2,px+2,py+gs-3,0)
+     pset(cx2,cy2,7)
+    elseif g.pt==2 then
+     -- stripe: horizontal lines
+     line(px+2,py+3,px+gs-3,py+3,0)
+     line(px+2,py+gs-4,px+gs-3,py+gs-4,0)
+    elseif g.pt==3 then
+     -- color bomb: sparkle/diamond
+     local cx2=px+gs/2-1
+     local cy2=py+gs/2-1
+     local fl=flr(t()*6)%3
+     pset(cx2,py+1,7+fl)
+     pset(cx2,py+gs-2,7+fl)
+     pset(px+1,cy2,7+fl)
+     pset(px+gs-2,cy2,7+fl)
+     pset(cx2,cy2,7)
+    end
    end
   end
  end
