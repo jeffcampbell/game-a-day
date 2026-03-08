@@ -198,7 +198,7 @@ Expected outcome: **50% → 65%+ completion rate** (music adds sustained engagem
   - **Random**: Unpredictable button inputs (3 sessions)
   - **Passive**: Minimal inputs, cautious movement (3 sessions)
 - **Metrics Captured**:
-  - Button input sequences (22,067 total inputs recorded)
+  - Button input sequences (23,067 total inputs recorded)
   - Game logs (state transitions, dash events, level completion)
   - Session duration and outcome (win/loss/quit)
 

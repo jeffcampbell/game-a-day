@@ -235,7 +235,7 @@ def generate_session(game_date, playstyle, session_num):
         "exit_state": exit_state,
         "playstyle": playstyle,
         "session_number": session_num,
-        "is_simulated": True
+        "is_synthetic": True
     }
 
     return session
