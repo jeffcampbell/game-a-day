@@ -26,6 +26,7 @@ state = "menu"
 score = 0
 health = 3
 max_health = 3
+exit_reached = false
 
 -- player
 player = {
@@ -69,6 +70,7 @@ function _update()
       state = "play"
       score = 0
       health = max_health
+      exit_reached = false
       player = {x=64, y=90, w=6, h=8, vx=0, vy=0, jump_power=5, grav=0.3, on_ground=false, sprite=1}
       gems = {{x=15,y=95,c=false},{x=45,y=75,c=false},{x=75,y=60,c=false},{x=25,y=40,c=false}}
       _log("state:play")
@@ -180,6 +182,7 @@ function update_play()
   -- exit collision (win)
   if collide_rects(player.x, player.y, player.w, player.h,
                    exit.x, exit.y, exit.w, exit.h) then
+    exit_reached = true
     state = "gameover"
     _log("gameover:win")
   end
@@ -255,7 +258,7 @@ end
 
 function draw_gameover()
   cls(5)
-  if score > 30 then
+  if exit_reached then
     print("you win!", 50, 40, 11)
     print("gems collected", 35, 55, 7)
   else
