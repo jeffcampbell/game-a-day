@@ -1,0 +1,16 @@
+{
+  "title": "meteor dodge",
+  "description": "A sports, action PICO-8 game. Earn points and collect power-ups.",
+  "release_date": "2026-03-04",
+  "genres": [
+    "sports",
+    "action"
+  ],
+  "difficulty": 5,
+  "playtime_minutes": 5,
+  "target_audience": "general",
+  "completion_status": "in-progress",
+  "token_count": 8192,
+  "sprite_count": 0,
+  "sound_count": 7
+}

@@ -328,3 +328,64 @@ curl "http://127.0.0.1:8000/api/catalog?difficulty_min=3&difficulty_max=5"
 # Sort by completion rate
 curl "http://127.0.0.1:8000/api/catalog?sort=completion_rate&reverse=true"
 ```
+
+## Batch Metadata Initializer
+
+The batch metadata initializer tool automatically generates metadata.json files for all games
+that lack them, by analyzing game.p8 files and intelligently inferring metadata.
+
+### Usage
+
+```bash
+# Preview suggested metadata (dry-run, no files created)
+python3 tools/init-game-metadata.py --dry-run
+
+# Create metadata with user confirmation
+python3 tools/init-game-metadata.py
+
+# Create metadata automatically without confirmation
+python3 tools/init-game-metadata.py --auto
+```
+
+### How It Works
+
+1. **Game Discovery**: Scans all `games/YYYY-MM-DD/` directories and finds games without `metadata.json`
+2. **Code Analysis**:
+   - Extracts title from first comment in game code (or uses date fallback)
+   - Detects genres by analyzing code for keywords (jump, dodge, puzzle, etc.)
+   - Estimates difficulty based on token count, sprite usage, and advanced features
+   - Counts tokens, sprites, and sounds using existing analysis tools
+3. **Description Generation**: Creates game description from detected mechanics and genres
+4. **Validation**: Ensures all generated metadata passes schema validation
+5. **Creation**: Writes metadata.json files for all valid games
+6. **Catalog Generation**: Runs `generate-library.py` to create/update `catalog.json`
+
+### Detected Genres
+
+The tool recognizes these keywords to auto-detect genres:
+
+- **action**: jump, dodge, enemy, shoot, attack, collision, hit, damage
+- **puzzle**: match, piece, block, grid, solve, logic, rotate
+- **adventure**: explore, map, world, quest, discover, item, inventory
+- **strategy**: turn, ai, bot, pathfind, move, plan
+- **rhythm**: beat, music, tempo, sync, dance
+- **rpg**: player, level, exp, stat, character, hp, equip
+- **sports**: ball, game, score, race, compete, team
+- **educational**: learn, teach, quiz, count, letter
+
+### Output
+
+The tool generates metadata with:
+
+- **title**: Extracted from first code comment, or game date
+- **description**: Generated from detected mechanics and genres
+- **genres**: Auto-detected from code analysis (1-2 genres)
+- **difficulty**: Estimated from code complexity (1-5 scale)
+- **token_count**: Extracted via p8tokens.py
+- **sprite_count**: Count of non-zero sprites in __gfx__
+- **sound_count**: Count of non-zero sounds in __sfx__
+- **completion_status**: Default "in-progress"
+- **target_audience**: Default "general"
+- **playtime_minutes**: Default 5 minutes
+
+All metadata is validated against the schema before creation.

@@ -1,0 +1,184 @@
+{
+  "generated": "2026-03-07T21:43:38.668287",
+  "version": "1.0",
+  "total_games": 7,
+  "statistics": {
+    "total_games": 7,
+    "total_sessions_recorded": 0,
+    "average_completion_rate": 0.0,
+    "difficulty_stats": {
+      "min": 2,
+      "max": 5,
+      "average": 4.6
+    },
+    "playtime_stats": {
+      "min": 5,
+      "max": 5,
+      "average": 5,
+      "median": 5
+    },
+    "genre_distribution": {
+      "sports": 7,
+      "action": 4,
+      "puzzle": 1,
+      "rpg": 1,
+      "rhythm": 1
+    },
+    "completion_status_breakdown": {
+      "in-progress": 7
+    }
+  },
+  "games": [
+    {
+      "date": "2026-03-05",
+      "title": "gem match: match-3 puzzle arcade",
+      "description": "A puzzle, sports PICO-8 game. Control a character, earn points, progress through levels, and collect power-ups.",
+      "genres": [
+        "puzzle",
+        "sports"
+      ],
+      "difficulty": 5,
+      "playtime_minutes": 5,
+      "completion_status": "in-progress",
+      "test_status": "UNKNOWN",
+      "state_transitions": [],
+      "logs_captured": 0,
+      "sessions_recorded": 0,
+      "completion_rate": 0.0,
+      "target_audience": "general",
+      "token_count": 7345,
+      "sprite_count": 0,
+      "sound_count": 9
+    },
+    {
+      "date": "2026-03-04",
+      "title": "meteor dodge",
+      "description": "A sports, action PICO-8 game. Earn points and collect power-ups.",
+      "genres": [
+        "sports",
+        "action"
+      ],
+      "difficulty": 5,
+      "playtime_minutes": 5,
+      "completion_status": "in-progress",
+      "test_status": "UNKNOWN",
+      "state_transitions": [],
+      "logs_captured": 0,
+      "sessions_recorded": 0,
+      "completion_rate": 0.0,
+      "target_audience": "general",
+      "token_count": 8192,
+      "sprite_count": 0,
+      "sound_count": 7
+    },
+    {
+      "date": "2026-03-01",
+      "title": "lunar lander",
+      "description": "A rpg, sports PICO-8 game. Control a character, face enemies, earn points, progress through levels, and collect power-ups.",
+      "genres": [
+        "rpg",
+        "sports"
+      ],
+      "difficulty": 5,
+      "playtime_minutes": 5,
+      "completion_status": "in-progress",
+      "test_status": "UNKNOWN",
+      "state_transitions": [],
+      "logs_captured": 0,
+      "sessions_recorded": 0,
+      "completion_rate": 0.0,
+      "assessment_status": "complete",
+      "target_audience": "general",
+      "token_count": 11498,
+      "sprite_count": 0,
+      "sound_count": 21
+    },
+    {
+      "date": "2026-02-28",
+      "title": "Game 2026-02-28",
+      "description": "A action, sports PICO-8 game. Face enemies, earn points, and collect power-ups.",
+      "genres": [
+        "action",
+        "sports"
+      ],
+      "difficulty": 5,
+      "playtime_minutes": 5,
+      "completion_status": "in-progress",
+      "test_status": "UNKNOWN",
+      "state_transitions": [],
+      "logs_captured": 0,
+      "sessions_recorded": 0,
+      "completion_rate": 0.0,
+      "assessment_status": "complete",
+      "target_audience": "general",
+      "token_count": 10040,
+      "sprite_count": 0,
+      "sound_count": 19
+    },
+    {
+      "date": "2026-02-27",
+      "title": "Game 2026-02-27",
+      "description": "A sports, action PICO-8 game. Control a character, earn points, progress through levels, and collect power-ups.",
+      "genres": [
+        "sports",
+        "action"
+      ],
+      "difficulty": 5,
+      "playtime_minutes": 5,
+      "completion_status": "in-progress",
+      "test_status": "UNKNOWN",
+      "state_transitions": [],
+      "logs_captured": 0,
+      "sessions_recorded": 0,
+      "completion_rate": 0.0,
+      "assessment_status": "complete",
+      "target_audience": "general",
+      "token_count": 22827,
+      "sprite_count": 8,
+      "sound_count": 12
+    },
+    {
+      "date": "2026-02-26",
+      "title": "meteor dodge",
+      "description": "A sports, rhythm PICO-8 game. Control a character, earn points, and collect power-ups.",
+      "genres": [
+        "sports",
+        "rhythm"
+      ],
+      "difficulty": 5,
+      "playtime_minutes": 5,
+      "completion_status": "in-progress",
+      "test_status": "UNKNOWN",
+      "state_transitions": [],
+      "logs_captured": 0,
+      "sessions_recorded": 0,
+      "completion_rate": 0.0,
+      "assessment_status": "active",
+      "target_audience": "general",
+      "token_count": 8590,
+      "sprite_count": 0,
+      "sound_count": 8
+    },
+    {
+      "date": "2026-02-25",
+      "title": "star dodge",
+      "description": "A sports, action PICO-8 game. Control a character, earn points, and collect power-ups.",
+      "genres": [
+        "sports",
+        "action"
+      ],
+      "difficulty": 2,
+      "playtime_minutes": 5,
+      "completion_status": "in-progress",
+      "test_status": "UNKNOWN",
+      "state_transitions": [],
+      "logs_captured": 0,
+      "sessions_recorded": 0,
+      "completion_rate": 0.0,
+      "target_audience": "general",
+      "token_count": 1285,
+      "sprite_count": 0,
+      "sound_count": 4
+    }
+  ]
+}

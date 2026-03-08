@@ -1,0 +1,16 @@
+{
+  "title": "Game 2026-02-28",
+  "description": "A action, sports PICO-8 game. Face enemies, earn points, and collect power-ups.",
+  "release_date": "2026-02-28",
+  "genres": [
+    "action",
+    "sports"
+  ],
+  "difficulty": 5,
+  "playtime_minutes": 5,
+  "target_audience": "general",
+  "completion_status": "in-progress",
+  "token_count": 10040,
+  "sprite_count": 0,
+  "sound_count": 19
+}

@@ -1,0 +1,16 @@
+{
+  "title": "lunar lander",
+  "description": "A rpg, sports PICO-8 game. Control a character, face enemies, earn points, progress through levels, and collect power-ups.",
+  "release_date": "2026-03-01",
+  "genres": [
+    "rpg",
+    "sports"
+  ],
+  "difficulty": 5,
+  "playtime_minutes": 5,
+  "target_audience": "general",
+  "completion_status": "in-progress",
+  "token_count": 11498,
+  "sprite_count": 0,
+  "sound_count": 21
+}
