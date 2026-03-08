@@ -571,7 +571,7 @@ def generate_suggestions(game, game_dir):
                 'priority': str(priority),
                 'implementation_steps': [
                     'Open metadata.json',
-                    'Change difficulty from {difficulty} to {TARGET_DIFFICULTY}',
+                    f'Change difficulty from {difficulty} to {TARGET_DIFFICULTY}',
                     'Save and regenerate catalog',
                 ],
             })
