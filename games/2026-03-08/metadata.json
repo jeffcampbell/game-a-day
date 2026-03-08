@@ -1,18 +1,18 @@
 {
-  "title": "Untitled Game",
-  "description": "A PICO-8 game",
+  "title": "Cave Escape",
+  "description": "Navigate a dangerous cave while avoiding enemies. Progress through two levels to escape to freedom. Use arrow keys to move and reach the glowing exit portal before you run out of health.",
   "release_date": "2026-03-08",
   "genres": [
-    "puzzle"
+    "adventure"
   ],
-  "theme": "",
-  "difficulty": 3,
+  "theme": "exploration",
+  "difficulty": 2,
   "playtime_minutes": 5,
   "target_audience": "general",
-  "keywords": [],
+  "keywords": ["dodge", "exploration", "adventure"],
   "completion_status": "in-progress",
   "tester_notes": "",
-  "token_count": 0,
+  "token_count": 928,
   "sprite_count": 0,
   "sound_count": 0
 }
