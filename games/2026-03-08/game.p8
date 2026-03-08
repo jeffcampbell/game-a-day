@@ -48,6 +48,13 @@ difficulty_ramp_duration=1800
 last_move_frame=-10
 last_hit_frame=-10
 
+-- dash mechanics
+dash_cooldown=30  -- 0.5 seconds at 60fps
+last_dash_frame=-100
+dash_invuln_frames=10
+dash_invuln_start=-100
+dash_speed_mult=2.5
+
 function init_level()
  enemies={}
  level_start_frame=frames
@@ -98,7 +105,8 @@ function draw_menu()
  print("exit portal",32,44,7)
  print("avoid red enemies",24,56,7)
  print("reach both levels",24,68,11)
- print("arrow keys move",28,85,11)
+ print("arrow keys move",28,80,11)
+ print("x button dash!",32,90,11)
  print("z or x to start",32,105,11)
 end
 
@@ -117,6 +125,31 @@ function update_play()
  if (dx~=0 or dy~=0) and frames-last_move_frame>10 then
   sfx(0)
   last_move_frame=frames
+ end
+
+ -- dash mechanic (x button)
+ if test_input(5)>0 and frames-last_dash_frame>=dash_cooldown then
+  local dash_dx=0
+  local dash_dy=0
+
+  -- determine dash direction from current input
+  if dx~=0 then dash_dx=sgn(dx) end
+  if dy~=0 then dash_dy=sgn(dy) end
+
+  -- if no directional input, dash forward (right)
+  if dash_dx==0 and dash_dy==0 then dash_dx=1 end
+
+  -- apply dash boost
+  dx+=dash_dx*player.speed*dash_speed_mult
+  dy+=dash_dy*player.speed*dash_speed_mult
+
+  -- activate invulnerability window
+  dash_invuln_start=frames
+  last_dash_frame=frames
+
+  -- play dash sound
+  sfx(3)
+  _log("dash")
  end
 
  player.x+=dx
@@ -153,7 +186,9 @@ function update_play()
    e.dir=-e.dir
   end
 
-  if collide(player,e) then
+  -- check collision only if not in invulnerability window
+  local is_invuln=frames-dash_invuln_start<dash_invuln_frames
+  if collide(player,e) and not is_invuln then
    health-=1
    _log("hit_enemy")
    sfx(1)
@@ -196,7 +231,10 @@ function draw_play()
  end
 
  if player.alive then
-  circfill(player.x,player.y,4,11)
+  -- flash player white during dash invulnerability
+  local is_invuln=frames-dash_invuln_start<dash_invuln_frames
+  local col=is_invuln and 7 or 11
+  circfill(player.x,player.y,4,col)
   pset(player.x-2,player.y-1,15)
   pset(player.x+2,player.y-1,15)
  end
@@ -521,3 +559,4 @@ __sfx__
 001004,255,000,000,3003,3003,3003,3003,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,1001,1001,1001,1001,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,4004,5005,6006,7007,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
+001004,255,000,000,6006,6006,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
