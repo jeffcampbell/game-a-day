@@ -1,8 +1,8 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
--- Untitled Game
--- 2026-03-08
+-- Cave Escape
+-- Navigate the cave, avoid enemies, reach the exit!
 
 testmode=false
 test_log={}
@@ -26,8 +26,173 @@ function test_input(b)
 end
 
 state="menu"
+score=0
+health=3
+level=1
+frames=0
 
-function _init()
+-- player
+player={x=64,y=100,w=4,h=4,speed=1.5,alive=true}
+
+-- enemies array
+enemies={}
+
+-- exit portal
+exit_portal={x=115,y=15,w=6,h=6}
+
+function init_level()
+ enemies={}
+
+ if level==1 then
+  player.x=12
+  player.y=100
+  health=3
+  _log("level:1")
+
+  add(enemies,{x=60,y=30,w=4,h=4,speed=0.6,dir=1})
+  add(enemies,{x=100,y=60,w=4,h=4,speed=0.6,dir=-1})
+  add(enemies,{x=30,y=70,w=4,h=4,speed=0.6,dir=1})
+  add(enemies,{x=80,y=90,w=4,h=4,speed=0.6,dir=-1})
+
+ elseif level==2 then
+  player.x=12
+  player.y=100
+  health=3
+  _log("level:2")
+
+  add(enemies,{x=50,y=25,w=4,h=4,speed=0.9,dir=1})
+  add(enemies,{x=95,y=40,w=4,h=4,speed=0.9,dir=-1})
+  add(enemies,{x=25,y=60,w=4,h=4,speed=0.9,dir=1})
+  add(enemies,{x=70,y=80,w=4,h=4,speed=0.9,dir=-1})
+  add(enemies,{x=40,y=110,w=4,h=4,speed=0.9,dir=1})
+ end
+end
+
+function update_menu()
+ if btnp(4) or btnp(5) then
+  state="play"
+  score=0
+  health=3
+  level=1
+  init_level()
+  _log("state:play")
+ end
+end
+
+function draw_menu()
+ cls(1)
+ print("cave escape",36,20,7)
+ print("avoid enemies",32,40,7)
+ print("reach the exit",32,52,7)
+ print("arrow keys move",28,75,11)
+ print("z or x to start",32,95,11)
+end
+
+function update_play()
+ if not player.alive then return end
+
+ local dx=0
+ local dy=0
+
+ if test_input(0)>0 then dx=-player.speed end
+ if test_input(1)>0 then dx=player.speed end
+ if test_input(2)>0 then dy=-player.speed end
+ if test_input(3)>0 then dy=player.speed end
+
+ player.x+=dx
+ player.y+=dy
+
+ player.x=max(2,min(player.x,126))
+ player.y=max(2,min(player.y,126))
+
+ for i=1,#enemies do
+  local e=enemies[i]
+  e.x+=e.speed*e.dir
+
+  if e.x<2 or e.x>126 then
+   e.dir=-e.dir
+  end
+
+  if collide(player,e) then
+   health-=1
+   _log("hit_enemy")
+
+   if health<=0 then
+    player.alive=false
+    state="gameover"
+    _log("gameover:lose")
+   else
+    player.x-=dx*4
+   end
+  end
+ end
+
+ if collide(player,exit_portal) then
+  level+=1
+  if level>2 then
+   score=100
+   state="gameover"
+   _log("gameover:win")
+  else
+   init_level()
+   _log("level_complete")
+  end
+ end
+
+ frames+=1
+end
+
+function draw_play()
+ cls(0)
+
+ for x=0,128,8 do
+  for y=0,128,8 do
+   if (x+y)%16==0 then
+    rectfill(x,y,x+7,y+7,5)
+   end
+  end
+ end
+
+ if player.alive then
+  circfill(player.x,player.y,4,11)
+  pset(player.x-2,player.y-1,15)
+  pset(player.x+2,player.y-1,15)
+ end
+
+ for i=1,#enemies do
+  local e=enemies[i]
+  circfill(e.x,e.y,3,8)
+  pset(e.x-1,e.y-1,15)
+  pset(e.x+1,e.y-1,15)
+ end
+
+ circfill(exit_portal.x,exit_portal.y,5,12)
+ circfill(exit_portal.x,exit_portal.y,3,14)
+
+ print("lvl "..level,2,2,7)
+ print("hp "..max(0,health),90,2,7)
+ print("enemies: "..#enemies,2,120,7)
+end
+
+function update_gameover()
+ if btnp(4) or btnp(5) then
+  state="menu"
+  _log("state:menu")
+ end
+end
+
+function draw_gameover()
+ cls(0)
+
+ if score==100 then
+  print("victory!",44,40,11)
+  print("you escaped",36,60,11)
+ else
+  print("game over",40,40,8)
+  print("caught!",48,60,8)
+ end
+
+ print("z or x to menu",32,90,7)
 end
 
 function _update()
@@ -38,29 +203,17 @@ function _update()
 end
 
 function _draw()
- cls()
  if state=="menu" then draw_menu()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
  end
 end
 
-function update_menu()
-end
-
-function draw_menu()
-end
-
-function update_play()
-end
-
-function draw_play()
-end
-
-function update_gameover()
-end
-
-function draw_gameover()
+function collide(a,b)
+ return a.x<b.x+b.w and
+        a.x+a.w>b.x and
+        a.y<b.y+b.h and
+        a.y+a.h>b.y
 end
 
 __gfx__
