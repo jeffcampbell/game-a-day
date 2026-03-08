@@ -77,6 +77,9 @@ last_dash_frame=-100
 dash_invuln_frames=10
 dash_invuln_start=-100
 dash_speed_mult=2.5
+dash_streak=0  -- consecutive dashes without damage
+dash_flash_frames=0  -- screen flash effect duration
+dash_near_miss=false  -- did this dash avoid an enemy?
 
 -- shield mechanics
 shield_cooldown=90  -- 1.5 seconds at 60fps
@@ -137,6 +140,9 @@ function init_level()
  -- reset reminder flags for new level
  level_2_dash_reminder=false
  level_3_shield_reminder=false
+
+ -- reset dash streak
+ dash_streak=0
 
  -- start background music
  music(0)
@@ -633,9 +639,19 @@ function update_play()
   last_dash_frame=frames
   player_used_dash=true
 
-  -- play dash sound
-  sfx(3)
-  _log("dash")
+  -- increment dash streak
+  dash_streak+=1
+
+  -- visual feedback: screen flash
+  dash_flash_frames=3
+
+  -- award points for dash action
+  level_score+=5
+
+  -- play dash sound with escalating pitch based on streak
+  local dash_pitch=3+flr(dash_streak*0.2)
+  sfx(3,0,dash_pitch%8)
+  _log("dash:"..dash_streak)
 
   -- track dashes in first 5 seconds for passive detection
   if not passive_check_done and elapsed<300 then
@@ -917,6 +933,7 @@ function update_play()
    elseif not is_dash_invuln then
     -- take damage from enemy
     health-=1
+    dash_streak=0  -- reset dash streak on damage
     -- track hit for adaptive difficulty
     add(hit_times,frames)
     _log("hit_enemy")
@@ -930,6 +947,18 @@ function update_play()
     else
      player.x-=dx*4
     end
+   elseif is_dash_invuln then
+    -- near-miss: dash avoided enemy
+    sfx(6)  -- success tone
+    level_score+=10*(1+flr(dash_streak*0.1))  -- streak bonus
+    _log("dash_avoid:"..dash_streak)
+   end
+  elseif is_dash_invuln then
+   -- check for near-miss (enemy close to player)
+   local dx_dist=abs(e.x-player.x)
+   local dy_dist=abs(e.y-player.y)
+   if dx_dist<14 and dy_dist<14 then
+    sfx(4)  -- near-miss feedback
    end
   end
  end
@@ -975,6 +1004,11 @@ end
 
 function draw_play()
  cls(0)
+
+ -- screen flash effect on dash
+ if dash_flash_frames>0 then
+  rectfill(0,0,128,128,14)  -- bright yellow flash
+ end
 
  for x=0,128,8 do
   for y=0,128,8 do
@@ -1090,6 +1124,14 @@ function draw_play()
    level_3_shield_reminder=true
   end
 
+  -- dash streak counter and early game prompt
+  if dash_streak>0 then
+   print("dash x"..dash_streak,2,22,11)  -- show dash streak
+  end
+  if elapsed<300 and not player_used_dash then
+   print("x:dash!",48,115,10)  -- early game prompt
+  end
+
   print("find exit (top right)",10,120,14)
  end
 end
@@ -1145,6 +1187,9 @@ function draw_gameover()
 end
 
 function _update()
+ -- global state updates
+ if dash_flash_frames>0 then dash_flash_frames-=1 end
+
  if state=="menu" then update_menu()
  elseif state=="tutorial_mode_select" then update_tutorial_mode_select()
  elseif state=="difficulty_select" then update_difficulty_select()
