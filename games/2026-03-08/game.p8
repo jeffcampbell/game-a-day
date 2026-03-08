@@ -88,6 +88,8 @@ power_ups={}
 player_power_up=nil  -- current held power-up: {type,spawn_frame}
 prev_down_btn=0  -- track down button state for power-up activation
 power_up_spawn_frame=-10000
+power_up_1_spawned=false  -- track if first power-up has spawned
+power_up_2_spawned=false  -- track if second power-up has spawned
 
 function init_level()
  enemies={}
@@ -96,6 +98,8 @@ function init_level()
  power_up_spawn_frame=frames
  level_start_frame=frames
  level_score=0
+ power_up_1_spawned=false
+ power_up_2_spawned=false
 
  -- reset adaptive difficulty tracking
  hit_times={}
@@ -341,8 +345,9 @@ function draw_menu()
  print("reach both levels",24,68,11)
  print("arrow keys move",28,80,11)
  print("x button dash!",32,90,11)
- print("down = shield",32,98,11)
- print("z or x to start",32,107,11)
+ print("down button: activate",22,98,11)
+ print("power-ups!",40,104,11)
+ print("z or x to start",32,114,11)
 end
 
 function draw_mode_select()
@@ -377,6 +382,8 @@ function draw_difficulty_select()
   if i==difficulty_cursor then
    col=11
   end
+  print(labels[i],56,y_positions[i],col)
+ end
 
  print("up/down select",32,110,7)
  print("z/x confirm",36,118,7)
@@ -573,16 +580,18 @@ function update_play()
   -- spawn power-ups at specific times (only if not holding one)
   if player_power_up==nil then
    local power_types={"shield","speed","slow","heal"}
-   -- spawn first power-up at 8 seconds
-   if elapsed==480 and #power_ups==0 then
+   -- spawn first power-up at 8 seconds (480 frames)
+   if not power_up_1_spawned and elapsed>=480 then
+    power_up_1_spawned=true
     local ptype=power_types[flr(rnd(4))+1]
     local spawn_x=20+flr(rnd(88))
     local spawn_y=20+flr(rnd(88))
     add(power_ups,{x=spawn_x,y=spawn_y,w=8,h=8,type=ptype})
     _log("power_spawn:"..ptype)
    end
-   -- spawn second power-up at 20 seconds (only on level 3)
-   if level==3 and elapsed==1200 and #power_ups<2 then
+   -- spawn second power-up at 20 seconds (1200 frames, on all levels)
+   if not power_up_2_spawned and elapsed>=1200 then
+    power_up_2_spawned=true
     local ptype=power_types[flr(rnd(4))+1]
     local spawn_x=20+flr(rnd(88))
     local spawn_y=20+flr(rnd(88))
