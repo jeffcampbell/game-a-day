@@ -389,6 +389,17 @@ def main():
     except Exception as e:
         print(f"⚠️  Could not write summary: {e}", file=sys.stderr)
 
+    # Generate analytics reports
+    try:
+        from analytics_engine import generate_analytics_report
+        print("\nGenerating analytics...", end=' ', flush=True)
+        generate_analytics_report()
+        print("✅")
+    except ImportError:
+        pass  # Analytics engine not available
+    except Exception as e:
+        print(f"⚠️  Could not generate analytics: {e}", file=sys.stderr)
+
     # Print summary
     print()
     print(summary)
