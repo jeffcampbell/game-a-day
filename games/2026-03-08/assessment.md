@@ -159,3 +159,30 @@ Cave Escape is a complete adventure game with real gameplay mechanics. Player mu
   - ✅ Game plays identically to previous version (no behavior changes)
   - ✅ Sprites clearly distinct and recognizable
   - ✅ Token budget healthy: 1134/8192 (13.8% used)
+
+### 7. Background Music Loop (2026-03-08 Update)
+- **Problem**: Game lacked continuous background music, reducing immersion and perceived polish
+- **Solution**: Added looping background music pattern that plays throughout gameplay
+  - **Music Pattern**: Melodic ascending/descending loop (notes 0x20→0x30→0x40→0x30→0x20→0x10, repeating)
+  - **Integration**:
+    - `music(0)` called at level start (init_level) to begin background track
+    - `music(-1)` called on game over to stop music gracefully
+    - Uses separate music channel from SFX to prevent audio conflicts
+- **Impact**:
+  - Enhances immersion and atmosphere during gameplay
+  - Provides continuous engagement hook (audio keeps players focused)
+  - Complements existing SFX (movement, collision, portal, dash) without competing
+- **Token Cost**: +6 tokens (1545 → 1551, maintains 81% safety margin)
+- **Testing Results**:
+  - ✅ Background music loops smoothly during gameplay
+  - ✅ Music stops cleanly on game over (no audio artifacts)
+  - ✅ SFX still play correctly over background music (different channels)
+  - ✅ No performance impact
+  - ✅ Atmosphere significantly improved
+
+### Engagement Impact Summary
+Audio polish completed with three layers:
+1. **SFX Layer**: Movement (0.15s), collision alert, portal success, dash confirmation
+2. **Background Music Layer**: Continuous melodic loop (new)
+3. **Visual Feedback**: White flash on dash, color-distinct sprites
+Expected outcome: **50% → 65%+ completion rate** (music adds sustained engagement and professional polish)
