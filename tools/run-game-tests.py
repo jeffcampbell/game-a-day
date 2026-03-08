@@ -205,22 +205,70 @@ def run_test_on_game(game_dir, date):
     return 'PASS', analysis, []
 
 
+def find_latest_session(game_dir):
+    """Find the most recent recorded session for a game."""
+    sessions = []
+    for entry in os.listdir(game_dir):
+        if entry.startswith('session_') and entry.endswith('.json'):
+            session_path = os.path.join(game_dir, entry)
+            try:
+                with open(session_path, 'r') as f:
+                    session = json.load(f)
+                    sessions.append((session_path, session, os.path.getmtime(session_path)))
+            except Exception:
+                pass
+
+    if not sessions:
+        return None
+
+    # Return the most recent session
+    sessions.sort(key=lambda x: x[2], reverse=True)
+    return sessions[0][1]
+
+
 def generate_test_report(game_dir, date, status, analysis, errors):
-    """Generate test report JSON for a game."""
-    report = {
-        'date': date,
-        'status': status,
-        'duration_frames': 'static_analysis',
-        'errors': errors,
-        'state_transitions': analysis.get('expected_states', []),
-        'logs_captured': analysis.get('log_count', 0),
-        'events': {
-            'state_transitions': len(analysis.get('state_transitions', {})),
-            'game_events': analysis.get('game_events', 0),
-            'gameover_events': len(analysis.get('gameover_conditions', []))
-        },
-        'exit_state': 'analysis_complete'
-    }
+    """Generate test report JSON for a game.
+
+    Incorporates session data if available, otherwise uses static analysis.
+    """
+    # Check for recorded sessions
+    session_data = find_latest_session(game_dir)
+
+    if session_data:
+        # Use recorded session data
+        report = {
+            'date': date,
+            'status': 'PASS' if not errors else 'FAIL',
+            'duration_frames': session_data.get('duration_frames', 0),
+            'source': 'session_recording',
+            'errors': errors,
+            'state_transitions': analysis.get('expected_states', []),
+            'logs_captured': len(session_data.get('logs', [])),
+            'logs': session_data.get('logs', [])[:20],  # Store first 20 logs
+            'events': {
+                'state_transitions': len(analysis.get('state_transitions', {})),
+                'game_events': analysis.get('game_events', 0),
+                'gameover_events': len(analysis.get('gameover_conditions', []))
+            },
+            'exit_state': session_data.get('exit_state', 'recorded')
+        }
+    else:
+        # Use static analysis
+        report = {
+            'date': date,
+            'status': status,
+            'duration_frames': 'static_analysis',
+            'source': 'static_analysis',
+            'errors': errors,
+            'state_transitions': analysis.get('expected_states', []),
+            'logs_captured': analysis.get('log_count', 0),
+            'events': {
+                'state_transitions': len(analysis.get('state_transitions', {})),
+                'game_events': analysis.get('game_events', 0),
+                'gameover_events': len(analysis.get('gameover_conditions', []))
+            },
+            'exit_state': 'analysis_complete'
+        }
 
     # Write report
     report_path = os.path.join(game_dir, 'test-report.json')

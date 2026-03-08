@@ -1,6 +1,13 @@
 
 .worktrees/
 
+# Python cache
+__pycache__/
+*.pyc
+
 # Generated test artifacts (created by tools/run-game-tests.py)
 games/**/test-report.json
 games/test-summary.md
+
+# Recorded test sessions (created by tools/run-interactive-test.py)
+games/**/session_*.json
