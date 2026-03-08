@@ -59,6 +59,12 @@ dash_invuln_frames=10
 dash_invuln_start=-100
 dash_speed_mult=2.5
 
+-- shield mechanics
+shield_cooldown=45  -- 0.75 seconds at 60fps
+last_shield_frame=-100
+shield_invuln_frames=180  -- 3 seconds at 60fps
+shield_invuln_start=-100
+
 function init_level()
  enemies={}
  level_start_frame=frames
@@ -147,7 +153,8 @@ function draw_menu()
  print("reach both levels",24,68,11)
  print("arrow keys move",28,80,11)
  print("x button dash!",32,90,11)
- print("z or x to start",32,105,11)
+ print("down = shield",32,98,11)
+ print("z or x to start",32,107,11)
 end
 
 function draw_difficulty_select()
@@ -217,6 +224,17 @@ function update_play()
   _log("dash")
  end
 
+ -- shield mechanic (down button)
+ if test_input(3)>0 and frames-last_shield_frame>=shield_cooldown then
+  -- activate shield invulnerability window
+  shield_invuln_start=frames
+  last_shield_frame=frames
+
+  -- play shield sound (sfx slot 4)
+  sfx(4)
+  _log("shield")
+ end
+
  player.x+=dx
  player.y+=dy
 
@@ -269,9 +287,10 @@ function update_play()
    e.dir=-e.dir
   end
 
-  -- check collision only if not in invulnerability window
-  local is_invuln=frames-dash_invuln_start<dash_invuln_frames
-  if collide(player,e) and not is_invuln then
+  -- check collision only if not in invulnerability window (dash or shield)
+  local is_dash_invuln=frames-dash_invuln_start<dash_invuln_frames
+  local is_shield_invuln=frames-shield_invuln_start<shield_invuln_frames
+  if collide(player,e) and not is_dash_invuln and not is_shield_invuln then
    health-=1
    _log("hit_enemy")
    sfx(1)
@@ -323,11 +342,16 @@ function draw_play()
  end
 
  if player.alive then
-  -- flash player white during dash invulnerability
-  local is_invuln=frames-dash_invuln_start<dash_invuln_frames
-  if is_invuln then
-   pal(11,7)
+  -- change color during shield or dash invulnerability
+  local is_dash_invuln=frames-dash_invuln_start<dash_invuln_frames
+  local is_shield_invuln=frames-shield_invuln_start<shield_invuln_frames
+
+  if is_shield_invuln then
+   pal(11,9)  -- shield: change to cyan
+  elseif is_dash_invuln then
+   pal(11,7)  -- dash: change to white
   end
+
   spr(0,player.x-4,player.y-4)
   pal()
  end
@@ -672,3 +696,4 @@ __sfx__
 001004,255,000,000,4004,5005,6006,7007,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,6006,6006,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,2020,3030,4040,3030,2020,1010,2020,3030,4040,3030,2020,1010,2020,3030,4040,3030,2020,1010,2020,3030,0000,0000,0000,0000,0000,0000,0000,0000
+001004,255,000,000,7007,6006,5005,4004,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
