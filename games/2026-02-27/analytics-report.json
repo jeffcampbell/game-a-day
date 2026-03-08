@@ -1,55 +1,54 @@
 {
   "date": "2026-02-27",
-  "has_sessions": true,
-  "session_count": 5,
-  "metrics": {
-    "completion_rate_pct": 40.0,
-    "completion_breakdown": {
-      "quit": 2,
-      "lost": 1,
-      "won": 2
+  "has_sessions": false,
+  "session_count": 0,
+  "test_report": {
+    "date": "2026-02-27",
+    "status": "PASS",
+    "duration_frames": "static_analysis",
+    "source": "static_analysis",
+    "errors": [],
+    "state_transitions": [
+      "menu",
+      "difficulty_select",
+      "challenge_variant_menu",
+      "practice_obstacle_select",
+      "gauntlet",
+      "bossrush",
+      "tutorial",
+      "variant_leaderboards",
+      "ad2",
+      "statistics",
+      "settings",
+      "progress",
+      "play",
+      "difficulty_customize",
+      "resume",
+      "pause",
+      "gameover",
+      "enter_initials",
+      "practice_speed_select",
+      "practice_play",
+      "gauntlet_gameover",
+      "bossrush_gameover"
+    ],
+    "logs_captured": 420,
+    "events": {
+      "state_transitions": 22,
+      "game_events": 379,
+      "gameover_events": 1
     },
-    "avg_duration_frames": 2336.4,
-    "median_duration_frames": 2216,
-    "max_duration_frames": 2751,
-    "difficulty_cliff_frame": 2216,
-    "avg_state_times": {
-      "menu": 1,
-      "play": 2335.4
-    },
-    "input_activity_rate": 0.143
-  },
-  "test_report": null,
-  "session_samples": [
-    {
-      "duration_frames": 2216,
-      "completion_status": "quit",
-      "unique_states": 2,
-      "logs_count": 4
-    },
-    {
-      "duration_frames": 2097,
-      "completion_status": "lost",
-      "unique_states": 2,
-      "logs_count": 3
-    },
-    {
-      "duration_frames": 1985,
-      "completion_status": "quit",
-      "unique_states": 2,
-      "logs_count": 2
-    },
-    {
-      "duration_frames": 2751,
-      "completion_status": "won",
-      "unique_states": 2,
-      "logs_count": 5
-    },
-    {
-      "duration_frames": 2633,
-      "completion_status": "won",
-      "unique_states": 2,
-      "logs_count": 3
+    "exit_state": "analysis_complete",
+    "metadata": {
+      "title": "Game 2026-02-27",
+      "description": "A sports, action PICO-8 game. Control a character, earn points, progress through levels, and collect power-ups.",
+      "genres": [
+        "sports",
+        "action"
+      ],
+      "difficulty": 5,
+      "completion_status": "in-progress"
     }
-  ]
+  },
+  "metrics": {}
 }

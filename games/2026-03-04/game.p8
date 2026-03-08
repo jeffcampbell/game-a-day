@@ -120,10 +120,8 @@ bp_del=0
 bd_flash_txt=""
 bd_x=64
 nm_count=0
--- wave archetype system
-wa=0 wa_t=0 wa_ls=0
-wa_d={{1,0,9},{2,1,12},{3,2,8},{4,3,3},{5,4,14},{6,5,2}}
-wa_n=split("rad surge,ice fall,mag storm,chaos,rift,phantom")
+-- wave archetype system (disabled for token budget)
+-- wa=0 wa_t=0 wa_ls=0
 -- hazard meteor system
 -- 0=normal,1=radioactive,2=ice,3=magnetic,4=corrupted,5=splitter,6=phantom
 hzc={9,12,8,3,14,2}
@@ -400,7 +398,7 @@ function start_game()
  boss_timer,boss_flash,last_boss_score,tele_timer,tele_dur,boss_vuln=0,0,0,0,0,0
  dodge_combo,dodge_best,combo_flash=0,0,0
  boss_waves,boss_tier,boss_n,bd_flash,nm_count,achv_flash,bp_del=0,0,0,0,0,0,0
- ice_slow,sp_frag,ph_dodged,g_timer,g_trans,e_timer,wa,wa_t,wa_ls,hm_h,hm_c,hm_t,vb_m,vb_f=0,0,0,0,0,0,0,0,0,0,0,0,1,0
+ ice_slow,sp_frag,ph_dodged,g_timer,g_trans,e_timer,hm_h,hm_c,hm_t,vb_m,vb_f=0,0,0,0,0,0,0,0,0,1,0
  vb_w={}
  boss_active,shld_burst,dbl_atk,g_won=false,false,false,false
  ta_nodmg,g_nodmg,e_nodmg=true,true,true
@@ -408,7 +406,7 @@ function start_game()
  boss_atk,boss_type,diff_level=1,1,1
  hz_ct={0,0,0,0,0}
  -- apply difficulty settings
- local ds={{50,0.8,1.0},{40,1.0,1.0},{30,1.2,1.5}}
+ local ds={{50,0.8,1.0},{65,0.8,1.0},{35,1.0,1.5}}
  local d=ds[diff_sel]
  spawn_rate=d[1] meteor_speed=d[2] score_mult=d[3]
  -- time attack setup
@@ -508,14 +506,14 @@ function update_play()
  end
  -- difficulty ramp (endless: faster)
  diff_timer+=1
- local ramp_int=is_endless and 120 or 180
+ local ramp_int=is_endless and 120 or 360
  if diff_timer>=ramp_int then
   diff_timer=0
   local sr_min=is_endless and 6 or 10
   if spawn_rate>sr_min then
-   spawn_rate-=(is_endless and 3 or 2)
+   spawn_rate-=(is_endless and 3 or 1)
   end
-  meteor_speed+=(is_endless and 0.08 or 0.05)
+  meteor_speed+=(is_endless and 0.08 or 0.025)
   local new_lv=min(flr((meteor_speed-1)*10)+1,10)
   if new_lv>diff_level then
    sfx(0)
@@ -523,14 +521,9 @@ function update_play()
   diff_level=new_lv
  end
 
- -- wave archetype trigger
- if wa==0 and score>=wa_ls+50 then
-  wa_ls=score
-  wa=1+flr(rnd(6))
-  wa_t=ds(180,130,100)
-  _log("arch:"..wa_n[wa])
- end
- if wa_t>0 then wa_t-=1 if wa_t<=0 then wa=0 end end
+ -- wave archetype trigger (disabled)
+ -- if wa==0 and score>=wa_ls+50 then wa_ls=score wa=1+flr(rnd(6)) wa_t=ds(180,130,100) _log("arch:"..wa_n[wa]) end
+ -- if wa_t>0 then wa_t-=1 if wa_t<=0 then wa=0 end end
  -- spawn meteors
  spawn_timer+=1
  if spawn_timer>=spawn_rate then
@@ -551,9 +544,9 @@ function update_play()
   spawn_powerup()
  end
 
- -- boss wave trigger: every 50 pts, alternate mini/major
+ -- boss wave trigger: every 75 pts, alternate mini/major
  if not boss_active then
-  if score>=last_boss_score+(diff_level>=5 and 25 or 50) then
+  if score>=last_boss_score+(diff_level>=5 and 50 or 75) then
    last_boss_score=score
    boss_n+=1
    boss_tier=boss_n%2==1 and 1 or 2
@@ -661,7 +654,6 @@ function update_play()
    local dist=sqrt(dx*dx+dy*dy)
    local nm_d=m.htype==2 and 9 or 12
    local hzmul=m.htype>0 and ({1.2,1,1.5,2,1,1.3})[m.htype] or 1
-    if wa>0 and m.htype==wa_d[wa][1] then hzmul*=1.2 end
    if dist<nm_d then
     got_near=true
     local bvmul=(m.boss and boss_vuln>0) and 2 or 1
@@ -837,9 +829,6 @@ function spawn_meteor()
  -- gauntlet: force hazard type per round
  if is_gauntlet and g_round>=1 and g_round<=4 then
   ht=g_round
- elseif wa>0 then
-  local ad=wa_d[wa]
-  ht=rnd()<0.7 and ad[1] or ad[2]
  elseif diff_level>=2 then
   local r=rnd()
   if diff_level>=5 and r<0.15 then ht=4
@@ -894,7 +883,7 @@ end
 
 function execute_boss_attack()
  local mn=boss_tier==1
- local pc=ds(0.7,1,1.5)
+ local pc=ds(0.7,0.7,1.2)
  boss_timer=flr((mn and 45 or 90)*ds(1.3,1,0.67))
  shake=mn and 2 or 4
  flash=2
@@ -1120,11 +1109,7 @@ function draw_play()
   end
  end
 
- -- wave archetype indicator
- if wa>0 and not boss_active and boss_flash<=0 then
-  local wn=wa_n[wa]
-  print(wn,64-#wn*2,9,flr(anim_t/3)%2==0 and wa_d[wa][3] or 5)
- end
+ -- wave archetype indicator (disabled)
  -- active effect timers
  local ty=14
  local ef={{slowmo_timer,180,"slow",11},{dblscore_timer,120,"2x",10},{inv_timer,150,"inv",11}}

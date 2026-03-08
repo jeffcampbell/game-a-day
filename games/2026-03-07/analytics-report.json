@@ -1,54 +1,33 @@
 {
   "date": "2026-03-07",
-  "has_sessions": true,
-  "session_count": 5,
-  "metrics": {
-    "completion_rate_pct": 0.0,
-    "completion_breakdown": {
-      "lost": 2,
-      "quit": 3
+  "has_sessions": false,
+  "session_count": 0,
+  "test_report": {
+    "date": "2026-03-07",
+    "status": "FAIL",
+    "duration_frames": "static_analysis",
+    "source": "static_analysis",
+    "errors": [
+      "No state transitions logged",
+      "Insufficient logging (only 0 logs, need 3+)"
+    ],
+    "state_transitions": [],
+    "logs_captured": 0,
+    "events": {
+      "state_transitions": 0,
+      "game_events": 0,
+      "gameover_events": 0
     },
-    "avg_duration_frames": 1682,
-    "median_duration_frames": 1416,
-    "max_duration_frames": 2601,
-    "difficulty_cliff_frame": 2601,
-    "avg_state_times": {
-      "menu": 1,
-      "play": 1681
-    },
-    "input_activity_rate": 0.134
-  },
-  "test_report": null,
-  "session_samples": [
-    {
-      "duration_frames": 1383,
-      "completion_status": "lost",
-      "unique_states": 2,
-      "logs_count": 4
-    },
-    {
-      "duration_frames": 1416,
-      "completion_status": "quit",
-      "unique_states": 2,
-      "logs_count": 3
-    },
-    {
-      "duration_frames": 2116,
-      "completion_status": "quit",
-      "unique_states": 2,
-      "logs_count": 3
-    },
-    {
-      "duration_frames": 894,
-      "completion_status": "quit",
-      "unique_states": 2,
-      "logs_count": 3
-    },
-    {
-      "duration_frames": 2601,
-      "completion_status": "lost",
-      "unique_states": 2,
-      "logs_count": 4
+    "exit_state": "analysis_complete",
+    "metadata": {
+      "title": "Untitled Game",
+      "description": "A PICO-8 game",
+      "genres": [
+        "puzzle"
+      ],
+      "difficulty": 3,
+      "completion_status": "in-progress"
     }
-  ]
+  },
+  "metrics": {}
 }
