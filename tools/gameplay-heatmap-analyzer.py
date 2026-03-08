@@ -114,6 +114,10 @@ def parse_logs(logs):
     }
 
     for log_entry in logs:
+        # Type validation: skip non-string entries
+        if not isinstance(log_entry, str):
+            continue
+
         # State transitions
         if log_entry.startswith('state:'):
             state = log_entry.split(':', 1)[1]
@@ -267,7 +271,7 @@ def analyze_game_sessions(game_dir, game_date):
     first_death_frames = []
     all_state_transitions = []
     total_deaths = 0
-    total_score_gained = 0
+    total_max_scores = 0
 
     # Process each session
     for session_path, session_data in sessions:
@@ -331,9 +335,9 @@ def analyze_game_sessions(game_dir, game_date):
             if buttons & 32:  # X button
                 report['button_usage']['x'] = report['button_usage'].get('x', 0) + 1
 
-        # Track scores
+        # Track scores (maximum score per session)
         if log_info['scores']:
-            total_score_gained += max(log_info['scores']) if log_info['scores'] else 0
+            total_max_scores += max(log_info['scores']) if log_info['scores'] else 0
 
     # Build movement heatmap
     movement_heatmap = create_heatmap(all_positions)
@@ -348,7 +352,8 @@ def analyze_game_sessions(game_dir, game_date):
     if session_lengths:
         report['temporal_analysis']['avg_session_length_frames'] = statistics.mean(session_lengths)
         report['temporal_analysis']['median_session_length_frames'] = statistics.median(session_lengths)
-        report['temporal_analysis']['engagement_rate'] = len(sessions) / (len(sessions) + 1)  # Simplified
+        # Engagement rate: normalized metric showing repeat play frequency (approaches 1 as sessions increase)
+        report['temporal_analysis']['engagement_rate'] = len(sessions) / (len(sessions) + 1)
 
         if first_death_frames:
             report['temporal_analysis']['first_death_frame_avg'] = statistics.mean(first_death_frames)
@@ -370,7 +375,7 @@ def analyze_game_sessions(game_dir, game_date):
             if count == 0:
                 dead_zones.append((x, y))
 
-    # Sample dead zones (report top 10)
+    # Sample dead zones for report (limit to 10)
     report['spatial_analysis']['dead_zones'] = [
         {'x': x, 'y': y} for x, y in dead_zones[:10]
     ]
@@ -400,7 +405,7 @@ def analyze_game_sessions(game_dir, game_date):
 
     # Event analysis
     report['event_analysis']['death_events'] = total_deaths
-    report['event_analysis']['score_gained'] = total_score_gained
+    report['event_analysis']['score_gained'] = total_max_scores
 
     # Generate recommendations
     recommendations = []
@@ -413,11 +418,11 @@ def analyze_game_sessions(game_dir, game_date):
             'action': 'Add waypoints or rewards in unexplored areas'
         })
 
-    if len(report['spatial_analysis']['dead_zones']) > 50:
+    if len(dead_zones) > 50:
         recommendations.append({
             'type': 'large_dead_zones',
             'severity': 'critical',
-            'message': f'Large areas of the game are never visited by players.',
+            'message': f'Large areas of the game are never visited by players ({len(dead_zones)} dead zones).',
             'action': 'Redesign level layout to guide players through all areas'
         })
 
