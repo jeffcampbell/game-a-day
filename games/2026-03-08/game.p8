@@ -44,6 +44,10 @@ exit_portal={x=115,y=15,w=6,h=6}
 -- difficulty ramp-up: ease in enemies during first 30s (1800 frames)
 difficulty_ramp_duration=1800
 
+-- audio state tracking
+last_move_frame=-10
+last_hit_frame=-10
+
 function init_level()
  enemies={}
  level_start_frame=frames
@@ -109,6 +113,12 @@ function update_play()
  if test_input(2)>0 then dy=-player.speed end
  if test_input(3)>0 then dy=player.speed end
 
+ -- play move sound on input
+ if (dx~=0 or dy~=0) and frames-last_move_frame>10 then
+  sfx(0)
+  last_move_frame=frames
+ end
+
  player.x+=dx
  player.y+=dy
 
@@ -146,6 +156,7 @@ function update_play()
   if collide(player,e) then
    health-=1
    _log("hit_enemy")
+   sfx(1)
 
    if health<=0 then
     player.alive=false
@@ -158,6 +169,7 @@ function update_play()
  end
 
  if collide(player,exit_portal) then
+  sfx(2)
   level+=1
   if level>2 then
    score=100
@@ -506,3 +518,6 @@ __label__
 11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 __sfx__
+001004,255,000,000,3003,3003,3003,3003,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
+001004,255,000,000,1001,1001,1001,1001,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
+001004,255,000,000,4004,5005,6006,7007,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
