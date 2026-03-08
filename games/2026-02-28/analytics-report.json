@@ -5,7 +5,7 @@
   "test_report": {
     "date": "2026-02-28",
     "status": "PASS",
-    "duration_frames": null,
+    "duration_frames": "static_analysis",
     "source": "static_analysis",
     "errors": [],
     "state_transitions": [
@@ -23,17 +23,7 @@
       "game_events": 174,
       "gameover_events": 1
     },
-    "exit_state": "analysis_complete",
-    "metadata": {
-      "title": "Game 2026-02-28",
-      "description": "A action, sports PICO-8 game. Face enemies, earn points, and collect power-ups.",
-      "genres": [
-        "action",
-        "sports"
-      ],
-      "difficulty": 5,
-      "completion_status": "in-progress"
-    }
+    "exit_state": "analysis_complete"
   },
   "metrics": {}
 }

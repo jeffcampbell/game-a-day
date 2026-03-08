@@ -5,7 +5,7 @@
   "test_report": {
     "date": "2026-03-01",
     "status": "PASS",
-    "duration_frames": null,
+    "duration_frames": "static_analysis",
     "source": "static_analysis",
     "errors": [],
     "state_transitions": [
@@ -22,17 +22,7 @@
       "game_events": 155,
       "gameover_events": 0
     },
-    "exit_state": "analysis_complete",
-    "metadata": {
-      "title": "lunar lander",
-      "description": "A rpg, sports PICO-8 game. Control a character, face enemies, earn points, progress through levels, and collect power-ups.",
-      "genres": [
-        "rpg",
-        "sports"
-      ],
-      "difficulty": 5,
-      "completion_status": "in-progress"
-    }
+    "exit_state": "analysis_complete"
   },
   "metrics": {}
 }

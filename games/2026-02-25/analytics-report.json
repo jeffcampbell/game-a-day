@@ -5,7 +5,7 @@
   "test_report": {
     "date": "2026-02-25",
     "status": "PASS",
-    "duration_frames": null,
+    "duration_frames": "static_analysis",
     "source": "static_analysis",
     "errors": [],
     "state_transitions": [
@@ -18,17 +18,7 @@
       "game_events": 25,
       "gameover_events": 1
     },
-    "exit_state": "analysis_complete",
-    "metadata": {
-      "title": "star dodge",
-      "description": "A sports, action PICO-8 game. Control a character, earn points, and collect power-ups.",
-      "genres": [
-        "sports",
-        "action"
-      ],
-      "difficulty": 2,
-      "completion_status": "in-progress"
-    }
+    "exit_state": "analysis_complete"
   },
   "metrics": {}
 }

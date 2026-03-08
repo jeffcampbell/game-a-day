@@ -5,6 +5,26 @@
 Build one new PICO-8 game every day. Each game is a complete, playable experience
 stored in `games/YYYY-MM-DD/`.
 
+## Daily Game Convention — THIS IS THE #1 PRIORITY
+
+**The game is the product. Everything else is secondary.**
+
+Check `date +%Y-%m-%d` to get today's date, then look for `games/YYYY-MM-DD/`.
+
+- If today's directory does **not** exist → create a new game for today. Pick a fresh
+  game concept (don't repeat recent genres — check the last few days' games for
+  variety). Create the directory, write `game.p8`, export HTML, and sync to
+  pixel-dashboard.
+- If today's directory **exists but has no `game.p8`** → build the game.
+- If today's directory **exists with `game.p8` that is a skeleton/template** (e.g.
+  "Untitled Game", minimal code, no real gameplay) → flesh it out into a real,
+  playable, fun game with actual mechanics, sprites, and a win/lose condition.
+- If today's directory **exists with a complete game** → improve, fix bugs, or polish
+  the existing game rather than starting over.
+- **Never modify previous days' games** unless explicitly asked.
+- **Never propose tooling, infrastructure, library systems, or meta-features** when
+  today's game still needs work. The game comes first — always.
+
 ## Directory Structure
 
 ```

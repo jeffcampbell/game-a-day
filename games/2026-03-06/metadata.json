@@ -1,18 +1,18 @@
 {
-  "title": "Untitled Game",
-  "description": "A PICO-8 game",
+  "title": "Tile Match",
+  "description": "A tile-matching puzzle game. Select tiles of the same color and match 3 or more in a row (horizontal or vertical) to score points. Reach 100 points to win before the board fills up!",
   "release_date": "2026-03-06",
   "genres": [
     "puzzle"
   ],
-  "theme": "",
-  "difficulty": 3,
+  "theme": "Match-3 Puzzle",
+  "difficulty": 2,
   "playtime_minutes": 5,
   "target_audience": "general",
-  "keywords": [],
-  "completion_status": "in-progress",
-  "tester_notes": "",
-  "token_count": 0,
+  "keywords": ["match-3", "puzzle", "tiles", "scoring"],
+  "completion_status": "complete",
+  "tester_notes": "Engaging puzzle mechanics with simple controls. Use arrow keys to navigate tiles, press Z to match.",
+  "token_count": 841,
   "sprite_count": 0,
   "sound_count": 0
 }
