@@ -276,7 +276,7 @@ def generate_test_report(game_dir, date, status, analysis, errors):
         report = {
             'date': date,
             'status': status,
-            'duration_frames': 'static_analysis',
+            'duration_frames': None,
             'source': 'static_analysis',
             'errors': errors,
             'state_transitions': analysis.get('expected_states', []),

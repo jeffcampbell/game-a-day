@@ -5,7 +5,7 @@
   "test_report": {
     "date": "2026-03-05",
     "status": "PASS",
-    "duration_frames": "static_analysis",
+    "duration_frames": null,
     "source": "static_analysis",
     "errors": [],
     "state_transitions": [
