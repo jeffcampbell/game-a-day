@@ -36,7 +36,7 @@ wave=1
 enemies={}
 bullets={}
 spawn_timer=0
-spawn_interval=45
+spawn_interval=70
 
 function _init()
 	_log("game:init")
@@ -186,7 +186,7 @@ function draw_play()
 	end
 
 	-- hud
-	print("score:"..score,4,4,7)
+	print("enemies:"..score.."/10",4,4,7)
 	print("health:"..health,4,12,8)
 end
 
