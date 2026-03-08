@@ -60,9 +60,9 @@ dash_invuln_start=-100
 dash_speed_mult=2.5
 
 -- shield mechanics
-shield_cooldown=45  -- 0.75 seconds at 60fps
+shield_cooldown=90  -- 1.5 seconds at 60fps
 last_shield_frame=-100
-shield_invuln_frames=180  -- 3 seconds at 60fps
+shield_invuln_frames=30  -- 0.5 seconds at 60fps
 shield_invuln_start=-100
 
 function init_level()
