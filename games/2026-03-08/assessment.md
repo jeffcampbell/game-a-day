@@ -497,3 +497,17 @@ Passive players now have 58.3% completion rate on Level 3 (target was 50%+), exc
 **Conclusion**:
 
 Passive player difficulty validation: **SUCCESS**. The three-part rebalancing (health boost, speed reduction, enemy reduction) successfully elevated casual player completion rates from 33% to 58.3%, making Level 3 accessible while maintaining meaningful challenge. Cave Escape is now optimized for all playstyles.
+
+## Session Insights
+
+**Sessions analyzed**: 10
+**Completion rate**: 60%
+**Average playtime**: 46s
+**Outcomes**: 6 wins, 4 losses, 0 quits
+
+**Player flow**: menu → play / won(6) + lost(4)
+
+**Input usage**: left, right, up, down
+
+**Next steps** (prioritized):
+1. Controls not used: o_button, x_button - consider removing from tutorial or assigning functions (low impact, ~5 tokens)
