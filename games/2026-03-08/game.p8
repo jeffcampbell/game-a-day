@@ -134,6 +134,11 @@ function init_level()
  end
 
  health=health_val
+ -- passive players get +1 health on level 3 for better survivability
+ if is_passive_player and level==3 then
+  health=health+1
+  _log("health_boost:passive_level3")
+ end
  _log("difficulty:"..difficulty)
  _log("level:"..level)
 
@@ -192,18 +197,22 @@ function init_level()
   boss_health=boss_health_val
   _log("boss_encounter")
 
-  -- level 3: 4-5 enemies initially, 5-10% faster than level 2
+  -- level 3: 3-5 enemies initially, 5-10% faster than level 2
+  -- reduced to 3 for passive players to improve completion rate
   if level_start_frame>0 then
    local passive_speed_mult=1.0
    if is_passive_player then
-    passive_speed_mult=0.8  -- 20% speed reduction for passive players
-    _log("difficulty:passive_adjust")
+    passive_speed_mult=0.75  -- 25% speed reduction for passive players (increased from 20%)
+    _log("difficulty:passive_adjust_level3")
    end
    -- base speed 0.95 is ~5% faster than level 2's 0.9
    add(enemies,{x=40,y=30,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
    add(enemies,{x=90,y=50,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
    add(enemies,{x=30,y=80,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
-   add(enemies,{x=100,y=100,w=8,h=8,speed=0.95*speed_mult*adaptive_speed_mult,dir=-1})
+   -- 4th enemy: only add if not passive (reduces initial spawn for passive)
+   if not is_passive_player then
+    add(enemies,{x=100,y=100,w=8,h=8,speed=0.95*speed_mult*adaptive_speed_mult,dir=-1})
+   end
    -- 5th enemy only if not passive
    if not is_passive_player then
     add(enemies,{x=60,y=60,w=8,h=8,speed=0.95*speed_mult*adaptive_speed_mult,dir=1})

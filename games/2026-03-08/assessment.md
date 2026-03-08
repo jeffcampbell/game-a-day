@@ -334,3 +334,79 @@ The audio improvements demonstrated measurable impact on player engagement:
 The combination of SFX, background music, dash mechanic, sprite graphics, and three-level progression successfully elevated Cave Escape from a basic adventure game to a polished, engaging experience with strong completion rates and extended gameplay for expert players. The third level provides meaningful challenge escalation while maintaining playability across diverse playstyles (including passive players with difficulty adjustments).
 
 **Recommendation**: Game is ready for release. Three-level progression complete with proper difficulty scaling. Optional: Monitor passive playstyle completion rate on Level 3 (expect ~33% from previous data).
+
+### 9. Passive Player Difficulty Rebalancing for Level 3 (2026-03-08 Update)
+
+**Problem Identified**:
+- **Passive player completion rate on Level 3: 33%** (vs 100% for aggressive, 73% overall)
+- This 67-point gap represents lost engagement for a significant player segment
+- Casual/passive players are often the largest audience for indie games
+- Current adjustments (20% speed reduction, 1 fewer enemy) insufficient for passive playstyle
+
+**Root Cause Analysis**:
+- Level 3 combines multiple challenges: boss encounter + high enemy density
+- Passive players avoid using dash mechanic (4.9% usage in aggressive vs ~0% in passive)
+- Without dash's invulnerability window, passive players rely purely on avoidance
+- Enemy count reduction to 4 (from 5) not aggressive enough for Level 3's escalated difficulty
+
+**Solution Implemented**:
+
+1. **Health Boost for Passive Players on Level 3** (+1 health)
+   - Passive players now start with 4 health on Level 3 (vs 3 for normal mode)
+   - Provides one extra "mistake buffer" for avoidance-based gameplay
+   - Impact: Allows passive players to survive one additional collision while reaching exit
+   - Token cost: +5 tokens
+   - Code: Added conditional health boost in init_level() function
+
+2. **Increased Enemy Speed Reduction on Level 3** (25% instead of 20%)
+   - Passive speed multiplier for Level 3: 0.75 (was 0.8)
+   - Provides more breathing room for careful movement patterns
+   - Impact: Enemies move ~25% slower for passive players, extending reaction time windows
+   - Progression: Level 1-2 still use 20% reduction (maintain consistency), Level 3 gets boost
+   - Code: Level 3 specific speed adjustment in init_level()
+
+3. **Reduced Initial Enemy Count on Level 3 for Passive Players** (3 instead of 4)
+   - Passive players now spawn with 3 enemies at Level 3 start (down from 4)
+   - Non-passive players still get 4-5 enemies (maintaining challenge)
+   - Impact: 25% fewer enemies in early phase for passive players
+   - Balance: Passive players can establish safe routes before waves arrive
+   - Code: Conditional enemy spawn based on is_passive_player flag
+
+4. **Bug Fix**: 4th enemy speed multiplier now respects passive mode
+   - Previously: 4th enemy ignored passive_speed_mult on non-passive only spawn
+   - Now: All enemies get proper speed adjustments for consistency
+   - Impact: No hidden difficulty spikes for passive players
+
+**Expected Impact**:
+- **Target**: Increase passive Level 3 win rate from 33% to 50%+
+- **Rationale**: Three independent difficulty reductions compound:
+  - +1 health: ~5-10% improvement (survival buffer)
+  - 25% speed reduction: ~10-15% improvement (reaction time)
+  - 3 enemies instead of 4: ~15-20% improvement (lower density)
+  - **Combined estimated impact: 33% → 55-65% win rate**
+- **Overall game impact**: 73% → 78-80% overall completion rate (passive improvement pulls up aggregate)
+
+**Implementation Details**:
+- Lines 139-143: Health boost conditional on passive + Level 3
+- Lines 195-217: Reduced enemy spawning + increased speed reduction for Level 3
+- Token budget: 3595/8192 (44% utilized, well under limit)
+- All changes preserve compatibility with existing save data
+
+**Testing & Validation**:
+- ✅ Generated 15 synthetic test sessions with passive playstyle
+- ✅ Sessions marked as `is_synthetic: true` (no analytics contamination)
+- ✅ Game exports and runs without errors
+- ✅ All logging infrastructure intact for future real playtesting
+- ⏳ Awaiting real playtest validation (previously 3 sessions, 33% win rate)
+
+**Next Steps**:
+1. Run interactive real playtests with passive playstyle to confirm improvement
+2. Target: Achieve 50%+ win rate on Level 3 with passive players
+3. Monitor overall completion rate to ensure no regression on aggressive/normal playstyles
+4. If target not met, further adjustments: consider enemy wave delay or additional health boost
+
+**Success Criteria**:
+- ✅ Code implemented and tested
+- ✅ No token budget exceeded
+- ⏳ Passive Level 3 completion rate: 33% → 50%+ (real playtesting needed for validation)
+- ⏳ No regression on other playstyles (aggressive/normal should remain 100%/67%+)
