@@ -1,7 +1,7 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
--- Untitled Game
+-- Block Breaker
 -- 2026-03-07
 
 testmode=false
@@ -26,8 +26,38 @@ function test_input(b)
 end
 
 state="menu"
+score=0
+high_score=0
+lives=0
+ball_x=0
+ball_y=0
+ball_vx=0
+ball_vy=0
+paddle_x=0
+blocks={}
 
 function _init()
+ _log("state:init")
+ init_game()
+end
+
+function init_game()
+ lives=3
+ score=0
+ paddle_x=56
+ ball_x=64
+ ball_y=100
+ ball_vx=1.5
+ ball_vy=-2
+
+ blocks={}
+ for row=0,3 do
+  for col=0,7 do
+   local b={x=col*16,y=10+row*8,alive=true}
+   add(blocks,b)
+  end
+ end
+ _log("blocks:32")
 end
 
 function _update()
@@ -38,7 +68,7 @@ function _update()
 end
 
 function _draw()
- cls()
+ cls(0)
  if state=="menu" then draw_menu()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
@@ -46,21 +76,123 @@ function _draw()
 end
 
 function update_menu()
+ if test_input(4)~=0 then
+  _log("state:play")
+  state="play"
+  init_game()
+ end
 end
 
 function draw_menu()
+ print("block breaker",40,30,7)
+ print("press z to start",30,50,7)
+ print("high: "..high_score,40,80,7)
 end
 
 function update_play()
+ local l=test_input(0)~=0
+ local r=test_input(1)~=0
+
+ if l then paddle_x=max(0,paddle_x-2) end
+ if r then paddle_x=min(112,paddle_x+2) end
+
+ ball_x+=ball_vx
+ ball_y+=ball_vy
+
+ if ball_x<0 or ball_x>127 then
+  ball_vx=-ball_vx
+  ball_x=mid(0,ball_x,127)
+ end
+
+ if ball_y<0 then
+  ball_vy=-ball_vy
+  ball_y=0
+ end
+
+ if ball_y>127 then
+  _log("ball:lost")
+  lives-=1
+  if lives<=0 then
+   if score>high_score then high_score=score end
+   _log("gameover:lose")
+   state="gameover"
+  else
+   ball_x=64
+   ball_y=100
+   ball_vx=1.5
+   ball_vy=-2
+  end
+  return
+ end
+
+ local px=paddle_x+8
+ if ball_y>110 and ball_y<120 and
+    ball_x>px-8 and ball_x<px+16 then
+  ball_vy=-ball_vy
+  sfx(0)
+  ball_y=110
+ end
+
+ for b in all(blocks) do
+  if b.alive then
+   if ball_x>b.x and ball_x<b.x+16 and
+      ball_y>b.y and ball_y<b.y+8 then
+    b.alive=false
+    ball_vy=-ball_vy
+    score+=10
+    _log("block:hit")
+    sfx(1)
+   end
+  end
+ end
+
+ local done=true
+ for b in all(blocks) do
+  if b.alive then done=false break end
+ end
+
+ if done then
+  _log("gameover:win")
+  if score>high_score then high_score=score end
+  state="gameover"
+ end
 end
 
 function draw_play()
+ for b in all(blocks) do
+  if b.alive then
+   local c=8+((b.x/16+b.y/8)%5)
+   rectfill(b.x+1,b.y+1,b.x+14,b.y+6,c)
+  end
+ end
+
+ rectfill(paddle_x,112,paddle_x+16,120,3)
+
+ pset(ball_x,ball_y,7)
+ pset(ball_x+1,ball_y,7)
+ pset(ball_x,ball_y+1,7)
+ pset(ball_x+1,ball_y+1,7)
+
+ print("score:"..score,2,2,7)
+ print("lives:"..lives,90,2,7)
 end
 
 function update_gameover()
+ if test_input(4)~=0 then
+  _log("state:menu")
+  state="menu"
+ end
 end
 
 function draw_gameover()
+ if score>=32*10 then
+  print("you won!",50,30,11)
+ else
+  print("game over",48,30,8)
+ end
+ print("final: "..score,45,50,7)
+ print("high:  "..high_score,45,60,7)
+ print("z to menu",42,85,7)
 end
 
 __gfx__
@@ -322,3 +454,5 @@ __label__
 11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 __sfx__
+000100000000004040100401000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200001445144451445144451445144451445144451445000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
