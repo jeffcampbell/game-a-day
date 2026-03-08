@@ -1,8 +1,21 @@
 #!/usr/bin/env python3
 """Automated playtest session collection tool.
 
-Generates synthetic gameplay sessions with predefined button input sequences
-to create test data for game analytics without manual playtesting.
+IMPORTANT: This tool generates SYNTHETIC/FAKE gameplay sessions with predefined
+button input sequences for testing and demo purposes only. These are NOT real
+user playtests.
+
+Each synthetic session includes:
+- is_synthetic: true flag to mark it as artificially generated
+- Predefined button patterns (5 different play styles)
+- Simulated logs and gameplay events
+- Deterministic outcomes (seeded by game date + pattern)
+
+These synthetic sessions should NOT be mixed with real playtest data in production
+analytics. They are useful for:
+- Testing the analytics pipeline
+- Generating sample catalog entries
+- Demonstrating game metrics without real playtesting
 
 Usage:
   python3 tools/collect-playtests.py [--games <date>,<date>,...] [--sessions-per-game N]
@@ -255,7 +268,8 @@ def create_session_file(game_date, game_dir, pattern_type, session_num):
         'duration_frames': len(button_sequence),
         'button_sequence': button_sequence,
         'logs': logs,
-        'exit_state': exit_state
+        'exit_state': exit_state,
+        'is_synthetic': True
     }
 
     # Generate session filename
