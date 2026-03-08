@@ -1,5 +1,5 @@
 {
-  "generated": "2026-03-07T21:35:57.928473",
+  "generated": "2026-03-07T21:43:38.668287",
   "version": "1.0",
   "total_games": 7,
   "statistics": {
@@ -32,7 +32,7 @@
     {
       "date": "2026-03-05",
       "title": "gem match: match-3 puzzle arcade",
-      "description": "A puzzle, sports PICO-8 game. Control a character earn points progress through levels collect power-ups.",
+      "description": "A puzzle, sports PICO-8 game. Control a character, earn points, progress through levels, and collect power-ups.",
       "genres": [
         "puzzle",
         "sports"
@@ -53,7 +53,7 @@
     {
       "date": "2026-03-04",
       "title": "meteor dodge",
-      "description": "A sports, action PICO-8 game. Face enemies earn points progress through levels collect power-ups.",
+      "description": "A sports, action PICO-8 game. Earn points and collect power-ups.",
       "genres": [
         "sports",
         "action"
@@ -74,7 +74,7 @@
     {
       "date": "2026-03-01",
       "title": "lunar lander",
-      "description": "A rpg, sports PICO-8 game. Control a character face enemies earn points progress through levels collect power-ups.",
+      "description": "A rpg, sports PICO-8 game. Control a character, face enemies, earn points, progress through levels, and collect power-ups.",
       "genres": [
         "rpg",
         "sports"
@@ -96,7 +96,7 @@
     {
       "date": "2026-02-28",
       "title": "Game 2026-02-28",
-      "description": "A action, sports PICO-8 game. Control a character face enemies earn points collect power-ups.",
+      "description": "A action, sports PICO-8 game. Face enemies, earn points, and collect power-ups.",
       "genres": [
         "action",
         "sports"
@@ -118,7 +118,7 @@
     {
       "date": "2026-02-27",
       "title": "Game 2026-02-27",
-      "description": "A sports, action PICO-8 game. Control a character earn points progress through levels collect power-ups.",
+      "description": "A sports, action PICO-8 game. Control a character, earn points, progress through levels, and collect power-ups.",
       "genres": [
         "sports",
         "action"
@@ -140,7 +140,7 @@
     {
       "date": "2026-02-26",
       "title": "meteor dodge",
-      "description": "A sports, rhythm PICO-8 game. Control a character face enemies earn points collect power-ups.",
+      "description": "A sports, rhythm PICO-8 game. Control a character, earn points, and collect power-ups.",
       "genres": [
         "sports",
         "rhythm"
@@ -162,7 +162,7 @@
     {
       "date": "2026-02-25",
       "title": "star dodge",
-      "description": "A sports, action PICO-8 game. Control a character face enemies earn points collect power-ups.",
+      "description": "A sports, action PICO-8 game. Control a character, earn points, and collect power-ups.",
       "genres": [
         "sports",
         "action"

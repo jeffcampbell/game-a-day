@@ -173,7 +173,13 @@ def count_token_count(game_p8_path):
 
 
 def count_sprites(gfx_content):
-    """Count non-zero sprites in __gfx__ section."""
+    """Count non-zero sprites in __gfx__ section.
+
+    Note: This counts lines with non-zero hex values rather than actual
+    8x8 sprite blocks, providing a rough heuristic of sprite usage.
+    Each sprite is 8x8 pixels (one line of hex), so this approximates
+    the number of sprite rows with data.
+    """
     count = 0
     for line in gfx_content.split("\n"):
         if line.strip() and any(c != '0' for c in line):
@@ -248,17 +254,20 @@ def generate_description(game_title, lua_code, genres):
     # Start with a basic template
     parts.append(f"A {', '.join(genres)} PICO-8 game.")
 
-    # Try to infer mechanics
+    # Try to infer mechanics using word-boundary matching
+    # (same pattern as detect_genres to avoid false positives like "bottom" matching "bot")
     mechanics = []
-    if "player" in lua_code.lower():
+    lua_lower = lua_code.lower()
+
+    if re.search(r'\bplayer\b', lua_lower):
         mechanics.append("control a character")
-    if "enemy" in lua_code.lower() or "bot" in lua_code.lower():
+    if re.search(r'\benemy\b', lua_lower) or re.search(r'\bbot\b', lua_lower):
         mechanics.append("face enemies")
-    if "score" in lua_code.lower():
+    if re.search(r'\bscore\b', lua_lower):
         mechanics.append("earn points")
-    if "level" in lua_code.lower():
+    if re.search(r'\blevel\b', lua_lower):
         mechanics.append("progress through levels")
-    if "power" in lua_code.lower():
+    if re.search(r'\bpower\b', lua_lower):
         mechanics.append("collect power-ups")
 
     if mechanics:
@@ -299,13 +308,10 @@ def generate_metadata(date_str, game_dir):
         "description": description,
         "release_date": date_str,
         "genres": genres,
-        "theme": "",
         "difficulty": difficulty,
         "playtime_minutes": 5,
         "target_audience": "general",
-        "keywords": [],
         "completion_status": "in-progress",
-        "tester_notes": "",
         "token_count": token_count or 0,
         "sprite_count": sprite_count,
         "sound_count": sound_count

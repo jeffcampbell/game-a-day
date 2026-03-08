@@ -1,18 +1,15 @@
 {
   "title": "star dodge",
-  "description": "A sports, action PICO-8 game. Control a character face enemies earn points collect power-ups.",
+  "description": "A sports, action PICO-8 game. Control a character, earn points, and collect power-ups.",
   "release_date": "2026-02-25",
   "genres": [
     "sports",
     "action"
   ],
-  "theme": "",
   "difficulty": 2,
   "playtime_minutes": 5,
   "target_audience": "general",
-  "keywords": [],
   "completion_status": "in-progress",
-  "tester_notes": "",
   "token_count": 1285,
   "sprite_count": 0,
   "sound_count": 4

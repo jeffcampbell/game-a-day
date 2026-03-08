@@ -1,18 +1,15 @@
 {
   "title": "gem match: match-3 puzzle arcade",
-  "description": "A puzzle, sports PICO-8 game. Control a character earn points progress through levels collect power-ups.",
+  "description": "A puzzle, sports PICO-8 game. Control a character, earn points, progress through levels, and collect power-ups.",
   "release_date": "2026-03-05",
   "genres": [
     "puzzle",
     "sports"
   ],
-  "theme": "",
   "difficulty": 5,
   "playtime_minutes": 5,
   "target_audience": "general",
-  "keywords": [],
   "completion_status": "in-progress",
-  "tester_notes": "",
   "token_count": 7345,
   "sprite_count": 0,
   "sound_count": 9
