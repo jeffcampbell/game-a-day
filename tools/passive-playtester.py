@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Passive playstyle playtest generator for Cave Escape Level 3 validation.
+"""Passive playstyle synthetic session generator for Cave Escape Level 3 validation.
 
-Generates real gameplay sessions with passive playstyle (minimal inputs, no dash)
+Generates synthetic gameplay sessions with passive playstyle (minimal inputs, no dash)
 to validate difficulty rebalancing for casual/passive players.
 
-This runs the actual game code to simulate realistic outcomes based on player behavior.
+Uses deterministic button sequences and simulated outcomes based on input pattern analysis.
+For real gameplay data, use run-interactive-test.py --record.
 
 Usage:
   python3 tools/passive-playtester.py 2026-03-08              # Generate 10 tests
@@ -215,7 +216,7 @@ def main():
             "logs": result["logs"],
             "exit_state": "recorded",
             "playstyle": "passive",
-            "is_synthetic": False
+            "is_synthetic": True
         }
 
         # Save session

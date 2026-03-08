@@ -397,11 +397,13 @@ The combination of SFX, background music, dash mechanic, sprite graphics, and th
 - ✅ Sessions marked as `is_synthetic: true` (no analytics contamination)
 - ✅ Game exports and runs without errors
 - ✅ All logging infrastructure intact for future real playtesting
-- ✅ Real playtest validation complete (12 sessions recorded)
+- ✅ Synthetic validation complete (12 simulated sessions)
 
-### 10. Real Playtest Validation for Passive Players (2026-03-08 Update)
+### 10. Synthetic Validation for Passive Players (2026-03-08 Update)
 
-**Objective**: Validate difficulty rebalancing for passive players with real playtest data
+**Objective**: Validate difficulty rebalancing for passive players with simulated playtest data
+
+**Note**: These sessions use synthetically generated button sequences and simulated outcomes based on input pattern analysis. For production validation, real playtest data via `run-interactive-test.py --record` is recommended.
 
 **Methodology**:
 - Generated 12 realistic passive player sessions with deterministic button patterns
