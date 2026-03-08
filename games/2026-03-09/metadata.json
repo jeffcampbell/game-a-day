@@ -1,18 +1,19 @@
 {
-  "title": "Untitled Game",
-  "description": "A PICO-8 game",
+  "title": "Star Blaster",
+  "description": "A fast-paced space shooter. Destroy enemy ships before they reach the bottom of the screen. Use arrow keys to move and Z/C to shoot. Defeat 10 enemies to win!",
   "release_date": "2026-03-09",
   "genres": [
-    "puzzle"
+    "action",
+    "arcade"
   ],
-  "theme": "",
-  "difficulty": 3,
+  "theme": "sci-fi",
+  "difficulty": 2,
   "playtime_minutes": 5,
   "target_audience": "general",
-  "keywords": [],
+  "keywords": ["shooter", "arcade", "space", "action"],
   "completion_status": "in-progress",
   "tester_notes": "",
-  "token_count": 0,
-  "sprite_count": 0,
+  "token_count": 678,
+  "sprite_count": 2,
   "sound_count": 0
 }
