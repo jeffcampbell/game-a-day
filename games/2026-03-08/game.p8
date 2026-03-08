@@ -129,8 +129,13 @@ function init_level()
   -- difficulty ramp-up: spawn enemies gradually during first 30 seconds
   -- start with 2 enemies, add 2 more at 15 seconds
   if level_start_frame==0 then
-   add(enemies,{x=60,y=30,w=8,h=8,speed=0.6*speed_mult*adaptive_speed_mult,dir=1})
-   add(enemies,{x=100,y=60,w=8,h=8,speed=0.6*speed_mult*adaptive_speed_mult,dir=-1})
+   local passive_speed_mult=1.0
+   if is_passive_player then
+    passive_speed_mult=0.8  -- 20% speed reduction for passive players
+    _log("difficulty:passive_adjust")
+   end
+   add(enemies,{x=60,y=30,w=8,h=8,speed=0.6*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+   add(enemies,{x=100,y=60,w=8,h=8,speed=0.6*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
   end
 
  elseif level==2 then
@@ -141,8 +146,8 @@ function init_level()
   if level_start_frame>0 then
    local passive_speed_mult=1.0
    if is_passive_player then
-    passive_speed_mult=0.9  -- 10% speed reduction for passive players
-    _log("difficulty:passive_mode")
+    passive_speed_mult=0.8  -- 20% speed reduction for passive players
+    _log("difficulty:passive_adjust")
    end
    add(enemies,{x=50,y=25,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
    add(enemies,{x=95,y=40,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
@@ -483,21 +488,25 @@ function update_play()
 
   if elapsed==flr(900*spawn_delay_mult)+passive_spawn_delay then  -- 15 seconds (adaptive)
    if level==1 then
-    add(enemies,{x=30,y=70,w=8,h=8,speed=0.6*speed_mult*adaptive_speed_mult,dir=1})
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.8 end
+    add(enemies,{x=30,y=70,w=8,h=8,speed=0.6*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
     _log("enemy_spawn_ramp")
    elseif level==2 then
     local passive_speed_mult=1.0
-    if is_passive_player then passive_speed_mult=0.9 end
+    if is_passive_player then passive_speed_mult=0.8 end
     add(enemies,{x=70,y=80,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
    end
   elseif elapsed==flr(1200*spawn_delay_mult)+passive_spawn_delay then  -- 20 seconds (adaptive)
    if level==1 then
-    add(enemies,{x=80,y=90,w=8,h=8,speed=0.6*speed_mult*adaptive_speed_mult,dir=-1})
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.8 end
+    add(enemies,{x=80,y=90,w=8,h=8,speed=0.6*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
    elseif level==2 then
     local passive_speed_mult=1.0
-    if is_passive_player then passive_speed_mult=0.9 end
+    if is_passive_player then passive_speed_mult=0.8 end
     add(enemies,{x=40,y=110,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
     _log("enemy_spawn_ramp")
    end
