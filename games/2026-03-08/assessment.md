@@ -134,3 +134,28 @@ Cave Escape is a complete adventure game with real gameplay mechanics. Player mu
 - ✅ Dash events logged in sessions (2+ per aggressive playstyle session)
 - ✅ No regressions: all existing mechanics still functional
 - ✅ Token count: 1175/8192 (89% safe margin remaining)
+
+### 6. Sprite Graphics Overhaul (2026-03-08 Update)
+- **Problem**: Game used basic geometric shapes (circles) which looked placeholder-like and unprofessional
+- **Solution**: Replaced all shapes with hand-crafted 8x8 pixel sprites
+  - **Sprite 0 (Player)**: Cyan helmet with white explorer body (distinguished, recognizable)
+  - **Sprite 1 (Enemy)**: Red menacing creature with white eyes (clearly hostile/dangerous)
+  - **Sprite 2 (Exit Portal)**: Blue outer ring with yellow glowing center (magical appearance, obvious goal)
+- **Visual Changes**:
+  - Replaced `circfill()` calls with `spr()` calls in draw_play()
+  - Player no longer flashes solid white, now uses palette swap `pal(11,7)` for dash invulnerability (cyan→white)
+  - Enemies and portal now sprite-based, cleaner visual appearance
+  - Bounding boxes updated from 4x4/6x6 to 8x8 for all entities (sprite-sized)
+- **Implementation**:
+  - Created 3 sprites in __gfx__ section (sprites 0-2), rest remain empty
+  - Sprite positioning uses centered offsets: `spr(n, x-4, y-4)` to center 8x8 sprites on entity coordinates
+  - Collision detection unchanged (still uses bounding box with a.w, a.h)
+  - Token cost: -41 tokens (1175 → 1134, still 86% under limit)
+- **Testing Results**:
+  - ✅ All sprites render correctly
+  - ✅ No visual artifacts or glitches
+  - ✅ Dash white-flash still works via palette swap
+  - ✅ Collision detection works perfectly with new sprite sizes
+  - ✅ Game plays identically to previous version (no behavior changes)
+  - ✅ Sprites clearly distinct and recognizable
+  - ✅ Token budget healthy: 1134/8192 (13.8% used)
