@@ -49,11 +49,11 @@ def extract_section(content, section_name):
 
 
 def check_state_machine(lua_code):
-    """Verify state machine pattern: state variable, _update/_draw with branching."""
+    """Verify state machine pattern: state variable, _update/_draw with branching in BOTH."""
     checks = {
         "state_var": False,
-        "update_func": False,
-        "draw_func": False,
+        "update_branching": False,
+        "draw_branching": False,
         "required_states": set()
     }
 
@@ -61,18 +61,25 @@ def check_state_machine(lua_code):
     if re.search(r'\bstate\s*=\s*["\']', lua_code):
         checks["state_var"] = True
 
-    # Check for _update function with state branching (if/elseif chains)
-    if re.search(r'function\s+_update\s*\(', lua_code):
-        checks["update_func"] = True
-        # Look for state-based branching
-        if re.search(r'if\s+state\s*==|elseif\s+state\s*==', lua_code):
+    # Extract and check _update function for state branching
+    update_match = re.search(r'function\s+_update\s*\([^)]*\)(.*?)(?=\nfunction|\Z)', lua_code, re.DOTALL)
+    if update_match:
+        update_body = update_match.group(1)
+        if re.search(r'if\s+state\s*==|elseif\s+state\s*==', update_body):
+            checks["update_branching"] = True
             # Find all state strings in conditionals
-            state_matches = re.findall(r'state\s*==\s*["\']([^"\']+)["\']', lua_code)
+            state_matches = re.findall(r'state\s*==\s*["\']([^"\']+)["\']', update_body)
             checks["required_states"].update(state_matches)
 
-    # Check for _draw function with state branching
-    if re.search(r'function\s+_draw\s*\(', lua_code):
-        checks["draw_func"] = True
+    # Extract and check _draw function for state branching
+    draw_match = re.search(r'function\s+_draw\s*\([^)]*\)(.*?)(?=\nfunction|\Z)', lua_code, re.DOTALL)
+    if draw_match:
+        draw_body = draw_match.group(1)
+        if re.search(r'if\s+state\s*==|elseif\s+state\s*==', draw_body):
+            checks["draw_branching"] = True
+            # Find all state strings in conditionals
+            state_matches = re.findall(r'state\s*==\s*["\']([^"\']+)["\']', draw_body)
+            checks["required_states"].update(state_matches)
 
     return checks
 
@@ -231,7 +238,9 @@ def main():
     # 1. State machine check
     state_check = check_state_machine(lua_code)
     has_state_var = state_check["state_var"]
-    has_branching = state_check["update_func"] and len(state_check["required_states"]) >= 3
+    has_update_branching = state_check["update_branching"]
+    has_draw_branching = state_check["draw_branching"]
+    has_branching = has_update_branching and has_draw_branching and len(state_check["required_states"]) >= 3
     required_states = {"menu", "play", "gameover"}
     found_states = state_check["required_states"]
     has_required = required_states.issubset(found_states)
@@ -242,8 +251,10 @@ def main():
         reasons = []
         if not has_state_var:
             reasons.append("no state variable found")
-        if not has_branching:
-            reasons.append("_update/_draw lack state branching")
+        if not has_update_branching:
+            reasons.append("_update() lacks state branching")
+        if not has_draw_branching:
+            reasons.append("_draw() lacks state branching")
         if not has_required:
             missing = required_states - found_states
             reasons.append(f"missing states: {missing}")
