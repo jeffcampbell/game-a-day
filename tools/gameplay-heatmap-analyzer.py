@@ -335,8 +335,6 @@ def analyze_game_sessions(game_dir, game_date):
         if log_info['scores']:
             total_score_gained += max(log_info['scores']) if log_info['scores'] else 0
 
-        all_state_transitions.extend(log_info['state_transitions'])
-
     # Build movement heatmap
     movement_heatmap = create_heatmap(all_positions)
     report['movement_heatmap'] = movement_heatmap
@@ -608,9 +606,11 @@ def main():
     # Determine which games to analyze
     if args.all or not args.game_date:
         games = find_all_games()
-    elif args.game_date == '--all':
-        games = find_all_games()
     else:
+        # Validate game_date format to prevent path traversal
+        if not re.match(r'^\d{4}-\d{2}-\d{2}$', args.game_date):
+            print(f"Invalid game date format: {args.game_date}", file=sys.stderr)
+            return 1
         games = [(args.game_date, os.path.join('games', args.game_date))]
 
     if not games:
