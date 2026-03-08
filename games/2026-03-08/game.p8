@@ -749,9 +749,10 @@ function draw_play()
   print("sc "..total_score,2,2,7)
   print("lvl "..level,40,2,7)
   print("hp "..max(0,health),90,2,7)
-  -- display held power-up
+  -- display held power-up with activation hint
   if player_power_up~=nil then
-   print("pow:"..player_power_up.type,70,12,10)
+   print("pow:"..player_power_up.type,50,12,10)
+   print("press down!",52,22,11)
   end
   print("find exit (top right)",10,120,14)
  end
