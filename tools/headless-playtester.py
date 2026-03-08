@@ -21,7 +21,6 @@ import json
 import re
 import subprocess
 import argparse
-from pathlib import Path
 from datetime import datetime
 import random
 import logging
@@ -192,7 +191,7 @@ def run_game_headless(game_dir, game_date, playstyle):
             with open(metadata_path) as f:
                 metadata = json.load(f)
                 duration = metadata.get('playtime_minutes', 5)
-    except:
+    except (IOError, json.JSONDecodeError):
         pass
 
     # Generate button sequence (5 min = 18000 frames at 60fps)
