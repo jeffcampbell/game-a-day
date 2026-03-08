@@ -374,17 +374,26 @@ function update_play()
   _log("dash")
  end
 
- -- shield mechanic (down button) - activate on button press, not hold
+ -- shield mechanic (down button) - activate while holding down
  local down_btn=test_input(3)
+ local is_shield_active=down_btn>0 and frames-last_shield_frame<shield_cooldown
+
+ -- activate shield on button press (transition from not held to held)
  if down_btn>0 and prev_down_btn==0 and frames-last_shield_frame>=shield_cooldown then
   -- activate shield invulnerability window
   shield_invuln_start=frames
   last_shield_frame=frames
 
-  -- play shield sound (sfx slot 4)
+  -- play shield activation sound (sfx slot 4)
   sfx(4)
-  _log("shield")
+  _log("shield_active")
  end
+
+ -- log shield_active every 10 frames while shield is up
+ if is_shield_active and frames%10==0 then
+  _log("shield_active")
+ end
+
  prev_down_btn=down_btn
 
  player.x+=dx
@@ -474,19 +483,25 @@ function update_play()
   -- check collision only if not in invulnerability window (dash or shield)
   local is_dash_invuln=frames-dash_invuln_start<dash_invuln_frames
   local is_shield_invuln=frames-shield_invuln_start<shield_invuln_frames
-  if collide(player,e) and not is_dash_invuln and not is_shield_invuln then
-   health-=1
-   -- track hit for adaptive difficulty
-   add(hit_times,frames)
-   _log("hit_enemy")
-   sfx(1)
+  if collide(player,e) then
+   if is_shield_invuln then
+    -- shield blocks the collision
+    _log("shield_block")
+   elseif not is_dash_invuln then
+    -- take damage from enemy
+    health-=1
+    -- track hit for adaptive difficulty
+    add(hit_times,frames)
+    _log("hit_enemy")
+    sfx(1)
 
-   if health<=0 then
-    player.alive=false
-    state="gameover"
-    _log("gameover:lose")
-   else
-    player.x-=dx*4
+    if health<=0 then
+     player.alive=false
+     state="gameover"
+     _log("gameover:lose")
+    else
+     player.x-=dx*4
+    end
    end
   end
  end
