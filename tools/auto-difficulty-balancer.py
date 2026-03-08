@@ -648,7 +648,7 @@ def balance_game(game_dir, target_completion_rate, dry_run=False, force=False):
         try:
             with open(report_path, 'w') as f:
                 json.dump(report, f, indent=2)
-        except:
+        except (IOError, OSError, json.JSONDecodeError):
             pass
 
     return report
