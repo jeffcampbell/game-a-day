@@ -97,7 +97,7 @@ class AnalyticsDashboardHandler(SimpleHTTPRequestHandler):
             self.send_json({'error': str(e)}, status=500)
 
     def serve_games_list(self):
-        """Serve list of all games with basic info."""
+        """Serve list of all games with basic info and metadata."""
         try:
             games = find_all_games()
             games_data = []
@@ -115,12 +115,32 @@ class AnalyticsDashboardHandler(SimpleHTTPRequestHandler):
 
                 analytics = calculate_game_metrics(game_dir, date)
 
-                games_data.append({
+                # Load metadata if available
+                metadata = None
+                metadata_path = os.path.join(game_dir, 'metadata.json')
+                if os.path.exists(metadata_path):
+                    try:
+                        with open(metadata_path, 'r') as f:
+                            metadata = json.load(f)
+                    except (json.JSONDecodeError, IOError):
+                        pass
+
+                game_entry = {
                     'date': date,
                     'test_status': test_report.get('status') if test_report else None,
                     'has_sessions': analytics.get('has_sessions', False) if analytics else False,
                     'session_count': analytics.get('session_count', 0) if analytics else 0,
-                })
+                }
+
+                # Add metadata fields if available
+                if metadata:
+                    game_entry['title'] = metadata.get('title', 'Untitled')
+                    game_entry['description'] = metadata.get('description', '')
+                    game_entry['genres'] = metadata.get('genres', [])
+                    game_entry['difficulty'] = metadata.get('difficulty')
+                    game_entry['completion_status'] = metadata.get('completion_status')
+
+                games_data.append(game_entry)
 
             self.send_json({'games': games_data}, status=200)
         except Exception as e:

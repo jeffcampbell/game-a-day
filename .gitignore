@@ -8,6 +8,10 @@ __pycache__/
 # Generated test artifacts (created by tools/run-game-tests.py)
 games/**/test-report.json
 games/test-summary.md
+games/analytics-report.json
+
+# Generated catalog (created by tools/manage-metadata.py)
+games/catalog.json
 
 # Recorded test sessions (created by tools/run-interactive-test.py)
 games/**/session_*.json

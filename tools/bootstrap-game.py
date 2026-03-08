@@ -10,6 +10,7 @@ If no date is provided, uses today's date.
 
 import sys
 import os
+import json
 from datetime import datetime
 
 
@@ -169,6 +170,26 @@ Tester:
 """
 
 
+def generate_metadata_template(date_folder):
+    """Generate default metadata.json template."""
+    return {
+        "title": "Untitled Game",
+        "description": "A PICO-8 game",
+        "release_date": date_folder,
+        "genres": ["puzzle"],
+        "theme": "",
+        "difficulty": 3,
+        "playtime_minutes": 5,
+        "target_audience": "general",
+        "keywords": [],
+        "completion_status": "in-progress",
+        "tester_notes": "",
+        "token_count": 0,
+        "sprite_count": 0,
+        "sound_count": 0
+    }
+
+
 def bootstrap_game(date_str=None):
     """Bootstrap a new game directory and files."""
     game_date = parse_date(date_str)
@@ -193,10 +214,18 @@ def bootstrap_game(date_str=None):
     with open(assessment_path, "w") as f:
         f.write(assessment_content)
 
+    # Generate metadata.json
+    metadata_path = os.path.join(game_dir, "metadata.json")
+    metadata = generate_metadata_template(date_folder)
+
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+
     # Output success message
     print(f"✓ Created {game_dir}")
     print(f"  - {p8_path}")
     print(f"  - {assessment_path}")
+    print(f"  - {metadata_path}")
 
     return game_dir
 
