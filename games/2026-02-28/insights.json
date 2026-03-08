@@ -1,0 +1,46 @@
+{
+  "date": "2026-02-28",
+  "generated_at": "2026-03-08T07:54:07.774705",
+  "has_sessions": true,
+  "session_count": 5,
+  "difficulty_assessment": {
+    "assessment": "too_hard",
+    "reasoning": "Low completion rate (20%) suggests game is too hard",
+    "completion_rate_pct": 20.0,
+    "session_count": 5
+  },
+  "engagement_score": 0.288,
+  "player_behavior_patterns": {
+    "most_common_playstyle": "moderate",
+    "average_session_duration_seconds": 24.7,
+    "active_frames_percentage": 13.3,
+    "primary_states": [
+      "play",
+      "menu"
+    ]
+  },
+  "design_issues": [],
+  "recommendations": [
+    "Add clearer objectives or feedback when player quits early",
+    "Add difficulty ramp-up before frame 2411 or add tutorial hints",
+    "Game takes too long: consider pacing improvements or streamlining content",
+    "Clarify win conditions: some players succeed but many do not"
+  ],
+  "metrics": {
+    "completion_rate_pct": 20.0,
+    "completion_breakdown": {
+      "quit": 3,
+      "won": 1,
+      "lost": 1
+    },
+    "avg_duration_frames": 1483,
+    "median_duration_frames": 1977,
+    "max_duration_frames": 2411,
+    "difficulty_cliff_frame": 2411,
+    "avg_state_times": {
+      "menu": 1,
+      "play": 1482
+    },
+    "input_activity_rate": 0.133
+  }
+}

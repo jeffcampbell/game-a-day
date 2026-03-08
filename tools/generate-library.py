@@ -84,7 +84,10 @@ def load_test_report(game_dir):
 
 
 def find_sessions(game_dir):
-    """Find all recorded sessions for a game.
+    """Find all recorded REAL sessions for a game (excludes synthetic).
+
+    By default, EXCLUDES synthetic sessions (is_synthetic: true) to prevent
+    artificially generated data from contaminating production analytics.
 
     Returns list of session dicts.
     """
@@ -100,7 +103,9 @@ def find_sessions(game_dir):
                 with open(session_path, 'r') as f:
                     session = json.load(f)
                     if isinstance(session, dict):
-                        sessions.append(session)
+                        # FILTER: Skip synthetic sessions
+                        if not session.get('is_synthetic', False):
+                            sessions.append(session)
             except (json.JSONDecodeError, IOError, TypeError):
                 pass
 
@@ -157,6 +162,58 @@ def load_assessment(game_dir):
     return None
 
 
+def load_insights(game_dir):
+    """Load insights.json if it exists.
+
+    Returns insights dict, or None if not available.
+    """
+    insights_path = os.path.join(game_dir, 'insights.json')
+
+    if not os.path.exists(insights_path):
+        return None
+
+    try:
+        with open(insights_path, 'r') as f:
+            insights = json.load(f)
+            if isinstance(insights, dict):
+                return insights
+    except (json.JSONDecodeError, IOError, TypeError):
+        pass
+
+    return None
+
+
+def calculate_game_quality_score(completion_rate, engagement_score, test_status):
+    """Calculate an overall game quality score combining multiple metrics.
+
+    Score is 0.0-1.0 based on:
+    - Completion rate: 40%
+    - Engagement score: 40%
+    - Test status: 20% (PASS=1.0, FAIL=0.0, UNKNOWN=0.5)
+
+    Returns float between 0.0 and 1.0.
+    """
+    # Normalize inputs to 0-1 range
+    completion_score = min(1.0, completion_rate) if completion_rate else 0.0
+    engagement = min(1.0, engagement_score) if engagement_score else 0.0
+
+    # Test status scoring
+    test_score = 0.5  # Default for UNKNOWN
+    if test_status == 'PASS':
+        test_score = 1.0
+    elif test_status == 'FAIL':
+        test_score = 0.0
+
+    # Weighted score
+    quality_score = (
+        completion_score * 0.4 +
+        engagement * 0.4 +
+        test_score * 0.2
+    )
+
+    return round(quality_score, 3)
+
+
 def aggregate_game_entry(date, game_dir):
     """Aggregate all data for a single game into a catalog entry.
 
@@ -167,6 +224,7 @@ def aggregate_game_entry(date, game_dir):
     test_report = load_test_report(game_dir)
     sessions = find_sessions(game_dir)
     assessment_status = load_assessment(game_dir)
+    insights = load_insights(game_dir)
 
     # Metadata is required
     if not metadata:
@@ -197,6 +255,33 @@ def aggregate_game_entry(date, game_dir):
     entry['sessions_recorded'] = len(sessions)
     completion_rate = calculate_completion_rate(sessions)
     entry['completion_rate'] = completion_rate if completion_rate is not None else 0.0
+
+    # Add insights data if available
+    if insights:
+        entry['has_insights'] = True
+
+        # Add difficulty assessment from insights
+        difficulty_assessment = insights.get('difficulty_assessment', {})
+        entry['difficulty_assessment'] = difficulty_assessment.get('assessment', 'unknown')
+
+        # Add engagement score from insights
+        engagement_score = insights.get('engagement_score', 0.0)
+        entry['engagement_score'] = engagement_score
+
+        # Calculate overall quality score
+        quality_score = calculate_game_quality_score(
+            entry.get('completion_rate', 0.0),
+            engagement_score,
+            entry.get('test_status', 'UNKNOWN')
+        )
+        entry['game_quality_score'] = quality_score
+
+        # Add player behavior patterns
+        behavior = insights.get('player_behavior_patterns', {})
+        if behavior:
+            entry['player_playstyle'] = behavior.get('most_common_playstyle', 'unknown')
+    else:
+        entry['has_insights'] = False
 
     # Add assessment status if available
     if assessment_status:
@@ -238,6 +323,8 @@ def generate_statistics(games):
     difficulties = [g.get('difficulty', 3) for g in games if 'difficulty' in g]
     playtimes = [g.get('playtime_minutes', 5) for g in games if 'playtime_minutes' in g]
     completion_rates = [g.get('completion_rate', 0) for g in games if 'completion_rate' in g and g['completion_rate'] > 0]
+    engagement_scores = [g.get('engagement_score', 0) for g in games if g.get('has_insights') and g.get('engagement_score')]
+    quality_scores = [g.get('game_quality_score', 0) for g in games if g.get('has_insights') and 'game_quality_score' in g]
 
     # Genre frequency
     genre_freq = defaultdict(int)
@@ -250,11 +337,33 @@ def generate_statistics(games):
     for game in games:
         status_freq[game.get('completion_status', 'unknown')] += 1
 
+    # Difficulty assessment breakdown (from insights)
+    difficulty_assessment_freq = defaultdict(int)
+    for game in games:
+        if game.get('has_insights'):
+            assessment = game.get('difficulty_assessment', 'unknown')
+            difficulty_assessment_freq[assessment] += 1
+
     stats = {
         'total_games': len(games),
         'total_sessions_recorded': sum(g.get('sessions_recorded', 0) for g in games),
+        'games_with_insights': sum(1 for g in games if g.get('has_insights')),
         'average_completion_rate': round(statistics.mean(completion_rates), 2) if completion_rates else 0.0,
     }
+
+    if engagement_scores:
+        stats['engagement_score_stats'] = {
+            'min': round(min(engagement_scores), 3),
+            'max': round(max(engagement_scores), 3),
+            'average': round(statistics.mean(engagement_scores), 3),
+        }
+
+    if quality_scores:
+        stats['quality_score_stats'] = {
+            'min': round(min(quality_scores), 3),
+            'max': round(max(quality_scores), 3),
+            'average': round(statistics.mean(quality_scores), 3),
+        }
 
     if difficulties:
         stats['difficulty_stats'] = {
@@ -276,6 +385,9 @@ def generate_statistics(games):
 
     if status_freq:
         stats['completion_status_breakdown'] = dict(status_freq)
+
+    if difficulty_assessment_freq:
+        stats['difficulty_assessment_breakdown'] = dict(difficulty_assessment_freq)
 
     return stats
 

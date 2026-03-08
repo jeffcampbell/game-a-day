@@ -389,3 +389,47 @@ The tool generates metadata with:
 - **playtime_minutes**: Default 5 minutes
 
 All metadata is validated against the schema before creation.
+
+## Synthetic Session Data & Analytics
+
+### Important: Distinction Between Real and Synthetic Sessions
+
+The analytics system distinguishes between two types of sessions:
+
+1. **Real Sessions** (from interactive testing)
+   - Created via `run-interactive-test.py --record`
+   - Contain actual user/tester interactions
+   - Are NOT marked with `is_synthetic: true`
+   - Should be used in production analytics
+
+2. **Synthetic Sessions** (from `collect-playtests.py`)
+   - Artificially generated with predefined button patterns
+   - Simulated logs and gameplay events
+   - Marked with `is_synthetic: true` in JSON
+   - Useful for testing/demo purposes only
+
+### Synthetic Session Handling in Analytics
+
+The `analytics_engine.py` by default **EXCLUDES synthetic sessions** from all metrics calculations.
+This is intentional to prevent artificially generated data from contaminating real game metrics.
+
+**Key behaviors:**
+- `find_sessions()` filters out synthetic sessions by default
+- A game with only synthetic sessions will have `has_sessions: false`
+- Only games with real sessions (is_synthetic: false or missing) contribute to metrics
+- To include synthetic sessions for testing, use `find_sessions(game_dir, include_synthetic=True)`
+
+**Frame Rate Calculation:**
+- Expected playtime is calculated at 60fps: `playtime_minutes * 60 * 60`
+- For a 5-minute game: 5 * 60 * 60 = 18,000 frames
+- Duration metrics compare actual session length to this expected playtime
+
+### Using Synthetic Data for Testing
+
+The `collect-playtests.py` tool is useful for:
+- Testing the analytics pipeline without real playtesting
+- Generating sample catalog entries for UI testing
+- Demonstrating game metrics in development
+
+**NEVER** mix synthetic sessions with real playtest data in production.
+Real analytics must be based only on genuine user interactions.

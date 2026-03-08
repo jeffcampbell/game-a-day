@@ -4,6 +4,17 @@
 Extracts gameplay metrics from recorded sessions and test reports to provide
 insights on game difficulty, player engagement, and design patterns.
 
+IMPORTANT: By default, this engine EXCLUDES synthetic sessions (marked with
+is_synthetic: true) from analytics calculations. Synthetic sessions are
+artificially generated test data and should not influence real game metrics.
+
+If a game has only synthetic sessions and no real sessions, the game will have
+no analytics (has_sessions: false). This is intentional - it prevents synthetic
+data from being misrepresented as real playtest results.
+
+To work with synthetic data for testing, use the analytics output directly
+but be aware that metrics_source will be marked as 'synthetic'.
+
 Metrics extracted:
 - Per-session: duration, completion status, actions attempted, state distribution
 - Per-game: completion rate, avg duration, difficulty curves, state transitions
@@ -56,8 +67,15 @@ def load_test_report(game_dir):
     return None
 
 
-def find_sessions(game_dir):
+def find_sessions(game_dir, include_synthetic=False):
     """Find all recorded sessions for a game.
+
+    By default, EXCLUDES synthetic sessions (is_synthetic: true) to prevent
+    artificially generated data from contaminating real playtest analytics.
+
+    Args:
+        game_dir: Path to game directory
+        include_synthetic: If True, include synthetic sessions in results
 
     Returns list of (session_path, session_data, mtime) tuples, sorted by date.
     """
@@ -71,6 +89,11 @@ def find_sessions(game_dir):
             session_path = os.path.join(game_dir, entry)
             session = load_session(session_path)
             if session:
+                # Filter out synthetic sessions unless explicitly requested
+                is_synthetic = session.get('is_synthetic', False)
+                if is_synthetic and not include_synthetic:
+                    continue
+
                 mtime = os.path.getmtime(session_path)
                 sessions.append((session_path, session, mtime))
 
@@ -368,6 +391,299 @@ def find_all_games():
             games.append((entry, game_dir))
 
     return games
+
+
+def calculate_engagement_score(game_metrics, metadata=None):
+    """Calculate engagement score for a game (0.0-1.0).
+
+    Weights:
+    - Completion rate: 50%
+    - Session duration match: 30%
+    - Action variety: 20%
+
+    Returns float between 0.0 and 1.0.
+    """
+    if not game_metrics or not game_metrics.get('has_sessions'):
+        return 0.0
+
+    metrics = game_metrics.get('metrics', {})
+    completion_rate = metrics.get('completion_rate_pct', 0) / 100.0  # Normalize to 0-1
+    avg_duration = metrics.get('avg_duration_frames', 0)
+    input_rate = metrics.get('input_activity_rate', 0)
+
+    # Expected playtime from metadata (in frames, assuming 60fps)
+    # Default 5 minutes = 5 * 60 seconds * 60 fps = 18,000 frames
+    expected_frames = 5 * 60 * 60  # 5 minutes at 60fps = 18,000 frames
+    if metadata:
+        playtime_minutes = metadata.get('playtime_minutes', 5)
+        expected_frames = playtime_minutes * 60 * 60  # Convert minutes to frames at 60fps
+
+    # Calculate duration match (1.0 if matches expected, decreases for deviations)
+    # Score should reward games that play close to intended playtime
+    if expected_frames > 0:
+        ratio = avg_duration / expected_frames
+        # Clamp ratio between 0.5 and 2.0 (0.5x to 2x playtime is reasonable)
+        # Beyond that gets capped to avoid extreme penalties/rewards
+        clamped_ratio = max(0.5, min(2.0, ratio))
+        # Score decreases as we deviate from 1.0 (perfect match)
+        # At ratio=1.0: score=1.0, at 0.5 or 2.0: score=0.75
+        duration_match = 1 - abs(clamped_ratio - 1.0) * 0.5
+    else:
+        duration_match = 0.5
+
+    # Input activity as action variety proxy
+    action_variety = min(1.0, input_rate * 3)  # Normalize to 0-1
+
+    # Weighted engagement score
+    engagement = (
+        completion_rate * 0.5 +
+        duration_match * 0.3 +
+        action_variety * 0.2
+    )
+
+    return round(min(1.0, engagement), 3)
+
+
+def assess_difficulty(game_metrics):
+    """Assess game difficulty based on completion rate.
+
+    Returns dict with difficulty assessment and reasoning.
+    """
+    if not game_metrics or not game_metrics.get('has_sessions'):
+        return {
+            'assessment': 'unknown',
+            'reasoning': 'No session data available'
+        }
+
+    metrics = game_metrics.get('metrics', {})
+    completion_rate = metrics.get('completion_rate_pct', 0) / 100.0
+
+    if completion_rate > 0.7:
+        assessment = 'too_easy'
+        reasoning = f'High completion rate ({completion_rate*100:.0f}%) suggests game is too easy'
+    elif completion_rate < 0.3:
+        assessment = 'too_hard'
+        reasoning = f'Low completion rate ({completion_rate*100:.0f}%) suggests game is too hard'
+    else:
+        assessment = 'balanced'
+        reasoning = f'Moderate completion rate ({completion_rate*100:.0f}%) indicates balanced difficulty'
+
+    return {
+        'assessment': assessment,
+        'reasoning': reasoning,
+        'completion_rate_pct': round(completion_rate * 100, 1),
+        'session_count': game_metrics.get('session_count', 0)
+    }
+
+
+def identify_design_issues(game_metrics):
+    """Identify potential design issues from gameplay data.
+
+    Returns list of issue descriptions.
+    """
+    issues = []
+    if not game_metrics or not game_metrics.get('has_sessions'):
+        return issues
+
+    metrics = game_metrics.get('metrics', {})
+    completion_rate = metrics.get('completion_rate_pct', 0) / 100.0
+    difficulty_cliff = metrics.get('difficulty_cliff_frame', None)
+    avg_input_rate = metrics.get('input_activity_rate', 0)
+
+    # Issue 1: High abandon rate
+    if completion_rate < 0.2:
+        issues.append(
+            'Critical: Very few players complete the game. Check early-game pacing and onboarding.'
+        )
+
+    # Issue 2: Difficulty cliff
+    if difficulty_cliff and difficulty_cliff < 600:  # Within first 10 seconds at 60fps
+        issues.append(
+            f'Critical: Difficulty spike very early (frame {difficulty_cliff}). Tutorial or early challenge too hard.'
+        )
+
+    # Issue 3: Low engagement
+    if avg_input_rate < 0.05:
+        issues.append(
+            'Warning: Players are not engaging with controls. Game may be too passive or unclear.'
+        )
+
+    # Issue 4: Too easy
+    if completion_rate > 0.9:
+        issues.append(
+            'Suggestion: Very high completion rate suggests game lacks challenge.'
+        )
+
+    # Issue 5: Moderate engagement issues
+    if 0.2 < completion_rate <= 0.4:
+        issues.append(
+            'Warning: Lower-than-ideal completion rate suggests difficulty balancing needed.'
+        )
+
+    return issues
+
+
+def generate_recommendations(game_metrics, metadata=None):
+    """Generate actionable improvement recommendations.
+
+    Returns list of recommendation strings.
+    """
+    recommendations = []
+    if not game_metrics or not game_metrics.get('has_sessions'):
+        return recommendations
+
+    metrics = game_metrics.get('metrics', {})
+    completion_rate = metrics.get('completion_rate_pct', 0) / 100.0
+    difficulty_cliff = metrics.get('difficulty_cliff_frame', None)
+    avg_duration = metrics.get('avg_duration_frames', 0)
+    input_rate = metrics.get('input_activity_rate', 0)
+    completion_breakdown = metrics.get('completion_breakdown', {})
+
+    # Recommendation 1: High quit rate
+    quit_rate = completion_breakdown.get('quit', 0) / game_metrics.get('session_count', 1)
+    if quit_rate > 0.5:
+        recommendations.append(
+            'Add clearer objectives or feedback when player quits early'
+        )
+
+    # Recommendation 2: Difficulty progression
+    if difficulty_cliff:
+        recommendations.append(
+            f'Add difficulty ramp-up before frame {difficulty_cliff} or add tutorial hints'
+        )
+
+    # Recommendation 3: Player engagement
+    if input_rate < 0.1:
+        recommendations.append(
+            'Increase interactive elements: add more frequent decision points or actions'
+        )
+
+    # Recommendation 4: Session length optimization
+    # Expected frames at 60fps: playtime_minutes * 60 seconds * 60 fps
+    expected_frames = 5 * 60 * 60  # 5 minutes default = 18,000 frames
+    if metadata:
+        playtime_minutes = metadata.get('playtime_minutes', 5)
+        expected_frames = playtime_minutes * 60 * 60  # Convert minutes to frames
+
+    if avg_duration < expected_frames * 0.5:
+        recommendations.append(
+            'Game ends too quickly: consider extending content or reducing difficulty'
+        )
+    elif avg_duration > expected_frames * 2:
+        recommendations.append(
+            'Game takes too long: consider pacing improvements or streamlining content'
+        )
+
+    # Recommendation 5: Win condition clarity
+    wins = completion_breakdown.get('won', 0)
+    if wins > 0 and completion_rate < 0.5:
+        recommendations.append(
+            'Clarify win conditions: some players succeed but many do not'
+        )
+
+    if not recommendations:
+        recommendations.append(
+            'Game appears well-balanced. Consider playtesting for polish opportunities.'
+        )
+
+    return recommendations
+
+
+def extract_player_behavior_patterns(game_metrics):
+    """Extract patterns from player behavior.
+
+    Returns dict with behavior insights.
+    """
+    patterns = {
+        'most_common_playstyle': 'unknown',
+        'average_session_duration_seconds': 0,
+        'active_frames_percentage': 0,
+        'primary_states': []
+    }
+
+    if not game_metrics or not game_metrics.get('has_sessions'):
+        return patterns
+
+    metrics = game_metrics.get('metrics', {})
+    avg_duration = metrics.get('avg_duration_frames', 0)
+    input_rate = metrics.get('input_activity_rate', 0)
+    state_dist = metrics.get('avg_state_times', {})
+
+    # Duration in seconds (estimate 60fps)
+    patterns['average_session_duration_seconds'] = round(avg_duration / 60, 1)
+
+    # Input percentage
+    patterns['active_frames_percentage'] = round(input_rate * 100, 1)
+
+    # Primary states
+    if state_dist:
+        sorted_states = sorted(state_dist.items(), key=lambda x: x[1], reverse=True)
+        patterns['primary_states'] = [state for state, _ in sorted_states[:3]]
+
+    # Playstyle classification
+    if input_rate > 0.2:
+        patterns['most_common_playstyle'] = 'action-heavy'
+    elif input_rate > 0.1:
+        patterns['most_common_playstyle'] = 'moderate'
+    else:
+        patterns['most_common_playstyle'] = 'passive'
+
+    return patterns
+
+
+def generate_insights(game_date, game_dir):
+    """Generate comprehensive insights for a single game.
+
+    Returns dict with insights, or None if no data available.
+    """
+    game_metrics = calculate_game_metrics(game_dir, game_date)
+    if not game_metrics:
+        return None
+
+    metadata = load_metadata(game_dir)
+
+    insights = {
+        'date': game_date,
+        'generated_at': datetime.now().isoformat(),
+        'has_sessions': game_metrics.get('has_sessions', False),
+        'session_count': game_metrics.get('session_count', 0),
+    }
+
+    if not game_metrics.get('has_sessions'):
+        return insights
+
+    # Core insights
+    insights['difficulty_assessment'] = assess_difficulty(game_metrics)
+    insights['engagement_score'] = calculate_engagement_score(game_metrics, metadata)
+    insights['player_behavior_patterns'] = extract_player_behavior_patterns(game_metrics)
+    insights['design_issues'] = identify_design_issues(game_metrics)
+    insights['recommendations'] = generate_recommendations(game_metrics, metadata)
+
+    # Aggregate metrics from game_metrics
+    insights['metrics'] = game_metrics.get('metrics', {})
+
+    return insights
+
+
+def load_metadata(game_dir):
+    """Load metadata.json for a game.
+
+    Returns dict if valid, None otherwise.
+    """
+    metadata_path = os.path.join(game_dir, 'metadata.json')
+
+    if not os.path.exists(metadata_path):
+        return None
+
+    try:
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+            if isinstance(metadata, dict):
+                return metadata
+    except (json.JSONDecodeError, IOError, TypeError):
+        pass
+
+    return None
 
 
 def generate_analytics_report(output_dir='games'):
