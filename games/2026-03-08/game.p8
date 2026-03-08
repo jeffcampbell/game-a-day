@@ -70,6 +70,12 @@ shield_invuln_frames=30  -- 0.5 seconds at 60fps
 shield_invuln_start=-100
 prev_down_btn=0  -- track previous down button state for press detection
 
+-- adaptive difficulty tracking
+hit_times={}  -- sliding window of last hit frames
+last_difficulty_check=0
+adaptive_speed_mult=1.0
+adaptive_spawn_mult=1.0
+
 function init_level()
  enemies={}
  level_start_frame=frames
@@ -79,6 +85,12 @@ function init_level()
  shield_invuln_start=-100
  last_shield_frame=-100
  prev_down_btn=0
+
+ -- reset adaptive difficulty tracking
+ hit_times={}
+ adaptive_speed_mult=1.0
+ adaptive_spawn_mult=1.0
+ last_difficulty_check=frames
 
  -- start background music
  music(0)
@@ -105,8 +117,8 @@ function init_level()
   -- difficulty ramp-up: spawn enemies gradually during first 30 seconds
   -- start with 2 enemies, add 2 more at 15 seconds
   if level_start_frame==0 then
-   add(enemies,{x=60,y=30,w=8,h=8,speed=0.6*speed_mult,dir=1})
-   add(enemies,{x=100,y=60,w=8,h=8,speed=0.6*speed_mult,dir=-1})
+   add(enemies,{x=60,y=30,w=8,h=8,speed=0.6*speed_mult*adaptive_speed_mult,dir=1})
+   add(enemies,{x=100,y=60,w=8,h=8,speed=0.6*speed_mult*adaptive_speed_mult,dir=-1})
   end
 
  elseif level==2 then
@@ -115,9 +127,9 @@ function init_level()
 
   -- level 2: 3 enemies initially, 2 more at 15 seconds
   if level_start_frame>0 then
-   add(enemies,{x=50,y=25,w=8,h=8,speed=0.9*speed_mult,dir=1})
-   add(enemies,{x=95,y=40,w=8,h=8,speed=0.9*speed_mult,dir=-1})
-   add(enemies,{x=25,y=60,w=8,h=8,speed=0.9*speed_mult,dir=1})
+   add(enemies,{x=50,y=25,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=1})
+   add(enemies,{x=95,y=40,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=-1})
+   add(enemies,{x=25,y=60,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=1})
   end
  end
 end
@@ -132,6 +144,12 @@ function init_endless_level()
  last_shield_frame=-100
  prev_down_btn=0
 
+ -- reset adaptive difficulty tracking
+ hit_times={}
+ adaptive_speed_mult=1.0
+ adaptive_spawn_mult=1.0
+ last_difficulty_check=frames
+
  -- start background music
  music(0)
 
@@ -142,11 +160,56 @@ function init_endless_level()
  wave_start_frame=frames
 
  -- spawn initial wave: 2 enemies
- add(enemies,{x=60,y=30,w=8,h=8,speed=0.6,dir=1})
- add(enemies,{x=100,y=60,w=8,h=8,speed=0.6,dir=-1})
+ add(enemies,{x=60,y=30,w=8,h=8,speed=0.6*adaptive_speed_mult,dir=1})
+ add(enemies,{x=100,y=60,w=8,h=8,speed=0.6*adaptive_speed_mult,dir=-1})
 
  _log("difficulty:endless")
  _log("wave:1")
+end
+
+function update_adaptive_difficulty()
+ -- disable adaptive scaling in hard mode
+ if difficulty=="hard" then return end
+
+ local elapsed_since_check=frames-last_difficulty_check
+
+ -- check every 60 frames (1 second) to avoid excessive updates
+ if elapsed_since_check<60 then return end
+
+ last_difficulty_check=frames
+
+ -- count recent hits: sliding window of 300 frames (5 seconds)
+ local recent_hits=0
+ for i=1,#hit_times do
+  if frames-hit_times[i]<300 then
+   recent_hits+=1
+  end
+ end
+
+ -- count hits in last 30 seconds (1800 frames)
+ local recent_30s_hits=0
+ for i=1,#hit_times do
+  if frames-hit_times[i]<1800 then
+   recent_30s_hits+=1
+  end
+ end
+
+ -- struggling: 2+ hits in last 5 seconds
+ if recent_hits>=2 then
+  -- reduce enemy speed by 15%
+  adaptive_speed_mult=max(0.6,adaptive_speed_mult*0.85)
+  -- increase spawn delays by 20% (spawn_mult < 1 delays spawns)
+  adaptive_spawn_mult=min(1.0,adaptive_spawn_mult*0.8)
+  _log("difficulty:down")
+
+ -- thriving: no hits in last 30 seconds AND game is long enough
+ elseif recent_30s_hits==0 and frames-level_start_frame>1800 then
+  -- increase enemy speed by 5%
+  adaptive_speed_mult=min(1.5,adaptive_speed_mult*1.05)
+  -- increase spawn frequency slightly
+  adaptive_spawn_mult=min(1.5,adaptive_spawn_mult*1.02)
+  _log("difficulty:up")
+ end
 end
 
 function update_menu()
@@ -229,6 +292,9 @@ end
 function update_play()
  if not player.alive then return end
 
+ -- update adaptive difficulty based on player performance
+ update_adaptive_difficulty()
+
  local dx=0
  local dy=0
 
@@ -292,7 +358,8 @@ function update_play()
  if is_endless then
   -- endless mode: wave-based spawning every 30 seconds
   local wave_elapsed=frames-wave_start_frame
-  if wave_elapsed>=1800 then  -- 30 seconds = 1800 frames
+  local spawn_interval=flr(1800/adaptive_spawn_mult)  -- adaptive wave timing
+  if wave_elapsed>=spawn_interval then  -- adaptive spawn interval
    wave+=1
    wave_start_frame=frames
    -- add new enemies for the wave
@@ -304,7 +371,7 @@ function update_play()
     local speed_base=0.6+wave*0.07
     local dir=1
     if j%2==0 then dir=-1 end
-    add(enemies,{x=spawn_x,y=spawn_y,w=8,h=8,speed=speed_base,dir=dir})
+    add(enemies,{x=spawn_x,y=spawn_y,w=8,h=8,speed=speed_base*adaptive_speed_mult,dir=dir})
    end
    _log("wave:"..wave)
   end
@@ -321,25 +388,28 @@ function update_play()
    speed_mult=1.3
   end
 
-  if elapsed==900 then  -- 15 seconds (900 frames)
+  -- apply spawn timing modulation based on adaptive difficulty
+  local spawn_delay_mult=1.0/adaptive_spawn_mult  -- invert so < 1 means delayed
+
+  if elapsed==flr(900*spawn_delay_mult) then  -- 15 seconds (adaptive)
    if level==1 then
-    add(enemies,{x=30,y=70,w=8,h=8,speed=0.6*speed_mult,dir=1})
+    add(enemies,{x=30,y=70,w=8,h=8,speed=0.6*speed_mult*adaptive_speed_mult,dir=1})
     _log("enemy_spawn_ramp")
    elseif level==2 then
-    add(enemies,{x=70,y=80,w=8,h=8,speed=0.9*speed_mult,dir=-1})
+    add(enemies,{x=70,y=80,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
    end
-  elseif elapsed==1200 then  -- 20 seconds
+  elseif elapsed==flr(1200*spawn_delay_mult) then  -- 20 seconds (adaptive)
    if level==1 then
-    add(enemies,{x=80,y=90,w=8,h=8,speed=0.6*speed_mult,dir=-1})
+    add(enemies,{x=80,y=90,w=8,h=8,speed=0.6*speed_mult*adaptive_speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
    elseif level==2 then
-    add(enemies,{x=40,y=110,w=8,h=8,speed=0.9*speed_mult,dir=1})
+    add(enemies,{x=40,y=110,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=1})
     _log("enemy_spawn_ramp")
    end
   end
 
-  -- hard mode: add extra enemy mid-level
+  -- hard mode: add extra enemy mid-level (no adaptive in hard)
   if difficulty=="hard" and elapsed==600 then  -- 10 seconds
    if level==1 then
     add(enemies,{x=50,y=50,w=8,h=8,speed=0.6*speed_mult,dir=-1})
@@ -368,6 +438,8 @@ function update_play()
   local is_shield_invuln=frames-shield_invuln_start<shield_invuln_frames
   if collide(player,e) and not is_dash_invuln and not is_shield_invuln then
    health-=1
+   -- track hit for adaptive difficulty
+   add(hit_times,frames)
    _log("hit_enemy")
    sfx(1)
 
