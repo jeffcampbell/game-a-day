@@ -26,6 +26,9 @@ import os
 import json
 import argparse
 import mimetypes
+import html
+import re
+import socket
 from pathlib import Path
 from datetime import datetime
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -46,10 +49,9 @@ class GameTestHandler(SimpleHTTPRequestHandler):
             self.serve_test_interface()
         elif self.path == '/api/config':
             self.serve_config()
-        elif self.path == '/game.html':
-            self.serve_game_html()
         else:
-            self.send_error(404)
+            # Serve game files (game.html, game.js, and other resources)
+            self.serve_game_file()
 
     def do_POST(self):
         """Handle POST requests for session recording."""
@@ -82,23 +84,47 @@ class GameTestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(response_json.encode())
 
-    def serve_game_html(self):
-        """Serve the exported game.html file."""
-        game_html_path = os.path.join(self.game_dir, 'game.html')
-        if not os.path.exists(game_html_path):
-            self.send_error(404, "game.html not found")
+    def serve_game_file(self):
+        """Serve static files from the game directory."""
+        # Extract the file path, prevent path traversal attacks
+        file_path = os.path.normpath(self.path.lstrip('/'))
+        if '..' in file_path or file_path.startswith('/'):
+            self.send_error(403, "Access denied")
+            return
+
+        full_path = os.path.join(self.game_dir, file_path)
+
+        # Ensure the resolved path is still within game_dir
+        real_game_dir = os.path.realpath(self.game_dir)
+        real_full_path = os.path.realpath(full_path)
+        if not real_full_path.startswith(real_game_dir):
+            self.send_error(403, "Access denied")
+            return
+
+        if not os.path.exists(full_path):
+            self.send_error(404, f"File not found: {file_path}")
+            return
+
+        if not os.path.isfile(full_path):
+            self.send_error(403, "Access denied")
             return
 
         try:
-            with open(game_html_path, 'rb') as f:
+            with open(full_path, 'rb') as f:
                 content = f.read()
+
+            # Determine content type
+            content_type, _ = mimetypes.guess_type(full_path)
+            if not content_type:
+                content_type = 'application/octet-stream'
+
             self.send_response(200)
-            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', len(content))
             self.end_headers()
             self.wfile.write(content)
         except Exception as e:
-            self.send_error(500, str(e))
+            self.send_error(500, f"Failed to serve file: {str(e)}")
 
     def save_session(self):
         """Save recorded session data."""
@@ -342,7 +368,7 @@ class GameTestHandler(SimpleHTTPRequestHandler):
 <body>
     <div class="container">
         <div class="game-section">
-            <h1>Game: {self.game_date}</h1>
+            <h1>Game: {html.escape(self.game_date)}</h1>
 
             <div class="game-info">
                 <div class="info-item">
@@ -642,6 +668,10 @@ class GameTestHandler(SimpleHTTPRequestHandler):
 
 def find_game_dir(game_date):
     """Find the game directory for a given date."""
+    # Validate date format to prevent path traversal
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', game_date):
+        return None, f"Invalid game date format. Expected YYYY-MM-DD, got: {game_date}"
+
     game_dir = os.path.join('games', game_date)
 
     if not os.path.exists(game_dir):
@@ -665,12 +695,10 @@ def load_replay_session(session_path):
 
 def find_free_port(start_port=8000):
     """Find a free port starting from start_port."""
-    import socket
     for port in range(start_port, start_port + 100):
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.bind(('127.0.0.1', port))
-            s.close()
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('127.0.0.1', port))
             return port
         except OSError:
             continue
