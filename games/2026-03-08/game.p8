@@ -30,11 +30,15 @@ difficulty="normal"
 difficulty_cursor=2
 score=0
 best_score=0
+best_endless_score=0
 level_score=0
 health=3
 level=1
 frames=0
 level_start_frame=0
+is_endless=false
+wave=1
+wave_start_frame=-10000
 
 -- player
 player={x=64,y=100,w=8,h=8,speed=1.5,alive=true}
@@ -112,6 +116,28 @@ function init_level()
  end
 end
 
+function init_endless_level()
+ enemies={}
+ level_start_frame=frames
+ level_score=0
+
+ -- start background music
+ music(0)
+
+ player.x=12
+ player.y=100
+ health=3
+ wave=1
+ wave_start_frame=frames
+
+ -- spawn initial wave: 2 enemies
+ add(enemies,{x=60,y=30,w=8,h=8,speed=0.6,dir=1})
+ add(enemies,{x=100,y=60,w=8,h=8,speed=0.6,dir=-1})
+
+ _log("difficulty:endless")
+ _log("wave:1")
+end
+
 function update_menu()
  if test_input(4)>0 or test_input(5)>0 then
   state="difficulty_select"
@@ -125,21 +151,33 @@ function update_difficulty_select()
   difficulty_cursor=max(1,difficulty_cursor-1)
  end
  if test_input(3)>0 then
-  difficulty_cursor=min(3,difficulty_cursor+1)
+  difficulty_cursor=min(4,difficulty_cursor+1)
  end
 
  if test_input(4)>0 or test_input(5)>0 then
   if difficulty_cursor==1 then
    difficulty="easy"
+   is_endless=false
   elseif difficulty_cursor==2 then
    difficulty="normal"
-  else
+   is_endless=false
+  elseif difficulty_cursor==3 then
    difficulty="hard"
+   is_endless=false
+  else
+   difficulty="endless"
+   is_endless=true
   end
   state="play"
   score=0
   level=1
-  init_level()
+  wave=1
+  wave_start_frame=0
+  if is_endless then
+   init_endless_level()
+  else
+   init_level()
+  end
   _log("state:play")
  end
 end
@@ -161,21 +199,16 @@ function draw_difficulty_select()
  cls(1)
  print("select difficulty",28,20,7)
 
- local colors={8,7,11}
- local y_positions={45,65,85}
+ local colors={8,7,11,10}
+ local y_positions={40,55,70,85}
+ local labels={"easy","normal","hard","endless"}
 
- for i=1,3 do
+ for i=1,4 do
   local col=colors[i]
   if i==difficulty_cursor then
    col=11
   end
-  if i==1 then
-   print("easy",56,y_positions[i],col)
-  elseif i==2 then
-   print("normal",52,y_positions[i],col)
-  else
-   print("hard",56,y_positions[i],col)
-  end
+  print(labels[i],56,y_positions[i],col)
  end
 
  print("up/down select",32,110,7)
@@ -241,42 +274,72 @@ function update_play()
  player.x=max(2,min(player.x,126))
  player.y=max(2,min(player.y,126))
 
- -- difficulty ramp-up: add enemies gradually
  local elapsed=frames-level_start_frame
- local speed_mult=1
- if difficulty=="easy" then
-  speed_mult=0.4
- elseif difficulty=="hard" then
-  speed_mult=1.3
- end
 
- if elapsed==900 then  -- 15 seconds (900 frames)
-  if level==1 then
-   add(enemies,{x=30,y=70,w=8,h=8,speed=0.6*speed_mult,dir=1})
-   _log("enemy_spawn_ramp")
-  elseif level==2 then
-   add(enemies,{x=70,y=80,w=8,h=8,speed=0.9*speed_mult,dir=-1})
-   _log("enemy_spawn_ramp")
+ if is_endless then
+  -- endless mode: wave-based spawning every 30 seconds
+  local wave_elapsed=frames-wave_start_frame
+  if wave_elapsed>=1800 then  -- 30 seconds = 1800 frames
+   wave+=1
+   wave_start_frame=frames
+   -- add new enemies for the wave
+   -- wave N has 2+wave/2 enemies spawning
+   local enemy_count=flr(2+wave*0.5)
+   for j=1,enemy_count do
+    local spawn_y=20+flr(rnd(80))
+    local spawn_x=10+flr(rnd(100))
+    local speed_base=0.6+wave*0.07
+    local dir=1
+    if j%2==0 then dir=-1 end
+    add(enemies,{x=spawn_x,y=spawn_y,w=8,h=8,speed=speed_base,dir=dir})
+   end
+   _log("wave:"..wave)
   end
- elseif elapsed==1200 then  -- 20 seconds
-  if level==1 then
-   add(enemies,{x=80,y=90,w=8,h=8,speed=0.6*speed_mult,dir=-1})
-   _log("enemy_spawn_ramp")
-  elseif level==2 then
-   add(enemies,{x=40,y=110,w=8,h=8,speed=0.9*speed_mult,dir=1})
-   _log("enemy_spawn_ramp")
-  end
- end
 
- -- hard mode: add extra enemy mid-level
- if difficulty=="hard" and elapsed==600 then  -- 10 seconds
-  if level==1 then
-   add(enemies,{x=50,y=50,w=8,h=8,speed=0.6*speed_mult,dir=-1})
-   _log("enemy_spawn_ramp")
-  elseif level==2 then
-   add(enemies,{x=60,y=30,w=8,h=8,speed=0.9*speed_mult,dir=1})
-   _log("enemy_spawn_ramp")
+  -- endless mode: score is 1 point per frame (60 points per second)
+  score+=1
+
+ else
+  -- standard mode: difficulty ramp-up
+  local speed_mult=1
+  if difficulty=="easy" then
+   speed_mult=0.4
+  elseif difficulty=="hard" then
+   speed_mult=1.3
   end
+
+  if elapsed==900 then  -- 15 seconds (900 frames)
+   if level==1 then
+    add(enemies,{x=30,y=70,w=8,h=8,speed=0.6*speed_mult,dir=1})
+    _log("enemy_spawn_ramp")
+   elseif level==2 then
+    add(enemies,{x=70,y=80,w=8,h=8,speed=0.9*speed_mult,dir=-1})
+    _log("enemy_spawn_ramp")
+   end
+  elseif elapsed==1200 then  -- 20 seconds
+   if level==1 then
+    add(enemies,{x=80,y=90,w=8,h=8,speed=0.6*speed_mult,dir=-1})
+    _log("enemy_spawn_ramp")
+   elseif level==2 then
+    add(enemies,{x=40,y=110,w=8,h=8,speed=0.9*speed_mult,dir=1})
+    _log("enemy_spawn_ramp")
+   end
+  end
+
+  -- hard mode: add extra enemy mid-level
+  if difficulty=="hard" and elapsed==600 then  -- 10 seconds
+   if level==1 then
+    add(enemies,{x=50,y=50,w=8,h=8,speed=0.6*speed_mult,dir=-1})
+    _log("enemy_spawn_ramp")
+   elseif level==2 then
+    add(enemies,{x=60,y=30,w=8,h=8,speed=0.9*speed_mult,dir=1})
+    _log("enemy_spawn_ramp")
+   end
+  end
+
+  -- calculate time bonus: 10 points per second survived, max 300 per level
+  local level_elapsed=(frames-level_start_frame)/60
+  level_score=flr(min(level_elapsed*10,300))
  end
 
  for i=1,#enemies do
@@ -305,7 +368,8 @@ function update_play()
   end
  end
 
- if collide(player,exit_portal) then
+ -- exit portal only used in standard mode (not endless)
+ if not is_endless and collide(player,exit_portal) then
   sfx(2)
   level+=1
 
@@ -322,10 +386,6 @@ function update_play()
    _log("level_complete")
   end
  end
-
- -- calculate time bonus: 10 points per second survived, max 300 per level
- local level_elapsed=(frames-level_start_frame)/60
- level_score=flr(min(level_elapsed*10,300))
 
  frames+=1
 end
@@ -361,13 +421,25 @@ function draw_play()
   spr(1,e.x-4,e.y-4)
  end
 
- spr(2,exit_portal.x-4,exit_portal.y-4)
+ if not is_endless then
+  spr(2,exit_portal.x-4,exit_portal.y-4)
+ end
 
- local total_score=score+level_score
- print("sc "..total_score,2,2,7)
- print("lvl "..level,40,2,7)
- print("hp "..max(0,health),90,2,7)
- print("find exit (top right)",10,120,14)
+ if is_endless then
+  -- endless mode display
+  local survival_time=flr((frames-level_start_frame)/60)
+  print("sc "..score,2,2,7)
+  print("wave "..wave,40,2,7)
+  print("time "..survival_time.."s",75,2,7)
+  print("hp "..max(0,health),2,12,7)
+ else
+  -- standard mode display
+  local total_score=score+level_score
+  print("sc "..total_score,2,2,7)
+  print("lvl "..level,40,2,7)
+  print("hp "..max(0,health),90,2,7)
+  print("find exit (top right)",10,120,14)
+ end
 end
 
 function update_gameover()
@@ -382,24 +454,38 @@ end
 function draw_gameover()
  cls(0)
 
- local final_score=score
- if level>2 then
-  final_score+=level_score+500
-  print("victory!",44,20,11)
-  print("escaped both",36,35,11)
-  print("cave levels!",36,46,11)
+ if is_endless then
+  -- endless mode gameover
+  print("endless failed",32,20,8)
+  print("waves survived:"..wave,28,35,11)
+  print("score:"..score,48,50,7)
+  if score>best_endless_score then
+   best_endless_score=score
+   print("new record!",44,60,11)
+  else
+   print("best:"..best_endless_score,44,60,7)
+  end
  else
-  final_score+=level_score
-  print("game over",40,20,8)
-  print("caught!",48,35,8)
- end
+  -- standard mode gameover
+  local final_score=score
+  if level>2 then
+   final_score+=level_score+500
+   print("victory!",44,20,11)
+   print("escaped both",36,35,11)
+   print("cave levels!",36,46,11)
+  else
+   final_score+=level_score
+   print("game over",40,20,8)
+   print("caught!",48,35,8)
+  end
 
- print("score:"..final_score,44,60,7)
- if final_score>best_score then
-  best_score=final_score
-  print("new best!",44,70,11)
- else
-  print("best:"..best_score,44,70,7)
+  print("score:"..final_score,44,60,7)
+  if final_score>best_score then
+   best_score=final_score
+   print("new best!",44,70,11)
+  else
+   print("best:"..best_score,44,70,7)
+  end
  end
 
  print("z or x to menu",32,100,7)
