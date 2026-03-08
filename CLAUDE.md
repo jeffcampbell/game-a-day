@@ -182,3 +182,149 @@ Add `_log()` calls for:
 ### System
 - `t()` / `time()` — seconds since game start
 - `stat(n)` — system stats
+
+## Game Library System
+
+The game library system provides comprehensive discovery, indexing, and visualization
+of all PICO-8 games created in the project.
+
+### Library Components
+
+1. **Game Catalog (`catalog.json`)**
+   - Master index of all games with aggregated metadata
+   - Generated automatically by deploy script
+   - Located at project root
+   - Contains: title, description, genres, difficulty, playtime, completion rates, analytics
+
+2. **Library Generator (`tools/generate-library.py`)**
+   ```bash
+   python3 tools/generate-library.py
+   ```
+   - Scans all `games/YYYY-MM-DD/` directories
+   - Aggregates metadata.json, test-report.json, session data
+   - Generates catalog.json with complete game index
+   - Validates all data before output
+
+3. **Web Discovery Interface (`tools/library-web-server.py`)**
+   ```bash
+   python3 tools/library-web-server.py [--port 8000]
+   ```
+   - Launches interactive web browser for game discovery
+   - Supports filtering by genre, difficulty, date range, status
+   - Provides sorting by date, title, difficulty, completion rate, sessions
+   - Shows game statistics dashboard with charts and metrics
+   - Available at: `http://127.0.0.1:8000/`
+
+### Catalog.json Format
+
+The `catalog.json` file contains all indexed games in this format:
+
+```json
+{
+  "generated": "ISO8601_timestamp",
+  "version": "1.0",
+  "total_games": 42,
+  "statistics": {
+    "total_games": 42,
+    "total_sessions_recorded": 250,
+    "average_completion_rate": 0.65,
+    "difficulty_stats": {
+      "min": 1,
+      "max": 5,
+      "average": 3.2
+    },
+    "playtime_stats": {
+      "min": 2,
+      "max": 15,
+      "average": 5.5,
+      "median": 5
+    },
+    "genre_distribution": {
+      "action": 12,
+      "puzzle": 15,
+      "adventure": 8
+    },
+    "completion_status_breakdown": {
+      "in-progress": 20,
+      "complete": 15,
+      "polished": 7
+    }
+  },
+  "games": [
+    {
+      "date": "2026-03-07",
+      "title": "Game Title",
+      "description": "Game description...",
+      "genres": ["action", "arcade"],
+      "difficulty": 3,
+      "playtime_minutes": 5,
+      "completion_status": "in-progress",
+      "test_status": "PASS",
+      "state_transitions": ["menu", "play", "gameover"],
+      "logs_captured": 127,
+      "sessions_recorded": 12,
+      "completion_rate": 0.75,
+      "assessment_status": "active",
+      "target_audience": "general",
+      "token_count": 7500,
+      "sprite_count": 15,
+      "sound_count": 8
+    }
+  ]
+}
+```
+
+### Data Sources
+
+The library system integrates data from multiple sources:
+
+- **Metadata** (`metadata.json`): Title, description, genres, difficulty, playtime
+- **Test Reports** (`test-report.json`): Test status, state transitions, logs captured
+- **Sessions** (`session_*.json`): Recorded gameplay data for analytics
+- **Assessment** (`assessment.md`): Assessment status and notes
+
+### Integration with Deploy Pipeline
+
+The deploy.sh automatically generates catalog.json after exporting games:
+```bash
+python3 tools/generate-library.py
+```
+
+This ensures the catalog is always up-to-date with the latest games.
+
+### Statistics Dashboard
+
+The web interface provides comprehensive statistics:
+- Total games created and sessions recorded
+- Genre distribution (pie chart)
+- Difficulty distribution (bar chart)
+- Completion status breakdown
+- Playtime statistics (min, max, average, median)
+
+### Usage Examples
+
+**Generate/update catalog:**
+```bash
+python3 tools/generate-library.py
+```
+
+**Launch discovery interface:**
+```bash
+python3 tools/library-web-server.py --port 8000
+# Open http://127.0.0.1:8000/ in browser
+```
+
+**Query catalog via API:**
+```bash
+# Get all games
+curl http://127.0.0.1:8000/api/catalog
+
+# Filter by genre
+curl "http://127.0.0.1:8000/api/catalog?genre=action"
+
+# Filter by difficulty
+curl "http://127.0.0.1:8000/api/catalog?difficulty_min=3&difficulty_max=5"
+
+# Sort by completion rate
+curl "http://127.0.0.1:8000/api/catalog?sort=completion_rate&reverse=true"
+```
