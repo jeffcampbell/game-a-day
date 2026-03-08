@@ -228,11 +228,28 @@ def find_latest_session(game_dir):
     return sessions[0][1]
 
 
+def load_metadata(game_dir):
+    """Load metadata.json for a game if it exists."""
+    metadata_path = os.path.join(game_dir, 'metadata.json')
+    try:
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+                if isinstance(metadata, dict):
+                    return metadata
+    except Exception:
+        pass
+    return None
+
+
 def generate_test_report(game_dir, date, status, analysis, errors):
     """Generate test report JSON for a game.
 
-    Incorporates session data if available, otherwise uses static analysis.
+    Incorporates session data and metadata if available.
     """
+    # Load metadata if available
+    metadata = load_metadata(game_dir)
+
     # Check for recorded sessions
     session_data = find_latest_session(game_dir)
 
@@ -270,6 +287,16 @@ def generate_test_report(game_dir, date, status, analysis, errors):
                 'gameover_events': len(analysis.get('gameover_conditions', []))
             },
             'exit_state': 'analysis_complete'
+        }
+
+    # Add metadata if available
+    if metadata:
+        report['metadata'] = {
+            'title': metadata.get('title'),
+            'description': metadata.get('description'),
+            'genres': metadata.get('genres', []),
+            'difficulty': metadata.get('difficulty'),
+            'completion_status': metadata.get('completion_status')
         }
 
     # Write report
@@ -399,6 +426,23 @@ def main():
         pass  # Analytics engine not available
     except Exception as e:
         print(f"⚠️  Could not generate analytics: {e}", file=sys.stderr)
+
+    # Generate catalog
+    try:
+        import subprocess
+        print("Generating catalog...", end=' ', flush=True)
+        result = subprocess.run(
+            ['python3', 'tools/manage-metadata.py', 'catalog'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0:
+            print("✅")
+        else:
+            print("⚠️")
+    except Exception as e:
+        pass  # Catalog generation is optional
 
     # Print summary
     print()
