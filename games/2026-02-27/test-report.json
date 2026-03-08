@@ -1,0 +1,37 @@
+{
+  "date": "2026-02-27",
+  "status": "PASS",
+  "duration_frames": "static_analysis",
+  "errors": [],
+  "state_transitions": [
+    "menu",
+    "difficulty_select",
+    "challenge_variant_menu",
+    "practice_obstacle_select",
+    "gauntlet",
+    "bossrush",
+    "tutorial",
+    "variant_leaderboards",
+    "ad2",
+    "statistics",
+    "settings",
+    "progress",
+    "play",
+    "difficulty_customize",
+    "resume",
+    "pause",
+    "gameover",
+    "enter_initials",
+    "practice_speed_select",
+    "practice_play",
+    "gauntlet_gameover",
+    "bossrush_gameover"
+  ],
+  "logs_captured": 384,
+  "events": {
+    "state_transitions": 22,
+    "game_events": 343,
+    "gameover_events": 1
+  },
+  "exit_state": "analysis_complete"
+}

@@ -1,0 +1,24 @@
+{
+  "date": "2026-03-05",
+  "status": "PASS",
+  "duration_frames": "static_analysis",
+  "errors": [],
+  "state_transitions": [
+    "menu",
+    "play",
+    "mode",
+    "achs",
+    "help",
+    "diff",
+    "mods",
+    "gameover",
+    "name_entry"
+  ],
+  "logs_captured": 68,
+  "events": {
+    "state_transitions": 9,
+    "game_events": 50,
+    "gameover_events": 3
+  },
+  "exit_state": "analysis_complete"
+}

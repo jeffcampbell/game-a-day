@@ -1,0 +1,20 @@
+{
+  "date": "2026-02-26",
+  "status": "PASS",
+  "duration_frames": "static_analysis",
+  "errors": [],
+  "state_transitions": [
+    "leaderboard",
+    "tutorial",
+    "play",
+    "menu",
+    "gameover"
+  ],
+  "logs_captured": 163,
+  "events": {
+    "state_transitions": 5,
+    "game_events": 156,
+    "gameover_events": 2
+  },
+  "exit_state": "analysis_complete"
+}

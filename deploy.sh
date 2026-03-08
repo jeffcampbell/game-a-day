@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy game-a-day: export to HTML/JS and push to GitHub
+# Deploy game-a-day: run tests, export to HTML/JS, and push to GitHub
 set -e
 
 cd /home/pi/Development/game-a-day
@@ -10,6 +10,18 @@ GAME_DIR="games/$TODAY"
 if [ ! -f "$GAME_DIR/game.p8" ]; then
     echo "No game found at $GAME_DIR/game.p8"
     exit 0  # Not an error — game may not be ready yet
+fi
+
+# Run tests on all games
+echo "Running game tests..."
+if python3 tools/run-game-tests.py; then
+    echo "✅ All tests passed"
+else
+    if [ "$1" != "--ignore-test-failures" ]; then
+        echo "❌ Test failures detected. Use --ignore-test-failures to skip."
+        exit 1
+    fi
+    echo "⚠️  Test failures detected, but --ignore-test-failures flag used"
 fi
 
 # Export to HTML (requires PICO-8)
