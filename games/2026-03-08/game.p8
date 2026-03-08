@@ -88,8 +88,7 @@ power_ups={}
 player_power_up=nil  -- current held power-up: {type,spawn_frame}
 prev_down_btn=0  -- track down button state for power-up activation
 power_up_spawn_frame=-10000
-power_up_1_spawned=false  -- track if first power-up has spawned
-power_up_2_spawned=false  -- track if second power-up has spawned
+power_up_spawned=false  -- track if power-up has spawned for this level
 
 function init_level()
  enemies={}
@@ -98,8 +97,7 @@ function init_level()
  power_up_spawn_frame=frames
  level_start_frame=frames
  level_score=0
- power_up_1_spawned=false
- power_up_2_spawned=false
+ power_up_spawned=false
 
  -- reset adaptive difficulty tracking
  hit_times={}
@@ -612,21 +610,12 @@ function update_play()
   local level_elapsed=(frames-level_start_frame)/60
   level_score=flr(min(level_elapsed*10,300))
 
-  -- spawn power-ups at specific times (only if not holding one)
+  -- spawn power-up at specific time (only if not holding one)
   if player_power_up==nil then
    local power_types={"shield","speed","slow","heal"}
-   -- spawn first power-up at 8 seconds (480 frames)
-   if not power_up_1_spawned and elapsed>=480 then
-    power_up_1_spawned=true
-    local ptype=power_types[flr(rnd(4))+1]
-    local spawn_x=20+flr(rnd(88))
-    local spawn_y=20+flr(rnd(88))
-    add(power_ups,{x=spawn_x,y=spawn_y,w=8,h=8,type=ptype})
-    _log("power_spawn:"..ptype)
-   end
-   -- spawn second power-up at 20 seconds (1200 frames, on all levels)
-   if not power_up_2_spawned and elapsed>=1200 then
-    power_up_2_spawned=true
+   -- spawn power-up at 15 seconds (900 frames)
+   if not power_up_spawned and elapsed>=900 then
+    power_up_spawned=true
     local ptype=power_types[flr(rnd(4))+1]
     local spawn_x=20+flr(rnd(88))
     local spawn_y=20+flr(rnd(88))
