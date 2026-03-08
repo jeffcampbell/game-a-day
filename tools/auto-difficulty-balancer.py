@@ -16,6 +16,7 @@ import os
 import sys
 import json
 import re
+import math
 import argparse
 import subprocess
 import shutil
@@ -231,7 +232,18 @@ def prioritize_suggestions(suggestions, found_parameters):
                 break
 
     # Sort by priority (lower number = higher priority)
-    return sorted(matches, key=lambda x: int(x['priority']) if isinstance(x['priority'], str) else x['priority'])
+    def get_priority_value(x):
+        """Extract numeric priority value with fallback to default."""
+        try:
+            priority = x['priority']
+            if isinstance(priority, str):
+                return int(priority)
+            else:
+                return int(priority)
+        except (ValueError, TypeError):
+            return 999  # Default low priority for invalid values
+
+    return sorted(matches, key=get_priority_value)
 
 
 def calculate_adjustment(current_value, completion_rate, target_rate, param_config):
@@ -253,6 +265,8 @@ def calculate_adjustment(current_value, completion_rate, target_rate, param_conf
     factor = param_config['adjustment_factor']
 
     # For spawn_timer (higher = easier), we want to increase it
+    # Inverse calculation: divide by (1 - deficit_scaled) to increase spawn_timer
+    # Divisor range: [1.0 (no deficit) to 0.7 (max deficit)], always >= 0.7 so safe to divide
     if 'timer' in param_config['description'].lower() and param_config['adjustment_factor'] < 1:
         new_value = current_value / (1 - (deficit_ratio * 0.3))
     else:
@@ -263,7 +277,6 @@ def calculate_adjustment(current_value, completion_rate, target_rate, param_conf
     is_integer = param_config.get('is_integer', False)
     if is_integer:
         # For int values, use ceiling to ensure change is visible
-        import math
         new_value = max(1, math.ceil(new_value))
     else:
         new_value = max(0.1, round(new_value, 2))
@@ -274,6 +287,7 @@ def calculate_adjustment(current_value, completion_rate, target_rate, param_conf
 def apply_parameter_adjustment(code, param_info, new_value):
     """Apply a parameter adjustment to the code.
 
+    Uses the specific parameter pattern to ensure correct value replacement.
     Returns updated code or None on failure.
     """
     lines = code.split('\n')
@@ -284,16 +298,23 @@ def apply_parameter_adjustment(code, param_info, new_value):
 
     old_line = lines[line_idx]
 
-    # Create new line by replacing the numeric value
-    pattern = r'(\d+(?:\.\d+)?)'
-    matches = list(re.finditer(pattern, old_line))
-
-    if not matches:
+    # Use the parameter's specific pattern from find_difficulty_parameters()
+    param_pattern = param_info.get('pattern')
+    if not param_pattern:
         return None
 
-    # Replace the first numeric match
-    match = matches[0]
-    new_line = old_line[:match.start()] + str(new_value) + old_line[match.end():]
+    # Try to match using the parameter's own regex pattern
+    match = re.search(param_pattern, old_line)
+    if not match:
+        return None
+
+    # Get the captured group (the numeric value)
+    # The pattern should have the value in group(1)
+    value_start = match.start(1)
+    value_end = match.end(1)
+
+    # Replace only the captured numeric part
+    new_line = old_line[:value_start] + str(new_value) + old_line[value_end:]
 
     lines[line_idx] = new_line
     return '\n'.join(lines)
@@ -324,7 +345,7 @@ def count_tokens(game_p8_path):
                 match = re.search(r'(\d+)', line)
                 if match:
                     return int(match.group(1))
-    except:
+    except (ValueError, AttributeError):
         pass
 
     return None
@@ -374,7 +395,7 @@ def analyze_sessions_for_metrics(game_dir):
             logs = session.get('logs', [])
             if any('win' in log.lower() or 'complete' in log.lower() for log in logs):
                 completions += 1
-        except:
+        except (json.JSONDecodeError, IOError, ValueError, AttributeError):
             pass
 
     if total_sessions == 0:
@@ -471,12 +492,14 @@ def balance_game(game_dir, target_completion_rate, dry_run=False, force=False):
         'final_completion_rate': original_completion,
         'improvement': 0,
         'success': False,
-        'dry_run': dry_run
+        'dry_run': dry_run,
+        'note': 'Metrics based on simulated improvement estimates. Actual results require playtest verification.'
     }
 
     # Apply adjustments iteratively
     current_code = code
     current_completion = original_completion
+    tried_parameters = set()  # Track which parameters we've already tried in this iteration
 
     for iteration in range(MAX_ITERATIONS):
         if current_completion >= target_completion_rate:
@@ -489,28 +512,34 @@ def balance_game(game_dir, target_completion_rate, dry_run=False, force=False):
         if not current_params:
             break
 
-        # Select parameter to adjust
+        # Try to find a parameter to adjust (skip ones already tried in this iteration)
         param_to_adjust = None
+
+        # First, try matched suggestions
         for match in matched_suggestions:
             param_name = match['parameter']
-            if param_name in current_params:
+            if param_name in current_params and param_name not in tried_parameters:
                 param_to_adjust = param_name
                 break
 
         if not param_to_adjust:
-            # Use first high-impact parameter not yet adjusted
+            # Try first high-impact parameter not yet tried
             for param_name, pinfo in current_params.items():
-                if pinfo['impact'] == 'high':
+                if pinfo['impact'] == 'high' and param_name not in tried_parameters:
                     param_to_adjust = param_name
                     break
 
         if not param_to_adjust:
-            # Use any parameter
-            param_to_adjust = next(iter(current_params), None)
+            # Try any remaining parameter
+            for param_name in current_params:
+                if param_name not in tried_parameters:
+                    param_to_adjust = param_name
+                    break
 
         if not param_to_adjust:
             break
 
+        tried_parameters.add(param_to_adjust)
         param_info = current_params[param_to_adjust]
         old_value = param_info['current_value']
         new_value = calculate_adjustment(old_value, current_completion, target_completion_rate, param_info)
@@ -519,26 +548,30 @@ def balance_game(game_dir, target_completion_rate, dry_run=False, force=False):
         is_integer = param_info.get('is_integer', False)
         min_change = 1 if is_integer else 0.01
         if abs(new_value - old_value) < min_change:
-            # Try next parameter
+            # Parameter doesn't need change; try next parameter in same iteration
             continue
 
         # Apply adjustment
         updated_code = apply_parameter_adjustment(current_code, param_info, new_value)
         if not updated_code:
+            # Failed to apply; try next parameter in same iteration
             continue
 
-        # Validate syntax - do basic check (just ensure it's still valid Lua)
-        # Skip strict validation since existing games may not pass
+        # Validate code structure (basic check, not full Lua syntax validation)
+        # NOTE: This only checks for required cartridge sections (__lua__, __gfx__),
+        # not actual Lua syntax validity. Full validation would require a Lua parser.
+        # Since existing games may not pass strict validation, we use a minimal check.
+        # The backup mechanism (lines 597-602) provides a safety net if issues occur.
         test_p8 = game_p8.with_stem(game_p8.stem + '_test')
         test_p8_content = updated_code
 
         is_valid = True
         try:
-            # Just verify the file can be written and is valid P8 format
+            # Verify the file can be written
             with open(test_p8, 'w') as f:
                 f.write(test_p8_content)
 
-            # Quick syntax check: does it have the required sections?
+            # Minimal validation: check for required cartridge sections
             if '__lua__' in test_p8_content and '__gfx__' in test_p8_content:
                 is_valid = True
             else:
@@ -565,10 +598,12 @@ def balance_game(game_dir, target_completion_rate, dry_run=False, force=False):
         })
 
         # Re-test (simulate for now)
-        # In a real scenario, we'd run headless-playtester and re-analyze
-        # For now, use a conservative estimate
+        # NOTE: This uses simulated metrics, not actual playtest data!
+        # In a real scenario, we'd run headless-playtester and re-analyze.
+        # The improvement_rate is a conservative estimate for preview purposes.
+        # Actual in-game testing should be performed before committing changes.
         deficit = target_completion_rate - current_completion
-        improvement_rate = 0.15  # Assume 15% completion improvement per adjustment
+        improvement_rate = 0.15  # Simulated: assume 15% completion improvement per adjustment
         current_completion = min(current_completion + deficit * improvement_rate, target_completion_rate)
 
         report['iterations'] = iteration + 1
@@ -626,7 +661,7 @@ def main():
     parser.add_argument('--analyze-all', action='store_true', help='Analyze all games')
     parser.add_argument('--dry-run', action='store_true', help='Preview changes without applying')
     parser.add_argument('--target-completion', type=float, default=TARGET_COMPLETION_RATE,
-                        help=f'Target completion rate (default: {TARGET_COMPLETION_RATE:.1%})')
+                        help=f'Target completion rate (default: {TARGET_COMPLETION_RATE*100:.1f}%%)')
     parser.add_argument('--force', action='store_true', help='Force re-analysis of balanced games')
 
     args = parser.parse_args()
