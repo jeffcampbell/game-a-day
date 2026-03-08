@@ -68,11 +68,17 @@ shield_cooldown=90  -- 1.5 seconds at 60fps
 last_shield_frame=-100
 shield_invuln_frames=30  -- 0.5 seconds at 60fps
 shield_invuln_start=-100
+prev_down_btn=0  -- track previous down button state for press detection
 
 function init_level()
  enemies={}
  level_start_frame=frames
  level_score=0
+
+ -- reset shield state at level start
+ shield_invuln_start=-100
+ last_shield_frame=-100
+ prev_down_btn=0
 
  -- start background music
  music(0)
@@ -120,6 +126,11 @@ function init_endless_level()
  enemies={}
  level_start_frame=frames
  level_score=0
+
+ -- reset shield state
+ shield_invuln_start=-100
+ last_shield_frame=-100
+ prev_down_btn=0
 
  -- start background music
  music(0)
@@ -257,8 +268,9 @@ function update_play()
   _log("dash")
  end
 
- -- shield mechanic (down button)
- if test_input(3)>0 and frames-last_shield_frame>=shield_cooldown then
+ -- shield mechanic (down button) - activate on button press, not hold
+ local down_btn=test_input(3)
+ if down_btn>0 and prev_down_btn==0 and frames-last_shield_frame>=shield_cooldown then
   -- activate shield invulnerability window
   shield_invuln_start=frames
   last_shield_frame=frames
@@ -267,6 +279,7 @@ function update_play()
   sfx(4)
   _log("shield")
  end
+ prev_down_btn=down_btn
 
  player.x+=dx
  player.y+=dy
@@ -447,6 +460,7 @@ function update_gameover()
  music(-1)
  if test_input(4)>0 or test_input(5)>0 then
   state="menu"
+  prev_down_btn=0
   _log("state:menu")
  end
 end
