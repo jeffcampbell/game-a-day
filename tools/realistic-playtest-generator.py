@@ -12,6 +12,7 @@ Usage:
 
 import sys
 import json
+import re
 import random
 import argparse
 from pathlib import Path
@@ -307,6 +308,11 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Validate game_date format to prevent path traversal
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', args.game_date):
+        print(f"Error: Invalid game date format: {args.game_date} (expected YYYY-MM-DD)")
+        sys.exit(1)
 
     # Validate game exists
     game_dir = Path("games") / args.game_date
