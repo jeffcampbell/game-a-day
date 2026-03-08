@@ -36,7 +36,8 @@ player = {
   jump_power=5,
   grav=0.3,
   on_ground=false,
-  sprite=1
+  sprite=1,
+  jump_sfx_cooldown=0
 }
 
 -- platforms (x, y, w, h, move_type, speed)
@@ -71,7 +72,7 @@ function _update()
       score = 0
       health = max_health
       exit_reached = false
-      player = {x=64, y=90, w=6, h=8, vx=0, vy=0, jump_power=5, grav=0.3, on_ground=false, sprite=1}
+      player = {x=64, y=90, w=6, h=8, vx=0, vy=0, jump_power=5, grav=0.3, on_ground=false, sprite=1, jump_sfx_cooldown=0}
       gems = {{x=15,y=95,c=false},{x=45,y=75,c=false},{x=75,y=60,c=false},{x=25,y=40,c=false}}
       _log("state:play")
     end
@@ -90,6 +91,11 @@ function update_play()
   local left = test_input(0)
   local right = test_input(1)
   local jump = test_input(2)
+
+  -- decrement jump sound cooldown
+  if player.jump_sfx_cooldown > 0 then
+    player.jump_sfx_cooldown -= 1
+  end
 
   -- horizontal movement
   if left > 0 then player.vx = -2 end
@@ -117,7 +123,10 @@ function update_play()
         player.on_ground = true
         if jump > 0 then
           player.vy = -player.jump_power
-          sfx(0)
+          if player.jump_sfx_cooldown <= 0 then
+            sfx(0)
+            player.jump_sfx_cooldown = 8
+          end
           _log("jump")
         end
       end
@@ -223,7 +232,7 @@ end
 function draw_menu()
   print("jungle escape", 40, 30, 7)
   print("navigate platforms", 30, 45, 7)
-  print("collect gems", 40, 55, 7)
+  print("collect gems! (with sound)", 20, 55, 7)
   print("reach the exit", 40, 65, 7)
   print("arrows/wasd to move", 28, 80, 7)
   print("up/w to jump", 42, 90, 7)
