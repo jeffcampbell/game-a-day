@@ -476,6 +476,13 @@ function update_play()
 
   player_power_up=nil
  end
+
+ -- auto-drop power-up if held for 10 seconds without use (600 frames)
+ if player_power_up~=nil and frames-player_power_up.spawn_frame>600 then
+  _log("power_drop")
+  player_power_up=nil
+ end
+
  prev_down_btn=down_btn
 
  player.x+=dx
