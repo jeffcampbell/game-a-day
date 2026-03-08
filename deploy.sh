@@ -17,11 +17,11 @@ echo "Running game tests..."
 if python3 tools/run-game-tests.py; then
     echo "✅ All tests passed"
 else
-    if [ "$1" != "--ignore-test-failures" ]; then
-        echo "❌ Test failures detected. Use --ignore-test-failures to skip."
+    if [ "$1" != "--ignore-failures" ]; then
+        echo "❌ Test failures detected. Use --ignore-failures to skip."
         exit 1
     fi
-    echo "⚠️  Test failures detected, but --ignore-test-failures flag used"
+    echo "⚠️  Test failures detected, but --ignore-failures flag used"
 fi
 
 # Export to HTML (requires PICO-8)
