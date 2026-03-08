@@ -262,7 +262,14 @@ def generate_description(game_title, lua_code, genres):
         mechanics.append("collect power-ups")
 
     if mechanics:
-        parts.append(" ".join(mechanics).capitalize() + ".")
+        # Properly join mechanics with commas and conjunctions
+        if len(mechanics) == 1:
+            mechanics_str = mechanics[0]
+        elif len(mechanics) == 2:
+            mechanics_str = f"{mechanics[0]} and {mechanics[1]}"
+        else:
+            mechanics_str = ", ".join(mechanics[:-1]) + f", and {mechanics[-1]}"
+        parts.append(mechanics_str.capitalize() + ".")
 
     return " ".join(parts)
 
