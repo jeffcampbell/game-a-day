@@ -6,6 +6,7 @@ Usage:
   python3 tools/manage-metadata.py show <date>
   python3 tools/manage-metadata.py edit <date>
   python3 tools/manage-metadata.py init <date>
+  python3 tools/manage-metadata.py catalog
 
 Manages metadata.json files in each game directory with game info,
 difficulty, genres, token counts, and tester notes.
@@ -388,7 +389,7 @@ def edit_game(date_str):
 
     # Edit theme
     theme = input(f"Theme [{metadata.get('theme', '')}]: ").strip()
-    if theme is not None:
+    if theme:
         metadata['theme'] = theme
 
     # Edit difficulty
@@ -446,7 +447,7 @@ def edit_game(date_str):
 
     # Edit tester notes
     notes = input(f"Tester notes [{metadata.get('tester_notes', '')}]: ").strip()
-    if notes is not None:
+    if notes:
         metadata['tester_notes'] = notes
 
     # Auto-extract metrics
