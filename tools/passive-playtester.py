@@ -12,7 +12,6 @@ Usage:
   python3 tools/passive-playtester.py 2026-03-08 --count 12   # Generate 12 tests
 """
 
-import os
 import sys
 import json
 import argparse
@@ -43,7 +42,7 @@ def generate_passive_sequence(session_num, length=2000):
         length: Total frames for sequence
 
     Returns:
-        List of button states (bitmask 0-63)
+        List of button states for movement only (left=1, right=2, up=4, down=8)
     """
     random.seed(session_num * 1000)
     buttons = []
@@ -102,7 +101,7 @@ def simulate_game_session(button_sequence, session_num):
         session_num: Session identifier
 
     Returns:
-        Dict with session outcome and logs
+        Dict with keys: outcome (str), logs (list), duration (int frames), skill_estimate (float)
     """
     # Analyze player input quality
     # Count movement inputs vs idle frames
@@ -199,6 +198,7 @@ def main():
 
     wins = 0
     losses = 0
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
     for i in range(args.count):
         # Generate passive button sequence
@@ -220,7 +220,6 @@ def main():
         }
 
         # Save session
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         session_file = game_dir / f"session_passive_{i:02d}_{timestamp}.json"
         with open(session_file, 'w') as f:
             json.dump(session, f, indent=2)
