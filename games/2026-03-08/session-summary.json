@@ -1,27 +1,27 @@
 {
   "game_date": "2026-03-08",
-  "sessions_analyzed": 4,
+  "sessions_analyzed": 15,
   "completion_summary": {
-    "completion_rate": 0.5,
-    "avg_playtime_seconds": 31.7,
-    "wins": 2,
-    "losses": 2,
+    "completion_rate": 0.73,
+    "avg_playtime_seconds": 33.9,
+    "wins": 11,
+    "losses": 4,
     "quits": 0
   },
   "critical_failure_points": [],
   "input_heatmap": {
-    "left": 0,
-    "right": 95,
-    "up": 65,
+    "left": 274,
+    "right": 17030,
+    "up": 4415,
     "down": 0,
-    "o_button": 10,
-    "x_button": 0
+    "o_button": 262,
+    "x_button": 1086
   },
-  "state_flow": "play / lost(2) + won(2)",
+  "state_flow": "menu \u2192 play / won(11) + lost(4)",
   "next_steps": [
     {
       "priority": 1,
-      "recommendation": "Controls not used: left, down, x_button - consider removing from tutorial or assigning functions",
+      "recommendation": "Controls not used: down - consider removing from tutorial or assigning functions",
       "estimated_impact": "low",
       "estimated_tokens_to_fix": 5
     }
