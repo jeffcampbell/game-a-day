@@ -16,6 +16,7 @@ import sys
 import json
 import argparse
 import socket
+import re
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -41,7 +42,6 @@ class AnalyticsDashboardHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         """Handle GET requests."""
         path = urlparse(self.path).path
-        query = parse_qs(urlparse(self.path).query)
 
         try:
             if path == '/':
@@ -139,6 +139,11 @@ class AnalyticsDashboardHandler(SimpleHTTPRequestHandler):
 
         date = parts[2]
 
+        # Validate date format (YYYY-MM-DD) to prevent path traversal
+        if not re.match(r'^\d{4}-\d{2}-\d{2}$', date):
+            self.send_error(404, f'Game {date} not found')
+            return
+
         try:
             game_dir = os.path.join('games', date)
             if not os.path.isdir(game_dir):
@@ -210,11 +215,12 @@ class AnalyticsDashboardHandler(SimpleHTTPRequestHandler):
     def send_json(self, data, status=200):
         """Send JSON response."""
         json_str = json.dumps(data, indent=2)
+        json_bytes = json_str.encode()
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Content-Length', len(json_str))
+        self.send_header('Content-Length', len(json_bytes))
         self.end_headers()
-        self.wfile.write(json_str.encode())
+        self.wfile.write(json_bytes)
 
     def log_message(self, format, *args):
         """Suppress default logging."""
