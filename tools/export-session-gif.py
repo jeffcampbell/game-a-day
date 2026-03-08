@@ -25,13 +25,12 @@ import argparse
 import re
 import subprocess
 import base64
-import tempfile
 import time
 import http.server
 import socketserver
 import threading
 import socket
-from pathlib import Path
+import shutil
 from datetime import datetime
 from typing import List, Tuple, Optional
 from io import BytesIO
@@ -88,6 +87,9 @@ def load_session(session_path: str) -> Tuple[Optional[dict], Optional[str]]:
         if not isinstance(data['button_sequence'], list):
             return None, "button_sequence must be an array"
 
+        if not all(isinstance(b, int) for b in data['button_sequence']):
+            return None, "button_sequence must contain only integers"
+
         if not isinstance(data['duration_frames'], int) or data['duration_frames'] <= 0:
             return None, "duration_frames must be a positive integer"
 
@@ -114,6 +116,27 @@ def calculate_frame_compression(duration_frames: int) -> int:
     return min(skip_rate, 4)  # Cap at 4x compression (15fps minimum)
 
 
+def find_chromium() -> Optional[str]:
+    """Find Chromium executable in PATH or common locations."""
+    candidates = [
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/snap/bin/chromium',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    # Try searching in PATH
+    for name in ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable']:
+        path = shutil.which(name)
+        if path:
+            return path
+
+    return None
+
+
 def capture_game_frames(game_dir: str, session: dict, fps: int = 30) -> Tuple[Optional[List], Optional[str]]:
     """Capture game frames using Chromium and an injected frame capture handler."""
     button_sequence = session.get('button_sequence', [])
@@ -125,8 +148,6 @@ def capture_game_frames(game_dir: str, session: dict, fps: int = 30) -> Tuple[Op
     # Create a capture handler that will receive frame data from the browser
     frames = {}
     frames_lock = threading.Lock()
-    server_ready = threading.Event()
-    capture_complete = threading.Event()
 
     class FrameCaptureHandler(http.server.SimpleHTTPRequestHandler):
         def do_GET(self):
@@ -210,10 +231,15 @@ def capture_game_frames(game_dir: str, session: dict, fps: int = 30) -> Tuple[Op
             # Give server time to start
             time.sleep(0.5)
 
+            # Find Chromium
+            chromium_path = find_chromium()
+            if not chromium_path:
+                return None, "Chromium not found. Install with: sudo apt-get install chromium"
+
             # Launch Chromium
             print(f"🎥 Launching Chromium...")
             cmd = [
-                '/usr/bin/chromium',
+                chromium_path,
                 '--headless=new',
                 '--disable-gpu',
                 '--no-sandbox',
@@ -275,8 +301,6 @@ def capture_game_frames(game_dir: str, session: dict, fps: int = 30) -> Tuple[Op
 
         except subprocess.TimeoutExpired:
             return None, f"Chromium timed out after {timeout_sec}s (session may be too long)"
-        except FileNotFoundError:
-            return None, "Chromium not found at /usr/bin/chromium"
         except Exception as e:
             return None, f"Frame capture error: {e}"
         finally:
@@ -402,7 +426,7 @@ def update_assessment(game_dir: str, gif_filename: str) -> Optional[str]:
         with open(assessment_path, 'r') as f:
             content = f.read()
 
-        if gif_filename in content:
+        if f"({gif_filename})" in content:
             return None
 
         if content and not content.endswith('\n'):
@@ -472,7 +496,7 @@ def main():
             try:
                 dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
                 timestamp_str = dt.strftime('%Y%m%d_%H%M%S')
-            except:
+            except (ValueError, AttributeError, TypeError):
                 timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         else:
             timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
