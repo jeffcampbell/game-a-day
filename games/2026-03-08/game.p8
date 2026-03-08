@@ -26,7 +26,11 @@ function test_input(b)
 end
 
 state="menu"
+difficulty="normal"
+difficulty_cursor=2
 score=0
+best_score=0
+level_score=0
 health=3
 level=1
 frames=0
@@ -58,40 +62,73 @@ dash_speed_mult=2.5
 function init_level()
  enemies={}
  level_start_frame=frames
+ level_score=0
+
+ -- difficulty modifiers
+ local speed_mult=1
+ local health_val=3
+ if difficulty=="easy" then
+  speed_mult=0.4
+  health_val=5
+ elseif difficulty=="hard" then
+  speed_mult=1.3
+  health_val=2
+ end
+
+ health=health_val
+ _log("difficulty:"..difficulty)
+ _log("level:"..level)
 
  if level==1 then
   player.x=12
   player.y=100
-  health=3
-  _log("level:1")
 
   -- difficulty ramp-up: spawn enemies gradually during first 30 seconds
   -- start with 2 enemies, add 2 more at 15 seconds
   if level_start_frame==0 then
-   add(enemies,{x=60,y=30,w=8,h=8,speed=0.6,dir=1})
-   add(enemies,{x=100,y=60,w=8,h=8,speed=0.6,dir=-1})
+   add(enemies,{x=60,y=30,w=8,h=8,speed=0.6*speed_mult,dir=1})
+   add(enemies,{x=100,y=60,w=8,h=8,speed=0.6*speed_mult,dir=-1})
   end
 
  elseif level==2 then
   player.x=12
   player.y=100
-  health=3
-  _log("level:2")
 
   -- level 2: 3 enemies initially, 2 more at 15 seconds
   if level_start_frame>0 then
-   add(enemies,{x=50,y=25,w=8,h=8,speed=0.9,dir=1})
-   add(enemies,{x=95,y=40,w=8,h=8,speed=0.9,dir=-1})
-   add(enemies,{x=25,y=60,w=8,h=8,speed=0.9,dir=1})
+   add(enemies,{x=50,y=25,w=8,h=8,speed=0.9*speed_mult,dir=1})
+   add(enemies,{x=95,y=40,w=8,h=8,speed=0.9*speed_mult,dir=-1})
+   add(enemies,{x=25,y=60,w=8,h=8,speed=0.9*speed_mult,dir=1})
   end
  end
 end
 
 function update_menu()
  if test_input(4)>0 or test_input(5)>0 then
+  state="difficulty_select"
+  difficulty_cursor=2
+  _log("state:difficulty_select")
+ end
+end
+
+function update_difficulty_select()
+ if test_input(2)>0 then
+  difficulty_cursor=max(1,difficulty_cursor-1)
+ end
+ if test_input(3)>0 then
+  difficulty_cursor=min(3,difficulty_cursor+1)
+ end
+
+ if test_input(4)>0 or test_input(5)>0 then
+  if difficulty_cursor==1 then
+   difficulty="easy"
+  elseif difficulty_cursor==2 then
+   difficulty="normal"
+  else
+   difficulty="hard"
+  end
   state="play"
   score=0
-  health=3
   level=1
   init_level()
   _log("state:play")
@@ -108,6 +145,31 @@ function draw_menu()
  print("arrow keys move",28,80,11)
  print("x button dash!",32,90,11)
  print("z or x to start",32,105,11)
+end
+
+function draw_difficulty_select()
+ cls(1)
+ print("select difficulty",28,20,7)
+
+ local colors={8,7,11}
+ local y_positions={45,65,85}
+
+ for i=1,3 do
+  local col=colors[i]
+  if i==difficulty_cursor then
+   col=11
+  end
+  if i==1 then
+   print("easy",56,y_positions[i],col)
+  elseif i==2 then
+   print("normal",52,y_positions[i],col)
+  else
+   print("hard",56,y_positions[i],col)
+  end
+ end
+
+ print("up/down select",32,110,7)
+ print("z/x confirm",36,118,7)
 end
 
 function update_play()
@@ -160,20 +222,38 @@ function update_play()
 
  -- difficulty ramp-up: add enemies gradually
  local elapsed=frames-level_start_frame
+ local speed_mult=1
+ if difficulty=="easy" then
+  speed_mult=0.4
+ elseif difficulty=="hard" then
+  speed_mult=1.3
+ end
+
  if elapsed==900 then  -- 15 seconds (900 frames)
   if level==1 then
-   add(enemies,{x=30,y=70,w=8,h=8,speed=0.6,dir=1})
+   add(enemies,{x=30,y=70,w=8,h=8,speed=0.6*speed_mult,dir=1})
    _log("enemy_spawn_ramp")
   elseif level==2 then
-   add(enemies,{x=70,y=80,w=8,h=8,speed=0.9,dir=-1})
+   add(enemies,{x=70,y=80,w=8,h=8,speed=0.9*speed_mult,dir=-1})
    _log("enemy_spawn_ramp")
   end
  elseif elapsed==1200 then  -- 20 seconds
   if level==1 then
-   add(enemies,{x=80,y=90,w=8,h=8,speed=0.6,dir=-1})
+   add(enemies,{x=80,y=90,w=8,h=8,speed=0.6*speed_mult,dir=-1})
    _log("enemy_spawn_ramp")
   elseif level==2 then
-   add(enemies,{x=40,y=110,w=8,h=8,speed=0.9,dir=1})
+   add(enemies,{x=40,y=110,w=8,h=8,speed=0.9*speed_mult,dir=1})
+   _log("enemy_spawn_ramp")
+  end
+ end
+
+ -- hard mode: add extra enemy mid-level
+ if difficulty=="hard" and elapsed==600 then  -- 10 seconds
+  if level==1 then
+   add(enemies,{x=50,y=50,w=8,h=8,speed=0.6*speed_mult,dir=-1})
+   _log("enemy_spawn_ramp")
+  elseif level==2 then
+   add(enemies,{x=60,y=30,w=8,h=8,speed=0.9*speed_mult,dir=1})
    _log("enemy_spawn_ramp")
   end
  end
@@ -206,8 +286,13 @@ function update_play()
  if collide(player,exit_portal) then
   sfx(2)
   level+=1
+
+  -- award level completion bonus
+  score+=level_score
+  score+=500
+  _log("score:"..score)
+
   if level>2 then
-   score=100
    state="gameover"
    _log("gameover:win")
   else
@@ -215,6 +300,10 @@ function update_play()
    _log("level_complete")
   end
  end
+
+ -- calculate time bonus: 10 points per second survived, max 300 per level
+ local level_elapsed=(frames-level_start_frame)/60
+ level_score=flr(min(level_elapsed*10,300))
 
  frames+=1
 end
@@ -247,7 +336,9 @@ function draw_play()
 
  spr(2,exit_portal.x-4,exit_portal.y-4)
 
- print("lvl "..level,2,2,7)
+ local total_score=score+level_score
+ print("sc "..total_score,2,2,7)
+ print("lvl "..level,40,2,7)
  print("hp "..max(0,health),90,2,7)
  print("find exit (top right)",10,120,14)
 end
@@ -262,20 +353,32 @@ end
 function draw_gameover()
  cls(0)
 
- if score==100 then
-  print("victory!",44,30,11)
-  print("escaped both",36,45,11)
-  print("cave levels!",36,56,11)
+ local final_score=score
+ if level>2 then
+  final_score+=level_score+500
+  print("victory!",44,20,11)
+  print("escaped both",36,35,11)
+  print("cave levels!",36,46,11)
  else
-  print("game over",40,40,8)
-  print("caught!",48,60,8)
+  final_score+=level_score
+  print("game over",40,20,8)
+  print("caught!",48,35,8)
  end
 
- print("z or x to menu",32,95,7)
+ print("score:"..final_score,44,60,7)
+ if final_score>best_score then
+  best_score=final_score
+  print("new best!",44,70,11)
+ else
+  print("best:"..best_score,44,70,7)
+ end
+
+ print("z or x to menu",32,100,7)
 end
 
 function _update()
  if state=="menu" then update_menu()
+ elseif state=="difficulty_select" then update_difficulty_select()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
  end
@@ -283,6 +386,7 @@ end
 
 function _draw()
  if state=="menu" then draw_menu()
+ elseif state=="difficulty_select" then draw_difficulty_select()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
  end
