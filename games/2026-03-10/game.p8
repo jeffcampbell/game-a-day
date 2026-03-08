@@ -117,6 +117,7 @@ function update_play()
         player.on_ground = true
         if jump > 0 then
           player.vy = -player.jump_power
+          sfx(0)
           _log("jump")
         end
       end
@@ -157,6 +158,7 @@ function update_play()
     if collide_rects(player.x, player.y, player.w, player.h,
                      e.x, e.y, e.w, e.h) then
       health -= 1
+      sfx(2)
       _log("died:enemy")
       if health <= 0 then
         state = "gameover"
@@ -175,6 +177,7 @@ function update_play()
                                  g.x, g.y, 4, 4) then
       g.c = true
       score += 10
+      sfx(1)
       _log("gem:"..score)
     end
   end
@@ -183,6 +186,7 @@ function update_play()
   if collide_rects(player.x, player.y, player.w, player.h,
                    exit.x, exit.y, exit.w, exit.h) then
     exit_reached = true
+    sfx(3)
     state = "gameover"
     _log("gameover:win")
   end
@@ -293,6 +297,11 @@ __gfx__
 00000000033003300330033003300330033003300330033003300330033003300330033003300330033003300330033003300330033003300330033003300330
 00000000030303000303030003030300030303000303030003030300030303000303030003030300030303000303030003030300030303000303030003030300
 00000000033003300330033003300330033003300330033003300330033003300330033003300330033003300330033003300330033003300330033003300330
+__sfx__
+000100000f0400d0400b0400904009040070400604006040050400404003040020400104000000000000000000000000000000000000000000000000000000000
+000100004d0401d0501b05019050170501505013050110500f0500d0500b0500905007050050500304000000000000000000000000000000000000000000000
+000100000100020002000300030004000400050005000600070007000800080009000900000000000000000000000000000000000000000000000000000000000
+001000200a050080500a05008050080508055000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __label__
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
