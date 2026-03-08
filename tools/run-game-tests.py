@@ -214,7 +214,9 @@ def find_latest_session(game_dir):
             try:
                 with open(session_path, 'r') as f:
                     session = json.load(f)
-                    sessions.append((session_path, session, os.path.getmtime(session_path)))
+                    # Validate that session is a dict (not array, string, null, etc.)
+                    if isinstance(session, dict):
+                        sessions.append((session_path, session, os.path.getmtime(session_path)))
             except Exception:
                 pass
 
