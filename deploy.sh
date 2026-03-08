@@ -36,6 +36,10 @@ fi
 echo "Generating game library catalog..."
 python3 tools/generate-library.py
 
+# Generate daily intelligence report
+echo "Generating daily intelligence report..."
+python3 tools/daily-intelligence.py --date "$TODAY" || true
+
 # Sync all games to pixel-dashboard
 SYNC_SCRIPT="/home/pi/Development/pixel-dashboard/scripts/sync-games.sh"
 if [ -x "$SYNC_SCRIPT" ]; then
