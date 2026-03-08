@@ -30,6 +30,7 @@ score=0
 health=3
 level=1
 frames=0
+level_start_frame=0
 
 -- player
 player={x=64,y=100,w=4,h=4,speed=1.5,alive=true}
@@ -40,8 +41,12 @@ enemies={}
 -- exit portal
 exit_portal={x=115,y=15,w=6,h=6}
 
+-- difficulty ramp-up: ease in enemies during first 30s (1800 frames)
+difficulty_ramp_duration=1800
+
 function init_level()
  enemies={}
+ level_start_frame=frames
 
  if level==1 then
   player.x=12
@@ -49,10 +54,12 @@ function init_level()
   health=3
   _log("level:1")
 
-  add(enemies,{x=60,y=30,w=4,h=4,speed=0.6,dir=1})
-  add(enemies,{x=100,y=60,w=4,h=4,speed=0.6,dir=-1})
-  add(enemies,{x=30,y=70,w=4,h=4,speed=0.6,dir=1})
-  add(enemies,{x=80,y=90,w=4,h=4,speed=0.6,dir=-1})
+  -- difficulty ramp-up: spawn enemies gradually during first 30 seconds
+  -- start with 2 enemies, add 2 more at 15 seconds
+  if level_start_frame==0 then
+   add(enemies,{x=60,y=30,w=4,h=4,speed=0.6,dir=1})
+   add(enemies,{x=100,y=60,w=4,h=4,speed=0.6,dir=-1})
+  end
 
  elseif level==2 then
   player.x=12
@@ -60,11 +67,12 @@ function init_level()
   health=3
   _log("level:2")
 
-  add(enemies,{x=50,y=25,w=4,h=4,speed=0.9,dir=1})
-  add(enemies,{x=95,y=40,w=4,h=4,speed=0.9,dir=-1})
-  add(enemies,{x=25,y=60,w=4,h=4,speed=0.9,dir=1})
-  add(enemies,{x=70,y=80,w=4,h=4,speed=0.9,dir=-1})
-  add(enemies,{x=40,y=110,w=4,h=4,speed=0.9,dir=1})
+  -- level 2: 3 enemies initially, 2 more at 15 seconds
+  if level_start_frame>0 then
+   add(enemies,{x=50,y=25,w=4,h=4,speed=0.9,dir=1})
+   add(enemies,{x=95,y=40,w=4,h=4,speed=0.9,dir=-1})
+   add(enemies,{x=25,y=60,w=4,h=4,speed=0.9,dir=1})
+  end
  end
 end
 
@@ -82,10 +90,12 @@ end
 function draw_menu()
  cls(1)
  print("cave escape",36,20,7)
- print("avoid enemies",32,40,7)
- print("reach the exit",32,52,7)
- print("arrow keys move",28,75,11)
- print("z or x to start",32,95,11)
+ print("find the glowing",24,35,7)
+ print("exit portal",32,44,7)
+ print("avoid red enemies",24,56,7)
+ print("reach both levels",24,68,11)
+ print("arrow keys move",28,85,11)
+ print("z or x to start",32,105,11)
 end
 
 function update_play()
@@ -104,6 +114,26 @@ function update_play()
 
  player.x=max(2,min(player.x,126))
  player.y=max(2,min(player.y,126))
+
+ -- difficulty ramp-up: add enemies gradually
+ local elapsed=frames-level_start_frame
+ if elapsed==900 then  -- 15 seconds (900 frames)
+  if level==1 then
+   add(enemies,{x=30,y=70,w=4,h=4,speed=0.6,dir=1})
+   _log("enemy_spawn_ramp")
+  elseif level==2 then
+   add(enemies,{x=70,y=80,w=4,h=4,speed=0.9,dir=-1})
+   _log("enemy_spawn_ramp")
+  end
+ elseif elapsed==1200 then  -- 20 seconds
+  if level==1 then
+   add(enemies,{x=80,y=90,w=4,h=4,speed=0.6,dir=-1})
+   _log("enemy_spawn_ramp")
+  elseif level==2 then
+   add(enemies,{x=40,y=110,w=4,h=4,speed=0.9,dir=1})
+   _log("enemy_spawn_ramp")
+  end
+ end
 
  for i=1,#enemies do
   local e=enemies[i]
@@ -171,7 +201,7 @@ function draw_play()
 
  print("lvl "..level,2,2,7)
  print("hp "..max(0,health),90,2,7)
- print("enemies: "..#enemies,2,120,7)
+ print("find exit (top right)",10,120,14)
 end
 
 function update_gameover()
@@ -185,14 +215,15 @@ function draw_gameover()
  cls(0)
 
  if score==100 then
-  print("victory!",44,40,11)
-  print("you escaped",36,60,11)
+  print("victory!",44,30,11)
+  print("escaped both",36,45,11)
+  print("cave levels!",36,56,11)
  else
   print("game over",40,40,8)
   print("caught!",48,60,8)
  end
 
- print("z or x to menu",32,90,7)
+ print("z or x to menu",32,95,7)
 end
 
 function _update()
