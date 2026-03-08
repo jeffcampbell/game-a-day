@@ -4,6 +4,17 @@
 Extracts gameplay metrics from recorded sessions and test reports to provide
 insights on game difficulty, player engagement, and design patterns.
 
+IMPORTANT: By default, this engine EXCLUDES synthetic sessions (marked with
+is_synthetic: true) from analytics calculations. Synthetic sessions are
+artificially generated test data and should not influence real game metrics.
+
+If a game has only synthetic sessions and no real sessions, the game will have
+no analytics (has_sessions: false). This is intentional - it prevents synthetic
+data from being misrepresented as real playtest results.
+
+To work with synthetic data for testing, use the analytics output directly
+but be aware that metrics_source will be marked as 'synthetic'.
+
 Metrics extracted:
 - Per-session: duration, completion status, actions attempted, state distribution
 - Per-game: completion rate, avg duration, difficulty curves, state transitions
@@ -56,8 +67,15 @@ def load_test_report(game_dir):
     return None
 
 
-def find_sessions(game_dir):
+def find_sessions(game_dir, include_synthetic=False):
     """Find all recorded sessions for a game.
+
+    By default, EXCLUDES synthetic sessions (is_synthetic: true) to prevent
+    artificially generated data from contaminating real playtest analytics.
+
+    Args:
+        game_dir: Path to game directory
+        include_synthetic: If True, include synthetic sessions in results
 
     Returns list of (session_path, session_data, mtime) tuples, sorted by date.
     """
@@ -71,6 +89,11 @@ def find_sessions(game_dir):
             session_path = os.path.join(game_dir, entry)
             session = load_session(session_path)
             if session:
+                # Filter out synthetic sessions unless explicitly requested
+                is_synthetic = session.get('is_synthetic', False)
+                if is_synthetic and not include_synthetic:
+                    continue
+
                 mtime = os.path.getmtime(session_path)
                 sessions.append((session_path, session, mtime))
 
@@ -389,15 +412,22 @@ def calculate_engagement_score(game_metrics, metadata=None):
     input_rate = metrics.get('input_activity_rate', 0)
 
     # Expected playtime from metadata (in frames, assuming 60fps)
-    expected_frames = 300  # Default 5 minutes = 300 frames at 1 frame per second
+    # Default 5 minutes = 5 * 60 seconds * 60 fps = 18,000 frames
+    expected_frames = 5 * 60 * 60  # 5 minutes at 60fps = 18,000 frames
     if metadata:
         playtime_minutes = metadata.get('playtime_minutes', 5)
-        expected_frames = playtime_minutes * 60  # Rough estimate
+        expected_frames = playtime_minutes * 60 * 60  # Convert minutes to frames at 60fps
 
-    # Calculate duration match (1.0 if matches expected, 0.5 if very different)
+    # Calculate duration match (1.0 if matches expected, decreases for deviations)
+    # Score should reward games that play close to intended playtime
     if expected_frames > 0:
-        duration_ratio = min(avg_duration / expected_frames, expected_frames / max(avg_duration, 1))
-        duration_match = max(0, min(1, duration_ratio * 0.8 + 0.2))
+        ratio = avg_duration / expected_frames
+        # Clamp ratio between 0.5 and 2.0 (0.5x to 2x playtime is reasonable)
+        # Beyond that gets capped to avoid extreme penalties/rewards
+        clamped_ratio = max(0.5, min(2.0, ratio))
+        # Score decreases as we deviate from 1.0 (perfect match)
+        # At ratio=1.0: score=1.0, at 0.5 or 2.0: score=0.75
+        duration_match = 1 - abs(clamped_ratio - 1.0) * 0.5
     else:
         duration_match = 0.5
 
@@ -529,9 +559,11 @@ def generate_recommendations(game_metrics, metadata=None):
         )
 
     # Recommendation 4: Session length optimization
-    expected_frames = 300
+    # Expected frames at 60fps: playtime_minutes * 60 seconds * 60 fps
+    expected_frames = 5 * 60 * 60  # 5 minutes default = 18,000 frames
     if metadata:
-        expected_frames = metadata.get('playtime_minutes', 5) * 60
+        playtime_minutes = metadata.get('playtime_minutes', 5)
+        expected_frames = playtime_minutes * 60 * 60  # Convert minutes to frames
 
     if avg_duration < expected_frames * 0.5:
         recommendations.append(
