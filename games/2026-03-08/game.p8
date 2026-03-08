@@ -78,6 +78,11 @@ last_difficulty_check=0
 adaptive_speed_mult=1.0
 adaptive_spawn_mult=1.0
 
+-- passive playstyle detection
+is_passive_player=false
+dash_count_first_5s=0
+passive_check_done=false
+
 function init_level()
  enemies={}
  level_start_frame=frames
@@ -93,6 +98,11 @@ function init_level()
  adaptive_speed_mult=1.0
  adaptive_spawn_mult=1.0
  last_difficulty_check=frames
+
+ -- reset passive playstyle detection
+ is_passive_player=false
+ dash_count_first_5s=0
+ passive_check_done=false
 
  -- start background music
  music(0)
@@ -127,11 +137,19 @@ function init_level()
   player.x=12
   player.y=100
 
-  -- level 2: 3 enemies initially, 2 more at 15 seconds
+  -- level 2: 3 enemies initially (2 for passive players), 2 more at 15 seconds
   if level_start_frame>0 then
-   add(enemies,{x=50,y=25,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=1})
-   add(enemies,{x=95,y=40,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=-1})
-   add(enemies,{x=25,y=60,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=1})
+   local passive_speed_mult=1.0
+   if is_passive_player then
+    passive_speed_mult=0.9  -- 10% speed reduction for passive players
+    _log("difficulty:passive_mode")
+   end
+   add(enemies,{x=50,y=25,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+   add(enemies,{x=95,y=40,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
+   -- only add 3rd enemy if not passive
+   if not is_passive_player then
+    add(enemies,{x=25,y=60,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=1})
+   end
   end
  end
 end
@@ -151,6 +169,11 @@ function init_endless_level()
  adaptive_speed_mult=1.0
  adaptive_spawn_mult=1.0
  last_difficulty_check=frames
+
+ -- reset passive playstyle detection
+ is_passive_player=false
+ dash_count_first_5s=0
+ passive_check_done=false
 
  -- start background music
  music(0)
@@ -349,6 +372,9 @@ function update_play()
   last_move_frame=frames
  end
 
+ -- calculate elapsed time for passive playstyle detection
+ local elapsed=frames-level_start_frame
+
  -- dash mechanic (x button)
  if test_input(5)>0 and frames-last_dash_frame>=dash_cooldown then
   local dash_dx=0
@@ -372,6 +398,22 @@ function update_play()
   -- play dash sound
   sfx(3)
   _log("dash")
+
+  -- track dashes in first 5 seconds for passive detection
+  if not passive_check_done and elapsed<300 then
+   dash_count_first_5s+=1
+  end
+ end
+
+ -- passive playstyle detection: check at 5 seconds mark
+ if not passive_check_done and elapsed>=300 then
+  passive_check_done=true
+  if dash_count_first_5s<2 then
+   is_passive_player=true
+   _log("playstyle:passive")
+  else
+   _log("playstyle:active")
+  end
  end
 
  -- shield mechanic (down button) - activate on button press
@@ -401,8 +443,6 @@ function update_play()
 
  player.x=max(2,min(player.x,126))
  player.y=max(2,min(player.y,126))
-
- local elapsed=frames-level_start_frame
 
  if is_endless then
   -- endless mode: wave-based spawning every 20 seconds
@@ -437,21 +477,28 @@ function update_play()
 
   -- apply spawn timing modulation based on adaptive difficulty
   local spawn_delay_mult=1.0/adaptive_spawn_mult  -- invert so < 1 means delayed
+  -- passive players get 2 extra seconds delay (120 frames)
+  local passive_spawn_delay=0
+  if is_passive_player then passive_spawn_delay=120 end
 
-  if elapsed==flr(900*spawn_delay_mult) then  -- 15 seconds (adaptive)
+  if elapsed==flr(900*spawn_delay_mult)+passive_spawn_delay then  -- 15 seconds (adaptive)
    if level==1 then
     add(enemies,{x=30,y=70,w=8,h=8,speed=0.6*speed_mult*adaptive_speed_mult,dir=1})
     _log("enemy_spawn_ramp")
    elseif level==2 then
-    add(enemies,{x=70,y=80,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=-1})
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.9 end
+    add(enemies,{x=70,y=80,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
    end
-  elseif elapsed==flr(1200*spawn_delay_mult) then  -- 20 seconds (adaptive)
+  elseif elapsed==flr(1200*spawn_delay_mult)+passive_spawn_delay then  -- 20 seconds (adaptive)
    if level==1 then
     add(enemies,{x=80,y=90,w=8,h=8,speed=0.6*speed_mult*adaptive_speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
    elseif level==2 then
-    add(enemies,{x=40,y=110,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=1})
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.9 end
+    add(enemies,{x=40,y=110,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
     _log("enemy_spawn_ramp")
    end
   end
