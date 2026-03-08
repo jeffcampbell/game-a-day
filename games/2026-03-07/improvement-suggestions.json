@@ -1,0 +1,124 @@
+{
+  "game_date": "2026-03-07",
+  "title": "Untitled Game",
+  "generated_at": "2026-03-08T08:53:41.565046",
+  "current_metrics": {
+    "difficulty": 3,
+    "difficulty_assessment": "too_hard",
+    "quality_score": 0.173,
+    "engagement_score": 0.183,
+    "completion_rate": 0.0
+  },
+  "issues": [
+    {
+      "issue_type": "difficulty_too_high",
+      "severity": "critical",
+      "evidence": "difficulty_assessment=too_hard, completion_rate=0.0% (very low)"
+    },
+    {
+      "issue_type": "low_quality",
+      "severity": "medium",
+      "evidence": "quality_score=0.173 (bottom 10%), logs_captured=0 (no logging), token_count=0 (incomplete game), minimal sprites/sounds (incomplete)"
+    },
+    {
+      "issue_type": "low_engagement",
+      "severity": "medium",
+      "evidence": "engagement_score=0.183 (below target)"
+    }
+  ],
+  "suggestions": [
+    {
+      "id": 1,
+      "title": "Reduce initial difficulty spike",
+      "description": "Game currently unplayable (0% completion). Reduce starting challenge significantly.",
+      "impact": "critical",
+      "effort": "low",
+      "estimated_effect": "completion_rate: 0% -> ~30-40% (immediate playability)",
+      "code_location": "Find spawn/difficulty initialization, reduce by 50%",
+      "priority": "1",
+      "implementation_steps": [
+        "Find initial spawn rate or enemy count",
+        "Reduce by 40-50%",
+        "Test with multiple playstyles"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Add visual/audio feedback for player actions",
+      "description": "Add sprite animations, particle effects, or sounds when player acts.",
+      "impact": "medium",
+      "effort": "medium",
+      "estimated_effect": "engagement_score: +0.03-0.08",
+      "code_location": "Add sound effects (sfx) or sprite animations in update functions",
+      "priority": "2",
+      "implementation_steps": [
+        "Add sfx(n) calls in player action handlers",
+        "Add simple sprite animation frames",
+        "Test audio/visual responsiveness"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Add progression milestones",
+      "description": "Create levels, waves, or difficulty stages to show progress.",
+      "impact": "medium",
+      "effort": "medium",
+      "estimated_effect": "engagement_score: +0.05-0.12",
+      "code_location": "Add level/wave counter, display progress to player",
+      "priority": "3",
+      "implementation_steps": [
+        "Add level or wave counter",
+        "Display current level/progress",
+        "Adjust difficulty per level"
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Implement core game loop",
+      "description": "Game appears mostly empty. Implement basic game mechanics.",
+      "impact": "critical",
+      "effort": "high",
+      "estimated_effect": "Create playable game from skeleton",
+      "code_location": "update_play() and draw_play() functions",
+      "priority": "4",
+      "implementation_steps": [
+        "Add player entity and movement",
+        "Add enemy/obstacle spawning",
+        "Add collision detection",
+        "Add game-over conditions"
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Add sprite animations",
+      "description": "Create visual sprites for player, enemies, and effects.",
+      "impact": "medium",
+      "effort": "medium",
+      "estimated_effect": "quality_score: +0.05-0.10",
+      "code_location": "Draw sprites in draw_play() and draw_gameover()",
+      "priority": "5",
+      "implementation_steps": [
+        "Design sprites in __gfx__ section",
+        "Add spr() calls in draw functions",
+        "Add animation frame logic"
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Add sound effects and music",
+      "description": "Games with audio are more engaging. Add SFX and background music.",
+      "impact": "low",
+      "effort": "medium",
+      "estimated_effect": "quality_score: +0.02-0.05, engagement: +0.02",
+      "code_location": "Add sfx() and music() calls throughout gameplay",
+      "priority": "6",
+      "implementation_steps": [
+        "Add sound patterns in __sfx__ section",
+        "Add music patterns in __music__ section",
+        "Play SFX on key events (jump, score, hit)",
+        "Loop background music during play"
+      ]
+    }
+  ],
+  "summary": "CRITICAL: Game is unplayable (0% completion). Implement suggestion #1 immediately to reduce initial difficulty.\nImplement suggestions in priority order. Retest after each change."
+}

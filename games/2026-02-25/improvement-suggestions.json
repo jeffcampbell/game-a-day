@@ -1,0 +1,155 @@
+{
+  "game_date": "2026-02-25",
+  "title": "star dodge",
+  "generated_at": "2026-03-08T08:53:41.615336",
+  "current_metrics": {
+    "difficulty": 2,
+    "difficulty_assessment": "too_hard",
+    "quality_score": 0.158,
+    "engagement_score": 0.145,
+    "completion_rate": 0.0
+  },
+  "issues": [
+    {
+      "issue_type": "difficulty_too_high",
+      "severity": "critical",
+      "evidence": "difficulty_assessment=too_hard, completion_rate=0.0% (very low)"
+    },
+    {
+      "issue_type": "low_quality",
+      "severity": "medium",
+      "evidence": "quality_score=0.158 (bottom 10%), logs_captured=0 (no logging)"
+    },
+    {
+      "issue_type": "low_engagement",
+      "severity": "medium",
+      "evidence": "engagement_score=0.145 (below target)"
+    },
+    {
+      "issue_type": "metadata_difficulty_mismatch",
+      "severity": "low",
+      "evidence": "difficulty=2 but assessment=too_hard mismatch"
+    }
+  ],
+  "suggestions": [
+    {
+      "id": 1,
+      "title": "Reduce initial difficulty spike",
+      "description": "Game currently unplayable (0% completion). Reduce starting challenge significantly.",
+      "impact": "critical",
+      "effort": "low",
+      "estimated_effect": "completion_rate: 0% -> ~30-40% (immediate playability)",
+      "code_location": "Find spawn/difficulty initialization, reduce by 50%",
+      "priority": "1",
+      "implementation_steps": [
+        "Find initial spawn rate or enemy count",
+        "Reduce by 40-50%",
+        "Test with multiple playstyles"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Disable or soften difficulty scaling",
+      "description": "Game scaling makes it progressively harder. Remove or reduce scaling.",
+      "impact": "high",
+      "effort": "low",
+      "estimated_effect": "smoother difficulty curve, +10-20% completion",
+      "code_location": "Find difficulty_scaling or level_up logic, disable or reduce",
+      "priority": "2",
+      "implementation_steps": [
+        "Locate difficulty scaling logic",
+        "Either disable entirely or reduce scale factor by 50%"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Increase starting health/lives",
+      "description": "Give player more starting health or lives to improve survivability.",
+      "impact": "medium",
+      "effort": "low",
+      "estimated_effect": "+10-15% completion rate",
+      "code_location": "Find health/lives initialization, increase by 50-100%",
+      "priority": "3",
+      "implementation_steps": [
+        "Locate starting health variable",
+        "Increase by 50-100%"
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Reduce enemy spawn rate",
+      "description": "Too many enemies on screen. Reduce spawn frequency and/or count.",
+      "impact": "high",
+      "effort": "low",
+      "estimated_effect": "completion_rate: +20-30%",
+      "code_location": "Find spawn rate variable (likely a counter or interval)",
+      "priority": "4",
+      "implementation_steps": [
+        "Find spawn timer/counter",
+        "Increase spawn interval by 25-50%",
+        "Or reduce max enemies on screen"
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Increase reward frequency",
+      "description": "Add more frequent rewards (points, items, visual feedback) to boost engagement.",
+      "impact": "medium",
+      "effort": "low",
+      "estimated_effect": "engagement_score: +0.05-0.10",
+      "code_location": "Scoring logic - reduce points needed for rewards",
+      "priority": "5",
+      "implementation_steps": [
+        "Find point thresholds for rewards",
+        "Reduce thresholds by 20-30%",
+        "Or add more frequent small rewards"
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Add visual/audio feedback for player actions",
+      "description": "Add sprite animations, particle effects, or sounds when player acts.",
+      "impact": "medium",
+      "effort": "medium",
+      "estimated_effect": "engagement_score: +0.03-0.08",
+      "code_location": "Add sound effects (sfx) or sprite animations in update functions",
+      "priority": "6",
+      "implementation_steps": [
+        "Add sfx(n) calls in player action handlers",
+        "Add simple sprite animation frames",
+        "Test audio/visual responsiveness"
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Add progression milestones",
+      "description": "Create levels, waves, or difficulty stages to show progress.",
+      "impact": "medium",
+      "effort": "medium",
+      "estimated_effect": "engagement_score: +0.05-0.12",
+      "code_location": "Add level/wave counter, display progress to player",
+      "priority": "7",
+      "implementation_steps": [
+        "Add level or wave counter",
+        "Display current level/progress",
+        "Adjust difficulty per level"
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Add sprite animations",
+      "description": "Create visual sprites for player, enemies, and effects.",
+      "impact": "medium",
+      "effort": "medium",
+      "estimated_effect": "quality_score: +0.05-0.10",
+      "code_location": "Draw sprites in draw_play() and draw_gameover()",
+      "priority": "8",
+      "implementation_steps": [
+        "Design sprites in __gfx__ section",
+        "Add spr() calls in draw functions",
+        "Add animation frame logic"
+      ]
+    }
+  ],
+  "summary": "CRITICAL: Game is unplayable (0% completion). Implement suggestion #1 immediately to reduce initial difficulty.\nImplement suggestions in priority order. Retest after each change."
+}
