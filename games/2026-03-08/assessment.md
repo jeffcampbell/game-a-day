@@ -19,7 +19,7 @@ Tester: Automated
 
 ## Code Quality
 - [x] Game compiles without syntax errors
-- [x] Token count is 1017/8192 (well under limit, +89 tokens for improvements)
+- [x] Token count is 1051/8192 (well under limit, +123 tokens with audio improvements)
 - [x] Code follows project style guide
 
 ## Game Features
@@ -57,6 +57,18 @@ Tester: Automated
   - Victory condition unambiguously requires completing both levels
   - Added tracking for ramp-up events in logs
 
+### 4. Audio Feedback (2026-03-08 Update)
+- **Problem**: Game lacked audio feedback, reducing player engagement and immersion
+- **Solution**: Added three distinct sound effects using PICO-8 synthesized audio
+  - **Movement sound (SFX 0)**: Quick blip plays when player moves (debounced to every 10 frames to prevent spam)
+  - **Enemy collision sound (SFX 1)**: Alert buzz plays when player is hit by an enemy
+  - **Portal success sound (SFX 2)**: Ascending chime plays when reaching the exit portal
+- **Implementation**:
+  - Added audio state tracking (last_move_frame, last_hit_frame) to prevent overlapping sounds
+  - sfx() calls integrated at key game events (line 113, 149, 163)
+  - All sounds defined in __sfx__ section with minimal token overhead (+123 tokens total)
+  - Uses PICO-8 built-in instruments (no external files required)
+
 ### Playtesting Results
 - Baseline (original): 40% completion rate from 5 sessions
 - After polish: 50% completion rate from 4 sessions (2 wins, 2 losses)
@@ -77,5 +89,13 @@ Cave Escape is a complete adventure game with real gameplay mechanics. Player mu
 
 **Input usage**: right, up, o_button
 
+**Expected impact of audio improvements**:
+- Sound effects provide immediate audio feedback to player actions
+- Alert sound on enemy collision reinforces danger/challenge
+- Victory chime enhances satisfaction of reaching the exit
+- Expected completion rate increase: 50% → 60%+ (audio improves engagement in casual games)
+- Perceived polish increases significantly with audio feedback
+
 **Next steps** (prioritized):
-1. Controls not used: left, down, x_button - consider removing from tutorial or assigning functions (low impact, ~5 tokens)
+1. Monitor completion rate post-audio-addition to validate engagement improvement
+2. Controls not used: left, down, x_button - consider removing from tutorial or assigning functions (low impact, ~5 tokens)
