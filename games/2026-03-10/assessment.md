@@ -16,7 +16,9 @@ A single-screen platformer where the player navigates across moving platforms, c
 - State Machine: menu → play → gameover
 - Complete test infrastructure (_log, test_input, test_log)
 - Proper collision detection (player-platform, player-enemy, player-gems, player-exit)
-- Token Count: 1143/8192 (well under budget)
+- Audio System: 4 SFX + looping background music with proper state tracking
+- Jump SFX Debouncing: 8-frame cooldown prevents audio spam
+- Token Count: 1206/8192 (well under budget, +18 tokens for audio)
 - Sprites: 4 basic sprites for player, enemies, gems, and exit
 
 ## Game Flow
@@ -52,13 +54,20 @@ A single-screen platformer where the player navigates across moving platforms, c
 - [x] Win condition works (reach exit)
 - [x] Menu returns after game over
 
+## Audio Polish ✓
+- **Jump SFX (sfx 0)**: Distinctive ascending tone with 8-frame cooldown to prevent spam
+- **Gem Collection SFX (sfx 1)**: Musical chime reward sound
+- **Enemy Hit SFX (sfx 2)**: Alert/damage sound when struck by enemy
+- **Exit Portal SFX (sfx 3)**: Victory/success sound when reaching exit
+- **Background Music**: Looping music pattern (0) for gameplay immersion
+- All sounds play without destructive overlapping (single sfx() per event)
+
 ## Known Limitations
-- No sound effects yet (can be added for polish)
-- Sprites are minimal (acceptable for day 1)
+- Sprites are minimal (acceptable baseline)
 - No animation between states (acceptable baseline)
 
 ## Next Iteration Ideas
-- Add sound effects (jump, gem collect, enemy hit, exit)
+- Enhanced music patterns (background track variations per level)
 - More sophisticated platform patterns
 - Enemy variety (different speeds/behaviors)
 - Power-ups or obstacles

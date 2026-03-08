@@ -37,7 +37,8 @@ player = {
   grav=0.3,
   on_ground=false,
   sprite=1,
-  jump_sfx_cooldown=0
+  jump_sfx_cooldown=0,
+  music_started=false
 }
 
 -- platforms (x, y, w, h, move_type, speed)
@@ -72,7 +73,7 @@ function _update()
       score = 0
       health = max_health
       exit_reached = false
-      player = {x=64, y=90, w=6, h=8, vx=0, vy=0, jump_power=5, grav=0.3, on_ground=false, sprite=1, jump_sfx_cooldown=0}
+      player = {x=64, y=90, w=6, h=8, vx=0, vy=0, jump_power=5, grav=0.3, on_ground=false, sprite=1, jump_sfx_cooldown=0, music_started=false}
       gems = {{x=15,y=95,c=false},{x=45,y=75,c=false},{x=75,y=60,c=false},{x=25,y=40,c=false}}
       _log("state:play")
     end
@@ -91,6 +92,12 @@ function update_play()
   local left = test_input(0)
   local right = test_input(1)
   local jump = test_input(2)
+
+  -- start background music on first frame
+  if not player.music_started then
+    music(0)
+    player.music_started = true
+  end
 
   -- decrement jump sound cooldown
   if player.jump_sfx_cooldown > 0 then
@@ -311,6 +318,8 @@ __sfx__
 000100004d0401d0501b05019050170501505013050110500f0500d0500b0500905007050050500304000000000000000000000000000000000000000000000
 000100000100020002000300030004000400050005000600070007000800080009000900000000000000000000000000000000000000000000000000000000000
 001000200a050080500a05008050080508055000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__music__
+000100040100040100040100040100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __label__
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
