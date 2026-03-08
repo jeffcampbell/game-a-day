@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Analytics Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-bottom: 5px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0066cc;
+        }
+
+        .section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #222;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 10px;
+        }
+
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .game-card {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .game-card:hover {
+            border-color: #0066cc;
+            box-shadow: 0 2px 8px rgba(0,102,204,0.15);
+            transform: translateY(-2px);
+        }
+
+        .game-date {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #222;
+        }
+
+        .game-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 12px;
+        }
+
+        .game-stat {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .game-stat-label {
+            color: #666;
+            margin-bottom: 3px;
+        }
+
+        .game-stat-value {
+            font-weight: bold;
+            color: #0066cc;
+            font-size: 14px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .status-pass {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-fail {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-no-data {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .comparison-table th {
+            background: #f0f0f0;
+            font-weight: bold;
+            color: #222;
+        }
+
+        .comparison-table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .rank {
+            font-weight: bold;
+            color: #0066cc;
+            width: 30px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 14px;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #0066cc;
+        }
+
+        .tab.active {
+            color: #0066cc;
+            border-bottom-color: #0066cc;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-close {
+            float: right;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .modal-close:hover {
+            color: #000;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .games-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .game-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Game Analytics Dashboard</h1>
+            <p class="subtitle">Daily PICO-8 game development insights</p>
+            <div class="stats-grid" id="headerStats">
+                <div class="stat-card">
+                    <div class="stat-label">Total Games</div>
+                    <div class="stat-value" id="totalGames">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Games with Sessions</div>
+                    <div class="stat-value" id="gamesWithSessions">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Completion Rate</div>
+                    <div class="stat-value" id="avgCompletion">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Session Duration</div>
+                    <div class="stat-value" id="avgDuration">—</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="section">
+            <h2>Game Overview</h2>
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('game-list')">Game List</button>
+                <button class="tab" onclick="switchTab('comparisons')">Rankings</button>
+            </div>
+
+            <div id="game-list" class="tab-content active">
+                <div id="gamesLoading" class="loading">Loading games...</div>
+                <div id="gamesList" class="games-grid" style="display: none;"></div>
+            </div>
+
+            <div id="comparisons" class="tab-content">
+                <h3 style="font-size: 16px; margin-top: 10px; margin-bottom: 15px;">Completion Rate Ranking</h3>
+                <table class="comparison-table" id="completionTable">
+                    <thead>
+                        <tr>
+                            <th class="rank">#</th>
+                            <th>Game Date</th>
+                            <th>Completion Rate</th>
+                            <th>Sessions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="completionBody">
+                        <tr><td colspan="4" class="loading">Loading...</td></tr>
+                    </tbody>
+                </table>
+
+                <h3 style="font-size: 16px; margin-top: 30px; margin-bottom: 15px;">Average Session Duration</h3>
+                <table class="comparison-table" id="durationTable">
+                    <thead>
+                        <tr>
+                            <th class="rank">#</th>
+                            <th>Game Date</th>
+                            <th>Avg Duration (frames)</th>
+                            <th>Sessions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="durationBody">
+                        <tr><td colspan="4" class="loading">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>About</h2>
+            <p style="color: #666; line-height: 1.6;">
+                This dashboard analyzes recorded gameplay sessions and test reports to provide insights into
+                game difficulty, player engagement, and design effectiveness. Metrics include completion rates,
+                session durations, difficulty cliffs, and state transition patterns.
+            </p>
+            <p style="color: #999; font-size: 12px; margin-top: 10px;">
+                Data is refreshed automatically. Sessions are recorded via the interactive test runner.
+            </p>
+        </div>
+    </div>
+
+    <div id="gameModal" class="modal" onclick="closeGameModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="modal-close" onclick="closeGameModal()">&times;</span>
+            <h2 id="modalGameDate"></h2>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script src="analytics.js"></script>
+</body>
+</html>
