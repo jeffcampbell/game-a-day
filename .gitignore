@@ -15,3 +15,6 @@ games/catalog.json
 
 # Recorded test sessions (created by tools/run-interactive-test.py)
 games/**/session_*.json
+
+# Generated concept recommendations (created by tools/game-concept-recommender.py)
+games/**/concept-recommendation.json
