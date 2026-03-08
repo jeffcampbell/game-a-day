@@ -1,0 +1,19 @@
+{
+  "title": "meteor dodge",
+  "description": "A sports, rhythm PICO-8 game. Control a character face enemies earn points collect power-ups.",
+  "release_date": "2026-02-26",
+  "genres": [
+    "sports",
+    "rhythm"
+  ],
+  "theme": "",
+  "difficulty": 5,
+  "playtime_minutes": 5,
+  "target_audience": "general",
+  "keywords": [],
+  "completion_status": "in-progress",
+  "tester_notes": "",
+  "token_count": 8590,
+  "sprite_count": 0,
+  "sound_count": 8
+}
