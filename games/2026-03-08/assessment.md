@@ -228,7 +228,7 @@ Expected outcome: **50% → 65%+ completion rate** (music adds sustained engagem
 | Passive    | 3        | 1    | 2      | 33%      |
 
 **Input Usage Analysis**:
-- Right (navigation): 17,030 inputs (77.2%)
+- Right (navigation): 17,030 inputs (73.8%)
 - Up (upward movement): 4,415 inputs (20.0%)
 - X button (dash): 1,086 inputs (4.9%)
 - O button (menu): 262 inputs (1.2%)

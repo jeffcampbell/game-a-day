@@ -5,7 +5,7 @@
   "test_report": {
     "date": "2026-02-26",
     "status": "PASS",
-    "duration_frames": "static_analysis",
+    "duration_frames": null,
     "source": "static_analysis",
     "errors": [],
     "state_transitions": [
@@ -21,7 +21,17 @@
       "game_events": 168,
       "gameover_events": 2
     },
-    "exit_state": "analysis_complete"
+    "exit_state": "analysis_complete",
+    "metadata": {
+      "title": "meteor dodge",
+      "description": "A sports, rhythm PICO-8 game. Control a character, earn points, and collect power-ups.",
+      "genres": [
+        "sports",
+        "rhythm"
+      ],
+      "difficulty": 5,
+      "completion_status": "in-progress"
+    }
   },
   "metrics": {}
 }

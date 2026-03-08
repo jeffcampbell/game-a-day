@@ -20,10 +20,13 @@ Check `date +%Y-%m-%d` to get today's date, then look for `games/YYYY-MM-DD/`.
   "Untitled Game", minimal code, no real gameplay) → flesh it out into a real,
   playable, fun game with actual mechanics, sprites, and a win/lose condition.
 - If today's directory **exists with a complete game** → improve, fix bugs, or polish
-  the existing game rather than starting over.
+  the existing game rather than starting over. There is always more polish to do:
+  better sprites, sound effects, difficulty tuning, smoother animations, more levels.
+- **Never create games for future dates.** Only work on today's game (`date +%Y-%m-%d`).
+  A new game starts at midnight, not before.
 - **Never modify previous days' games** unless explicitly asked.
-- **Never propose tooling, infrastructure, library systems, or meta-features** when
-  today's game still needs work. The game comes first — always.
+- **Never propose tooling, infrastructure, library systems, or meta-features.**
+  The game comes first — always. If you run out of ideas, polish the game more.
 
 ## Directory Structure
 

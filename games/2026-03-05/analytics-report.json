@@ -5,7 +5,7 @@
   "test_report": {
     "date": "2026-03-05",
     "status": "PASS",
-    "duration_frames": "static_analysis",
+    "duration_frames": null,
     "source": "static_analysis",
     "errors": [],
     "state_transitions": [
@@ -25,7 +25,17 @@
       "game_events": 55,
       "gameover_events": 3
     },
-    "exit_state": "analysis_complete"
+    "exit_state": "analysis_complete",
+    "metadata": {
+      "title": "gem match: match-3 puzzle arcade",
+      "description": "A puzzle, sports PICO-8 game. Control a character, earn points, progress through levels, and collect power-ups.",
+      "genres": [
+        "puzzle",
+        "sports"
+      ],
+      "difficulty": 5,
+      "completion_status": "in-progress"
+    }
   },
   "metrics": {}
 }

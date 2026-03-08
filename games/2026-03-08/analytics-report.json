@@ -9,13 +9,15 @@
     "source": "static_analysis",
     "errors": [],
     "state_transitions": [
+      "mode_select",
+      "difficulty_select",
       "play",
       "menu"
     ],
-    "logs_captured": 12,
+    "logs_captured": 42,
     "events": {
-      "state_transitions": 2,
-      "game_events": 8,
+      "state_transitions": 4,
+      "game_events": 35,
       "gameover_events": 2
     },
     "exit_state": "analysis_complete",

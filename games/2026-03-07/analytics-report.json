@@ -4,19 +4,20 @@
   "session_count": 0,
   "test_report": {
     "date": "2026-03-07",
-    "status": "FAIL",
+    "status": "PASS",
     "duration_frames": null,
     "source": "static_analysis",
-    "errors": [
-      "No state transitions logged",
-      "Insufficient logging (only 0 logs, need 3+)"
+    "errors": [],
+    "state_transitions": [
+      "init",
+      "play",
+      "menu"
     ],
-    "state_transitions": [],
-    "logs_captured": 0,
+    "logs_captured": 8,
     "events": {
-      "state_transitions": 0,
-      "game_events": 0,
-      "gameover_events": 0
+      "state_transitions": 3,
+      "game_events": 3,
+      "gameover_events": 2
     },
     "exit_state": "analysis_complete",
     "metadata": {

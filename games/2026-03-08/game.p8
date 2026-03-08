@@ -83,15 +83,19 @@ is_passive_player=false
 dash_count_first_5s=0
 passive_check_done=false
 
+-- power-up system
+power_ups={}
+player_power_up=nil  -- current held power-up: {type,spawn_frame}
+prev_down_btn=0  -- track down button state for power-up activation
+power_up_spawn_frame=-10000
+
 function init_level()
  enemies={}
+ power_ups={}
+ player_power_up=nil
+ power_up_spawn_frame=frames
  level_start_frame=frames
  level_score=0
-
- -- reset shield state at level start
- shield_invuln_start=-100
- last_shield_frame=-100
- prev_down_btn=0
 
  -- reset adaptive difficulty tracking
  hit_times={}
@@ -373,8 +377,6 @@ function draw_difficulty_select()
   if i==difficulty_cursor then
    col=11
   end
-  print(labels[i],56,y_positions[i],col)
- end
 
  print("up/down select",32,110,7)
  print("z/x confirm",36,118,7)
@@ -444,26 +446,29 @@ function update_play()
   end
  end
 
- -- shield mechanic (down button) - activate on button press
+ -- power-up activation (down button)
  local down_btn=test_input(3)
- local is_shield_active=frames-shield_invuln_start<shield_invuln_frames
-
- -- activate shield on button press (transition from not held to held)
- if down_btn>0 and prev_down_btn==0 and frames-last_shield_frame>=shield_cooldown then
-  -- activate shield invulnerability window
-  shield_invuln_start=frames
-  last_shield_frame=frames
-
-  -- play shield activation sound (sfx slot 4)
+ if down_btn>0 and prev_down_btn==0 and player_power_up~=nil then
+  -- activate held power-up
+  local ptype=player_power_up.type
   sfx(4)
-  _log("shield_active")
- end
+  _log("power_use:"..ptype)
 
- -- log shield_active every 10 frames while shield is up
- if is_shield_active and frames%10==0 then
-  _log("shield_active")
- end
+  if ptype=="shield" then
+   shield_invuln_start=frames
+   last_shield_frame=frames
+  elseif ptype=="speed" then
+   player.speed=player.speed*2.0
+   player.speed_boost_end=frames+90  -- 1.5 seconds
+  elseif ptype=="slow" then
+   adaptive_speed_mult=0.5
+   player.slow_end=frames+120  -- 2 seconds
+  elseif ptype=="heal" then
+   health=min(health+1,3)
+  end
 
+  player_power_up=nil
+ end
  prev_down_btn=down_btn
 
  player.x+=dx
@@ -564,6 +569,39 @@ function update_play()
   -- calculate time bonus: 10 points per second survived, max 300 per level
   local level_elapsed=(frames-level_start_frame)/60
   level_score=flr(min(level_elapsed*10,300))
+
+  -- spawn power-ups at specific times (only if not holding one)
+  if player_power_up==nil then
+   local power_types={"shield","speed","slow","heal"}
+   -- spawn first power-up at 8 seconds
+   if elapsed==480 and #power_ups==0 then
+    local ptype=power_types[flr(rnd(4))+1]
+    local spawn_x=20+flr(rnd(88))
+    local spawn_y=20+flr(rnd(88))
+    add(power_ups,{x=spawn_x,y=spawn_y,w=8,h=8,type=ptype})
+    _log("power_spawn:"..ptype)
+   end
+   -- spawn second power-up at 20 seconds (only on level 3)
+   if level==3 and elapsed==1200 and #power_ups<2 then
+    local ptype=power_types[flr(rnd(4))+1]
+    local spawn_x=20+flr(rnd(88))
+    local spawn_y=20+flr(rnd(88))
+    add(power_ups,{x=spawn_x,y=spawn_y,w=8,h=8,type=ptype})
+    _log("power_spawn:"..ptype)
+   end
+  end
+ end
+
+ -- update speed boost duration
+ if player.speed_boost_end~=nil and frames>=player.speed_boost_end then
+  player.speed=player.speed/2.0
+  player.speed_boost_end=nil
+ end
+
+ -- update slow enemies duration
+ if player.slow_end~=nil and frames>=player.slow_end then
+  adaptive_speed_mult=1.0
+  player.slow_end=nil
  end
 
  for i=1,#enemies do
@@ -598,6 +636,17 @@ function update_play()
      player.x-=dx*4
     end
    end
+  end
+ end
+
+ -- power-up collision detection
+ for i=#power_ups,1,-1 do
+  local p=power_ups[i]
+  if collide(player,p) then
+   player_power_up={type=p.type,spawn_frame=frames}
+   _log("power_pickup:"..p.type)
+   sfx(4)
+   del(power_ups,p)
   end
  end
 
@@ -659,6 +708,18 @@ function draw_play()
   spr(2,exit_portal.x-4,exit_portal.y-4)
  end
 
+ -- draw power-ups
+ for i=1,#power_ups do
+  local p=power_ups[i]
+  local spr_id=2  -- default
+  if p.type=="shield" then spr_id=3
+  elseif p.type=="speed" then spr_id=4
+  elseif p.type=="slow" then spr_id=5
+  elseif p.type=="heal" then spr_id=6
+  end
+  spr(spr_id,p.x-4,p.y-4)
+ end
+
  if is_endless then
   -- endless mode display
   local survival_time=flr((frames-level_start_frame)/60)
@@ -672,6 +733,10 @@ function draw_play()
   print("sc "..total_score,2,2,7)
   print("lvl "..level,40,2,7)
   print("hp "..max(0,health),90,2,7)
+  -- display held power-up
+  if player_power_up~=nil then
+   print("pow:"..player_power_up.type,70,12,10)
+  end
   print("find exit (top right)",10,120,14)
  end
 end
@@ -752,14 +817,14 @@ function collide(a,b)
 end
 
 __gfx__
-00bbbb0000888800000cccc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0b7777b0088888800ceeeec00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0b7ff7b008ff888000ceeeec00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0b7777b0088888800ceeeec00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00777700088888800ceeeec00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00777700008888000ceeeec00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-07700770088008800000cccc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00700700008008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00bbbb0000888800000cccc0000999900a0a00a0022222222003303000099900099909990099099a9a0a0aa0a0aa000aa0000a8a800a8a80000000000000000
+0b7777b0088888800ceeeec009999990aaaa0aa020000002003333330099900099909990099a99aa9a9a0a9a0a0aaa00aaa0a8888aa8888a0000000000000000
+0b7ff7b008ff888000ceeeec099999999a0aa0a920000002033333333099aa00099a99a099a9aa9a99a9a09a909aaaa00aaaa8a8aa88a8aa80000000000000000
+0b7777b0088888800ceeeec099999999aa0aa0aa20202020033333330099aa00099a99a099aaa9aa99a099a9aa0aaa00aaa0a8a88a8a8a8a0000000000000000
+00777700088888800ceeeec099999999a0a00a0a20202020033333330099aa00099099a0099a99aa9a009a0a90aaa00aaa0a8a88a8a8a8a0000000000000000
+00777700008888000ceeeec009999990aaaa0aa020000002033333333099900099909900099909a9a00a0aa0a0aaaa00aaaa0a8888aa8888a0000000000000000
+07700770088008800000cccc00999900a0a00a0022222222003333330099900099909900099999a9a0a0aa0a0aa000aa0000a8a800a8a80000000000000000
+00700700008008000000000000000000a0a00a0000000000003303000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
