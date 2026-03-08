@@ -156,6 +156,29 @@ function init_level()
     add(enemies,{x=25,y=60,w=8,h=8,speed=0.9*speed_mult*adaptive_speed_mult,dir=1})
    end
   end
+
+ elseif level==3 then
+  player.x=12
+  player.y=100
+
+  -- level 3: 4-5 enemies initially, 5-10% faster than level 2
+  if level_start_frame>0 then
+   local passive_speed_mult=1.0
+   if is_passive_player then
+    passive_speed_mult=0.8  -- 20% speed reduction for passive players
+    _log("difficulty:passive_adjust")
+   end
+   -- base speed 0.95 is ~5% faster than level 2's 0.9
+   add(enemies,{x=40,y=30,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+   add(enemies,{x=90,y=50,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
+   add(enemies,{x=30,y=80,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+   add(enemies,{x=100,y=100,w=8,h=8,speed=0.95*speed_mult*adaptive_speed_mult,dir=-1})
+   -- 5th enemy only if not passive
+   if not is_passive_player then
+    add(enemies,{x=60,y=60,w=8,h=8,speed=0.95*speed_mult*adaptive_speed_mult,dir=1})
+   end
+  end
+  _log("level_3_start")
  end
 end
 
@@ -497,6 +520,11 @@ function update_play()
     if is_passive_player then passive_speed_mult=0.8 end
     add(enemies,{x=70,y=80,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
+   elseif level==3 then
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.8 end
+    add(enemies,{x=50,y=35,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+    _log("enemy_spawn_ramp")
    end
   elseif elapsed==flr(1200*spawn_delay_mult)+passive_spawn_delay then  -- 20 seconds (adaptive)
    if level==1 then
@@ -509,6 +537,13 @@ function update_play()
     if is_passive_player then passive_speed_mult=0.8 end
     add(enemies,{x=40,y=110,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
     _log("enemy_spawn_ramp")
+   elseif level==3 then
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.8 end
+    -- level 3: ramp to 6-7 enemies by 20 seconds
+    add(enemies,{x=80,y=110,w=8,h=8,speed=0.98*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
+    add(enemies,{x=20,y=50,w=8,h=8,speed=0.98*speed_mult*adaptive_speed_mult,dir=1})
+    _log("enemy_spawn_ramp")
    end
   end
 
@@ -519,6 +554,9 @@ function update_play()
     _log("enemy_spawn_ramp")
    elseif level==2 then
     add(enemies,{x=60,y=30,w=8,h=8,speed=0.9*speed_mult,dir=1})
+    _log("enemy_spawn_ramp")
+   elseif level==3 then
+    add(enemies,{x=70,y=70,w=8,h=8,speed=0.95*speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
    end
   end
@@ -554,6 +592,7 @@ function update_play()
     if health<=0 then
      player.alive=false
      state="gameover"
+     if level==3 then _log("level_3_fail") end
      _log("gameover:lose")
     else
      player.x-=dx*4
@@ -573,6 +612,7 @@ function update_play()
   _log("score:"..score)
 
   if level>2 then
+   _log("level_3_complete")
    state="gameover"
    _log("gameover:win")
   else
@@ -666,7 +706,7 @@ function draw_gameover()
   if level>2 then
    final_score+=level_score+500
    print("victory!",44,20,11)
-   print("escaped both",36,35,11)
+   print("escaped all three",28,35,11)
    print("cave levels!",36,46,11)
   else
    final_score+=level_score
