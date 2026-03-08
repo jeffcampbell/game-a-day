@@ -1,2 +1,6 @@
 
 .worktrees/
+
+# Generated test artifacts (created by tools/run-game-tests.py)
+games/**/test-report.json
+games/test-summary.md

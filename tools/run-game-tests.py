@@ -64,7 +64,8 @@ def find_log_calls(lua_code):
     logs.extend(pattern2)
 
     # Pattern 3: _log(... .."string") - concatenation at start
-    pattern3 = re.findall(r'\.\..*?["\']([^"\']+)["\'][\s\)]*\)', lua_code)
+    # Anchored to _log calls to avoid matching print() or other function calls
+    pattern3 = re.findall(r'_log\s*\([^)]*\.\..*?["\']([^"\']+)["\']', lua_code)
     logs.extend([p for p in pattern3 if p.strip()])
 
     return logs
