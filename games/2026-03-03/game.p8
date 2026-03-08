@@ -1,5 +1,5 @@
 pico-8 cartridge // http://www.pico-8.com
-version 42
+version 41
 __lua__
 -- Untitled Game
 -- 2026-03-03

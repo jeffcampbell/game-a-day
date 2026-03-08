@@ -1,6 +1,10 @@
 
 .worktrees/
 
+# Licensed PICO-8 binaries (not for public distribution)
+pico-8_*.zip
+pico-8/
+
 # Python cache
 __pycache__/
 *.pyc

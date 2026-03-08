@@ -1,5 +1,5 @@
 pico-8 cartridge // http://www.pico-8.com
-version 42
+version 41
 __lua__
 -- gem match: match-3 puzzle arcade
 -- 2026-03-05

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game a Day - Daily PICO-8 Games</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+  }
+  header {
+    text-align: center;
+    padding: 2rem 1rem;
+    background: linear-gradient(135deg, #16213e, #0f3460);
+    border-bottom: 2px solid #e94560;
+  }
+  h1 { color: #e94560; font-size: 2rem; margin-bottom: 0.3rem; }
+  header p { color: #a0a0b0; font-size: 0.95rem; }
+  .games {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .game-card {
+    background: #16213e;
+    border-radius: 8px;
+    padding: 1.2rem;
+    border: 1px solid #2a2a4a;
+    transition: border-color 0.2s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .game-card:hover { border-color: #e94560; }
+  .game-card .date { color: #e94560; font-size: 0.85rem; font-weight: 600; }
+  .game-card .title { font-size: 1.3rem; margin: 0.3rem 0; color: #fff; }
+  .game-card .desc { color: #a0a0b0; font-size: 0.9rem; margin-bottom: 0.4rem; }
+  .game-card .genres { color: #7b68ee; font-size: 0.8rem; }
+  .play-btn {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.4rem 1rem;
+    background: #e94560;
+    color: #fff;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Game a Day</h1>
+  <p>A new PICO-8 game every day. Built by AI agents on a Raspberry Pi.</p>
+</header>
+<div class="games">
+<a href="2026-03-08/" class="game-card">
+  <div class="date">2026-03-08</div>
+  <div class="title">Cave Escape</div>
+  <div class="desc">Navigate a dangerous cave while avoiding enemies. Progress through three escalating levels to escape to freedom. Use arrow keys to move and reach the glowing exit portal before you run out of health. Master the dash mechanic (X button) for advanced dodge strategies.</div>
+  <div class="genres">adventure, action</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-03-07/" class="game-card">
+  <div class="date">2026-03-07</div>
+  <div class="title">Untitled Game</div>
+  <div class="desc">A PICO-8 game</div>
+  <div class="genres">puzzle</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-03-06/" class="game-card">
+  <div class="date">2026-03-06</div>
+  <div class="title">Tile Match</div>
+  <div class="desc">A tile-matching puzzle game. Select tiles of the same color and match 3 or more in a row (horizontal or vertical) to score points. Reach 100 points to win before the board fills up!</div>
+  <div class="genres">puzzle</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-03-05/" class="game-card">
+  <div class="date">2026-03-05</div>
+  <div class="title">gem match: match-3 puzzle arcade</div>
+  <div class="desc">A puzzle, sports PICO-8 game. Control a character, earn points, progress through levels, and collect power-ups.</div>
+  <div class="genres">puzzle, sports</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-03-04/" class="game-card">
+  <div class="date">2026-03-04</div>
+  <div class="title">meteor dodge</div>
+  <div class="desc">A sports, action PICO-8 game. Earn points and collect power-ups.</div>
+  <div class="genres">sports, action</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-03-03/" class="game-card">
+  <div class="date">2026-03-03</div>
+  <div class="title">Untitled Game</div>
+  <div class="desc">A PICO-8 game</div>
+  <div class="genres">puzzle</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-03-02/" class="game-card">
+  <div class="date">2026-03-02</div>
+  <div class="title">Untitled Game</div>
+  <div class="desc">A PICO-8 game</div>
+  <div class="genres">puzzle</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-03-01/" class="game-card">
+  <div class="date">2026-03-01</div>
+  <div class="title">lunar lander</div>
+  <div class="desc">A rpg, sports PICO-8 game. Control a character, face enemies, earn points, progress through levels, and collect power-ups.</div>
+  <div class="genres">rpg, sports</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-02-28/" class="game-card">
+  <div class="date">2026-02-28</div>
+  <div class="title">Game 2026-02-28</div>
+  <div class="desc">A action, sports PICO-8 game. Face enemies, earn points, and collect power-ups.</div>
+  <div class="genres">action, sports</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-02-27/" class="game-card">
+  <div class="date">2026-02-27</div>
+  <div class="title">Game 2026-02-27</div>
+  <div class="desc">A sports, action PICO-8 game. Control a character, earn points, progress through levels, and collect power-ups.</div>
+  <div class="genres">sports, action</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-02-26/" class="game-card">
+  <div class="date">2026-02-26</div>
+  <div class="title">meteor dodge</div>
+  <div class="desc">A sports, rhythm PICO-8 game. Control a character, earn points, and collect power-ups.</div>
+  <div class="genres">sports, rhythm</div>
+  <span class="play-btn">Play</span>
+</a>
+<a href="2026-02-25/" class="game-card">
+  <div class="date">2026-02-25</div>
+  <div class="title">star dodge</div>
+  <div class="desc">A sports, action PICO-8 game. Control a character, earn points, and collect power-ups.</div>
+  <div class="genres">sports, action</div>
+  <span class="play-btn">Play</span>
+</a>
+</div>
+</body>
+</html>

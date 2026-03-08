@@ -28,7 +28,9 @@ else
 fi
 
 # Export to HTML (requires PICO-8)
+# pico8 is 0.2.5g which needs version <=41 headers; agents write version 42
 if command -v pico8 &>/dev/null; then
+    sed -i 's/^version 42$/version 41/' "$GAME_DIR/game.p8"
     pico8 "$GAME_DIR/game.p8" -export "$GAME_DIR/game.html"
 fi
 
@@ -45,6 +47,10 @@ SYNC_SCRIPT="/home/pi/Development/pixel-dashboard/scripts/sync-games.sh"
 if [ -x "$SYNC_SCRIPT" ]; then
     "$SYNC_SCRIPT"
 fi
+
+# Build GitHub Pages site (exports all games to docs/)
+echo "Building GitHub Pages site..."
+scripts/build-site.sh
 
 # Push to GitHub
 git add -A
