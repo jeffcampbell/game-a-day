@@ -29,6 +29,10 @@ if command -v pico8 &>/dev/null; then
     pico8 "$GAME_DIR/game.p8" -export "$GAME_DIR/game.html"
 fi
 
+# Generate game library catalog
+echo "Generating game library catalog..."
+python3 tools/generate-library.py
+
 # Sync all games to pixel-dashboard
 SYNC_SCRIPT="/home/pi/Development/pixel-dashboard/scripts/sync-games.sh"
 if [ -x "$SYNC_SCRIPT" ]; then
