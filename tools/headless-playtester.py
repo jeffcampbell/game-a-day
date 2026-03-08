@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Automated headless game playtester for PICO-8 games.
+"""Synthetic game playtester for PICO-8 games.
 
-Runs games in a headless browser environment and records real gameplay sessions
-with different playstyles. Unlike synthetic sessions, these contain actual
-game execution data (logs, button sequences, frame counts).
+Generates synthetic gameplay sessions with different playstyles for testing and
+metrics generation. These sessions use deterministic button sequences and simulated
+logs, NOT real game execution. Sessions are marked with is_synthetic: true and
+excluded from production analytics by default.
+
+For real gameplay data, use run-interactive-test.py --record.
 
 Usage:
   python3 tools/headless-playtester.py                    # Run all games
@@ -17,15 +20,9 @@ import sys
 import json
 import re
 import subprocess
-import socket
-import time
 import argparse
-import tempfile
-import signal
 from pathlib import Path
 from datetime import datetime
-from http.server import HTTPServer, SimpleHTTPRequestHandler
-from threading import Thread
 import random
 import logging
 
@@ -36,86 +33,6 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-
-class GameTestHandler(SimpleHTTPRequestHandler):
-    """HTTP handler for serving game files."""
-
-    game_dir = None
-
-    def log_message(self, format, *args):
-        """Suppress HTTP server logs."""
-        pass
-
-    def do_GET(self):
-        """Handle GET requests."""
-        if self.path == '/':
-            self.send_error(404)
-            return
-
-        # Serve game files from game_dir
-        file_path = os.path.normpath(self.path.lstrip('/'))
-        if '..' in file_path or file_path.startswith('/'):
-            self.send_error(403)
-            return
-
-        full_path = os.path.join(self.game_dir, file_path)
-
-        # Security check: ensure path is within game_dir
-        real_game_dir = os.path.realpath(self.game_dir)
-        real_full_path = os.path.realpath(full_path)
-        if not real_full_path.startswith(real_game_dir):
-            self.send_error(403)
-            return
-
-        if not os.path.exists(full_path) or not os.path.isfile(full_path):
-            self.send_error(404)
-            return
-
-        try:
-            with open(full_path, 'rb') as f:
-                content = f.read()
-
-            # Determine content type
-            if file_path.endswith('.html'):
-                content_type = 'text/html; charset=utf-8'
-            elif file_path.endswith('.js'):
-                content_type = 'application/javascript'
-            elif file_path.endswith('.json'):
-                content_type = 'application/json'
-            else:
-                content_type = 'application/octet-stream'
-
-            self.send_response(200)
-            self.send_header('Content-Type', content_type)
-            self.send_header('Content-Length', len(content))
-            self.end_headers()
-            self.wfile.write(content)
-        except Exception as e:
-            self.send_error(500, f"Failed to serve: {str(e)}")
-
-
-def find_free_port(start=8000, max_attempts=100):
-    """Find a free port."""
-    for port in range(start, start + max_attempts):
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('127.0.0.1', port))
-                return port
-        except OSError:
-            continue
-    raise RuntimeError("Could not find a free port")
-
-
-def start_server(game_dir, port):
-    """Start HTTP server for game files."""
-    GameTestHandler.game_dir = game_dir
-    server = HTTPServer(('127.0.0.1', port), GameTestHandler)
-
-    thread = Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-
-    return server
 
 
 def generate_button_sequence(playstyle, length=1200, seed=0):
@@ -183,78 +100,82 @@ def generate_button_sequence(playstyle, length=1200, seed=0):
     return buttons[:length]
 
 
-def create_test_runner_js(button_sequence, playstyle):
-    """Create JavaScript code to run game with button sequence.
+def generate_synthetic_logs(playstyle, frame_count, seed=0):
+    """Generate synthetic gameplay logs based on playstyle.
 
-    This code is injected into the game page to:
-    1. Inject the button sequence
-    2. Run the game for the sequence duration
-    3. Collect logs and frame count
+    Creates realistic-looking event sequences including state transitions
+    and completion events. These are not real game data, but plausible
+    sequences for testing analytics.
+
+    Args:
+        playstyle: 'aggressive', 'careful', 'strategic', 'random', 'passive'
+        frame_count: Total frames in session
+        seed: Random seed for reproducibility
+
+    Returns:
+        List of log strings
     """
-    button_seq_json = json.dumps(button_sequence)
+    random.seed(seed)
+    logs = []
 
-    return f"""
-(function() {{
-    // Inject button sequence
-    window.pico8_buttons = {button_seq_json};
-    window.pico8_button_index = 0;
-    window.pico8_playstyle = '{playstyle}';
-    window.pico8_test_mode = true;
+    # Initial state
+    logs.append('state:menu')
 
-    // Override btn() to use injected sequence
-    if (typeof pico8_orig_btn === 'undefined') {{
-        pico8_orig_btn = window.btn;
-        window.btn = function(i, p) {{
-            if (window.pico8_button_index >= window.pico8_buttons.length) {{
-                return 0;
-            }}
-            var buttons = window.pico8_buttons[window.pico8_button_index];
-            window.pico8_button_index += 1;
-            return (buttons >> i) & 1;
-        }};
-    }}
+    # Game start
+    logs.append('state:play')
 
-    // Track frame count and logs
-    window.pico8_frames = 0;
-    window.pico8_logs = [];
-    window.pico8_exit_state = 'recorded';
+    # Add some game events based on playstyle
+    # Estimate events based on frame count and playstyle
+    event_density = {
+        'aggressive': 0.15,  # More events from active play
+        'careful': 0.08,      # Fewer events from cautious play
+        'strategic': 0.12,    # Moderate events
+        'random': 0.10,       # Some chaotic events
+        'passive': 0.05       # Few events from idle play
+    }
 
-    // Intercept _draw to count frames
-    if (window.pico8_orig_draw === undefined) {{
-        window.pico8_orig_draw = window._draw || function() {{}};
-        var old_draw = window._draw || function() {{}};
-        window._draw = function() {{
-            window.pico8_frames += 1;
-            if (window.pico8_button_index >= window.pico8_buttons.length) {{
-                throw new Error('SESSION_END');
-            }}
-            return old_draw.call(this);
-        }};
-    }}
+    density = event_density.get(playstyle, 0.10)
+    num_events = max(1, int(frame_count * density / 60))
 
-    // Collect logs from test_log
-    window.pico8_collect_logs = function() {{
-        if (window.test_log && Array.isArray(window.test_log)) {{
-            return window.test_log.slice();
-        }}
-        return [];
-    }};
+    events = [
+        'score:100', 'score:200', 'enemy_spawn', 'item_pickup',
+        'level_up', 'player_hit', 'jump', 'shoot', 'dash',
+        'collision', 'puzzle_solve', 'zone_enter'
+    ]
 
-    // Mark as ready
-    window.pico8_ready = true;
-}})();
-"""
+    for _ in range(num_events):
+        if random.random() < 0.7:  # 70% chance to add an event
+            logs.append(random.choice(events))
+
+    # Completion status based on playstyle
+    # More active playstyles have better completion rates
+    completion_chance = {
+        'aggressive': 0.65,
+        'careful': 0.50,
+        'strategic': 0.70,
+        'random': 0.35,
+        'passive': 0.30
+    }
+
+    chance = completion_chance.get(playstyle, 0.50)
+    if random.random() < chance:
+        logs.append('gameover:win')
+    else:
+        logs.append('gameover:lose')
+
+    return logs
 
 
-def run_game_headless(game_dir, game_date, playstyle, port, timeout=60):
-    """Run game headlessly and collect session data.
+def run_game_headless(game_dir, game_date, playstyle):
+    """Generate a synthetic gameplay session.
 
-    Uses a simple approach:
-    1. Generates button sequence for the playstyle
-    2. Saves it to a JSON file accessible via the web server
-    3. Creates a test harness page that injects the sequence
-    4. Uses curl/wget to hit the page (headless)
-    5. Polls for completion
+    Creates a synthetic session with:
+    - Deterministic button sequence for reproducibility
+    - Simulated logs based on playstyle characteristics
+    - Session marked as synthetic (is_synthetic: true)
+
+    This is NOT real game execution. For actual gameplay recording,
+    use run-interactive-test.py --record.
 
     Returns dict with session data or None on error.
     """
@@ -279,18 +200,20 @@ def run_game_headless(game_dir, game_date, playstyle, port, timeout=60):
     seed = hash((game_date, playstyle)) % (2**31)
     button_sequence = generate_button_sequence(playstyle, session_length, seed)
 
-    # Simple approach: create a session without detailed logging from headless execution
-    # The button_sequence is real, generated for this playstyle
-    # In a production system, we'd use Playwright for full log capture
+    # Generate synthetic logs based on playstyle
+    logs = generate_synthetic_logs(playstyle, session_length, seed)
+
+    # Create synthetic session marked for filtering in analytics
     return {
         'date': game_date,
         'timestamp': datetime.now().isoformat(),
         'duration_frames': len(button_sequence),
         'button_sequence': button_sequence,
-        'logs': ['state:menu', 'state:play'],  # Minimal logs from headless run
+        'logs': logs,
         'playstyle': playstyle,
         'exit_state': 'recorded',
-        'execution_notes': 'Automated headless playtest'
+        'is_synthetic': True,  # Critical: Mark as synthetic to prevent analytics contamination
+        'execution_notes': 'Synthetic session from automated playtester (not real gameplay)'
     }
 
 
@@ -361,59 +284,47 @@ def export_game_if_needed(game_p8, game_dir):
 
 
 def playtest_game(game_date, game_dir, playstyles, sessions_per_style=1):
-    """Run playtests for a single game.
+    """Generate synthetic playtests for a single game.
 
     Returns count of successfully created sessions.
     """
     game_p8 = os.path.join(game_dir, 'game.p8')
 
-    # Export if needed
+    # Export if needed (validates game.html exists)
     if not export_game_if_needed(game_p8, game_dir):
         logger.error(f"✗ {game_date}: Could not export game")
         return 0
 
-    # Start local server for this game
-    port = find_free_port()
-    server = start_server(game_dir, port)
+    created = 0
+    for playstyle in playstyles:
+        for session_num in range(sessions_per_style):
+            logger.info(f"  Generating {game_date} ({playstyle})...")
 
-    try:
-        time.sleep(0.5)  # Let server start
+            session_data = run_game_headless(
+                game_dir,
+                game_date,
+                playstyle
+            )
 
-        created = 0
-        for playstyle in playstyles:
-            for session_num in range(sessions_per_style):
-                logger.info(f"  Testing {game_date} ({playstyle})...")
-
-                session_data = run_game_headless(
+            if session_data:
+                # Save session file
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                session_file = os.path.join(
                     game_dir,
-                    game_date,
-                    playstyle,
-                    port,
-                    timeout=60
+                    f'session_{timestamp}_{playstyle[0]}.json'
                 )
 
-                if session_data:
-                    # Save session file
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    session_file = os.path.join(
-                        game_dir,
-                        f'session_{timestamp}_{playstyle[0]}.json'
-                    )
+                try:
+                    with open(session_file, 'w') as f:
+                        json.dump(session_data, f, indent=2)
+                    logger.info(f"  ✓ Session saved: {session_file}")
+                    created += 1
+                except IOError as e:
+                    logger.error(f"  ✗ Failed to save session: {e}")
+            else:
+                logger.error(f"  ✗ Session generation failed for {playstyle}")
 
-                    try:
-                        with open(session_file, 'w') as f:
-                            json.dump(session_data, f, indent=2)
-                        logger.info(f"  ✓ Session saved: {session_file}")
-                        created += 1
-                    except IOError as e:
-                        logger.error(f"  ✗ Failed to save session: {e}")
-                else:
-                    logger.error(f"  ✗ Playtest failed for {playstyle}")
-
-        return created
-
-    finally:
-        server.shutdown()
+    return created
 
 
 def main():
