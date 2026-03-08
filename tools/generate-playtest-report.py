@@ -186,13 +186,21 @@ def detect_anomalies(session, logs, states):
 
     # Detect state loops (same state appearing multiple times in a row after transitions)
     consecutive_same_state = 0
+    looped_state = None
     for i, state in enumerate(states):
         if i > 0 and states[i] == states[i-1]:
+            if looped_state is None:
+                looped_state = states[i]
             consecutive_same_state += 1
         else:
             if consecutive_same_state > 2:
-                anomalies.append(f"State loop detected: '{state}' repeated {consecutive_same_state+1} times")
+                anomalies.append(f"State loop detected: '{looped_state}' repeated {consecutive_same_state+1} times")
             consecutive_same_state = 0
+            looped_state = None
+
+    # Check for state loop at the end of the list
+    if consecutive_same_state > 2:
+        anomalies.append(f"State loop detected: '{looped_state}' repeated {consecutive_same_state+1} times")
 
     # Detect immediate gameover (gameover within first few frames)
     if 'gameover' in states and len(states) <= 2:
@@ -415,6 +423,11 @@ def main():
     games_to_process = []
 
     if args.game:
+        # Validate game date format
+        if not re.match(r'^\d{4}-\d{2}-\d{2}$', args.game):
+            print(f"❌ Invalid game date format: {args.game}", file=sys.stderr)
+            sys.exit(1)
+
         # Process specific game
         game_dir = os.path.join('games', args.game)
         if os.path.isdir(game_dir):
