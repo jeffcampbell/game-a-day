@@ -1,54 +1,41 @@
 {
   "date": "2026-03-05",
-  "has_sessions": true,
-  "session_count": 5,
-  "metrics": {
-    "completion_rate_pct": 0.0,
-    "completion_breakdown": {
-      "lost": 3,
-      "quit": 2
+  "has_sessions": false,
+  "session_count": 0,
+  "test_report": {
+    "date": "2026-03-05",
+    "status": "PASS",
+    "duration_frames": null,
+    "source": "static_analysis",
+    "errors": [],
+    "state_transitions": [
+      "menu",
+      "play",
+      "mode",
+      "achs",
+      "help",
+      "diff",
+      "mods",
+      "gameover",
+      "name_entry"
+    ],
+    "logs_captured": 73,
+    "events": {
+      "state_transitions": 9,
+      "game_events": 55,
+      "gameover_events": 3
     },
-    "avg_duration_frames": 1984.8,
-    "median_duration_frames": 2032,
-    "max_duration_frames": 2296,
-    "difficulty_cliff_frame": 2296,
-    "avg_state_times": {
-      "menu": 1,
-      "play": 1983.8
-    },
-    "input_activity_rate": 0.137
-  },
-  "test_report": null,
-  "session_samples": [
-    {
-      "duration_frames": 2083,
-      "completion_status": "lost",
-      "unique_states": 2,
-      "logs_count": 4
-    },
-    {
-      "duration_frames": 1944,
-      "completion_status": "quit",
-      "unique_states": 2,
-      "logs_count": 3
-    },
-    {
-      "duration_frames": 2032,
-      "completion_status": "lost",
-      "unique_states": 2,
-      "logs_count": 4
-    },
-    {
-      "duration_frames": 1569,
-      "completion_status": "quit",
-      "unique_states": 2,
-      "logs_count": 3
-    },
-    {
-      "duration_frames": 2296,
-      "completion_status": "lost",
-      "unique_states": 2,
-      "logs_count": 4
+    "exit_state": "analysis_complete",
+    "metadata": {
+      "title": "gem match: match-3 puzzle arcade",
+      "description": "A puzzle, sports PICO-8 game. Control a character, earn points, progress through levels, and collect power-ups.",
+      "genres": [
+        "puzzle",
+        "sports"
+      ],
+      "difficulty": 5,
+      "completion_status": "in-progress"
     }
-  ]
+  },
+  "metrics": {}
 }

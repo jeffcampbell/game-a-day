@@ -1,55 +1,33 @@
 {
   "date": "2026-03-08",
-  "has_sessions": true,
-  "session_count": 5,
-  "metrics": {
-    "completion_rate_pct": 40.0,
-    "completion_breakdown": {
-      "quit": 2,
-      "won": 2,
-      "lost": 1
+  "has_sessions": false,
+  "session_count": 0,
+  "test_report": {
+    "date": "2026-03-08",
+    "status": "PASS",
+    "duration_frames": null,
+    "source": "static_analysis",
+    "errors": [],
+    "state_transitions": [
+      "play",
+      "menu"
+    ],
+    "logs_captured": 12,
+    "events": {
+      "state_transitions": 2,
+      "game_events": 8,
+      "gameover_events": 2
     },
-    "avg_duration_frames": 1117.4,
-    "median_duration_frames": 692,
-    "max_duration_frames": 2415,
-    "difficulty_cliff_frame": 2415,
-    "avg_state_times": {
-      "menu": 1,
-      "play": 1116.4
-    },
-    "input_activity_rate": 0.132
-  },
-  "test_report": null,
-  "session_samples": [
-    {
-      "duration_frames": 692,
-      "completion_status": "quit",
-      "unique_states": 2,
-      "logs_count": 3
-    },
-    {
-      "duration_frames": 388,
-      "completion_status": "won",
-      "unique_states": 2,
-      "logs_count": 4
-    },
-    {
-      "duration_frames": 2415,
-      "completion_status": "quit",
-      "unique_states": 2,
-      "logs_count": 3
-    },
-    {
-      "duration_frames": 634,
-      "completion_status": "lost",
-      "unique_states": 2,
-      "logs_count": 4
-    },
-    {
-      "duration_frames": 1458,
-      "completion_status": "won",
-      "unique_states": 2,
-      "logs_count": 4
+    "exit_state": "analysis_complete",
+    "metadata": {
+      "title": "Cave Escape",
+      "description": "Navigate a dangerous cave while avoiding enemies. Progress through two levels to escape to freedom. Use arrow keys to move and reach the glowing exit portal before you run out of health.",
+      "genres": [
+        "adventure"
+      ],
+      "difficulty": 2,
+      "completion_status": "in-progress"
     }
-  ]
+  },
+  "metrics": {}
 }
