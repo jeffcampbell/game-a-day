@@ -26,8 +26,10 @@ function test_input(b)
 end
 
 state="menu"
+game_mode="adventure"  -- "adventure" or "endless"
 difficulty="normal"
 difficulty_cursor=2
+mode_cursor=1  -- 1=adventure, 2=endless
 score=0
 best_score=0
 best_endless_score=0
@@ -214,9 +216,37 @@ end
 
 function update_menu()
  if test_input(4)>0 or test_input(5)>0 then
-  state="difficulty_select"
-  difficulty_cursor=2
-  _log("state:difficulty_select")
+  state="mode_select"
+  mode_cursor=1
+  _log("state:mode_select")
+ end
+end
+
+function update_mode_select()
+ if test_input(0)>0 or test_input(2)>0 then
+  mode_cursor=max(1,mode_cursor-1)
+ end
+ if test_input(1)>0 or test_input(3)>0 then
+  mode_cursor=min(2,mode_cursor+1)
+ end
+
+ if test_input(4)>0 or test_input(5)>0 then
+  if mode_cursor==1 then
+   game_mode="adventure"
+   state="difficulty_select"
+   difficulty_cursor=2
+   _log("state:difficulty_select")
+  else
+   game_mode="endless"
+   difficulty="normal"
+   is_endless=true
+   state="play"
+   score=0
+   level=1
+   wave=1
+   init_endless_level()
+   _log("state:play")
+  end
  end
 end
 
@@ -225,33 +255,24 @@ function update_difficulty_select()
   difficulty_cursor=max(1,difficulty_cursor-1)
  end
  if test_input(3)>0 then
-  difficulty_cursor=min(4,difficulty_cursor+1)
+  difficulty_cursor=min(3,difficulty_cursor+1)
  end
 
  if test_input(4)>0 or test_input(5)>0 then
   if difficulty_cursor==1 then
    difficulty="easy"
-   is_endless=false
   elseif difficulty_cursor==2 then
    difficulty="normal"
-   is_endless=false
   elseif difficulty_cursor==3 then
    difficulty="hard"
-   is_endless=false
-  else
-   difficulty="endless"
-   is_endless=true
   end
+  is_endless=false
   state="play"
   score=0
   level=1
   wave=1
   wave_start_frame=0
-  if is_endless then
-   init_endless_level()
-  else
-   init_level()
-  end
+  init_level()
   _log("state:play")
  end
 end
@@ -269,15 +290,34 @@ function draw_menu()
  print("z or x to start",32,107,11)
 end
 
+function draw_mode_select()
+ cls(1)
+ print("select game mode",28,30,7)
+
+ local col1=7
+ local col2=7
+ if mode_cursor==1 then
+  col1=11
+ else
+  col2=11
+ end
+
+ print("adventure",40,60,col1)
+ print("endless",44,80,col2)
+
+ print("arrows select",32,105,7)
+ print("z/x confirm",36,115,7)
+end
+
 function draw_difficulty_select()
  cls(1)
  print("select difficulty",28,20,7)
 
- local colors={8,7,11,10}
- local y_positions={40,55,70,85}
- local labels={"easy","normal","hard","endless"}
+ local colors={8,7,11}
+ local y_positions={50,70,90}
+ local labels={"easy","normal","hard"}
 
- for i=1,4 do
+ for i=1,3 do
   local col=colors[i]
   if i==difficulty_cursor then
    col=11
@@ -356,15 +396,16 @@ function update_play()
  local elapsed=frames-level_start_frame
 
  if is_endless then
-  -- endless mode: wave-based spawning every 30 seconds
+  -- endless mode: wave-based spawning every 20 seconds
   local wave_elapsed=frames-wave_start_frame
-  local spawn_interval=flr(1800/adaptive_spawn_mult)  -- adaptive wave timing
+  local spawn_interval=flr(1200/adaptive_spawn_mult)  -- 20 seconds, adaptive wave timing
   if wave_elapsed>=spawn_interval then  -- adaptive spawn interval
    wave+=1
    wave_start_frame=frames
-   -- add new enemies for the wave
-   -- wave N has 2+wave/2 enemies spawning
-   local enemy_count=flr(2+wave*0.5)
+   -- add new enemies for the wave: 1+wave, capped at 6
+   local enemy_count=min(1+wave,6)
+   -- award 10 points per enemy in wave
+   score+=enemy_count*10
    for j=1,enemy_count do
     local spawn_y=20+flr(rnd(80))
     local spawn_x=10+flr(rnd(100))
@@ -375,9 +416,6 @@ function update_play()
    end
    _log("wave:"..wave)
   end
-
-  -- endless mode: score is 1 point per frame (60 points per second)
-  score+=1
 
  else
   -- standard mode: difficulty ramp-up
@@ -579,6 +617,7 @@ end
 
 function _update()
  if state=="menu" then update_menu()
+ elseif state=="mode_select" then update_mode_select()
  elseif state=="difficulty_select" then update_difficulty_select()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
@@ -587,6 +626,7 @@ end
 
 function _draw()
  if state=="menu" then draw_menu()
+ elseif state=="mode_select" then draw_mode_select()
  elseif state=="difficulty_select" then draw_difficulty_select()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
