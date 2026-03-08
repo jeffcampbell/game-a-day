@@ -19,7 +19,7 @@ Tester: Automated
 
 ## Code Quality
 - [x] Game compiles without syntax errors
-- [x] Token count is 1051/8192 (well under limit, +123 tokens with audio improvements)
+- [x] Token count is 1051/8192 (well under limit, +34 tokens with audio improvements)
 - [x] Code follows project style guide
 
 ## Game Features
@@ -65,8 +65,8 @@ Tester: Automated
   - **Portal success sound (SFX 2)**: Ascending chime plays when reaching the exit portal
 - **Implementation**:
   - Added audio state tracking (last_move_frame, last_hit_frame) to prevent overlapping sounds
-  - sfx() calls integrated at key game events (line 113, 149, 163)
-  - All sounds defined in __sfx__ section with minimal token overhead (+123 tokens total)
+  - sfx() calls integrated at key game events (line 118, 159, 172)
+  - All sounds defined in __sfx__ section with minimal token overhead (+34 tokens total)
   - Uses PICO-8 built-in instruments (no external files required)
 
 ### Playtesting Results
