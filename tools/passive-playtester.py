@@ -13,6 +13,7 @@ Usage:
 """
 
 import sys
+import re
 import json
 import argparse
 import random
@@ -188,6 +189,11 @@ def main():
     parser.add_argument("--count", type=int, default=10, help="Number of sessions")
 
     args = parser.parse_args()
+
+    # Validate game_date format to prevent path traversal
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', args.game_date):
+        logger.error(f"Invalid game date format: {args.game_date} (expected YYYY-MM-DD)")
+        sys.exit(1)
 
     game_dir = Path("games") / args.game_date
     if not game_dir.exists():
