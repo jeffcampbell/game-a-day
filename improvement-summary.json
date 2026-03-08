@@ -1,0 +1,139 @@
+{
+  "generated_at": "2026-03-08T08:53:37.179459",
+  "total_games_analyzed": 13,
+  "statistics": {
+    "total_issues_identified": 37,
+    "total_suggestions_generated": 87,
+    "average_completion_rate": 0.0,
+    "issue_type_distribution": {
+      "difficulty_too_high": 13,
+      "low_quality": 13,
+      "low_engagement": 10,
+      "metadata_difficulty_mismatch": 1
+    },
+    "severity_distribution": {
+      "critical": 13,
+      "medium": 20,
+      "low": 4
+    }
+  },
+  "games_by_priority": [
+    {
+      "date": "2026-03-01",
+      "title": "lunar lander",
+      "priority_score": 220,
+      "issue_count": 3,
+      "suggestion_count": 9,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "too_hard"
+    },
+    {
+      "date": "2026-02-28",
+      "title": "Game 2026-02-28",
+      "priority_score": 220,
+      "issue_count": 3,
+      "suggestion_count": 9,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "too_hard"
+    },
+    {
+      "date": "2026-02-26",
+      "title": "meteor dodge",
+      "priority_score": 220,
+      "issue_count": 3,
+      "suggestion_count": 9,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "too_hard"
+    },
+    {
+      "date": "2026-03-04",
+      "title": "meteor dodge",
+      "priority_score": 215,
+      "issue_count": 3,
+      "suggestion_count": 8,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "too_hard"
+    },
+    {
+      "date": "2026-02-25",
+      "title": "star dodge",
+      "priority_score": 215,
+      "issue_count": 4,
+      "suggestion_count": 8,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "too_hard"
+    },
+    {
+      "date": "2026-03-05",
+      "title": "gem match: match-3 puzzle arcade",
+      "priority_score": 210,
+      "issue_count": 3,
+      "suggestion_count": 7,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "too_hard"
+    },
+    {
+      "date": "2026-03-09",
+      "title": "Untitled Game",
+      "priority_score": 205,
+      "issue_count": 3,
+      "suggestion_count": 6,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "too_hard"
+    },
+    {
+      "date": "2026-03-07",
+      "title": "Untitled Game",
+      "priority_score": 205,
+      "issue_count": 3,
+      "suggestion_count": 6,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "too_hard"
+    },
+    {
+      "date": "2026-03-03",
+      "title": "Untitled Game",
+      "priority_score": 205,
+      "issue_count": 3,
+      "suggestion_count": 6,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "too_hard"
+    },
+    {
+      "date": "2026-03-02",
+      "title": "Untitled Game",
+      "priority_score": 205,
+      "issue_count": 3,
+      "suggestion_count": 6,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "too_hard"
+    },
+    {
+      "date": "2026-02-27",
+      "title": "Game 2026-02-27",
+      "priority_score": 200,
+      "issue_count": 2,
+      "suggestion_count": 5,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "balanced"
+    },
+    {
+      "date": "2026-03-08",
+      "title": "Untitled Game",
+      "priority_score": 195,
+      "issue_count": 2,
+      "suggestion_count": 4,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "balanced"
+    },
+    {
+      "date": "2026-03-06",
+      "title": "Untitled Game",
+      "priority_score": 195,
+      "issue_count": 2,
+      "suggestion_count": 4,
+      "completion_rate": 0.0,
+      "difficulty_assessment": "balanced"
+    }
+  ]
+}
