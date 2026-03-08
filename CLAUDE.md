@@ -67,6 +67,13 @@ pico8 games/YYYY-MM-DD/game.p8 -export games/YYYY-MM-DD/game.html
 ```
 This creates `game.html` + `game.js`. Both must be committed alongside `game.p8`.
 
+After exporting, sync games to the pixel-dashboard for embedding:
+```bash
+/home/pi/Development/pixel-dashboard/scripts/sync-games.sh
+```
+This copies all exported games into `pixel-dashboard/public/game/YYYY-MM-DD/` and
+generates a `manifest.json` for the dashboard's Game panel.
+
 ## Required Architecture: State Machine
 
 Every game MUST use the state machine pattern:
