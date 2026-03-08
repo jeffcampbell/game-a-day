@@ -69,7 +69,7 @@ function init_level()
 end
 
 function update_menu()
- if btnp(4) or btnp(5) then
+ if test_input(4)>0 or test_input(5)>0 then
   state="play"
   score=0
   health=3
@@ -175,7 +175,7 @@ function draw_play()
 end
 
 function update_gameover()
- if btnp(4) or btnp(5) then
+ if test_input(4)>0 or test_input(5)>0 then
   state="menu"
   _log("state:menu")
  end
