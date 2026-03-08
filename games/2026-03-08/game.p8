@@ -192,6 +192,9 @@ end
 
 function init_endless_level()
  enemies={}
+ power_ups={}
+ player_power_up=nil
+ power_up_spawn_frame=frames
  level_start_frame=frames
  level_score=0
 
@@ -220,9 +223,10 @@ function init_endless_level()
  wave=1
  wave_start_frame=frames
 
- -- spawn initial wave: 2 enemies
+ -- spawn initial wave: 3 enemies (match new wave scaling)
  add(enemies,{x=60,y=30,w=8,h=8,speed=0.6*adaptive_speed_mult,dir=1})
  add(enemies,{x=100,y=60,w=8,h=8,speed=0.6*adaptive_speed_mult,dir=-1})
+ add(enemies,{x=30,y=80,w=8,h=8,speed=0.6*adaptive_speed_mult,dir=1})
 
  _log("difficulty:endless")
  _log("wave:1")
@@ -492,25 +496,49 @@ function update_play()
  player.y=max(2,min(player.y,126))
 
  if is_endless then
-  -- endless mode: wave-based spawning every 20 seconds
+  -- endless mode: wave-based spawning every 30-40 seconds (adaptive)
   local wave_elapsed=frames-wave_start_frame
-  local spawn_interval=flr(1200/adaptive_spawn_mult)  -- 20 seconds, adaptive wave timing
+  local spawn_interval=flr(1800/adaptive_spawn_mult)  -- 30 seconds base, adaptive wave timing
   if wave_elapsed>=spawn_interval then  -- adaptive spawn interval
    wave+=1
    wave_start_frame=frames
-   -- add new enemies for the wave: 1+wave, capped at 6
-   local enemy_count=min(1+wave,6)
-   -- award 10 points per enemy in wave
-   score+=enemy_count*10
+
+   -- progressive difficulty: start at 3, increase by 1-2 per wave, cap at 10
+   local enemy_count
+   if wave<=2 then
+    enemy_count=2+wave  -- wave 1: 3, wave 2: 4
+   else
+    enemy_count=min(4+flr((wave-2)/2),10)  -- wave 3+: increase by 1 every 2 waves
+   end
+
+   -- award points: 10 per enemy dodged + 50 for wave completion
+   score+=enemy_count*10+50
+
    for j=1,enemy_count do
     local spawn_y=20+flr(rnd(80))
     local spawn_x=10+flr(rnd(100))
-    local speed_base=0.6+wave*0.07
+    local speed_base=0.6+wave*0.05  -- slightly more conservative speed increase
     local dir=1
     if j%2==0 then dir=-1 end
     add(enemies,{x=spawn_x,y=spawn_y,w=8,h=8,speed=speed_base*adaptive_speed_mult,dir=dir})
    end
    _log("wave:"..wave)
+  end
+
+  -- endless mode power-up spawning: every 25 seconds (1500 frames)
+  if player_power_up==nil then
+   local endless_power_spawn_interval=1500
+
+   -- spawn power-up regularly in endless mode
+   if frames-power_up_spawn_frame>endless_power_spawn_interval then
+    power_up_spawn_frame=frames
+    local power_types={"shield","speed","slow","heal"}
+    local ptype=power_types[flr(rnd(4))+1]
+    local spawn_x=20+flr(rnd(88))
+    local spawn_y=20+flr(rnd(88))
+    add(power_ups,{x=spawn_x,y=spawn_y,w=8,h=8,type=ptype})
+    _log("power_spawn:"..ptype)
+   end
   end
 
  else
