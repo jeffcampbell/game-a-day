@@ -84,7 +84,10 @@ def load_test_report(game_dir):
 
 
 def find_sessions(game_dir):
-    """Find all recorded sessions for a game.
+    """Find all recorded REAL sessions for a game (excludes synthetic).
+
+    By default, EXCLUDES synthetic sessions (is_synthetic: true) to prevent
+    artificially generated data from contaminating production analytics.
 
     Returns list of session dicts.
     """
@@ -100,7 +103,9 @@ def find_sessions(game_dir):
                 with open(session_path, 'r') as f:
                     session = json.load(f)
                     if isinstance(session, dict):
-                        sessions.append(session)
+                        # FILTER: Skip synthetic sessions
+                        if not session.get('is_synthetic', False):
+                            sessions.append(session)
             except (json.JSONDecodeError, IOError, TypeError):
                 pass
 
