@@ -150,7 +150,7 @@ Cave Escape is a complete adventure game with real gameplay mechanics. Player mu
   - Created 3 sprites in __gfx__ section (sprites 0-2), rest remain empty
   - Sprite positioning uses centered offsets: `spr(n, x-4, y-4)` to center 8x8 sprites on entity coordinates
   - Collision detection unchanged (still uses bounding box with a.w, a.h)
-  - Token cost: +59 tokens (1175 → 1234, still 85% under limit)
+  - Token cost: -41 tokens (1175 → 1134, still 86% under limit)
 - **Testing Results**:
   - ✅ All sprites render correctly
   - ✅ No visual artifacts or glitches
