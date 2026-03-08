@@ -85,6 +85,14 @@ shield_invuln_frames=30  -- 0.5 seconds at 60fps
 shield_invuln_start=-100
 prev_down_btn=0  -- track previous down button state for press detection
 
+-- discovery cues: track ready state for audio feedback
+dash_ready_last_frame=-1000
+shield_ready_last_frame=-1000
+player_used_dash=false
+player_used_shield=false
+level_2_dash_reminder=false
+level_3_shield_reminder=false
+
 -- adaptive difficulty tracking
 hit_times={}  -- sliding window of last hit frames
 last_difficulty_check=0
@@ -125,6 +133,10 @@ function init_level()
  is_passive_player=false
  dash_count_first_5s=0
  passive_check_done=false
+
+ -- reset reminder flags for new level
+ level_2_dash_reminder=false
+ level_3_shield_reminder=false
 
  -- start background music
  music(0)
@@ -600,7 +612,8 @@ function update_play()
  local elapsed=frames-level_start_frame
 
  -- dash mechanic (x button)
- if test_input(5)>0 and frames-last_dash_frame>=dash_cooldown then
+ local dash_ready=frames-last_dash_frame>=dash_cooldown
+ if test_input(5)>0 and dash_ready then
   local dash_dx=0
   local dash_dy=0
 
@@ -618,6 +631,7 @@ function update_play()
   -- activate invulnerability window
   dash_invuln_start=frames
   last_dash_frame=frames
+  player_used_dash=true
 
   -- play dash sound
   sfx(3)
@@ -626,6 +640,32 @@ function update_play()
   -- track dashes in first 5 seconds for passive detection
   if not passive_check_done and elapsed<300 then
    dash_count_first_5s+=1
+  end
+ end
+
+ -- play ready cue when dash becomes available (transition from not ready to ready)
+ if dash_ready and frames-dash_ready_last_frame>60 then
+  if frames-last_dash_frame>dash_cooldown+5 then  -- just became ready
+   sfx(7)  -- dash ready beep (higher pitch)
+   dash_ready_last_frame=frames
+  end
+ end
+
+ -- shield mechanic (o button)
+ local shield_ready=frames-last_shield_frame>=shield_cooldown
+ if test_input(4)>0 and shield_ready then
+  shield_invuln_start=frames
+  last_shield_frame=frames
+  player_used_shield=true
+  sfx(8)  -- shield activate beep (lower pitch)
+  _log("shield")
+ end
+
+ -- play ready cue when shield becomes available
+ if shield_ready and frames-shield_ready_last_frame>60 then
+  if frames-last_shield_frame>shield_cooldown+5 then  -- just became ready
+   sfx(7)  -- shield ready beep
+   shield_ready_last_frame=frames
   end
  end
 
@@ -996,6 +1036,26 @@ function draw_play()
   spr(spr_id,p.x-4,p.y-4)
  end
 
+ -- draw mechanic ready indicators at top right
+ local dash_ready=frames-last_dash_frame>=dash_cooldown
+ local shield_ready=frames-last_shield_frame>=shield_cooldown
+
+ -- dash indicator (X button)
+ local dash_color=5  -- red when on cooldown
+ if dash_ready then dash_color=11 end  -- cyan when ready
+ rectfill(110,1,121,9,dash_color)
+ if dash_ready then
+  print("x",113,2,0)  -- show "x" in black when ready
+ end
+
+ -- shield indicator (O button)
+ local shield_color=5  -- red when on cooldown
+ if shield_ready then shield_color=11 end  -- cyan when ready
+ rectfill(110,11,121,19,shield_color)
+ if shield_ready then
+  print("o",114,12,0)  -- show "o" in black when ready
+ end
+
  if is_endless then
   -- endless mode display
   local survival_time=flr((frames-level_start_frame)/60)
@@ -1018,6 +1078,18 @@ function draw_play()
    print("pow:"..player_power_up.type,50,22,10)
    print("press down!",52,32,11)
   end
+
+  -- show tutorial reminders for unused mechanics
+  local elapsed=frames-level_start_frame
+  if level==2 and not player_used_dash and elapsed>600 and not level_2_dash_reminder then
+   print("try x!",58,120,11)  -- prompt for dash
+   level_2_dash_reminder=true
+  end
+  if level==3 and not player_used_shield and elapsed>600 and not level_3_shield_reminder then
+   print("press o!",55,120,11)  -- prompt for shield
+   level_3_shield_reminder=true
+  end
+
   print("find exit (top right)",10,120,14)
  end
 end
