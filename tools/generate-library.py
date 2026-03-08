@@ -5,10 +5,7 @@ Scans all games/ directories and aggregates metadata, test reports, and session
 analytics into a master catalog.json file.
 
 Usage:
-  python3 tools/generate-library.py [--rebuild]
-
-Options:
-  --rebuild    Force full rescan (ignore cached data)
+  python3 tools/generate-library.py
 
 Generates:
   - catalog.json  (at project root with all game entries)
@@ -283,7 +280,7 @@ def generate_statistics(games):
     return stats
 
 
-def generate_catalog(rebuild=False):
+def generate_catalog():
     """Generate catalog.json with all game metadata.
 
     Returns 0 on success, 1 on failure.
@@ -348,10 +345,8 @@ def generate_catalog(rebuild=False):
 
 def main():
     """Main entry point."""
-    rebuild = '--rebuild' in sys.argv
-
     try:
-        return generate_catalog(rebuild=rebuild)
+        return generate_catalog()
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1

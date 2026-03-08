@@ -198,7 +198,7 @@ of all PICO-8 games created in the project.
 
 2. **Library Generator (`tools/generate-library.py`)**
    ```bash
-   python3 tools/generate-library.py [--rebuild]
+   python3 tools/generate-library.py
    ```
    - Scans all `games/YYYY-MM-DD/` directories
    - Aggregates metadata.json, test-report.json, session data
