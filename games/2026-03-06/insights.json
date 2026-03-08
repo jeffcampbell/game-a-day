@@ -1,0 +1,44 @@
+{
+  "date": "2026-03-06",
+  "generated_at": "2026-03-08T07:54:07.784895",
+  "has_sessions": true,
+  "session_count": 5,
+  "difficulty_assessment": {
+    "assessment": "balanced",
+    "reasoning": "Moderate completion rate (60%) indicates balanced difficulty",
+    "completion_rate_pct": 60.0,
+    "session_count": 5
+  },
+  "engagement_score": 0.48,
+  "player_behavior_patterns": {
+    "most_common_playstyle": "moderate",
+    "average_session_duration_seconds": 32.1,
+    "active_frames_percentage": 13.7,
+    "primary_states": [
+      "play",
+      "menu"
+    ]
+  },
+  "design_issues": [],
+  "recommendations": [
+    "Add difficulty ramp-up before frame 1263 or add tutorial hints",
+    "Game takes too long: consider pacing improvements or streamlining content"
+  ],
+  "metrics": {
+    "completion_rate_pct": 60.0,
+    "completion_breakdown": {
+      "won": 3,
+      "lost": 1,
+      "quit": 1
+    },
+    "avg_duration_frames": 1927.6,
+    "median_duration_frames": 1950,
+    "max_duration_frames": 2927,
+    "difficulty_cliff_frame": 1263,
+    "avg_state_times": {
+      "menu": 1,
+      "play": 1926.6
+    },
+    "input_activity_rate": 0.137
+  }
+}

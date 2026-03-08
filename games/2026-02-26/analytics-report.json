@@ -1,0 +1,55 @@
+{
+  "date": "2026-02-26",
+  "has_sessions": true,
+  "session_count": 5,
+  "metrics": {
+    "completion_rate_pct": 20.0,
+    "completion_breakdown": {
+      "quit": 3,
+      "lost": 1,
+      "won": 1
+    },
+    "avg_duration_frames": 1540.6,
+    "median_duration_frames": 1225,
+    "max_duration_frames": 2590,
+    "difficulty_cliff_frame": 2590,
+    "avg_state_times": {
+      "menu": 1,
+      "play": 1539.6
+    },
+    "input_activity_rate": 0.13
+  },
+  "test_report": null,
+  "session_samples": [
+    {
+      "duration_frames": 2590,
+      "completion_status": "quit",
+      "unique_states": 2,
+      "logs_count": 2
+    },
+    {
+      "duration_frames": 1225,
+      "completion_status": "quit",
+      "unique_states": 2,
+      "logs_count": 2
+    },
+    {
+      "duration_frames": 994,
+      "completion_status": "quit",
+      "unique_states": 2,
+      "logs_count": 2
+    },
+    {
+      "duration_frames": 693,
+      "completion_status": "lost",
+      "unique_states": 2,
+      "logs_count": 3
+    },
+    {
+      "duration_frames": 2201,
+      "completion_status": "won",
+      "unique_states": 2,
+      "logs_count": 3
+    }
+  ]
+}
