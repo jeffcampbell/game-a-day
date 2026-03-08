@@ -1,0 +1,267 @@
+#!/usr/bin/env python3
+"""
+Automated daily game initialization system.
+
+Detects if today's game directory is missing and creates a minimal scaffold.
+Idempotent: safe to run multiple times. If game exists, exits gracefully.
+
+Usage:
+  python3 tools/auto-init-daily-game.py [YYYY-MM-DD]
+
+If no date is provided, uses today's date.
+
+Exit codes:
+  0 = Success (game created or already exists)
+  1 = Error (directory creation failed, or invalid date format)
+"""
+
+import sys
+import os
+import json
+from datetime import datetime
+
+
+def parse_date(date_str=None):
+    """Parse date string or return today's date."""
+    if date_str is None:
+        return datetime.now().date()
+
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        print(f"Error: Invalid date format '{date_str}'. Use YYYY-MM-DD.", file=sys.stderr)
+        sys.exit(1)
+
+
+def generate_lua_boilerplate(game_title, game_date):
+    """Generate the Lua boilerplate code for a PICO-8 game."""
+    code = f"""-- {game_title}
+-- {game_date}
+
+testmode=false
+test_log={{}}
+test_inputs={{}}
+test_input_idx=0
+
+function _log(msg)
+ if testmode then add(test_log,msg) end
+end
+
+function _capture()
+ if testmode then add(test_log,"SCREEN:"..tostr(stat(0))) end
+end
+
+function test_input(b)
+ if testmode and test_input_idx<#test_inputs then
+  test_input_idx+=1
+  return test_inputs[test_input_idx] or 0
+ end
+ return btn()
+end
+
+state="menu"
+
+function _init()
+end
+
+function _update()
+ if state=="menu" then update_menu()
+ elseif state=="play" then update_play()
+ elseif state=="gameover" then update_gameover()
+ end
+end
+
+function _draw()
+ cls()
+ if state=="menu" then draw_menu()
+ elseif state=="play" then draw_play()
+ elseif state=="gameover" then draw_gameover()
+ end
+end
+
+function update_menu()
+end
+
+function draw_menu()
+end
+
+function update_play()
+end
+
+function draw_play()
+end
+
+function update_gameover()
+end
+
+function draw_gameover()
+end
+"""
+    return code
+
+
+def generate_label(game_title):
+    """Generate a minimal 128x128 label section with colored border pattern."""
+    # Create a label with dark blue border and purple center area
+    # 128 rows of 128 hex digits (PICO-8 palette indices)
+    lines = []
+
+    # Top border/padding (mostly 1s = dark blue)
+    for i in range(50):
+        lines.append("1" * 128)
+
+    # Center area (1s border with purple "a" center)
+    for i in range(28):
+        lines.append("1" * 12 + "a" * 104 + "1" * 12)
+
+    # Bottom border/padding
+    for i in range(50):
+        lines.append("1" * 128)
+
+    return "\n".join(lines)
+
+
+def generate_gfx_section():
+    """Generate blank sprite sheet section (128 rows of 128 hex 0s)."""
+    # Each row is 128 hex digits (128 pixels wide)
+    return "\n".join(["0" * 128 for _ in range(128)])
+
+
+def generate_p8_file(game_title, game_date):
+    """Generate complete .p8 cartridge file content."""
+    lua_code = generate_lua_boilerplate(game_title, game_date)
+    gfx_section = generate_gfx_section()
+    label_section = generate_label(game_title)
+
+    content = f"""pico-8 cartridge // http://www.pico-8.com
+version 42
+__lua__
+{lua_code}
+__gfx__
+{gfx_section}
+__label__
+{label_section}
+__sfx__
+"""
+    return content
+
+
+def generate_metadata_template(date_folder):
+    """Generate default metadata.json template."""
+    return {
+        "title": "Untitled Game",
+        "description": "A PICO-8 game",
+        "release_date": date_folder,
+        "genres": ["puzzle"],
+        "theme": "",
+        "difficulty": 3,
+        "playtime_minutes": 5,
+        "target_audience": "general",
+        "keywords": [],
+        "completion_status": "in-progress",
+        "tester_notes": "",
+        "token_count": 0,
+        "sprite_count": 0,
+        "sound_count": 0
+    }
+
+
+def generate_assessment_template():
+    """Generate assessment.md template for tester notes."""
+    return """# Assessment Notes
+
+Date:
+Tester:
+
+## Gameplay
+- [ ] Game launches without errors
+- [ ] Main menu is functional
+- [ ] Game state transitions work
+- [ ] Game over state works
+
+## Controls
+- [ ] Button inputs are responsive
+- [ ] Menu navigation works
+
+## Performance
+- [ ] Game runs at smooth framerate
+- [ ] No lag or stuttering
+
+## Code Quality
+- [ ] Game compiles without syntax errors
+- [ ] Token count is reasonable
+- [ ] Code follows project style guide
+
+## Notes
+(Add any additional observations here)
+"""
+
+
+def auto_init_game(date_str=None):
+    """Auto-initialize daily game if missing. Idempotent."""
+    game_date = parse_date(date_str)
+    date_folder = game_date.strftime("%Y-%m-%d")
+    game_title = "Untitled Game"
+
+    # Create game directory
+    game_dir = os.path.join("games", date_folder)
+
+    # Check if game already exists
+    game_p8_path = os.path.join(game_dir, "game.p8")
+    if os.path.exists(game_p8_path):
+        print(f"✓ Game {date_folder} already exists (idempotent - no changes made)")
+        return 0
+
+    # Try to create directory
+    try:
+        os.makedirs(game_dir, exist_ok=True)
+    except (OSError, IOError) as e:
+        print(f"Error: Could not create directory {game_dir}: {e}", file=sys.stderr)
+        return 1
+
+    # Generate and write game.p8
+    try:
+        p8_content = generate_p8_file(game_title, date_folder)
+        with open(game_p8_path, "w") as f:
+            f.write(p8_content)
+    except (OSError, IOError) as e:
+        print(f"Error: Could not write {game_p8_path}: {e}", file=sys.stderr)
+        return 1
+
+    # Generate and write assessment.md
+    try:
+        assessment_path = os.path.join(game_dir, "assessment.md")
+        assessment_content = generate_assessment_template()
+        with open(assessment_path, "w") as f:
+            f.write(assessment_content)
+    except (OSError, IOError) as e:
+        print(f"Error: Could not write assessment.md: {e}", file=sys.stderr)
+        return 1
+
+    # Generate and write metadata.json
+    try:
+        metadata_path = os.path.join(game_dir, "metadata.json")
+        metadata = generate_metadata_template(date_folder)
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+    except (OSError, IOError, json.JSONDecodeError) as e:
+        print(f"Error: Could not write metadata.json: {e}", file=sys.stderr)
+        return 1
+
+    # Success message
+    print(f"✓ Created {game_dir}")
+    print(f"  - {game_p8_path}")
+    print(f"  - {assessment_path}")
+    print(f"  - {metadata_path}")
+    print(f"\nNext steps:")
+    print(f"  1. Edit {game_p8_path} to implement game logic")
+    print(f"  2. Update metadata.json with game title, description, genres, difficulty")
+    print(f"  3. Run: pico8 {game_p8_path} -export {game_dir}/game.html")
+
+    return 0
+
+
+if __name__ == "__main__":
+    date_arg = sys.argv[1] if len(sys.argv) > 1 else None
+    exit_code = auto_init_game(date_arg)
+    sys.exit(exit_code)
