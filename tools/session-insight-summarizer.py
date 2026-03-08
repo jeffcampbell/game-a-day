@@ -22,7 +22,6 @@ import sys
 import json
 import argparse
 import re
-from pathlib import Path
 from datetime import datetime
 from collections import defaultdict, Counter
 import statistics
@@ -255,8 +254,7 @@ def generate_next_steps(game_dir, all_sessions, critical_failures, button_heatma
         })
 
     # Recommendation 2: Check input heatmap for unused controls
-    unused_buttons = [btn for btn, count in button_heatmap.items()
-                      if count == 0 and btn in ['x_button', 'down']]
+    unused_buttons = [btn for btn, count in button_heatmap.items() if count == 0]
     if unused_buttons and len(recommendations) < 3:
         btn_names = ', '.join(unused_buttons)
         recommendations.append({
@@ -438,6 +436,11 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Validate date format if provided
+    if args.game_date and not re.match(r'^\d{4}-\d{2}-\d{2}$', args.game_date):
+        print(f"Invalid date format: {args.game_date}. Expected YYYY-MM-DD")
+        sys.exit(1)
 
     if args.all:
         # Analyze all games with sessions
