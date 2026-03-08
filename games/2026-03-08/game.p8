@@ -29,8 +29,15 @@ state="menu"
 game_mode="adventure"  -- "adventure" or "endless"
 difficulty="normal"
 difficulty_cursor=2
-mode_cursor=1  -- 1=adventure, 2=endless
+mode_cursor=1  -- 1=adventure, 2=endless, 3=tutorial
 score=0
+
+-- tutorial mode variables
+tutorial_phase=0  -- 0=intro, 1=dash, 2=shield, 3=challenge
+tutorial_frames=0
+tutorial_dash_count=0
+tutorial_shield_count=0
+tutorial_enemy=nil
 best_score=0
 best_endless_score=0
 level_score=0
@@ -311,18 +318,18 @@ end
 
 function update_menu()
  if test_input(4)>0 or test_input(5)>0 then
-  state="mode_select"
+  state="tutorial_mode_select"
   mode_cursor=1
-  _log("state:mode_select")
+  _log("state:tutorial_mode_select")
  end
 end
 
-function update_mode_select()
+function update_tutorial_mode_select()
  if test_input(0)>0 or test_input(2)>0 then
   mode_cursor=max(1,mode_cursor-1)
  end
  if test_input(1)>0 or test_input(3)>0 then
-  mode_cursor=min(2,mode_cursor+1)
+  mode_cursor=min(3,mode_cursor+1)
  end
 
  if test_input(4)>0 or test_input(5)>0 then
@@ -331,7 +338,7 @@ function update_mode_select()
    state="difficulty_select"
    difficulty_cursor=2
    _log("state:difficulty_select")
-  else
+  elseif mode_cursor==2 then
    game_mode="endless"
    difficulty="normal"
    is_endless=true
@@ -341,6 +348,16 @@ function update_mode_select()
    wave=1
    init_endless_level()
    _log("state:play")
+  else
+   state="tutorial_intro"
+   tutorial_phase=0
+   tutorial_frames=0
+   tutorial_dash_count=0
+   tutorial_shield_count=0
+   player.x=32
+   player.y=64
+   enemies={}
+   _log("state:tutorial_intro")
   end
  end
 end
@@ -386,20 +403,24 @@ function draw_menu()
  print("z or x to start",32,114,11)
 end
 
-function draw_mode_select()
+function draw_tutorial_mode_select()
  cls(1)
  print("select game mode",28,30,7)
 
  local col1=7
  local col2=7
+ local col3=7
  if mode_cursor==1 then
   col1=11
- else
+ elseif mode_cursor==2 then
   col2=11
+ else
+  col3=11
  end
 
- print("adventure",40,60,col1)
- print("endless",44,80,col2)
+ print("adventure",40,50,col1)
+ print("endless",44,70,col2)
+ print("tutorial",44,90,col3)
 
  print("arrows select",32,105,7)
  print("z/x confirm",36,115,7)
@@ -423,6 +444,136 @@ function draw_difficulty_select()
 
  print("up/down select",32,110,7)
  print("z/x confirm",36,118,7)
+end
+
+-- tutorial functions
+function update_tutorial_intro()
+ tutorial_frames+=1
+ if tutorial_frames>120 then  -- 2 seconds at 60fps
+  state="tutorial_dash"
+  tutorial_phase=1
+  tutorial_frames=0
+  tutorial_dash_count=0
+  _log("state:tutorial_dash")
+ end
+ if test_input(4)>0 or test_input(5)>0 then
+  state="menu"
+  _log("tutorial_skip")
+ end
+end
+
+function update_tutorial_dash()
+ tutorial_frames+=1
+
+ -- handle movement
+ local dx=0
+ local dy=0
+ if test_input(0)>0 then dx-=player.speed end
+ if test_input(1)>0 then dx+=player.speed end
+ if test_input(2)>0 then dy-=player.speed end
+ if test_input(3)>0 then dy+=player.speed end
+
+ player.x=mid(8,player.x+dx,120)
+ player.y=mid(8,player.y+dy,120)
+
+ -- dash detection
+ if test_input(5)>0 and frames-last_dash_frame>=dash_cooldown then
+  tutorial_dash_count+=1
+  last_dash_frame=frames
+  _log("tutorial_dash_performed")
+  if tutorial_dash_count>=3 then
+   state="tutorial_shield"
+   tutorial_phase=2
+   tutorial_frames=0
+   tutorial_shield_count=0
+   _log("state:tutorial_shield")
+  end
+ end
+
+ if test_input(4)>0 or tutorial_frames>300 then  -- 5 seconds max
+  state="menu"
+  _log("tutorial_skip")
+ end
+end
+
+function update_tutorial_shield()
+ tutorial_frames+=1
+
+ -- handle movement
+ local dx=0
+ local dy=0
+ if test_input(0)>0 then dx-=player.speed end
+ if test_input(1)>0 then dx+=player.speed end
+ if test_input(2)>0 then dy-=player.speed end
+ if test_input(3)>0 then dy+=player.speed end
+
+ player.x=mid(8,player.x+dx,120)
+ player.y=mid(8,player.y+dy,120)
+
+ -- shield detection (down button + not pressing it previously)
+ local down_input=test_input(3)
+ if down_input>0 and prev_down_btn==0 and frames-last_shield_frame>=shield_cooldown then
+  tutorial_shield_count+=1
+  last_shield_frame=frames
+  shield_invuln_start=frames
+  _log("tutorial_shield_performed")
+  if tutorial_shield_count>=3 then
+   state="menu"
+   _log("tutorial_complete")
+  end
+ end
+ prev_down_btn=down_input
+
+ if test_input(4)>0 or tutorial_frames>300 then  -- 5 seconds max
+  state="menu"
+  _log("tutorial_skip")
+ end
+end
+
+function draw_tutorial_intro()
+ cls(1)
+ print("welcome to tutorial",20,20,7)
+ print("learn advanced tactics",16,35,11)
+ print("x button dash fast",22,50,11)
+ print("down shield protect",20,65,11)
+ print("arrows to move",28,90,7)
+ print("starting soon...",28,110,7)
+end
+
+function draw_tutorial_dash()
+ cls(1)
+ print("dash practice",32,15,7)
+ print("press x to dash",28,35,11)
+ print("try 3 dashes",32,50,11)
+ print("progress: "..tutorial_dash_count.."/3",24,70,14)
+
+ -- draw player
+ spr(1,player.x-4,player.y-4)
+
+ -- flash player if recently dashed
+ if frames-last_dash_frame<dash_invuln_frames then
+  spr(2,player.x-4,player.y-4)
+ end
+
+ print("z to skip",40,115,8)
+end
+
+function draw_tutorial_shield()
+ cls(1)
+ print("shield practice",28,15,7)
+ print("hold down to shield",20,35,11)
+ print("try 3 shields",32,50,11)
+ print("progress: "..tutorial_shield_count.."/3",24,70,14)
+
+ -- draw player
+ spr(1,player.x-4,player.y-4)
+
+ -- show shield if active
+ if frames-shield_invuln_start<shield_invuln_frames then
+  circ(player.x,player.y,12,14)
+ end
+
+ print("z to skip",40,115,8)
 end
 
 function update_play()
@@ -923,17 +1074,24 @@ end
 
 function _update()
  if state=="menu" then update_menu()
- elseif state=="mode_select" then update_mode_select()
+ elseif state=="tutorial_mode_select" then update_tutorial_mode_select()
  elseif state=="difficulty_select" then update_difficulty_select()
+ elseif state=="tutorial_intro" then update_tutorial_intro()
+ elseif state=="tutorial_dash" then update_tutorial_dash()
+ elseif state=="tutorial_shield" then update_tutorial_shield()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
  end
+ if state~="play" then frames+=1 end
 end
 
 function _draw()
  if state=="menu" then draw_menu()
- elseif state=="mode_select" then draw_mode_select()
+ elseif state=="tutorial_mode_select" then draw_tutorial_mode_select()
  elseif state=="difficulty_select" then draw_difficulty_select()
+ elseif state=="tutorial_intro" then draw_tutorial_intro()
+ elseif state=="tutorial_dash" then draw_tutorial_dash()
+ elseif state=="tutorial_shield" then draw_tutorial_shield()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
  end
