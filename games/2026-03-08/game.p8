@@ -374,9 +374,9 @@ function update_play()
   _log("dash")
  end
 
- -- shield mechanic (down button) - activate while holding down
+ -- shield mechanic (down button) - activate on button press
  local down_btn=test_input(3)
- local is_shield_active=down_btn>0 and frames-last_shield_frame<shield_cooldown
+ local is_shield_active=frames-shield_invuln_start<shield_invuln_frames
 
  -- activate shield on button press (transition from not held to held)
  if down_btn>0 and prev_down_btn==0 and frames-last_shield_frame>=shield_cooldown then
