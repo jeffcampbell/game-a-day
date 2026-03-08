@@ -5,15 +5,18 @@ Simulates diverse playstyles to validate audio improvements and gameplay balance
 Generates deterministic but realistic game behavior patterns.
 
 Usage:
-  python3 tools/generate-test-sessions.py 2026-03-08 [--sessions 10] [--playstyles aggressive,careful,strategic,random,passive]
+  python3 tools/generate-test-sessions.py 2026-03-08 [--sessions 10] [--playstyles aggressive careful strategic random passive]
 """
 
 import sys
 import json
 import os
 import random
+import argparse
 from datetime import datetime
 from pathlib import Path
+
+VALID_PLAYSTYLES = {"aggressive", "careful", "strategic", "random", "passive"}
 
 
 def generate_session(game_date, playstyle, session_num):
@@ -243,20 +246,38 @@ def generate_session(game_date, playstyle, session_num):
 
 def main():
     """Generate test sessions for validation."""
-    if len(sys.argv) < 2:
-        print("Usage: python3 tools/generate-test-sessions.py <game_date> [--sessions N] [--playstyles style1,style2,...]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Generate realistic playtest sessions to validate game improvements.",
+        epilog="Example: python3 tools/generate-test-sessions.py 2026-03-08 --sessions 5 --playstyles aggressive careful strategic"
+    )
+    parser.add_argument(
+        "game_date",
+        help="Game date (YYYY-MM-DD)"
+    )
+    parser.add_argument(
+        "--sessions",
+        type=int,
+        default=5,
+        help="Number of sessions per playstyle (default: 5)"
+    )
+    parser.add_argument(
+        "--playstyles",
+        nargs="+",
+        default=list(VALID_PLAYSTYLES),
+        help="Playstyles to simulate (default: all five)"
+    )
 
-    game_date = sys.argv[1]
-    num_sessions = 5  # default
-    playstyles = ["aggressive", "careful", "strategic", "random", "passive"]
+    args = parser.parse_args()
 
-    # Parse args
-    for i, arg in enumerate(sys.argv[2:]):
-        if arg == "--sessions" and i + 3 < len(sys.argv):
-            num_sessions = int(sys.argv[i + 3])
-        elif arg == "--playstyles" and i + 3 < len(sys.argv):
-            playstyles = sys.argv[i + 3].split(",")
+    game_date = args.game_date
+    num_sessions = args.sessions
+    playstyles = args.playstyles
+
+    # Validate playstyles
+    for playstyle in playstyles:
+        if playstyle not in VALID_PLAYSTYLES:
+            print(f"Error: Invalid playstyle '{playstyle}'. Must be one of: {', '.join(sorted(VALID_PLAYSTYLES))}")
+            sys.exit(1)
 
     # Verify game exists
     game_dir = Path(f"games/{game_date}")
@@ -279,7 +300,6 @@ def main():
                 session = generate_session(game_date, playstyle, session_num)
 
                 # Save session
-                timestamp = session["timestamp"].replace(":", "").replace(".", "").replace("-", "").replace("Z", "")[:15]
                 session_file = game_dir / f"session_{playstyle}_{session_num:02d}.json"
 
                 with open(session_file, "w") as f:
