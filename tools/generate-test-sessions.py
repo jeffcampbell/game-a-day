@@ -11,6 +11,7 @@ Usage:
 import sys
 import json
 import os
+import re
 import random
 import argparse
 from datetime import datetime
@@ -272,6 +273,11 @@ def main():
     game_date = args.game_date
     num_sessions = args.sessions
     playstyles = args.playstyles
+
+    # Validate game_date format
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', game_date):
+        print(f"Error: Invalid game_date format. Must be YYYY-MM-DD (e.g., 2026-03-08), got '{game_date}'")
+        sys.exit(1)
 
     # Validate playstyles
     for playstyle in playstyles:
