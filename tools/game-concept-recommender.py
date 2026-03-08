@@ -525,6 +525,16 @@ def main():
 
     args = parser.parse_args()
 
+    # Validate date argument if provided
+    if args.date:
+        if not parse_date(args.date):
+            print(f"Error: Invalid date format '{args.date}'. Use YYYY-MM-DD format.", file=sys.stderr)
+            sys.exit(1)
+        target_date = args.date
+    else:
+        # Use today's date
+        target_date = datetime.now().strftime('%Y-%m-%d')
+
     # Load catalog
     catalog = load_catalog()
     if not catalog:
@@ -533,13 +543,6 @@ def main():
 
     # Generate recommendation
     recommendation = generate_recommendation(catalog, days=args.days)
-
-    # Determine target date
-    if args.date:
-        target_date = args.date
-    else:
-        # Use today's date
-        target_date = datetime.now().strftime('%Y-%m-%d')
 
     # Write to game directory if successful
     if recommendation.get('status') == 'success':
