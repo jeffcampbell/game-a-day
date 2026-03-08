@@ -14,21 +14,22 @@
       "play",
       "menu"
     ],
-    "logs_captured": 42,
+    "logs_captured": 54,
     "events": {
       "state_transitions": 4,
-      "game_events": 35,
-      "gameover_events": 2
+      "game_events": 46,
+      "gameover_events": 3
     },
     "exit_state": "analysis_complete",
     "metadata": {
       "title": "Cave Escape",
-      "description": "Navigate a dangerous cave while avoiding enemies. Progress through two levels to escape to freedom. Use arrow keys to move and reach the glowing exit portal before you run out of health.",
+      "description": "Navigate a dangerous cave while avoiding enemies. Progress through three escalating levels to escape to freedom. Use arrow keys to move and reach the glowing exit portal before you run out of health. Master the dash mechanic (X button) for advanced dodge strategies.",
       "genres": [
-        "adventure"
+        "adventure",
+        "action"
       ],
-      "difficulty": 2,
-      "completion_status": "in-progress"
+      "difficulty": 3,
+      "completion_status": "polished"
     }
   },
   "metrics": {}

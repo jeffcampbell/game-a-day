@@ -51,6 +51,12 @@ enemies={}
 -- exit portal
 exit_portal={x=115,y=15,w=8,h=8}
 
+-- boss entity (only in level 3)
+boss=nil
+boss_health=0
+boss_hit_frame=-1000
+boss_invuln_frames=30  -- 0.5 seconds visual feedback
+
 -- difficulty ramp-up: ease in enemies during first 30s (1800 frames)
 difficulty_ramp_duration=1800
 
@@ -98,6 +104,9 @@ function init_level()
  level_start_frame=frames
  level_score=0
  power_up_spawned=false
+ boss=nil
+ boss_health=0
+ boss_hit_frame=-1000
 
  -- reset adaptive difficulty tracking
  hit_times={}
@@ -166,6 +175,22 @@ function init_level()
  elseif level==3 then
   player.x=12
   player.y=100
+
+  -- level 3: boss encounter
+  -- boss spawns at center-top
+  local boss_speed=0.7
+  local boss_health_val=3
+  if difficulty=="hard" then
+   boss_speed=0.8
+   boss_health_val=4
+  elseif difficulty=="easy" then
+   boss_speed=0.6
+   boss_health_val=3
+  end
+
+  boss={x=64,y=25,w=12,h=12,speed=boss_speed,dir=1,health=boss_health_val}
+  boss_health=boss_health_val
+  _log("boss_encounter")
 
   -- level 3: 4-5 enemies initially, 5-10% faster than level 2
   if level_start_frame>0 then
@@ -637,6 +662,41 @@ function update_play()
   player.slow_end=nil
  end
 
+ -- boss update and collision (level 3 only)
+ if boss~=nil then
+  boss.x+=boss.speed*boss.dir
+
+  if boss.x<2 or boss.x>126 then
+   boss.dir=-boss.dir
+  end
+
+  -- boss collision detection
+  local is_dash_invuln=frames-dash_invuln_start<dash_invuln_frames
+  local is_shield_invuln=frames-shield_invuln_start<shield_invuln_frames
+
+  if collide(player,boss) then
+   if is_shield_invuln then
+    -- shield blocks the collision
+    _log("shield_block")
+   elseif not is_dash_invuln then
+    -- hit boss
+    boss.health-=1
+    boss_hit_frame=frames
+    _log("boss_hit")
+    sfx(5)  -- boss hit sound
+
+    if boss.health<=0 then
+     score+=500
+     _log("boss_defeated")
+     -- fanfare sound
+     sfx(6)
+    else
+     player.x-=dx*4
+    end
+   end
+  end
+ end
+
  for i=1,#enemies do
   local e=enemies[i]
   e.x+=e.speed*e.dir
@@ -696,7 +756,12 @@ function update_play()
   if level>2 then
    _log("level_3_complete")
    state="gameover"
-   _log("gameover:win")
+   -- check boss status for perfect victory
+   if boss~=nil and boss.health<=0 then
+    _log("gameover:win_perfect")
+   else
+    _log("gameover:win")
+   end
   else
    init_level()
    _log("level_complete")
@@ -729,6 +794,22 @@ function draw_play()
   end
 
   spr(0,player.x-4,player.y-4)
+  pal()
+ end
+
+ -- draw boss with visual feedback on hit
+ if boss~=nil then
+  -- flash on hit (0.5s visual feedback)
+  local boss_draw_color=8  -- darker red normally
+  if frames-boss_hit_frame<boss_invuln_frames then
+   boss_draw_color=15  -- white flash on hit
+  end
+  -- draw boss as larger sprite with outline
+  rectfill(boss.x-6,boss.y-6,boss.x+6,boss.y+6,boss_draw_color)
+  rect(boss.x-6,boss.y-6,boss.x+6,boss.y+6,15)  -- white outline
+  -- draw enemy sprite (1) in center
+  pal(8,boss_draw_color)
+  spr(1,boss.x-4,boss.y-4)
   pal()
  end
 
@@ -766,10 +847,14 @@ function draw_play()
   print("sc "..total_score,2,2,7)
   print("lvl "..level,40,2,7)
   print("hp "..max(0,health),90,2,7)
+  -- display boss health on level 3
+  if boss~=nil then
+   print("boss hp:"..max(0,boss.health),55,12,8)
+  end
   -- display held power-up with activation hint
   if player_power_up~=nil then
-   print("pow:"..player_power_up.type,50,12,10)
-   print("press down!",52,22,11)
+   print("pow:"..player_power_up.type,50,22,10)
+   print("press down!",52,32,11)
   end
   print("find exit (top right)",10,120,14)
  end
@@ -1119,3 +1204,4 @@ __sfx__
 001004,255,000,000,6006,6006,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,2020,3030,4040,3030,2020,1010,2020,3030,4040,3030,2020,1010,2020,3030,4040,3030,2020,1010,2020,3030,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,7007,6006,5005,4004,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
+001004,255,000,000,5005,6006,7007,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
