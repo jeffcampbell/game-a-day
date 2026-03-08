@@ -70,7 +70,8 @@ The generated cartridge includes:
 
 #### __label__ Section
 - 128×128 pixel label image for the cartridge thumbnail
-- Filled with appropriate colors ready for customization
+- Filled with PICO-8 palette indices (hex digits: 1=dark blue border, a=purple center)
+- Can be customized by editing the hex digit values in the PICO-8 editor
 
 ## Token Count
 

@@ -10,8 +10,7 @@ If no date is provided, uses today's date.
 
 import sys
 import os
-from datetime import datetime, timedelta
-import os.path
+from datetime import datetime
 
 
 def parse_date(date_str=None):
@@ -94,19 +93,16 @@ end
 
 
 def generate_label(game_title):
-    """Generate a minimal 128x128 label section with game title."""
-    # Create a label with border and title text in the center
-    # 128 rows of 128 hex digits each
+    """Generate a minimal 128x128 label section with colored border pattern."""
+    # Create a label with dark blue border and purple center area
+    # 128 rows of 128 hex digits (PICO-8 palette indices)
     lines = []
 
-    # Top border/padding (mostly 1s)
+    # Top border/padding (mostly 1s = dark blue)
     for i in range(50):
         lines.append("1" * 128)
 
-    # Center area with title (approximate)
-    title_hex = "".join(format(ord(c), 'x') for c in game_title[:20].ljust(20))
-    title_display = "a" * 96 + "1" * 32
-
+    # Center area (1s border with purple "a" center)
     for i in range(28):
         lines.append("1" * 12 + "a" * 104 + "1" * 12)
 
