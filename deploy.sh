@@ -7,6 +7,9 @@ cd /home/pi/Development/game-a-day
 TODAY=$(date +%Y-%m-%d)
 GAME_DIR="games/$TODAY"
 
+# Auto-initialize today's game if missing (idempotent)
+python3 tools/auto-init-daily-game.py "$TODAY" || true
+
 if [ ! -f "$GAME_DIR/game.p8" ]; then
     echo "No game found at $GAME_DIR/game.p8"
     exit 0  # Not an error — game may not be ready yet

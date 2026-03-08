@@ -1,0 +1,18 @@
+{
+  "title": "Untitled Game",
+  "description": "A PICO-8 game",
+  "release_date": "2026-03-07",
+  "genres": [
+    "puzzle"
+  ],
+  "theme": "",
+  "difficulty": 3,
+  "playtime_minutes": 5,
+  "target_audience": "general",
+  "keywords": [],
+  "completion_status": "in-progress",
+  "tester_notes": "",
+  "token_count": 0,
+  "sprite_count": 0,
+  "sound_count": 0
+}
