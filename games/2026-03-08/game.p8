@@ -543,16 +543,18 @@ function update_play()
     enemy_count=min(4+flr((wave-2)/2),10)  -- wave 3+: increase by 1 every 2 waves
    end
 
-   -- award points: 10 per enemy dodged + 50 for wave completion
-   score+=enemy_count*10+50
+   -- award points: 10 per enemy + 100 for wave survival
+   score+=enemy_count*10+100
 
    for j=1,enemy_count do
     local spawn_y=20+flr(rnd(80))
     local spawn_x=10+flr(rnd(100))
     local speed_base=0.6+wave*0.05  -- slightly more conservative speed increase
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.8 end  -- 20% speed reduction for passive players
     local dir=1
     if j%2==0 then dir=-1 end
-    add(enemies,{x=spawn_x,y=spawn_y,w=8,h=8,speed=speed_base*adaptive_speed_mult,dir=dir})
+    add(enemies,{x=spawn_x,y=spawn_y,w=8,h=8,speed=speed_base*adaptive_speed_mult*passive_speed_mult,dir=dir})
    end
    _log("wave:"..wave)
   end
