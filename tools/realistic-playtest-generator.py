@@ -12,6 +12,7 @@ Usage:
 
 import sys
 import json
+import random
 import argparse
 from pathlib import Path
 from datetime import datetime
@@ -92,13 +93,11 @@ class RealisticPlaytestGenerator:
             Session dict with button_sequence, logs, and metadata
         """
         # Deterministic random generator seeded by player profile + seed
-        import random
         rng = random.Random(hash(profile.name) + seed)
 
         # Session metadata
         button_sequence = []
         logs = []
-        state = "menu"
         duration_frames = 0
         max_duration = 3600  # 60 seconds at 60fps
 
@@ -154,7 +153,7 @@ class RealisticPlaytestGenerator:
 
         return {
             "date": self.game_dir.name,
-            "timestamp": datetime.now().isoformat() + "Z",
+            "timestamp": datetime.now().isoformat(),
             "duration_frames": len(button_sequence),
             "button_sequence": button_sequence,
             "logs": logs[:30],  # Cap logs for safety
@@ -178,8 +177,6 @@ class RealisticPlaytestGenerator:
         Returns:
             Tuple of (button_sequence, completion_logged)
         """
-        import random
-
         buttons = []
         current_level = len([l for l in logs if "level_" in l and "start" in l])
         safety_counter = 0
@@ -269,7 +266,6 @@ class RealisticPlaytestGenerator:
         for session in sessions:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             # Slightly randomize timestamp to avoid collisions
-            import random
             timestamp = f"{timestamp}_{random.randint(1000, 9999)}"
 
             filename = f"session_{timestamp}.json"
@@ -313,8 +309,7 @@ def main():
     args = parser.parse_args()
 
     # Validate game exists
-    base_dir = Path("/home/pi/Development/game-a-day/.worktrees/regular-0")
-    game_dir = base_dir / "games" / args.game_date
+    game_dir = Path("games") / args.game_date
 
     if not game_dir.exists():
         print(f"Error: Game directory not found: {game_dir}")
