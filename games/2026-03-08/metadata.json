@@ -1,18 +1,19 @@
 {
   "title": "Cave Escape",
-  "description": "Navigate a dangerous cave while avoiding enemies. Progress through two levels to escape to freedom. Use arrow keys to move and reach the glowing exit portal before you run out of health.",
+  "description": "Navigate a dangerous cave while avoiding enemies. Progress through three escalating levels to escape to freedom. Use arrow keys to move and reach the glowing exit portal before you run out of health. Master the dash mechanic (X button) for advanced dodge strategies.",
   "release_date": "2026-03-08",
   "genres": [
-    "adventure"
+    "adventure",
+    "action"
   ],
   "theme": "exploration",
-  "difficulty": 2,
+  "difficulty": 3,
   "playtime_minutes": 5,
   "target_audience": "general",
-  "keywords": ["dodge", "exploration", "adventure"],
-  "completion_status": "in-progress",
-  "tester_notes": "",
-  "token_count": 928,
-  "sprite_count": 0,
-  "sound_count": 0
+  "keywords": ["dodge", "exploration", "adventure", "three-level", "dash"],
+  "completion_status": "polished",
+  "tester_notes": "Level 3 adds escalating difficulty with 4-7 enemies at increased speed. Target completion rate 75%+ with level 3 as expert tier.",
+  "token_count": 2846,
+  "sprite_count": 3,
+  "sound_count": 4
 }
