@@ -1,42 +1,35 @@
 # Dungeon Crawler RPG - Balance & Polish Assessment
 
-## Tutorial/Controls Menu Implementation
+## Architectural Compliance Fix (Inspector Feedback)
 
-### Overview
-Added a "Controls" menu option accessible from the main difficulty selection menu. Selecting "Controls" transitions to a tutorial state where players can view button mappings and return to the menu using the X button.
+### Issue Resolved
+**Critical Issue**: Tutorial state was implemented in `_update()` but missing from `_draw()`, violating CLAUDE.md state machine pattern requirement.
+
+**Resolution**: Removed tutorial feature entirely to restore architectural compliance (Option A from inspector feedback).
 
 ### Changes Made
-- **Menu Integration**: Replaced the "Quit" option (menu_sel == 3) with "Controls" (tutorial state)
-- **State Machine**: Tutorial state implemented in _update() but NOT in _draw() - INCOMPLETE
-- **Input Handling**: X button (button 5) properly returns from tutorial to menu
-- **Display**: No tutorial display code implemented due to token budget constraints
+- Removed `elseif state=="tutorial"` handler from `_update()` (line 337)
+- Removed `menu_sel == 3` tutorial selection handler (lines 411-412)
+- Removed "controls" menu item from `draw_menu()` (line 451)
+- Updated menu_sel comment to reflect valid range (0=easy, 1=normal, 2=hard)
+
+### State Machine Validation
+- ✅ All states have matching handlers in both `_update()` and `_draw()`
+- ✅ Complete state machine pattern now matches CLAUDE.md requirement
+- ✅ Valid states: menu → play → gameover (and back)
+- ✅ No incomplete branching or blank screen states
 
 ### Token Budget Status
-- **Before tutorial addition**: 8175/8192 tokens (17 available)
-- **After tutorial addition**: 8192/8192 tokens (0 available)
-- **Remaining capacity**: 0 tokens (100% utilized)
+- **After tutorial removal**: 8150/8192 tokens (42 tokens freed)
+- **Remaining capacity**: 42 tokens (99.5% utilized)
+- **Game still exports successfully** to HTML/JS
 
-### Design Notes
-- Tutorial is presented as an accessible menu option from the main menu
-- **ISSUE**: Tutorial state is ONLY implemented in _update(), not in _draw() - this violates the required state machine pattern
-- **ROOT CAUSE**: Game is at 8192/8192 tokens (100% capacity). Adding display code would exceed limit
-- **CONSEQUENCES**: When player selects "Controls", screen remains blank (cls() only)
-- Test infrastructure (_log, test_input) continues to function properly
-- Game exports successfully to HTML/JS format
-
-### Architectural Violation & Resolution Options
-
-**Current State**:
-- Tutorial state transitions work correctly (menu → tutorial → menu via X button)
-- X button input handling implemented and functional
-- No visual feedback or control information displayed
-
-**Options to Resolve**:
-1. **Remove tutorial feature entirely** - Restores complete state machine at cost of feature
-2. **Optimize other code** - Reduce tokens elsewhere to free space for tutorial display
-3. **Accept incomplete architecture** - Document as known limitation pending optimization
-
-**Recommendation**: Option 2 (optimize other code) or Option 1 (remove tutorial) to maintain architectural integrity required by CLAUDE.md
+### Assessment of Removed Feature
+The tutorial was well-intentioned polish to address "unused buttons: left, x_button" note from previous assessment. However:
+- Game was at 100% token capacity with tutorial incomplete
+- Architectural compliance is mandatory per CLAUDE.md
+- Better to have complete, compliant game than feature with incomplete state machine
+- Core game mechanics and balance remain untouched and fully functional
 
 ### Future Considerations
 - Full button guide display would require additional tokens (~20-30)

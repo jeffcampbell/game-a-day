@@ -21,7 +21,7 @@ end
 
 -- game state machine
 state = "menu"
-menu_sel = 0  -- 0=easy, 1=normal, 2=hard, 3=tutorial
+menu_sel = 0  -- 0=easy, 1=normal, 2=hard
 prev_input = 0
 difficulty = 2  -- 1=easy, 2=normal, 3=hard
 
@@ -334,7 +334,6 @@ function _update()
 
   if state == "menu" then update_menu()
   elseif state == "play" then update_play()
-  elseif state=="tutorial"then if(test_input()&32>0and prev_input&32==0)state="menu"prev_input=test_input()
   elseif state == "gameover" then update_gameover()
   end
 end
@@ -408,8 +407,6 @@ function update_menu()
       _log("state:play")
       state = "play"
       reset_combat()
-    elseif menu_sel == 3 then
-      state = "tutorial"
     end
   end
 
@@ -445,10 +442,6 @@ function draw_menu()
 
   -- hard
   draw_item(2, "hard", 7)
-  y += 10
-
-  -- tutorial
-  draw_item(3, "controls", 8)
 
   print("z/c to select", 22, 110, 5)
 end
