@@ -842,7 +842,7 @@ function update_gameover()
       menu_sel = 0
     end
     reset_game()
-    state=="play"and reset_combat()
+    if state == "play" then reset_combat() end
   end
 
   prev_input = input
@@ -2027,15 +2027,9 @@ function reset_game()
   player.inventory = {}
   player.status_effects = {}
 
-  enemy_count = 0
-  boss_defeated = false
-  combat_over = false
-  player_won = false
-  combat_escaped = false
+  enemy_count, turn, equip_menu_sel, gameover_sel = 0, 0, 0, 0
+  boss_defeated, combat_over, player_won, combat_escaped, show_equip_menu = false, false, false, false, false
   combat_log = {}
-  turn = 0
-  show_equip_menu = false
-  equip_menu_sel = 0
 
   -- reset floor progression
   current_floor = 1
