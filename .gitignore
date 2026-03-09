@@ -25,3 +25,6 @@ games/**/concept-recommendation.json
 
 # Generated skeleton enhancement plans (created by tools/skeleton-game-enhancer.py)
 games/**/skeleton-enhancement-plan.json
+
+# Deployment logs (created by deploy.sh)
+deploy.log
