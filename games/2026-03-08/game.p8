@@ -74,7 +74,7 @@ last_near_miss_frame=-100  -- debounce near-miss sound
 -- dash mechanics
 dash_cooldown=30  -- 0.5 seconds at 60fps
 last_dash_frame=-100
-dash_invuln_frames=10
+dash_invuln_frames=12  -- increased from 10 for better protection feel
 dash_invuln_start=-100
 dash_speed_mult=2.5
 dash_streak=0  -- consecutive dashes without damage
@@ -87,6 +87,7 @@ player_used_dash=false
 level_2_dash_reminder=false
 damage_prompt_frame=-1000  -- when player took damage to show prompt
 first_hit_shown=false  -- track if we've shown first hit prompt
+first_enemy_shown=false  -- track if we've shown first enemy encounter prompt
 
 -- adaptive difficulty tracking
 hit_times={}  -- sliding window of last hit frames
@@ -149,6 +150,7 @@ function init_level()
 
  -- reset reminder flags for new level
  level_2_dash_reminder=false
+ first_enemy_shown=false
 
  -- reset damage prompt for new level
  damage_prompt_frame=-1000
@@ -919,9 +921,10 @@ function draw_play()
  -- draw mechanic ready indicators at top right
  local dash_ready=frames-last_dash_frame>=dash_cooldown
 
- -- dash indicator (X button)
+ -- dash indicator (X button) - always visible HUD
  local dash_color=5  -- red when on cooldown
  if dash_ready then dash_color=11 end  -- cyan when ready
+ print("x:",100,1,7)  -- label
  rectfill(110,1,121,9,dash_color)
  if dash_ready then
   print("x",113,2,0)  -- show "x" in black when ready
@@ -947,6 +950,15 @@ function draw_play()
 
   -- show tutorial reminders for unused mechanics
   local elapsed=frames-level_start_frame
+
+  -- first enemy encounter prompt (level 1)
+  if level==1 and #enemies>0 and not player_used_dash and not first_enemy_shown then
+   print("enemy! press x to dash",18,115,10)  -- first enemy prompt
+   first_enemy_shown=true
+   sfx(7)  -- play dash-ready sound to draw attention
+   _log("first_enemy_prompt")
+  end
+
   if level==2 and not player_used_dash and elapsed>600 and not level_2_dash_reminder then
    print("try x!",58,120,11)  -- prompt for dash
    level_2_dash_reminder=true
@@ -956,8 +968,8 @@ function draw_play()
   if dash_streak>0 then
    print("dash x"..dash_streak,2,22,11)  -- show dash streak
   end
-  if elapsed<300 and not player_used_dash then
-   print("x:dash!",48,115,10)  -- early game prompt
+  if elapsed<450 and not player_used_dash and not first_enemy_shown then
+   print("x:dash!",48,115,10)  -- early game prompt (extended to 7.5s)
   end
 
   -- damage prompt: show for 2 seconds (120 frames) after taking first hit
@@ -967,6 +979,13 @@ function draw_play()
    rectfill(20,50,108,70,1)  -- background
    rect(20,50,108,70,8)  -- red border
    print("press x to dodge!",26,57,prompt_color)
+  end
+
+  -- dash feedback: show "DASH!" briefly when player dashes
+  local is_dash_invuln=frames-dash_invuln_start<dash_invuln_frames
+  if is_dash_invuln and frames-last_dash_frame<6 then
+   print("dash!",54,50,11)  -- cyan feedback text
+   _log("dash_feedback")
   end
 
   print("find exit (top right)",10,120,14)
