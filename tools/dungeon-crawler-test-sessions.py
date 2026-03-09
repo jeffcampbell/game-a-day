@@ -116,15 +116,16 @@ def generate_dungeon_session(difficulty, outcome, session_num):
         # Simulate action selections during combat
         # Combat actions: attack, defend, ability, potion, item, flee
         if outcome == "quit" and current_turn > base_turns // 2:
-            # Quit mid-combat
+            # Quit mid-combat: simulate player navigating to menu to exit
+            # Unlike win/loss, quit sessions transition to menu state (not gameover)
             button_sequence.extend([0] * random.randint(30, 60))
-            # Navigate to quit/menu (down multiple times, then O)
+            # Navigate to quit/menu option (down button navigation, then confirm)
             for _ in range(3):
                 button_sequence.append(BTN_DOWN)
                 button_sequence.extend([0] * random.randint(3, 8))
             button_sequence.append(BTN_O)
             logs.append(f"turn:{current_turn}")
-            logs.append("state:menu")
+            logs.append("state:menu")  # Simulates menu state reached after quit action
             break
 
         # Attack action - most common
@@ -171,6 +172,7 @@ def generate_dungeon_session(difficulty, outcome, session_num):
             button_sequence.append(0)
 
     # Handle end state
+    # Note: quit sessions transition to menu state, not gameover state (player exits before game over)
     if outcome == "quit":
         exit_state = "quit"
     elif outcome == "win":

@@ -98,16 +98,30 @@ def detect_completion_status(session):
     """Determine if session was completed based on logs and exit state.
 
     Returns one of: 'won', 'lost', 'quit'.
-    """
-    logs = session.get('logs', [])
 
-    # Check logs for explicit win/loss
+    Checks exit_state field first (most reliable), then falls back to log patterns.
+    Recognizes both explicit patterns ('gameover:win', 'result:win') and exit states.
+    """
+    # Check exit_state field first (most reliable)
+    exit_state = session.get('exit_state', '').lower()
+    if exit_state == 'won':
+        return 'won'
+    if exit_state == 'lost':
+        return 'lost'
+    if exit_state == 'quit':
+        return 'quit'
+
+    # Fallback: check logs for explicit win/loss patterns
+    logs = session.get('logs', [])
     for log in logs:
-        if 'gameover:win' in log or 'win' in log.lower():
+        # Check for win patterns
+        if 'gameover:win' in log or 'result:win' in log or 'win' in log.lower():
             return 'won'
-        if 'gameover:lose' in log or 'gameover:loss' in log:
+        # Check for loss patterns
+        if 'gameover:lose' in log or 'gameover:loss' in log or 'result:loss' in log:
             return 'lost'
 
+    # Default to quit if no explicit completion found
     return 'quit'
 
 

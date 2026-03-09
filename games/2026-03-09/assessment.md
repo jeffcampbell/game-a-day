@@ -142,13 +142,28 @@
 - Resource distribution enforced (Easy 3 potions, Normal 2, Hard 1 mentions)
 - Boss pacing differentiated across difficulties
 
-**Testing Methodology Note:**
-These sessions were generated with structured input patterns representing distinct playstyles:
-- Win sessions show sustained engagement and progression
-- Loss sessions show early engagement with difficulty spikes
-- Quit sessions show brief engagement before exit
+**Data Source & Verification:**
 
-For production validation, recommend recording live playtest sessions via:
+**Session Metrics**: All values (duration, log counts, exit states) are extracted from actual recorded session JSON files:
+- `session_20260309_094225.163531_easy_win.json` → 15.2s, 46 logs, exit_state: "won"
+- `session_20260309_094225.164311_easy_loss.json` → 8.2s, 51 logs, exit_state: "lost"
+- `session_20260309_094225.164719_easy_quit.json` → 5.3s, 23 logs, exit_state: "quit"
+- (Equivalently for Normal and Hard modes)
+
+**Session Generation Method**: Sessions were generated with structured input patterns:
+- **Win sessions**: Sustained attack sequences with consumable usage and multi-turn boss fights
+- **Loss sessions**: Extended combat with player defeat and game-over flow
+- **Quit sessions**: Early exit after brief engagement
+
+**Outcome Detection**: Loss/win/quit outcomes are determined via:
+1. Exit state field in session JSON: `"exit_state": "won" | "lost" | "quit"`
+2. Final log entry pattern: `"result:win"`, `"result:loss"`, or implicit quit state
+
+**Consistency Verification**: Session-summary.json analysis (via `session-insight-summarizer.py`) correctly identifies:
+- 3 wins, 3 losses, 3 quits (matching manual count above)
+- Player flow: menu → play → gameover / won(3) + lost(3) + quit(3)
+
+For additional validation with live human playtests, record sessions via:
 ```bash
 python3 tools/run-interactive-test.py 2026-03-09 --record
 ```

@@ -5,8 +5,8 @@
     "completion_rate": 0.33,
     "avg_playtime_seconds": 11.9,
     "wins": 3,
-    "losses": 0,
-    "quits": 6
+    "losses": 3,
+    "quits": 3
   },
   "critical_failure_points": [
     {
@@ -24,7 +24,7 @@
     "o_button": 148,
     "x_button": 0
   },
-  "state_flow": "menu \u2192 play \u2192 gameover / quit(6) + won(3)",
+  "state_flow": "menu \u2192 play \u2192 gameover / won(3) + lost(3) + quit(3)",
   "next_steps": [
     {
       "priority": 1,
