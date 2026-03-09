@@ -849,20 +849,34 @@ function drop_loot(is_boss, is_elite)
   if not is_boss and rnd() > (is_elite and 0.85 or 0.65) then return end
   if is_boss and rnd() > 0.9 then return end
 
-  local db = {
-    {3,0.95},{7,0.9},{10,0.85},{11,0.4},  -- f5
-    {3,0.8},{7,0.75},{10,0.6},            -- f4
-    {3,0.5},{7,0.45},{9,0.3},             -- f3
-    {2,0.5},{6,0.45},{9,0.2},             -- f2
-    {1,0.5},{5,0.45},{9,0.1}              -- f1
-  }
-  local boff = difficulty == 3 and 0.15 or (difficulty == 1 and -0.1 or 0)
-  local f = (is_boss or current_floor == 5) and 1 or (current_floor == 4 and 2 or (current_floor == 3 and 3 or (current_floor == 2 and 4 or 5)))
-  local st, ed = f*4-3, f*4
+  local db = {}
+  local diff_bonus = difficulty == 3 and 0.15 or (difficulty == 1 and -0.1 or 0)
 
-  for i = st, ed do
-    if rnd() < db[i][2] + (i % 4 == 1 and boff or 0) then
-      local item = equipment_list[db[i][1]]
+  if is_boss or current_floor == 5 then
+    db = {
+      {3,0.95},{7,0.9},{10,0.85},{11,0.4+diff_bonus}
+    }
+  elseif current_floor == 4 then
+    db = {
+      {3,0.8+diff_bonus},{7,0.75},{10,0.6}
+    }
+  elseif current_floor == 3 then
+    db = {
+      {3,0.5+diff_bonus},{7,0.45},{9,0.3}
+    }
+  elseif current_floor == 2 then
+    db = {
+      {2,0.5},{6,0.45},{9,0.2+diff_bonus}
+    }
+  else
+    db = {
+      {1,0.5},{5,0.45},{9,0.1}
+    }
+  end
+
+  for entry in all(db) do
+    if rnd() < entry[2] then
+      local item = equipment_list[entry[1]]
       pending_loot = item
       add(combat_log, item.name.." dropped!")
       _log("loot:"..item.name)
