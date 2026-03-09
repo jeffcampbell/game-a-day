@@ -1,12 +1,12 @@
 {
   "title": "Dungeon Crawler RPG",
-  "description": "A turn-based dungeon crawler with character progression, combat mechanics, and boss battles. Defeat goblins and the final boss to complete your quest. Manage your health with potions and level up to improve your stats.",
+  "description": "A turn-based dungeon crawler with character progression, combat mechanics, and boss battles. Defeat goblins and the final boss to complete your quest. Manage your health with potions and level up to improve your stats. Enhanced with dynamic sound effects and music for all combat, UI, and game events.",
   "genres": ["rpg"],
   "difficulty": 3,
   "playtime_minutes": 5,
   "completion_status": "complete",
   "target_audience": "general",
-  "token_count": 1187,
-  "sprite_count": 2,
-  "sound_count": 3
+  "token_count": 4392,
+  "sprite_count": 6,
+  "sound_count": 18
 }
