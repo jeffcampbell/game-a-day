@@ -73,14 +73,24 @@ function add_particles(x, y, col, count)
 end
 
 -- equipment system
+-- rarity: 1=common, 2=uncommon, 3=rare
 equipment_list = {
-  {name="wooden sword", atk=1, def=0},
-  {name="iron sword", atk=2, def=0},
-  {name="steel sword", atk=3, def=0},
-  {name="cloth armor", atk=0, def=1},
-  {name="leather armor", atk=0, def=1},
-  {name="steel armor", atk=0, def=2},
-  {name="magic ring", atk=1, def=1}
+  -- common weapons
+  {name="wooden sword", atk=2, def=0, hp=0, rarity=1},
+  {name="iron sword", atk=3, def=0, hp=0, rarity=1},
+  -- uncommon weapons
+  {name="steel sword", atk=4, def=0, hp=0, rarity=2},
+  {name="silver sword", atk=5, def=0, hp=0, rarity=2},
+  -- common armor
+  {name="cloth armor", atk=0, def=1, hp=0, rarity=1},
+  {name="leather armor", atk=0, def=2, hp=0, rarity=1},
+  -- uncommon armor
+  {name="steel armor", atk=0, def=2, hp=0, rarity=2},
+  {name="mithril armor", atk=0, def=3, hp=0, rarity=2},
+  -- accessories
+  {name="health ring", atk=0, def=0, hp=3, rarity=1},
+  {name="vigor amulet", atk=0, def=0, hp=5, rarity=2},
+  {name="golden ring", atk=1, def=1, hp=4, rarity=3}
 }
 
 -- player stats
@@ -94,7 +104,9 @@ player = {
   potions = 2,
   weapon = nil,
   armor = nil,
-  inventory = {}
+  accessory = nil,
+  inventory = {},
+  last_equip_feedback = ""
 }
 
 -- enemy stats
@@ -237,13 +249,16 @@ function update_menu()
   -- right (button 1)
   if (input & 2) > 0 and (prev_input & 2) == 0 then
     menu_sel = min(menu_sel + 1, 3)
+    sfx(0)  -- menu nav sound
   end
   -- left (button 0)
   if (input & 1) > 0 and (prev_input & 1) == 0 then
     menu_sel = max(menu_sel - 1, 0)
+    sfx(0)  -- menu nav sound
   end
   -- O button (button 4)
   if (input & 16) > 0 and (prev_input & 16) == 0 then
+    sfx(1)  -- menu confirm sound
     if menu_sel == 0 then
       difficulty = 1  -- easy
       _log("difficulty:easy")
@@ -367,12 +382,14 @@ function update_play()
       if (input & 1) > 0 and (prev_input & 1) == 0 then
         player_action = "attack"
         player_act_val = 0
+        sfx(2)  -- attack sound
         combat_step()
         _log("action:attack")
       -- right (button 1) - defend
       elseif (input & 2) > 0 and (prev_input & 2) == 0 then
         player_action = "defend"
         player_act_val = 0
+        sfx(6)  -- defend sound
         combat_step()
         _log("action:defend")
       -- up (button 2) - potion
@@ -380,6 +397,7 @@ function update_play()
         if player.potions > 0 then
           player_action = "potion"
           player_act_val = 0
+          sfx(5)  -- heal/potion sound
           combat_step()
           _log("action:potion")
         end
@@ -387,12 +405,14 @@ function update_play()
       elseif (input & 8) > 0 and (prev_input & 8) == 0 then
         player_action = "flee"
         player_act_val = 0
+        sfx(7)  -- flee sound
         combat_step()
         _log("action:flee")
       -- X button (button 5) - open equipment menu
       elseif (input & 32) > 0 and (prev_input & 32) == 0 then
         show_equip_menu = true
         equip_menu_sel = 0
+        sfx(0)  -- menu nav sound
       end
     end
   end
@@ -562,6 +582,7 @@ function get_player_atk()
   local total = player.atk
   if player.weapon then total += player.weapon.atk end
   if player.armor and player.armor.atk > 0 then total += player.armor.atk end
+  if player.accessory and player.accessory.atk > 0 then total += player.accessory.atk end
   return total
 end
 
@@ -569,27 +590,54 @@ function get_player_def()
   local total = player.def
   if player.armor then total += player.armor.def end
   if player.weapon and player.weapon.def > 0 then total += player.weapon.def end
+  if player.accessory and player.accessory.def > 0 then total += player.accessory.def end
+  return total
+end
+
+function get_player_max_hp()
+  local total = player.max_hp
+  if player.accessory and player.accessory.hp > 0 then
+    total += player.accessory.hp
+  end
   return total
 end
 
 function drop_loot(is_boss)
-  local drop_table = {
-    {item=1, chance=0.6},  -- wooden sword
-    {item=4, chance=0.4},  -- cloth armor
-  }
+  local drop_table = {}
 
-  if enemy_count >= 1 then
-    drop_table = {
-      {item=2, chance=0.5},  -- iron sword
-      {item=5, chance=0.4},  -- leather armor
-    }
-  end
+  -- difficulty modifier affects drop chances
+  local diff_bonus = 0
+  if difficulty == 3 then diff_bonus = 0.15 end  -- hard: +15% chance for rare loot
+  if difficulty == 1 then diff_bonus = -0.1 end  -- easy: -10% chance
 
   if is_boss then
+    -- boss drops guaranteed good loot
     drop_table = {
-      {item=3, chance=0.8},  -- steel sword
-      {item=6, chance=0.6},  -- steel armor
-      {item=7, chance=0.7},  -- magic ring
+      {item=3, chance=0.9},    -- steel sword (uncommon weapon)
+      {item=7, chance=0.85},   -- mithril armor (uncommon armor)
+      {item=10, chance=0.7},   -- vigor amulet (rare accessory)
+      {item=11, chance=0.2 + diff_bonus},   -- golden ring (rare)
+    }
+  elseif enemy_count >= 2 then
+    -- late game: better weapons and armor
+    drop_table = {
+      {item=3, chance=0.4 + diff_bonus},   -- steel sword
+      {item=7, chance=0.35 + diff_bonus},  -- mithril armor
+      {item=9, chance=0.3},    -- vigor amulet
+    }
+  elseif enemy_count >= 1 then
+    -- mid game: mix of common and uncommon
+    drop_table = {
+      {item=2, chance=0.45},    -- iron sword (common)
+      {item=6, chance=0.4},     -- leather armor (common)
+      {item=9, chance=0.15 + diff_bonus},  -- health ring (uncommon accessory)
+    }
+  else
+    -- early game: common drops only
+    drop_table = {
+      {item=1, chance=0.5},     -- wooden sword (common)
+      {item=5, chance=0.45},    -- cloth armor (common)
+      {item=9, chance=0.08},    -- health ring (rare for early)
     }
   end
 
@@ -605,11 +653,11 @@ end
 -- equipment menu
 function draw_equip_menu()
   -- overlay with border animation
-  rectfill(5, 30, 123, 100, 0)
-  rect(5, 30, 123, 100, 7)
-  rect(4, 29, 124, 101, 7)  -- double border for polish
+  rectfill(5, 30, 123, 105, 0)
+  rect(5, 30, 123, 105, 7)
+  rect(4, 29, 124, 106, 7)  -- double border for polish
 
-  print("equipment", 40, 33, 7)
+  print("equipment", 38, 33, 7)
 
   local y = 43
   -- unequip option with highlight
@@ -635,59 +683,119 @@ function draw_equip_menu()
       end
 
       local equipped = ""
-      if player.weapon == item or player.armor == item then
-        equipped = " (eq)"
+      if player.weapon == item or player.armor == item or player.accessory == item then
+        equipped = "✓"
       end
 
-      print(sel_marker.." "..item.name..equipped, 10, y, sel_col)
+      -- show item name and bonuses
+      local bonus_str = ""
+      if item.atk > 0 then bonus_str = "a"..item.atk end
+      if item.def > 0 then
+        if bonus_str ~= "" then bonus_str = bonus_str.." " end
+        bonus_str = bonus_str.."d"..item.def
+      end
+      if item.hp > 0 then
+        if bonus_str ~= "" then bonus_str = bonus_str.." " end
+        bonus_str = bonus_str.."h"..item.hp
+      end
+
+      print(sel_marker, 10, y, sel_col)
+      print(item.name, 16, y, sel_col)
+      print(bonus_str, 75, y, 6)
+      print(equipped, 118, y, 11)
       y += 8
     end
   end
 
-  print("z:equip x:close", 15, 95, 5)
+  print("z:equip x:close", 12, 100, 5)
 end
 
 function equip_item(idx)
   if idx == 0 then
     -- unequip all
     _log("unequip_all")
-    player.weapon = nil
-    player.armor = nil
+    local old_hp = player.max_hp
+    if player.weapon then
+      add(combat_log, "unequipped "..player.weapon.name)
+      player.weapon = nil
+    end
+    if player.armor then
+      add(combat_log, "unequipped "..player.armor.name)
+      player.armor = nil
+    end
+    if player.accessory then
+      add(combat_log, "unequipped "..player.accessory.name)
+      player.accessory = nil
+    end
+    local new_hp = get_player_max_hp()
+    if new_hp < player.hp then
+      player.hp = new_hp
+    end
     return
   end
 
   local item = player.inventory[idx]
   if not item then return end
 
-  -- determine if weapon or armor based on atk/def bonuses
-  if item.atk > 0 and item.def == 0 then
-    -- weapon
+  -- save old stats
+  local old_atk = get_player_atk()
+  local old_def = get_player_def()
+  local old_max_hp = get_player_max_hp()
+
+  -- weapon: atk bonus only
+  if item.atk > 0 and item.def == 0 and item.hp == 0 then
     if player.weapon == item then
       player.weapon = nil
+      add(combat_log, "unequipped "..item.name)
       _log("unequip:"..item.name)
     else
       player.weapon = item
+      add(combat_log, "equipped "..item.name)
       _log("equip:"..item.name)
     end
-  elseif item.def > 0 and item.atk == 0 then
-    -- armor
+  -- armor: def bonus only
+  elseif item.def > 0 and item.atk == 0 and item.hp == 0 then
     if player.armor == item then
       player.armor = nil
+      add(combat_log, "unequipped "..item.name)
       _log("unequip:"..item.name)
     else
       player.armor = item
+      add(combat_log, "equipped "..item.name)
       _log("equip:"..item.name)
     end
+  -- accessory: hp bonus (can have atk/def too)
   else
-    -- accessory (bonus to both)
-    if player.weapon == item then
-      player.weapon = nil
+    if player.accessory == item then
+      player.accessory = nil
+      add(combat_log, "unequipped "..item.name)
       _log("unequip:"..item.name)
     else
-      player.weapon = item
+      player.accessory = item
+      add(combat_log, "equipped "..item.name)
       _log("equip:"..item.name)
     end
   end
+
+  -- apply new stat calculations
+  local new_atk = get_player_atk()
+  local new_def = get_player_def()
+  local new_max_hp = get_player_max_hp()
+
+  -- adjust current hp if max hp changed
+  if new_max_hp > old_max_hp then
+    player.hp = min(new_max_hp, player.hp + (new_max_hp - old_max_hp))
+  elseif new_max_hp < old_max_hp then
+    if player.hp > new_max_hp then
+      player.hp = new_max_hp
+    end
+  end
+
+  -- update max_hp
+  player.max_hp = new_max_hp
+
+  -- log stat changes
+  _log("stat_change:atk="..old_atk.."->"..new_atk.."|def="..old_def.."->"..new_def.."|hp="..old_max_hp.."->"..new_max_hp)
 end
 
 function get_stat(t, stat)
@@ -742,6 +850,7 @@ function execute_boss_ability(ability, player_def)
     add(combat_log, "boss power attack! "..dmg.." dmg")
     add_damage_popup(dmg, 25, 40)
     add_particles(25, 45, 8, 5)
+    sfx(12)  -- boss power attack sound
     anim.player_swing.active = true
     anim.player_swing.frame = 0
     screen_shake(2, 6)
@@ -759,6 +868,7 @@ function execute_boss_ability(ability, player_def)
     add(combat_log, "boss heals "..heal.." hp!")
     add_damage_popup(-heal, 85, 40)
     add_particles(85, 45, 11, 5)
+    sfx(13)  -- boss heal sound
     anim.flash_color.active = true
     anim.flash_color.col = 11
     anim.flash_color.timer = 3
@@ -770,6 +880,7 @@ function execute_boss_ability(ability, player_def)
     local hits = 3
     local total_dmg = 0
     add(combat_log, "boss multi-strike!")
+    sfx(14)  -- boss multi-strike sound
     for i = 1, hits do
       dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
       total_dmg += dmg
@@ -809,6 +920,7 @@ function combat_step()
     -- add damage popup and particles
     add_damage_popup(dmg, 85, 40)
     add_particles(85, 45, 8, 3)  -- red damage particles
+    sfx(4)  -- hit/damage sound
     -- screen shake on crit (high damage)
     if dmg >= 6 then
       screen_shake(2, 6)
@@ -831,6 +943,7 @@ function combat_step()
     -- heal effect: green popup and particles
     add_damage_popup(-heal, 25, 40)
     add_particles(25, 45, 11, 4)  -- green healing particles
+    sfx(5)  -- heal/potion sound
     anim.flash_color.active = true
     anim.flash_color.col = 11
     anim.flash_color.timer = 3
@@ -854,6 +967,12 @@ function combat_step()
     anim.flash_color.active = true
     anim.flash_color.col = 11
     anim.flash_color.timer = 8
+    -- enemy defeat fanfare
+    if enemy.is_boss then
+      sfx(10)  -- boss defeat fanfare
+    else
+      sfx(9)  -- enemy defeat sound
+    end
     drop_loot(enemy.is_boss)
     if player.exp >= 30 then
       player.level += 1
@@ -870,6 +989,7 @@ function combat_step()
       anim.flash_color.active = true
       anim.flash_color.col = 7
       anim.flash_color.timer = 5
+      sfx(8)  -- level up fanfare
     end
     combat_over = true
     player_won = true
@@ -904,6 +1024,7 @@ function combat_step()
         end
         player.hp -= dmg
         add(combat_log, "boss attacks! "..dmg.." dmg")
+        sfx(3)  -- boss attack sound
         anim.player_swing.active = true
         anim.player_swing.frame = 0
         add_damage_popup(dmg, 25, 40)
@@ -930,6 +1051,16 @@ function combat_step()
       end
       player.hp -= dmg
       add(combat_log, "enemy attacks! "..dmg.." dmg")
+      -- enemy-specific attack sounds
+      if enemy.type == 1 then
+        sfx(11)  -- goblin archer sound
+      elseif enemy.type == 2 then
+        sfx(15)  -- troll sound
+      elseif enemy.type == 3 then
+        sfx(16)  -- orc warrior sound
+      else
+        sfx(3)  -- default enemy attack sound
+      end
       anim.player_swing.active = true
       anim.player_swing.frame = 0
       add_damage_popup(dmg, 25, 40)
@@ -953,6 +1084,7 @@ function combat_step()
     anim.flash_color.active = true
     anim.flash_color.col = 8
     anim.flash_color.timer = 10
+    sfx(17)  -- game over/defeat sound
     combat_over = true
     player_won = false
   end
@@ -1048,6 +1180,7 @@ function reset_game()
 
   player.weapon = nil
   player.armor = nil
+  player.accessory = nil
   player.inventory = {}
 
   enemy_count = 0
@@ -1109,3 +1242,17 @@ __sfx__
 010100000a5501a350235503a55004300d3500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 010100000f5402a5401f54000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0101000029340394003a3503a3401a350233500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010100003c3403d3403e3003a3100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01010000115401f5402a540000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010100001f5402f6403f640255640266605166501f55000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010100002f3402f5403f5403f6402f6402e5402d5402c5400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010200000e5502d5502c5503b5502a5502950239550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01010000175003d3003f3004a30043300393002f3002a3002530000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+011100003c2603c2603c26023250332503c2703c2703c27023350362703e300053000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010100003f4403d4403a4404f4002f4100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+011100003c3003a2703e370233301f3403d3404c3601a2602b30000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01010000205002040024500325042250424504000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010100003a2003f2003e20033200342003120030200302002a2000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0101000034100341003410034100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010100001a5001a5001a500195001850017500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01010000265502755025550235502e55011550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
