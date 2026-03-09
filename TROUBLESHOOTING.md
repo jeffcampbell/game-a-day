@@ -29,10 +29,13 @@ node --version
 npm --version
 ```
 
-The pixel-dashboard `build.sh` has been updated to:
+Option 3: Update pixel-dashboard to handle missing fnm gracefully
+The pixel-dashboard `build.sh` can be updated to:
 1. Check if fnm is available before trying to use it
 2. Fall back to system Node.js if fnm is not found
 3. Provide clear error messages if neither fnm nor system Node.js is available
+
+(Note: This requires changes to the pixel-dashboard repository, which are outside the scope of this PR.)
 
 **Verification:**
 After installing fnm or ensuring system Node.js is available, test the deployment:
