@@ -34,6 +34,30 @@ A turn-based dungeon crawler RPG where the player fights through enemy encounter
 2. **Play**: Combat encounters (can have multiple)
 3. **Game Over**: Win (defeated boss) or lose (player HP = 0)
 
+## Boss Special Abilities
+
+The boss now has 3 unique special abilities that trigger at specific HP thresholds:
+
+### 1. Power Attack (50% HP Threshold)
+- **Effect**: Deals double damage with 1-turn recovery
+- **Mechanics**: After activation, boss needs 1 turn to recover before using again
+- **Animation**: Red flash, screen shake, red particles
+- **Tactical Impact**: Forces player to heal or defend proactively
+
+### 2. Healing (75% HP Threshold)
+- **Effect**: Restores 8 HP (one-time per fight)
+- **Mechanics**: Boss can only use this once, balances resource pressure
+- **Animation**: Green flash, green particles
+- **Tactical Impact**: Extends fight duration, rewards consistent player damage
+
+### 3. Multi-Strike (25% HP Threshold)
+- **Effect**: Hits player 3 times rapidly
+- **Mechanics**: Desperation attack when boss is low on health
+- **Animation**: Multiple damage popups, extended screen shake
+- **Tactical Impact**: High-risk finale, rewards player survival and defense
+
+**Difficulty Scaling**: Boss ability frequency reduced on Easy mode (70% trigger chance vs 100%)
+
 ## Test Results
 
 - ✓ State machine transitions work correctly
@@ -41,6 +65,10 @@ A turn-based dungeon crawler RPG where the player fights through enemy encounter
 - ✓ Leveling system progresses appropriately
 - ✓ Win condition (3 enemy defeats) triggers correctly
 - ✓ Lose condition (player HP = 0) triggers correctly
+- ✓ Boss special abilities trigger correctly at HP thresholds
+- ✓ Power attack recovery mechanic works (ability can trigger multiple times per fight)
+- ✓ Healing ability limited to one use per fight
+- ✓ Multi-strike activates during endgame (25% HP)
 - ✓ Test infrastructure in place (_log, test_input, testmode)
 
 ## Design Notes
@@ -52,14 +80,14 @@ A turn-based dungeon crawler RPG where the player fights through enemy encounter
 - Simple but complete game loop
 
 ### Possible Improvements (Future)
-- Equipment system (armor/weapons for stat bonuses)
-- More enemy variety (different monster types)
-- Status effects (poison, stun, etc.)
+- More complex status effects (poison, stun, paralysis, etc.)
 - Multi-floor dungeons with treasure drops
-- Boss special abilities
+- Boss AI improvements (pattern-based attacks, stat scaling)
 
 ## Technical Details
-- **Token Usage**: 1050/8192 (12.8% - plenty of room for expansion)
-- **Sprites**: 2 (player, enemy placeholder)
-- **Sound Effects**: 3 (menu, combat, gameover)
+- **Token Usage**: 4404/8192 (53.8% - comfortable headroom for future features)
+- **Sprites**: 6 (player, goblins, archers, trolls, orc warriors, boss)
+- **Sound Effects**: 18 (menu navigation, combat hits, abilities, level-up, boss encounters)
+- **Music Patterns**: Multiple patterns for menu, combat, and victory states
+- **Equipment Items**: 11 (weapons, armor, accessories with stat bonuses and rarity tiers)
 - **Target Playtime**: 3-5 minutes per playthrough
