@@ -118,7 +118,8 @@ enemy = {
   name = "goblin",
   is_boss = false,
   type = 0,  -- 0=default, 1-3=type index
-  armor_active = false  -- for troll armor buff
+  armor_active = false,  -- for troll armor buff
+  status_effects = {}  -- poison, stun, paralysis
 }
 
 -- combat state
@@ -420,6 +421,17 @@ function update_play()
   prev_input = input
 end
 
+function draw_status_icons()
+  local x = 12
+  for s, d in pairs(enemy.status_effects) do
+    if d.d > 0 then
+      local l = s == "poison" and "POI" or (s == "stun" and "STN" or "PAR")
+      print(l, x, 36, get_status_color(s))
+      x += 10
+    end
+  end
+end
+
 function draw_play()
   -- header
   print("level "..player.level, 5, 5, 7)
@@ -437,6 +449,9 @@ function draw_play()
     enemy_name = enemy.type == 1 and "goblin archer" or (enemy.type == 2 and "troll" or (enemy.type == 3 and "orc warrior" or "goblin"))
   end
   print(enemy_name.." hp: "..enemy.hp.."/"..enemy.max_hp, 12, 28, 8)
+
+  -- draw status effects
+  draw_status_icons()
 
   -- draw player sprite with swing animation
   local player_x = 20
@@ -899,6 +914,38 @@ function execute_boss_ability(ability, player_def)
   end
 end
 
+-- status effects system
+function apply_status(s, d)
+  if enemy.status_effects[s] then
+    enemy.status_effects[s].d = max(enemy.status_effects[s].d, d)
+  else
+    enemy.status_effects[s] = {d = d}
+  end
+  add(combat_log, s.."!")
+  _log("status:"..s)
+  sfx(11)  -- reuse enemy sound
+  add_particles(85, 45, 12, 3)
+end
+
+function update_status_effects()
+  for s, d in pairs(enemy.status_effects) do
+    d.d -= 1
+    if d.d <= 0 or (s == "stun" and rnd() < 0.3) then
+      enemy.status_effects[s] = nil
+      add(combat_log, s.." gone!")
+      _log("status:"..s)
+    end
+  end
+end
+
+function has_status(s)
+  return enemy.status_effects[s] ~= nil
+end
+
+function get_status_color(s)
+  return s == "poison" and 11 or (s == "stun" and 13 or 12)
+end
+
 -- combat system
 function combat_step()
   add(combat_log, "--- turn "..turn.." ---")
@@ -909,18 +956,20 @@ function combat_step()
   local player_def = get_player_def()
 
   if player_action == "attack" then
-    dmg = max(1, player_atk - enemy.def + flr(rnd(3)))
+    dmg = max(1, player_atk - enemy.def + (has_status("poison") and 1 or 0) + flr(rnd(3)))
     enemy.hp -= dmg
-    add(combat_log, "you attack! "..dmg.." dmg")
-    -- trigger attack animation
+    add(combat_log, "attack! "..dmg.." dmg")
     anim.player_swing.active = true
     anim.player_swing.frame = 0
     anim.enemy_flinch.active = true
     anim.enemy_flinch.frame = 0
-    -- add damage popup and particles
     add_damage_popup(dmg, 85, 40)
-    add_particles(85, 45, 8, 3)  -- red damage particles
-    sfx(4)  -- hit/damage sound
+    add_particles(85, 45, 8, 3)
+    sfx(4)
+    if rnd() < 0.2 then apply_status("poison", 3) end
+    if rnd() < 0.15 then apply_status("stun", 1) end
+    if rnd() < 0.15 then apply_status("paralysis", 2) end
+
     -- screen shake on crit (high damage)
     if dmg >= 6 then
       screen_shake(2, 6)
@@ -997,7 +1046,10 @@ function combat_step()
   end
 
   -- enemy action
-  if enemy.is_boss then
+  local stun = has_status("stun")
+  if stun then
+    add(combat_log, "enemy stunned!")
+  elseif enemy.is_boss then
     -- boss has special abilities
     local ability = nil
 
@@ -1023,6 +1075,11 @@ function combat_step()
       else
         -- normal boss attack
         dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
+        if has_status("paralysis") then
+          dmg = max(1, flr(dmg * 0.5))
+          add(combat_log, "boss paralyzed!")
+        end
+
         if player_action == "defend" then
           dmg = max(1, flr(dmg / 2))
         end
@@ -1040,11 +1097,16 @@ function combat_step()
         _log("boss_action:attack")
       end
     end
-  else
-    -- regular enemy combat
+  elseif not stun then
+    -- regular enemy combat (but not if stunned)
     local enemy_act = flr(rnd(2))
     if enemy_act == 0 then
       dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
+      if has_status("paralysis") then
+        dmg = max(1, flr(dmg * 0.5))
+        add(combat_log, "enemy paralyzed!")
+      end
+
       if player_action == "defend" then
         dmg = max(1, flr(dmg / 2))
         if enemy.type == 2 then  -- troll armor
@@ -1093,6 +1155,9 @@ function combat_step()
     player_won = false
   end
 
+  -- update status effects at end of turn
+  update_status_effects()
+
   turn += 1
 end
 
@@ -1103,6 +1168,9 @@ function reset_combat()
   combat_over = false
   player_won = false
   combat_escaped = false
+
+  -- clear status effects
+  enemy.status_effects = {}
 
   -- reset boss abilities for new fight
   boss_abilities.power_attack.charged = false

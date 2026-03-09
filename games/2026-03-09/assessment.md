@@ -79,15 +79,61 @@ The boss now has 3 unique special abilities that trigger at specific HP threshol
 - Manageable scope: ~1050 tokens, well under limit
 - Simple but complete game loop
 
+## Status Effects System (New!)
+
+Three tactical status effects add complexity and strategy to combat:
+
+### 1. Poison (20% chance on attack, 3 turns)
+- **Effect**: Reduces enemy DEF by 1, increasing player damage output
+- **Visual**: Green "POI" status indicator appears next to enemy HP
+- **Tactical Bonus**: Encourages sustained attacking, rewards consistent damage
+- **Mechanics**: Stacks with other status effects; duration refreshes if reapplied
+
+### 2. Stun (15% chance on attack, 1 turn)
+- **Effect**: Enemy loses its turn (cannot attack this round)
+- **Mechanics**: 30% chance per turn to break free from stun early
+- **Tactical Impact**: Highest value status - turn denial is powerful
+- **Visual**: Yellow "STN" status indicator
+
+### 3. Paralysis (15% chance on attack, 2 turns)
+- **Effect**: Enemy attack reduced by 50% (rounds down, min 1 damage)
+- **Visual**: Blue "PAR" status indicator
+- **Tactical Use**: Reduces enemy threat, extends battle survival
+- **Mechanics**: Applies to both regular enemies and boss abilities
+
+**Visual Indicators**:
+- Color-coded 3-letter abbreviations (POI/STN/PAR) appear next to enemy HP bar
+- Uses existing color palette: green (11), yellow (13), blue (12)
+- Each status shows duration implicitly (icon disappears when expired)
+
+**Sound & Feedback**:
+- Status application: enemy sound (sfx 11)
+- Purple particles on status application for visual impact
+- Combat log messages track all status changes
+
+## Test Results (with Status Effects)
+
+- ✓ Status effects apply on player attack with correct probabilities
+- ✓ Poison DEF reduction increases player damage by 1
+- ✓ Stun prevents enemy action (enemy skip turn)
+- ✓ Stun has 30% per-turn recovery chance
+- ✓ Paralysis reduces enemy attack by 50%
+- ✓ Status durations countdown and expire correctly
+- ✓ Status icons display in UI
+- ✓ Multiple status effects can stack on same enemy
+- ✓ Status effects persist across enemy actions
+- ✓ Status effects clear on new combat encounter
+
 ### Possible Improvements (Future)
-- More complex status effects (poison, stun, paralysis, etc.)
+- Status effect removal items (antidotes, cures)
 - Multi-floor dungeons with treasure drops
 - Boss AI improvements (pattern-based attacks, stat scaling)
 
 ## Technical Details
-- **Token Usage**: 4404/8192 (53.8% - comfortable headroom for future features)
+- **Token Usage**: 4689/8192 (57.3% - good headroom for future features)
 - **Sprites**: 6 (player, goblins, archers, trolls, orc warriors, boss)
-- **Sound Effects**: 18 (menu navigation, combat hits, abilities, level-up, boss encounters)
+- **Sound Effects**: 18+ (menu, combat, abilities, status, level-up, boss encounters)
 - **Music Patterns**: Multiple patterns for menu, combat, and victory states
 - **Equipment Items**: 11 (weapons, armor, accessories with stat bonuses and rarity tiers)
+- **Status Effects**: 3 (poison, stun, paralysis with unique mechanics)
 - **Target Playtime**: 3-5 minutes per playthrough
