@@ -1160,6 +1160,12 @@ function get_boss_ability()
   if pattern_action == "rampage" and boss_abilities.rampage.active then
     return nil
   end
+  if pattern_action == "crush" and boss_abilities.crush.used then
+    return nil
+  end
+  if pattern_action == "spell_burst" and boss_abilities.spell_burst.used then
+    return nil
+  end
 
   return pattern_action
 end
@@ -1239,6 +1245,7 @@ function execute_boss_ability(ability, player_def)
     anim.flash_color.col = 12
     anim.flash_color.timer = 3
     add(combat_log, "total: "..total_dmg.." dmg")
+    boss_abilities.spell_burst.used = true
     _log("boss_ability:spell_burst")
 
   elseif ability == "arcane_shield" then
@@ -1480,6 +1487,7 @@ function update_boss_abilities()
     boss_abilities.rampage.duration -= 1
     if boss_abilities.rampage.duration <= 0 then
       boss_abilities.rampage.active = false
+      boss_abilities.rampage.damage_mult = 1.0  -- reset escalation when effect ends
     end
   end
 end
