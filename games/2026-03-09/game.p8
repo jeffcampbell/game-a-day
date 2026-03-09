@@ -122,6 +122,10 @@ enemy = {
   is_boss = false,
   type = 0,  -- 0=default, 1-3=type index
   armor_active = false,  -- for troll armor buff
+  ability_active = false,  -- for damage/def buff abilities
+  ability_power = 0,  -- multiplier for damage boost (rage: 1.5, challenge: 1.5)
+  ability_def_boost = 0,  -- def boost amount
+  ability_duration = 0,  -- remaining turns for buff
   status_effects = {}  -- poison, stun, paralysis
 }
 
@@ -170,6 +174,41 @@ boss_abilities = {
   multi_strike = {
     enabled = true,
     hp_threshold = 0.25  -- trigger at 25% hp
+  }
+}
+
+-- enemy abilities (for regular enemies)
+enemy_abilities = {
+  -- archer (type 1)
+  archer_rapid_fire = {
+    type = 1,
+    hp_threshold = 0.5,
+    used = false
+  },
+  -- troll (type 2)
+  troll_stone_skin = {
+    type = 2,
+    hp_threshold = 0.6,
+    active = false,
+    duration = 0
+  },
+  troll_regen = {
+    type = 2,
+    hp_threshold = 0.3,
+    used = false
+  },
+  -- orc warrior (type 3)
+  orc_rage = {
+    type = 3,
+    hp_threshold = 0.5,
+    active = false,
+    duration = 0
+  },
+  orc_challenge = {
+    type = 3,
+    hp_threshold = 0.4,
+    active = false,
+    duration = 0
   }
 }
 
@@ -1076,6 +1115,134 @@ function execute_boss_ability(ability, player_def)
   end
 end
 
+-- enemy special abilities
+function get_enemy_ability()
+  -- return ability to use, or nil for normal attack
+  if enemy.is_boss or current_floor < 2 then return nil end  -- no abilities on floor 1
+
+  local hp_pct = enemy.hp / enemy.max_hp
+  local ability = nil
+
+  if enemy.type == 1 then  -- archer
+    if hp_pct <= 0.5 and not enemy_abilities.archer_rapid_fire.used then
+      ability = "archer_rapid_fire"
+    end
+  elseif enemy.type == 2 then  -- troll
+    if hp_pct <= 0.6 and not enemy_abilities.troll_stone_skin.active then
+      ability = "troll_stone_skin"
+    elseif hp_pct <= 0.3 and not enemy_abilities.troll_regen.used then
+      ability = "troll_regen"
+    end
+  elseif enemy.type == 3 then  -- orc warrior
+    if hp_pct <= 0.5 and not enemy_abilities.orc_rage.active then
+      ability = "orc_rage"
+    elseif hp_pct <= 0.4 and not enemy_abilities.orc_challenge.active then
+      ability = "orc_challenge"
+    end
+  end
+
+  -- difficulty scaling: hard mode has chance to use ability even without threshold
+  if ability == nil and difficulty == 3 and rnd() < 0.1 then
+    if enemy.type == 1 and not enemy_abilities.archer_rapid_fire.used then
+      ability = "archer_rapid_fire"
+    elseif enemy.type == 2 and rnd() < 0.5 then
+      if not enemy_abilities.troll_stone_skin.active then
+        ability = "troll_stone_skin"
+      elseif not enemy_abilities.troll_regen.used then
+        ability = "troll_regen"
+      end
+    elseif enemy.type == 3 and rnd() < 0.5 then
+      if not enemy_abilities.orc_rage.active then
+        ability = "orc_rage"
+      elseif not enemy_abilities.orc_challenge.active then
+        ability = "orc_challenge"
+      end
+    end
+  end
+
+  return ability
+end
+
+function execute_enemy_ability(ability, player_def)
+  if ability == "archer_rapid_fire" then
+    -- attack twice with reduced damage
+    add(combat_log, "archer uses rapid fire!")
+    sfx(11)
+    for i = 1, 2 do
+      local dmg = max(1, flr(enemy.atk * 0.7) - player_def + flr(rnd(2)))
+      player.hp -= dmg
+      add_damage_popup(dmg, 25, 40 - i*5)
+      add_particles(25, 45, 8, 2)
+    end
+    screen_shake(2, 4)
+    anim.flash_color.active = true
+    anim.flash_color.col = 8
+    anim.flash_color.timer = 3
+    enemy_abilities.archer_rapid_fire.used = true
+    _log("enemy_ability:archer_rapid_fire")
+
+  elseif ability == "troll_stone_skin" then
+    -- temporary defense boost
+    add(combat_log, "troll hardens its skin!")
+    enemy.ability_active = true
+    enemy.ability_def_boost = 2
+    enemy.ability_duration = 2
+    sfx(15)
+    add_particles(85, 45, 14, 6)
+    anim.flash_color.active = true
+    anim.flash_color.col = 6
+    anim.flash_color.timer = 3
+    enemy_abilities.troll_stone_skin.active = true
+    enemy_abilities.troll_stone_skin.duration = 2
+    _log("enemy_ability:troll_stone_skin")
+
+  elseif ability == "troll_regen" then
+    -- restore health
+    add(combat_log, "troll regenerates!")
+    local heal = 3
+    enemy.hp = min(enemy.max_hp, enemy.hp + heal)
+    sfx(13)
+    add_damage_popup(-heal, 85, 40)
+    add_particles(85, 45, 11, 5)
+    anim.flash_color.active = true
+    anim.flash_color.col = 11
+    anim.flash_color.timer = 3
+    enemy_abilities.troll_regen.used = true
+    _log("enemy_ability:troll_regen")
+
+  elseif ability == "orc_rage" then
+    -- damage boost and damage reduction
+    add(combat_log, "orc enters a rage!")
+    enemy.ability_active = true
+    enemy.ability_power = 1.5
+    enemy.ability_duration = 1
+    sfx(16)
+    add_particles(85, 45, 8, 7)
+    screen_shake(2, 4)
+    anim.flash_color.active = true
+    anim.flash_color.col = 8
+    anim.flash_color.timer = 4
+    enemy_abilities.orc_rage.active = true
+    enemy_abilities.orc_rage.duration = 1
+    _log("enemy_ability:orc_rage")
+
+  elseif ability == "orc_challenge" then
+    -- sustained damage boost
+    add(combat_log, "orc challenges you!")
+    enemy.ability_active = true
+    enemy.ability_power = 1.5
+    enemy.ability_duration = 2
+    sfx(16)
+    add_particles(85, 45, 10, 5)
+    anim.flash_color.active = true
+    anim.flash_color.col = 9
+    anim.flash_color.timer = 3
+    enemy_abilities.orc_challenge.active = true
+    enemy_abilities.orc_challenge.duration = 2
+    _log("enemy_ability:orc_challenge")
+  end
+end
+
 -- status effects system
 function apply_status(s, d)
   if enemy.status_effects[s] then
@@ -1097,6 +1264,31 @@ function update_status_effects()
       add(combat_log, s.." gone!")
       _log("status:"..s)
     end
+  end
+end
+
+function update_enemy_abilities()
+  -- update ability durations
+  if enemy.ability_active and enemy.ability_duration > 0 then
+    enemy.ability_duration -= 1
+    if enemy.ability_duration <= 0 then
+      enemy.ability_active = false
+      enemy.ability_power = 0
+      enemy.ability_def_boost = 0
+    end
+  end
+  -- update ability state trackers
+  if enemy_abilities.troll_stone_skin.duration > 0 then
+    enemy_abilities.troll_stone_skin.duration -= 1
+    if enemy_abilities.troll_stone_skin.duration <= 0 then
+      enemy_abilities.troll_stone_skin.active = false
+    end
+  end
+  if enemy_abilities.orc_rage.duration > 0 then
+    enemy_abilities.orc_rage.duration -= 1
+  end
+  if enemy_abilities.orc_challenge.duration > 0 then
+    enemy_abilities.orc_challenge.duration -= 1
   end
 end
 
@@ -1299,48 +1491,65 @@ function combat_step()
     end
   elseif not stun then
     -- regular enemy combat (but not if stunned)
-    local enemy_act = flr(rnd(2))
-    if enemy_act == 0 then
-      dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
-      if has_status("paralysis") then
-        dmg = max(1, flr(dmg * 0.5))
-        add(combat_log, "enemy paralyzed!")
-      end
-
-      if player_action == "defend" then
-        dmg = max(1, flr(dmg / 2))
-        if enemy.type == 2 then  -- troll armor
-          enemy.armor_active = true
-          dmg = max(0, flr(dmg * 0.5))
-          add(combat_log, "troll hardens!")
-        end
-      end
-      player.hp -= dmg
-      add(combat_log, "enemy attacks! "..dmg.." dmg")
-      -- enemy-specific attack sounds
-      if enemy.type == 1 then
-        sfx(11)  -- goblin archer sound
-      elseif enemy.type == 2 then
-        sfx(15)  -- troll sound
-      elseif enemy.type == 3 then
-        sfx(16)  -- orc warrior sound
-      else
-        sfx(3)  -- default enemy attack sound
-      end
-      anim.player_swing.active = true
-      anim.player_swing.frame = 0
-      add_damage_popup(dmg, 25, 40)
-      add_particles(25, 45, 8, 3)
-      screen_shake(1, 4)
-      if rnd() < 0.15 then apply_player_status("poison", 2) end
-      if rnd() < 0.1 then apply_player_status("stun", 1) end
-      anim.flash_color.active = true
-      anim.flash_color.col = 8
-      anim.flash_color.timer = 2
-      _log("enemy_action:attack")
+    -- check for special abilities first
+    local ability = get_enemy_ability()
+    if ability and rnd() < 0.7 then  -- 70% chance to use ability when available
+      execute_enemy_ability(ability, player_def)
     else
-      add(combat_log, "enemy defend!")
-      _log("enemy_action:defend")
+      -- normal attack or defend
+      local enemy_act = flr(rnd(2))
+      if enemy_act == 0 then
+        -- calculate base damage
+        local base_dmg = enemy.atk - player_def + flr(rnd(2))
+        -- apply ability damage boost
+        if enemy.ability_active and enemy.ability_power > 0 then
+          base_dmg = flr(base_dmg * enemy.ability_power)
+        end
+        dmg = max(1, base_dmg)
+        if has_status("paralysis") then
+          dmg = max(1, flr(dmg * 0.5))
+          add(combat_log, "enemy paralyzed!")
+        end
+
+        -- apply player defend and enemy def bonuses
+        local player_def_mod = player_def
+        if player_action == "defend" then
+          player_def_mod += 2
+          dmg = max(1, flr(dmg / 2))
+        end
+        -- apply troll stone skin bonus
+        if enemy.ability_active and enemy.ability_def_boost > 0 then
+          player_def_mod += enemy.ability_def_boost
+          dmg = max(0, dmg - enemy.ability_def_boost)
+        end
+
+        player.hp -= dmg
+        add(combat_log, "enemy attacks! "..dmg.." dmg")
+        -- enemy-specific attack sounds
+        if enemy.type == 1 then
+          sfx(11)  -- archer sound
+        elseif enemy.type == 2 then
+          sfx(15)  -- troll sound
+        elseif enemy.type == 3 then
+          sfx(16)  -- orc warrior sound
+        else
+          sfx(3)  -- default enemy attack sound
+        end
+        anim.player_swing.active = true
+        anim.player_swing.frame = 0
+        add_damage_popup(dmg, 25, 40)
+        add_particles(25, 45, 8, 3)
+        screen_shake(1, 4)
+        if rnd() < 0.15 then apply_player_status("poison", 2) end
+        if rnd() < 0.1 then apply_player_status("stun", 1) end
+        anim.flash_color.active = true
+        anim.flash_color.col = 8
+        anim.flash_color.timer = 2
+        _log("enemy_action:attack")
+      else
+        add(combat_log, "enemy defend!")
+        _log("enemy_action:defend")
+      end
     end
   end
 
@@ -1360,6 +1569,7 @@ function combat_step()
   -- update status effects at end of turn
   update_status_effects()
   update_player_status()
+  update_enemy_abilities()
 
   turn += 1
 end
@@ -1380,6 +1590,20 @@ function reset_combat()
   boss_abilities.power_attack.charged = false
   boss_abilities.power_attack.recovery_turn = 0
   boss_abilities.heal.used = false
+
+  -- reset enemy abilities for new fight
+  enemy.ability_active = false
+  enemy.ability_power = 0
+  enemy.ability_def_boost = 0
+  enemy.ability_duration = 0
+  enemy_abilities.archer_rapid_fire.used = false
+  enemy_abilities.troll_stone_skin.active = false
+  enemy_abilities.troll_stone_skin.duration = 0
+  enemy_abilities.troll_regen.used = false
+  enemy_abilities.orc_rage.active = false
+  enemy_abilities.orc_rage.duration = 0
+  enemy_abilities.orc_challenge.active = false
+  enemy_abilities.orc_challenge.duration = 0
 
   -- multi-floor enemy spawning
   local floor_info = floor_enemies[current_floor]
