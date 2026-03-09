@@ -1938,9 +1938,9 @@ function reset_combat()
 
     -- difficulty scaling
     if difficulty == 1 then
-      enemy.hp = flr(enemy.hp / 2)  -- 50% for easy
+      enemy.hp = flr(enemy.hp * 0.4)  -- 40% for easy
       enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 0.6)  -- 60% attack
+      enemy.atk = flr(enemy.atk * 0.5)  -- 50% attack
     elseif difficulty == 3 then
       enemy.hp = flr(enemy.hp * 1.3)  -- 130% for hard
       enemy.max_hp = enemy.hp
@@ -1962,9 +1962,9 @@ function reset_combat()
 
     -- difficulty scaling
     if difficulty == 1 then
-      enemy.hp = flr(enemy.hp * 0.65)  -- easier on easy mode
+      enemy.hp = flr(enemy.hp * 0.50)  -- easier on easy mode
       enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 0.65)
+      enemy.atk = flr(enemy.atk * 0.50)
     elseif difficulty == 3 then
       enemy.hp = flr(enemy.hp * 1.35)  -- harder on hard mode
       enemy.max_hp = enemy.hp
@@ -2008,9 +2008,9 @@ function reset_game()
 
   -- set potions based on difficulty
   if difficulty == 1 then  -- easy
-    player.potions = 3
-    player.antidotes = 2
-    player.cure_scrolls = 2
+    player.potions = 5
+    player.antidotes = 3
+    player.cure_scrolls = 3
   elseif difficulty == 2 then  -- normal
     player.potions = 2
     player.antidotes = 1
