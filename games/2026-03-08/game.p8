@@ -66,6 +66,7 @@ last_unlock_id=nil  -- track most recent achievement unlock
 last_unlock_frame=-1000
 dash_count_this_level=0
 health_on_level_start=3
+health_on_adventure_start=3  -- track starting health for flawless_run achievement
 adventure_start_frame=0  -- track when adventure mode starts
 
 -- player
@@ -538,6 +539,7 @@ function update_difficulty_select()
   wave=1
   wave_start_frame=0
   init_level()
+  health_on_adventure_start=health  -- capture starting health for flawless_run check at level 5 end
   _log("state:play")
  end
 end
@@ -1212,8 +1214,8 @@ function update_play()
    end
    -- unlock adventure achievements
    unlock_achievement("expert_escape")
-   -- check flawless run (no damage throughout all 5 levels)
-   if health==health_on_level_start then
+   -- check flawless run (no damage throughout entire adventure)
+   if health==health_on_adventure_start then
     unlock_achievement("flawless_run")
    end
    -- check speed runner (complete all 5 levels in under 90s)
@@ -1229,10 +1231,6 @@ function update_play()
     unlock_achievement("pathfinder")
    elseif level==3 then
     unlock_achievement("boss_slayer")
-   end
-   -- check flawless run for this level
-   if health==health_on_level_start then
-    unlock_achievement("flawless_run")
    end
    -- check dash master (20+ dashes in a level)
    if dash_count_this_level>=20 then
