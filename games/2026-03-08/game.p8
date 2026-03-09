@@ -83,6 +83,9 @@ last_move_frame=-10
 last_hit_frame=-10
 last_dash_avoid_frame=-100  -- debounce dash-avoid sound
 last_near_miss_frame=-100  -- debounce near-miss sound
+last_wave_escalation_frame=-1000  -- debounce wave escalation sound
+dash_hit_shield_frame=-100  -- track when dash prevented damage
+dash_shake_intensity=0  -- screen shake intensity on dash hits
 
 -- dash mechanics
 dash_cooldown=30  -- 0.5 seconds at 60fps
@@ -479,10 +482,13 @@ function update_difficulty_select()
  if test_input(4)>0 or test_input(5)>0 then
   if difficulty_cursor==1 then
    difficulty="easy"
+   sfx(7)  -- easy mode: gentle ascending tone
   elseif difficulty_cursor==2 then
    difficulty="normal"
+   sfx(7)  -- normal mode: neutral beep
   elseif difficulty_cursor==3 then
    difficulty="hard"
+   sfx(8)  -- hard mode: ominous descending progression
   end
   is_endless=false
   state="play"
@@ -506,10 +512,13 @@ function update_endless_difficulty_select()
  if test_input(4)>0 or test_input(5)>0 then
   if difficulty_cursor==1 then
    difficulty="easy"
+   sfx(7)  -- easy mode: gentle ascending tone
   elseif difficulty_cursor==2 then
    difficulty="normal"
+   sfx(7)  -- normal mode: neutral beep
   elseif difficulty_cursor==3 then
    difficulty="hard"
+   sfx(8)  -- hard mode: ominous descending progression
   end
   is_endless=true
   state="play"
@@ -840,6 +849,18 @@ function update_play()
     if j%2==0 then dir=-1 end
     add(enemies,{x=spawn_x,y=spawn_y,w=8,h=8,speed=speed_base*adaptive_speed_mult*passive_speed_mult,dir=dir})
    end
+
+   -- audio feedback for wave escalation
+   if frames-last_wave_escalation_frame>60 then
+    if difficulty=="hard" then
+     -- hard mode escalation: ominous 4-note progression
+     sfx(8,0,flr(wave/3)%4)
+    else
+     -- normal/easy mode escalation: ascending pair for buildup
+     sfx(7,0,flr(wave/2)%3)
+    end
+    last_wave_escalation_frame=frames
+   end
    _log("wave:"..wave.." enemies:"..enemy_count)
   end
 
@@ -1089,6 +1110,9 @@ function update_play()
     if frames-last_dash_avoid_frame>10 then
      sfx(6)  -- success tone
      last_dash_avoid_frame=frames
+     -- track dash hit shield for visual feedback
+     dash_hit_shield_frame=frames
+     dash_shake_intensity=2  -- screen shake on successful dodge
     end
     level_score+=10*(1+flr(dash_streak*0.1))  -- streak bonus
     _log("dash_avoid:"..dash_streak)
@@ -1136,6 +1160,16 @@ end
 
 function draw_play()
  cls(0)
+
+ -- screen shake on dash hit shield
+ local shake_x=0
+ local shake_y=0
+ if dash_shake_intensity>0 then
+  shake_x=flr((frames%3-1)*dash_shake_intensity)
+  shake_y=flr(((frames+1)%3-1)*dash_shake_intensity)
+  dash_shake_intensity=max(0,dash_shake_intensity-0.5)
+ end
+ camera(shake_x,shake_y)
 
  -- screen flash effect on dash
  if dash_flash_frames>0 then
@@ -1320,6 +1354,9 @@ function draw_play()
   -- resume instructions
   print("o or x to resume",35,66,7)
  end
+
+ -- reset camera after screen shake
+ camera(0,0)
 end
 
 function update_gameover()
@@ -1685,4 +1722,6 @@ __sfx__
 001004,255,000,000,2020,3030,4040,3030,2020,1010,2020,3030,4040,3030,2020,1010,2020,3030,4040,3030,2020,1010,2020,3030,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,7007,6006,5005,4004,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,5005,6006,7007,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
+001004,255,000,000,2002,3003,4004,5005,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
+001004,255,000,000,5005,5005,6006,6006,7007,7007,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 
