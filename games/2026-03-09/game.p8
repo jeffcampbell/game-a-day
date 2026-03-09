@@ -104,7 +104,9 @@ enemy = {
   atk = 3,
   def = 1,
   name = "goblin",
-  is_boss = false
+  is_boss = false,
+  type = 0,  -- 0=default, 1-3=type index
+  armor_active = false  -- for troll armor buff
 }
 
 -- combat state
@@ -411,8 +413,10 @@ function draw_play()
 
   -- enemy
   local enemy_name = "boss"
-  if not enemy.is_boss then enemy_name = "enemy" end
-  print(enemy_name.." hp: "..enemy.hp.."/"..enemy.max_hp, 20, 28, 8)
+  if not enemy.is_boss then
+    enemy_name = enemy.type == 1 and "goblin archer" or (enemy.type == 2 and "troll" or (enemy.type == 3 and "orc warrior" or "goblin"))
+  end
+  print(enemy_name.." hp: "..enemy.hp.."/"..enemy.max_hp, 12, 28, 8)
 
   -- draw player sprite with swing animation
   local player_x = 20
@@ -452,31 +456,21 @@ function draw_play()
   local enemy_col = 7
 
   if anim.enemy_flinch.active then
-    -- flinch: flash color and knockback
     enemy_col = (anim.enemy_flinch.frame % 2 == 0) and 8 or 7
     enemy_x += 1
   end
 
   if enemy.hp <= 0 then
-    enemy_y += 2  -- dead pose
+    enemy_y += 2
   elseif enemy.is_boss then
-    -- boss visual indicator (different color)
     enemy_col = 10
+  elseif enemy.type == 2 then
+    enemy_col = 3  -- troll is greenish
+  elseif enemy.type == 3 then
+    enemy_col = 2  -- warrior is reddish
   end
 
   spr(enemy_spr, enemy_x, enemy_y)
-
-  -- draw enemy type indicator (boss crown or goblin teeth)
-  if enemy.is_boss then
-    -- boss indicator
-    pset(enemy_x + 2, enemy_y - 1, 10)
-    pset(enemy_x + 4, enemy_y - 1, 10)
-    pset(enemy_x + 3, enemy_y - 2, 10)
-  else
-    -- goblin indicator
-    pset(enemy_x + 2, enemy_y - 1, 8)
-    pset(enemy_x + 4, enemy_y - 1, 8)
-  end
 
   -- draw damage popups
   for popup in all(anim.damage_popups) do
@@ -685,6 +679,15 @@ function equip_item(idx)
       _log("equip:"..item.name)
     end
   end
+end
+
+function get_stat(t, stat)
+  if t == 1 then
+    return stat == "hp" and 0.8 or (stat == "atk" and 1.3 or 0.8)
+  elseif t == 2 then
+    return stat == "hp" and 1.5 or (stat == "atk" and 0.8 or 1.0)
+  end
+  return 1.0
 end
 
 -- boss special abilities
@@ -908,14 +911,18 @@ function combat_step()
       dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
       if player_action == "defend" then
         dmg = max(1, flr(dmg / 2))
+        if enemy.type == 2 then  -- troll armor
+          enemy.armor_active = true
+          dmg = max(0, flr(dmg * 0.5))
+          add(combat_log, "troll hardens!")
+        end
       end
       player.hp -= dmg
       add(combat_log, "enemy attacks! "..dmg.." dmg")
-      -- trigger enemy attack animation
       anim.player_swing.active = true
       anim.player_swing.frame = 0
       add_damage_popup(dmg, 25, 40)
-      add_particles(25, 45, 8, 3)  -- red damage particles
+      add_particles(25, 45, 8, 3)
       screen_shake(1, 4)
       anim.flash_color.active = true
       anim.flash_color.col = 8
@@ -957,23 +964,32 @@ function reset_combat()
 
   -- spawn new enemy
   if enemy_count < 2 then
-    enemy.hp = 8 + enemy_count * 3
+    enemy.type = flr(rnd(3)) + 1  -- pick type 1-3
+    enemy.armor_active = false
+
+    -- base stats with type multipliers
+    local base_hp = 8 + enemy_count * 3
+    local base_atk = 3 + enemy_count
+
+    enemy.hp = flr(base_hp * get_stat(enemy.type, "hp"))
     enemy.max_hp = enemy.hp
-    enemy.atk = 3 + enemy_count
+    enemy.atk = flr(base_atk * get_stat(enemy.type, "atk"))
+    enemy.def = flr(1 * get_stat(enemy.type, "def"))
     enemy.is_boss = false
 
-    -- apply difficulty scaling
-    if difficulty == 1 then  -- easy
+    -- difficulty scaling
+    if difficulty == 1 then
       enemy.hp = flr(enemy.hp * 3 / 4)
       enemy.max_hp = enemy.hp
       enemy.atk = flr(enemy.atk * 3 / 4)
-    elseif difficulty == 3 then  -- hard
+    elseif difficulty == 3 then
       enemy.hp = flr(enemy.hp * 5 / 4)
       enemy.max_hp = enemy.hp
       enemy.atk = flr(enemy.atk * 5 / 4)
     end
 
-    add(combat_log, "a goblin appears!")
+    local ename = enemy.type == 1 and "goblin archer" or (enemy.type == 2 and "troll" or (enemy.type == 3 and "orc warrior" or "goblin"))
+    add(combat_log, "a "..ename.." appears!")
   else
     -- boss fight
     enemy.hp = 25
@@ -981,6 +997,8 @@ function reset_combat()
     enemy.atk = 6
     enemy.def = 2
     enemy.is_boss = true
+    enemy.type = 0
+    enemy.armor_active = false
 
     -- apply difficulty scaling to boss
     if difficulty == 1 then  -- easy
