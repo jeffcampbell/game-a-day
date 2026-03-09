@@ -1358,6 +1358,18 @@ function get_enemy_ability()
   if ability == nil and difficulty == 3 and rnd() < 0.1 then
     if enemy.type == 1 and not enemy_abilities.archer_rapid_fire.used then
       ability = "archer_rapid_fire"
+    elseif enemy.type == 2 and rnd() < 0.5 then
+      if not enemy_abilities.troll_stone_skin.active then
+        ability = "troll_stone_skin"
+      elseif not enemy_abilities.troll_regen.used then
+        ability = "troll_regen"
+      end
+    elseif enemy.type == 3 and rnd() < 0.5 then
+      if not enemy_abilities.orc_rage.active then
+        ability = "orc_rage"
+      elseif not enemy_abilities.orc_challenge.active then
+        ability = "orc_challenge"
+      end
     elseif enemy.type == 4 and rnd() < 0.5 then
       if not enemy_abilities.shaman_heal.used then ability = "shaman_heal"
       elseif not enemy_abilities.shaman_curse.used then ability = "shaman_curse" end
