@@ -55,6 +55,7 @@ player_action = nil
 player_act_val = 0
 combat_over = false
 player_won = false
+combat_escaped = false
 enemy_count = 0
 boss_defeated = false
 
@@ -131,7 +132,10 @@ function update_play()
   if combat_over then
     -- O button (button 4)
     if (input & 16) > 0 and (prev_input & 16) == 0 then
-      if player_won then
+      if combat_escaped then
+        _log("combat_escaped")
+        reset_combat()
+      elseif player_won then
         _log("enemy_defeated")
         enemy_count += 1
         if enemy_count >= 3 then
@@ -271,7 +275,7 @@ function combat_step()
     if rnd() < 0.5 then
       add(combat_log, "escaped!")
       combat_over = true
-      player_won = false
+      combat_escaped = true
       return
     else
       add(combat_log, "flee failed!")
@@ -328,6 +332,7 @@ function reset_combat()
   player_action = nil
   combat_over = false
   player_won = false
+  combat_escaped = false
 
   -- spawn new enemy
   if enemy_count < 2 then
@@ -362,6 +367,7 @@ function reset_game()
   boss_defeated = false
   combat_over = false
   player_won = false
+  combat_escaped = false
   combat_log = {}
   turn = 0
 end
