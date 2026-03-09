@@ -39,7 +39,9 @@ tutorial_frames=0
 tutorial_dash_count=0
 tutorial_enemy=nil
 best_score=0
-best_endless_score=0
+best_easy_score=0
+best_normal_score=0
+best_hard_score=0
 level_score=0
 health=3
 level=1
@@ -80,6 +82,19 @@ badges={wave_5=false,wave_10=false,wave_15=false,wave_20=false,wave_25=false,wav
 badge_names={wave_5="wave 5",wave_10="wave 10",wave_15="wave 15",wave_20="wave 20",wave_25="wave 25",wave_30="wave 30+"}
 last_badge_unlock_id=nil  -- track most recent badge unlock
 last_badge_unlock_frame=-1000
+
+-- helper functions for difficulty-based best scores
+function get_best_endless_score()
+ if difficulty=="easy" then return best_easy_score
+ elseif difficulty=="hard" then return best_hard_score
+ else return best_normal_score end
+end
+
+function set_best_endless_score(val)
+ if difficulty=="easy" then best_easy_score=val
+ elseif difficulty=="hard" then best_hard_score=val
+ else best_normal_score=val end
+end
 
 -- player
 player={x=64,y=100,w=8,h=8,speed=1.5,alive=true}
@@ -1426,7 +1441,7 @@ function draw_play()
   print(difficulty,68,2,diff_col)
   print("time "..survival_time.."s",75,12,7)
   print("hp "..max(0,health),2,12,7)
-  print("best:"..best_endless_score,40,12,11)
+  print("best:"..get_best_endless_score(),40,12,11)
  else
   -- standard mode display
   local total_score=score+level_score
@@ -1701,8 +1716,8 @@ function draw_gameover()
    end
    print("score: "..score_display,40,75,11)
 
-   if score>best_endless_score then
-    best_endless_score=score
+   if score>get_best_endless_score() then
+    set_best_endless_score(score)
     local flash=(flr(frames/10)%2==0)
     local col=11
     if not flash then col=7 end
@@ -1748,7 +1763,7 @@ function draw_gameover()
    local survival_time=flr((frames-level_start_frame)/60)
    print("survived: "..survival_time.."s",32,70,7)
    print("score: "..score,48,80,7)
-   print("best: "..best_endless_score,44,90,7)
+   print(difficulty.." best: "..get_best_endless_score(),24,90,11)
   else
    -- adventure defeat stats
    print("level "..level.." - reached",24,50,7)
