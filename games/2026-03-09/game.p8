@@ -24,8 +24,9 @@ end
 
 -- game state machine
 state = "menu"
-menu_sel = 0
+menu_sel = 0  -- 0=easy, 1=normal, 2=hard, 3=quit
 prev_input = 0
+difficulty = 2  -- 1=easy, 2=normal, 3=hard
 
 -- equipment system
 equipment_list = {
@@ -100,7 +101,7 @@ function update_menu()
 
   -- right (button 1)
   if (input & 2) > 0 and (prev_input & 2) == 0 then
-    menu_sel = min(menu_sel + 1, 1)
+    menu_sel = min(menu_sel + 1, 3)
   end
   -- left (button 0)
   if (input & 1) > 0 and (prev_input & 1) == 0 then
@@ -109,12 +110,28 @@ function update_menu()
   -- O button (button 4)
   if (input & 16) > 0 and (prev_input & 16) == 0 then
     if menu_sel == 0 then
+      difficulty = 1  -- easy
+      _log("difficulty:easy")
       _log("state:play")
       state = "play"
       reset_combat()
     elseif menu_sel == 1 then
+      difficulty = 2  -- normal
+      _log("difficulty:normal")
+      _log("state:play")
+      state = "play"
+      reset_combat()
+    elseif menu_sel == 2 then
+      difficulty = 3  -- hard
+      _log("difficulty:hard")
+      _log("state:play")
+      state = "play"
+      reset_combat()
+    elseif menu_sel == 3 then
+      _log("quit")
       _log("state:gameover")
       state = "gameover"
+      boss_defeated = false
     end
   end
 
@@ -124,18 +141,39 @@ end
 function draw_menu()
   print("dungeon crawler", 28, 20, 7)
   print("level "..player.level.." | hp "..player.hp.."/"..player.max_hp, 16, 40, 7)
+  print("select difficulty:", 28, 52, 7)
 
-  local y = 60
+  local y = 62
   local sel_col = 8
+  -- easy
   if menu_sel == 0 then
     print(">", 50, y, sel_col)
-    print("start quest", 60, y, 7)
+    print("easy", 60, y, 7)
   else
-    print("start quest", 60, y, 5)
+    print("easy", 60, y, 5)
   end
 
-  y += 12
+  y += 10
+  -- normal
   if menu_sel == 1 then
+    print(">", 50, y, sel_col)
+    print("normal", 60, y, 7)
+  else
+    print("normal", 60, y, 5)
+  end
+
+  y += 10
+  -- hard
+  if menu_sel == 2 then
+    print(">", 50, y, sel_col)
+    print("hard", 60, y, 7)
+  else
+    print("hard", 60, y, 5)
+  end
+
+  y += 10
+  -- quit
+  if menu_sel == 3 then
     print(">", 50, y, sel_col)
     print("quit", 60, y, 7)
   else
@@ -292,6 +330,13 @@ function update_gameover()
 end
 
 function draw_gameover()
+  local difficulty_str = "normal"
+  if difficulty == 1 then
+    difficulty_str = "easy"
+  elseif difficulty == 3 then
+    difficulty_str = "hard"
+  end
+
   if boss_defeated then
     print("you defeated the boss!", 18, 30, 11)
     print("quest complete!", 32, 45, 11)
@@ -302,6 +347,7 @@ function draw_gameover()
     print("you were defeated", 24, 45, 8)
     print("level: "..player.level, 40, 60, 5)
   end
+  print("difficulty: "..difficulty_str, 30, 85, 6)
   print("press z/c to continue", 18, 110, 7)
 end
 
@@ -519,6 +565,18 @@ function reset_combat()
     enemy.max_hp = enemy.hp
     enemy.atk = 3 + enemy_count
     enemy.is_boss = false
+
+    -- apply difficulty scaling
+    if difficulty == 1 then  -- easy
+      enemy.hp = flr(enemy.hp * 3 / 4)
+      enemy.max_hp = enemy.hp
+      enemy.atk = flr(enemy.atk * 3 / 4)
+    elseif difficulty == 3 then  -- hard
+      enemy.hp = flr(enemy.hp * 5 / 4)
+      enemy.max_hp = enemy.hp
+      enemy.atk = flr(enemy.atk * 5 / 4)
+    end
+
     add(combat_log, "a goblin appears!")
   else
     -- boss fight
@@ -527,6 +585,18 @@ function reset_combat()
     enemy.atk = 6
     enemy.def = 2
     enemy.is_boss = true
+
+    -- apply difficulty scaling to boss
+    if difficulty == 1 then  -- easy
+      enemy.hp = flr(enemy.hp * 3 / 4)
+      enemy.max_hp = enemy.hp
+      enemy.atk = flr(enemy.atk * 3 / 4)
+    elseif difficulty == 3 then  -- hard
+      enemy.hp = flr(enemy.hp * 5 / 4)
+      enemy.max_hp = enemy.hp
+      enemy.atk = flr(enemy.atk * 5 / 4)
+    end
+
     add(combat_log, "the boss appears!")
   end
 
@@ -540,7 +610,16 @@ function reset_game()
   player.def = 2
   player.level = 1
   player.exp = 0
-  player.potions = 2
+
+  -- set potions based on difficulty
+  if difficulty == 1 then  -- easy
+    player.potions = 3
+  elseif difficulty == 2 then  -- normal
+    player.potions = 2
+  else  -- hard
+    player.potions = 1
+  end
+
   player.weapon = nil
   player.armor = nil
   player.inventory = {}
