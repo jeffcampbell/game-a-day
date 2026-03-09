@@ -846,27 +846,20 @@ function update_gameover()
 end
 
 function draw_gameover()
-  local difficulty_str = "normal"
-  if difficulty == 1 then
-    difficulty_str = "easy"
-  elseif difficulty == 3 then
-    difficulty_str = "hard"
-  end
+  local enemies_killed = (current_floor - 1) * 2 + floor_combat_count
 
   if boss_defeated then
-    -- victory screen with color flash
     local flash_col = flr(t() * 4) % 2 == 0 and 11 or 7
-    print("you defeated the boss!", 18, 30, flash_col)
-    print("quest complete!", 32, 45, 11)
-    print("level: "..player.level, 40, 60, 7)
-    print("exp: "..player.exp, 40, 72, 7)
+    print("victory!", 45, 30, flash_col)
+    print("quest complete!", 28, 45, 11)
+    print("level: "..player.level, 42, 60, 7)
+    print("defeated: "..enemies_killed, 38, 70, 7)
   else
-    print("game over", 40, 30, 8)
-    print("you were defeated", 24, 45, 8)
-    print("level: "..player.level, 40, 60, 5)
+    print("game over", 35, 30, 8)
+    print("level: "..player.level, 42, 50, 5)
+    print("defeated: "..enemies_killed, 38, 60, 5)
   end
-  print("difficulty: "..difficulty_str, 30, 85, 6)
-  print("press z/c to continue", 18, 110, 7)
+  print("press o to continue", 22, 110, 7)
 end
 
 -- equipment system helpers
