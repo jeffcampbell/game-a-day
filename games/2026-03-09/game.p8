@@ -24,7 +24,7 @@ end
 
 -- game state machine
 state = "menu"
-menu_sel = 0  -- 0=easy, 1=normal, 2=hard
+menu_sel = 0  -- 0=easy, 1=normal, 2=hard, 3=quit
 prev_input = 0
 difficulty = 2  -- 1=easy, 2=normal, 3=hard
 
