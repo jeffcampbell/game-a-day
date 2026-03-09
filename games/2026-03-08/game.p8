@@ -539,7 +539,7 @@ function draw_menu()
  print("dash to dodge (x)",24,52,11)
  print("survive + score points",16,64,7)
  print("arrow keys move",28,80,11)
- print("x button dash!",32,90,11)
+ print("x=dash  o=pause",24,90,11)
  print("z or x to start",32,110,11)
 end
 
@@ -567,6 +567,7 @@ function draw_tutorial_mode_select()
 
  print("arrows select",32,105,7)
  print("z/x confirm",36,115,7)
+ print("x=dash  o=pause",28,4,10)
 end
 
 function draw_difficulty_select()
@@ -664,8 +665,9 @@ function draw_tutorial_intro()
  print("welcome to tutorial",20,20,7)
  print("learn advanced tactics",16,35,11)
  print("x button dash fast",22,50,11)
- print("arrows to move",28,90,7)
- print("starting soon...",28,110,7)
+ print("o button to pause",26,60,10)
+ print("arrows to move",28,85,7)
+ print("starting soon...",28,105,7)
 end
 
 function draw_tutorial_dash()
@@ -1246,17 +1248,24 @@ function draw_play()
   spr(get_portal_sprite(),exit_portal.x-4,exit_portal.y-4)
  end
 
- -- draw mechanic ready indicators at top right
+ -- draw mechanic ready indicators at top
  local dash_ready=frames-last_dash_frame>=dash_cooldown
 
- -- dash indicator (X button) - always visible HUD
- local dash_color=5  -- red when on cooldown
- if dash_ready then dash_color=11 end  -- cyan when ready
- print("x:",100,1,7)  -- label
- rectfill(110,1,121,9,dash_color)
+ -- dash indicator (X button) - PROMINENT HUD at top left
+ local dash_color=8  -- red when on cooldown
+ if dash_ready then dash_color=10 end  -- bright yellow when ready
+ -- larger indicator: text + box
+ print("x=dash",2,2,7)  -- label
+ rectfill(30,1,65,10,dash_color)
  if dash_ready then
-  print("x",113,2,0)  -- show "x" in black when ready
+  print("ready!",33,2,0)  -- show "ready!" in black when dash is available
+ else
+  local cooldown_frames=dash_cooldown-(frames-last_dash_frame)
+  print("cd",37,2,0)  -- cooldown indicator
  end
+
+ -- pause indicator (O button) - at top right
+ print("o=pause",100,2,7)  -- label
 
  if is_endless then
   -- endless mode display
@@ -1324,11 +1333,61 @@ function draw_play()
    print("press x to dodge!",26,57,prompt_color)
   end
 
+  -- context-sensitive prompts for mechanic discovery
+  -- detect tight corridor: enemies blocking left/right movement
+  local tight_corridor=false
+  if #enemies>=2 then
+   local enemies_in_corridor=0
+   for i=1,#enemies do
+    local e=enemies[i]
+    if e.y>40 and e.y<90 then  -- middle vertical zone
+     enemies_in_corridor+=1
+    end
+   end
+   if enemies_in_corridor>=2 then
+    tight_corridor=true
+   end
+  end
+
+  -- detect multiple enemies (3+) approaching
+  local many_enemies=#enemies>=3
+  local enemies_nearby=0
+  for i=1,#enemies do
+   local e=enemies[i]
+   local dist=sqrt((e.x-player.x)*(e.x-player.x)+(e.y-player.y)*(e.y-player.y))
+   if dist<40 then
+    enemies_nearby+=1
+   end
+  end
+
+  -- show contextual prompts when dash is ready
+  local dash_ready=frames-last_dash_frame>=dash_cooldown
+  if dash_ready and not player_used_dash then
+   if tight_corridor and elapsed>300 and elapsed<5400 then
+    print("press x to dash through!",14,105,10)
+    _log("tight_corridor_prompt")
+   elseif enemies_nearby>=2 and elapsed>300 then
+    print("press x to dodge!",24,105,11)
+    _log("dodge_enemies_prompt")
+   end
+  end
+
+  -- pause tip: show at game start
+  if level==1 and elapsed<300 then
+   print("tip: o=pause anytime",18,14,10)
+  end
+
   -- dash feedback: show "DASH!" briefly when player dashes
   local is_dash_invuln=frames-dash_invuln_start<dash_invuln_frames
   if is_dash_invuln and frames-last_dash_frame<6 then
    print("dash!",54,50,11)  -- cyan feedback text
    _log("dash_feedback")
+  end
+
+  -- successful dodge feedback: show when dash avoided an enemy
+  if frames-dash_hit_shield_frame<12 then
+   -- bright reward message
+   print("+dash avoid!",40,30,10)  -- yellow success message
   end
 
   print("find exit (top right)",10,120,14)
@@ -1345,14 +1404,16 @@ function draw_play()
   end
 
   -- pause dialog box
-  rectfill(32,45,96,83,1)
-  rect(32,45,96,83,15)
+  rectfill(30,40,98,88,1)
+  rect(30,40,98,88,15)
 
   -- paused text
-  print("paused",48,52,15)
+  print("paused",48,46,15)
 
-  -- resume instructions
-  print("o or x to resume",35,66,7)
+  -- key instructions
+  print("o=pause",40,56,11)  -- show the key binding
+  print("press o or x",32,66,7)
+  print("to resume",38,74,7)
  end
 
  -- reset camera after screen shake
