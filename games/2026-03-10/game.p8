@@ -72,21 +72,7 @@ end
 
 function update_play()
   -- Player 1 movement (arrows or WASD)
-  if test_input(0) == 1 then  -- Left
-    p1_y = max(0, p1_y - 2)
-  end
-  if test_input(1) == 2 then  -- Right
-    p1_y = max(0, p1_y - 2)
-  end
-  if test_input(2) == 4 then  -- Up
-    p1_y = max(0, p1_y - 2)
-  end
-  if test_input(3) == 8 then  -- Down
-    p1_y = min(128 - paddle_h, p1_y + 2)
-  end
-
-  -- Actual button checking for continuous input
-  local btn_state = btn()
+  local btn_state = test_input(0)
   if (btn_state & 4) > 0 then  -- Up
     p1_y = max(0, p1_y - 2)
   end

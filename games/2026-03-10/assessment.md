@@ -58,6 +58,8 @@ A clean, simple Pong-style sports game that provides arcade-style fun with minim
 - Clear separation of update and draw functions
 - Test infrastructure integrated (_log calls for key events)
 - Comprehensive logging of state transitions and scoring events
+- **Fixed**: Removed dead input handling code that violated test infrastructure requirements
+- **Fixed**: Input handling now uses `test_input(0)` instead of `btn()` for test replay compatibility
 
 ### Performance ✅
 - No noticeable frame drops or stuttering
