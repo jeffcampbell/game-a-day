@@ -453,14 +453,9 @@ function update_tutorial_mode_select()
    _log("state:difficulty_select")
   elseif mode_cursor==2 then
    game_mode="endless"
-   difficulty="normal"
-   is_endless=true
-   state="play"
-   score=0
-   level=1
-   wave=1
-   init_endless_level()
-   _log("state:play")
+   state="endless_difficulty_select"
+   difficulty_cursor=2
+   _log("state:endless_difficulty_select")
   else
    state="tutorial_intro"
    tutorial_frames=0
@@ -500,21 +495,48 @@ function update_difficulty_select()
  end
 end
 
+function update_endless_difficulty_select()
+ if test_input(2)>0 then
+  difficulty_cursor=max(1,difficulty_cursor-1)
+ end
+ if test_input(3)>0 then
+  difficulty_cursor=min(3,difficulty_cursor+1)
+ end
+
+ if test_input(4)>0 or test_input(5)>0 then
+  if difficulty_cursor==1 then
+   difficulty="easy"
+  elseif difficulty_cursor==2 then
+   difficulty="normal"
+  elseif difficulty_cursor==3 then
+   difficulty="hard"
+  end
+  is_endless=true
+  state="play"
+  score=0
+  level=1
+  wave=1
+  init_endless_level()
+  _log("state:play")
+  _log("endless:difficulty:"..difficulty)
+ end
+end
+
 function draw_menu()
  cls(1)
- print("cave escape",36,20,7)
- print("find the glowing",24,35,7)
- print("exit portal",32,44,7)
- print("avoid red enemies",24,56,7)
- print("reach both levels",24,68,11)
+ print("cave escape",36,15,7)
+ print("adventure: 5 cave levels",16,28,7)
+ print("endless: infinite waves",20,40,11)
+ print("dash to dodge (x)",24,52,11)
+ print("survive + score points",16,64,7)
  print("arrow keys move",28,80,11)
  print("x button dash!",32,90,11)
- print("z or x to start",32,114,11)
+ print("z or x to start",32,110,11)
 end
 
 function draw_tutorial_mode_select()
  cls(1)
- print("select game mode",28,30,7)
+ print("select game mode",28,20,7)
 
  local col1=7
  local col2=7
@@ -527,9 +549,12 @@ function draw_tutorial_mode_select()
   col3=11
  end
 
- print("adventure",40,50,col1)
- print("endless",44,70,col2)
- print("tutorial",44,90,col3)
+ print("adventure",40,45,col1)
+ print("5 escalating levels",20,54,7)
+ print("endless",44,65,col2)
+ print("infinite waves",28,74,7)
+ print("tutorial",44,85,col3)
+ print("learn dash mechanic",20,94,7)
 
  print("arrows select",32,105,7)
  print("z/x confirm",36,115,7)
@@ -549,6 +574,29 @@ function draw_difficulty_select()
    col=11
   end
   print(labels[i],56,y_positions[i],col)
+ end
+
+ print("up/down select",32,110,7)
+ print("z/x confirm",36,118,7)
+end
+
+function draw_endless_difficulty_select()
+ cls(1)
+ print("endless mode",40,15,11)
+ print("difficulty",44,25,7)
+
+ local colors={8,7,11}
+ local y_positions={50,70,90}
+ local labels={"easy","normal","hard"}
+ local desc={"few waves","balanced","intense"}
+
+ for i=1,3 do
+  local col=colors[i]
+  if i==difficulty_cursor then
+   col=11
+  end
+  print(labels[i],56,y_positions[i],col)
+  print(desc[i],48,y_positions[i]+8,7)
  end
 
  print("up/down select",32,110,7)
@@ -741,35 +789,58 @@ function update_play()
  player.y=max(2,min(player.y,126))
 
  if is_endless then
-  -- endless mode: wave-based spawning every 30-40 seconds (adaptive)
+  -- endless mode: wave-based spawning (difficulty-adjusted)
+  -- difficulty modifiers: easy=slower, normal=balanced, hard=faster
   local wave_elapsed=frames-wave_start_frame
-  local spawn_interval=flr(1800/adaptive_spawn_mult)  -- 30 seconds base, adaptive wave timing
+  local base_interval=1800  -- 30 seconds base
+  local interval_mult=1.0
+  local speed_mult=1.0
+  local enemy_mult=1.0
+
+  if difficulty=="easy" then
+   interval_mult=1.5  -- 45s between waves
+   speed_mult=0.6
+   enemy_mult=0.8
+  elseif difficulty=="hard" then
+   interval_mult=0.7  -- 21s between waves
+   speed_mult=1.3
+   enemy_mult=1.2
+  end
+
+  local spawn_interval=flr(base_interval*interval_mult/adaptive_spawn_mult)
   if wave_elapsed>=spawn_interval then  -- adaptive spawn interval
    wave+=1
    wave_start_frame=frames
 
-   -- progressive difficulty: start at 3, increase by 1-2 per wave, cap at 10
+   -- progressive difficulty: start at 3, increase by 1-2 per wave, cap at difficulty-dependent max
+   local max_enemies=10
+   if difficulty=="easy" then max_enemies=7
+   elseif difficulty=="hard" then max_enemies=12 end
+
    local enemy_count
    if wave<=2 then
-    enemy_count=2+wave  -- wave 1: 3, wave 2: 4
+    enemy_count=flr((2+wave)*enemy_mult)  -- wave 1: 2-3, wave 2: 3-4
    else
-    enemy_count=min(4+flr((wave-2)/2),10)  -- wave 3+: increase by 1 every 2 waves
+    enemy_count=min(flr((4+flr((wave-2)/2))*enemy_mult),max_enemies)
    end
 
-   -- award points: 10 per enemy + 100 for wave survival
-   score+=enemy_count*10+100
+   -- award points: 10 per enemy + 100 for wave survival (scaled by difficulty)
+   local difficulty_multiplier=1.0
+   if difficulty=="easy" then difficulty_multiplier=0.7
+   elseif difficulty=="hard" then difficulty_multiplier=1.5 end
+   score+=flr(enemy_count*10*difficulty_multiplier+100*difficulty_multiplier)
 
    for j=1,enemy_count do
     local spawn_y=20+flr(rnd(80))
     local spawn_x=10+flr(rnd(100))
-    local speed_base=0.6+wave*0.05  -- slightly more conservative speed increase
+    local speed_base=(0.6+wave*0.05)*speed_mult
     local passive_speed_mult=1.0
-    if is_passive_player then passive_speed_mult=0.75 end  -- 25% speed reduction for passive players
+    if is_passive_player then passive_speed_mult=0.75 end
     local dir=1
     if j%2==0 then dir=-1 end
     add(enemies,{x=spawn_x,y=spawn_y,w=8,h=8,speed=speed_base*adaptive_speed_mult*passive_speed_mult,dir=dir})
    end
-   _log("wave:"..wave)
+   _log("wave:"..wave.." enemies:"..enemy_count)
   end
 
  else
@@ -1156,10 +1227,15 @@ function draw_play()
  if is_endless then
   -- endless mode display
   local survival_time=flr((frames-level_start_frame)/60)
+  local diff_col=7
+  if difficulty=="easy" then diff_col=3
+  elseif difficulty=="hard" then diff_col=8 end
   print("sc "..score,2,2,7)
   print("wave "..wave,40,2,7)
-  print("time "..survival_time.."s",75,2,7)
+  print(difficulty,68,2,diff_col)
+  print("time "..survival_time.."s",75,12,7)
   print("hp "..max(0,health),2,12,7)
+  print("best:"..best_endless_score,40,12,11)
  else
   -- standard mode display
   local total_score=score+level_score
@@ -1260,14 +1336,22 @@ function draw_gameover()
 
  if is_endless then
   -- endless mode gameover
-  print("endless failed",32,20,8)
-  print("waves survived:"..wave,28,35,11)
-  print("score:"..score,48,50,7)
+  print("endless mode",40,15,11)
+  local diff_col=7
+  if difficulty=="easy" then diff_col=3
+  elseif difficulty=="hard" then diff_col=8 end
+  print(difficulty.." difficulty",32,25,diff_col)
+
+  print("waves survived:"..wave,28,40,11)
+  local survival_time=flr((frames-level_start_frame)/60)
+  print("survival:"..survival_time.."s",36,50,7)
+  print("score:"..score,48,60,7)
   if score>best_endless_score then
    best_endless_score=score
-   print("new record!",44,60,11)
+   print("new record!",44,70,11)
+   _log("endless_new_record:"..score)
   else
-   print("best:"..best_endless_score,44,60,7)
+   print("best:"..best_endless_score,44,70,7)
   end
  else
   -- standard mode gameover
@@ -1303,6 +1387,7 @@ function _update()
  if state=="menu" then update_menu()
  elseif state=="tutorial_mode_select" then update_tutorial_mode_select()
  elseif state=="difficulty_select" then update_difficulty_select()
+ elseif state=="endless_difficulty_select" then update_endless_difficulty_select()
  elseif state=="tutorial_intro" then update_tutorial_intro()
  elseif state=="tutorial_dash" then update_tutorial_dash()
  elseif state=="play" then update_play()
@@ -1315,6 +1400,7 @@ function _draw()
  if state=="menu" then draw_menu()
  elseif state=="tutorial_mode_select" then draw_tutorial_mode_select()
  elseif state=="difficulty_select" then draw_difficulty_select()
+ elseif state=="endless_difficulty_select" then draw_endless_difficulty_select()
  elseif state=="tutorial_intro" then draw_tutorial_intro()
  elseif state=="tutorial_dash" then draw_tutorial_dash()
  elseif state=="play" then draw_play()
@@ -1599,3 +1685,4 @@ __sfx__
 001004,255,000,000,2020,3030,4040,3030,2020,1010,2020,3030,4040,3030,2020,1010,2020,3030,4040,3030,2020,1010,2020,3030,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,7007,6006,5005,4004,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,5005,6006,7007,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
+
