@@ -1,9 +1,6 @@
 pico-8 cartridge // http://www.pico-8.com
 version 41
 __lua__
--- dungeon crawler rpg
--- turn-based combat, leveling, equipment, inventory
-
 -- test infrastructure
 testmode = false
 test_log = {}
@@ -72,25 +69,33 @@ function add_particles(x, y, col, count)
   end
 end
 
--- equipment system
--- rarity: 1=common, 2=uncommon, 3=rare
+-- helper: apply ability visual effects
+function apply_fx(dmg, px, py, pcol, pcount, si, sc, fcol, ft)
+  if dmg ~= 0 then
+    add_damage_popup(dmg, px, py)
+    add_particles(px, py, pcol, pcount)
+  end
+  if si > 0 then screen_shake(si, 5) end
+  if fcol then
+    anim.flash_color.active = true
+    anim.flash_color.col = fcol
+    anim.flash_color.timer = ft or 2
+  end
+  if sc > 0 then sfx(sc) end
+end
+
 equipment_list = {
-  -- common weapons
-  {name="wooden sword", atk=2, def=0, hp=0, rarity=1},
-  {name="iron sword", atk=3, def=0, hp=0, rarity=1},
-  -- uncommon weapons
-  {name="steel sword", atk=4, def=0, hp=0, rarity=2},
-  {name="silver sword", atk=5, def=0, hp=0, rarity=2},
-  -- common armor
-  {name="cloth armor", atk=0, def=1, hp=0, rarity=1},
-  {name="leather armor", atk=0, def=2, hp=0, rarity=1},
-  -- uncommon armor
-  {name="steel armor", atk=0, def=2, hp=0, rarity=2},
-  {name="mithril armor", atk=0, def=3, hp=0, rarity=2},
-  -- accessories
-  {name="health ring", atk=0, def=0, hp=3, rarity=1},
-  {name="vigor amulet", atk=0, def=0, hp=5, rarity=2},
-  {name="golden ring", atk=1, def=1, hp=4, rarity=3}
+  {name="wooden sword", atk=2},
+  {name="iron sword", atk=3},
+  {name="steel sword", atk=4},
+  {name="silver sword", atk=5},
+  {name="cloth armor", def=1},
+  {name="leather armor", def=2},
+  {name="steel armor", def=2},
+  {name="mithril armor", def=3},
+  {name="health ring", hp=3},
+  {name="vigor amulet", hp=5},
+  {name="golden ring", atk=1, def=1, hp=4}
 }
 
 -- player stats
@@ -120,10 +125,9 @@ enemy = {
   def = 1,
   name = "goblin",
   is_boss = false,
-  is_elite = false,  -- elite enemy with stat scaling
-  type = 0,  -- 0=default, 1-3=type index
-  armor_active = false,  -- for troll armor buff
-  ability_active = false,  -- for damage/def buff abilities
+  is_elite = false,
+  type = 0,
+  ability_active = false,
   ability_power = 0,  -- multiplier for damage boost (rage: 1.5, challenge: 1.5)
   ability_def_boost = 0,  -- def boost amount
   ability_duration = 0,  -- remaining turns for buff
@@ -134,11 +138,9 @@ enemy = {
 combat_log = {}
 turn = 0
 player_action = nil
-player_act_val = 0
 combat_over = false
 player_won = false
 combat_escaped = false
-enemy_count = 0
 boss_defeated = false
 show_equip_menu = false
 equip_menu_sel = 0
@@ -159,56 +161,21 @@ floor_enemy_idx = 1
 floor_combat_count = 0
 pending_loot = nil
 
--- boss types with stat multipliers and distinct patterns
 boss_types = {
-  warrior = {name="warrior", hp_mult=1.0, atk_mult=1.0, def_mult=1.0, color=8, desc="Warrior"},
-  mage = {name="mage", hp_mult=0.9, atk_mult=1.1, def_mult=0.8, color=12, desc="Mage"},
-  berserker = {name="berserker", hp_mult=1.2, atk_mult=0.9, def_mult=0.7, color=14, desc="Berserker"}
+  warrior = {hp_mult=1.0, atk_mult=1.0, def_mult=1.0, color=8},
+  mage = {hp_mult=0.9, atk_mult=1.1, def_mult=0.8, color=12},
+  berserker = {hp_mult=1.2, atk_mult=0.9, def_mult=0.7, color=14}
 }
 enemy.boss_type = "warrior"  -- current boss type
 
--- boss abilities
 boss_abilities = {
-  power_attack = {
-    enabled = true,
-    hp_threshold = 0.5,  -- trigger at 50% hp
-    charged = false,
-    recovery_turn = 0
-  },
-  heal = {
-    enabled = true,
-    hp_threshold = 0.75,  -- trigger at 75% hp
-    used = false
-  },
-  multi_strike = {
-    enabled = true,
-    hp_threshold = 0.25  -- trigger at 25% hp
-  },
-  -- mage abilities
-  spell_burst = {
-    enabled = true,
-    hp_threshold = 0.6,
-    used = false
-  },
-  arcane_shield = {
-    enabled = true,
-    hp_threshold = 0.4,
-    active = false,
-    duration = 0
-  },
-  -- berserker abilities
-  rampage = {
-    enabled = true,
-    hp_threshold = 0.7,
-    active = false,
-    damage_mult = 1.0,
-    duration = 0
-  },
-  crush = {
-    enabled = true,
-    hp_threshold = 0.3,
-    used = false
-  }
+  power_attack = {hp_threshold = 0.5, charged = false, recovery_turn = 0},
+  heal = {hp_threshold = 0.75, used = false},
+  multi_strike = {hp_threshold = 0.25},
+  spell_burst = {hp_threshold = 0.6, used = false},
+  arcane_shield = {hp_threshold = 0.4, active = false, duration = 0},
+  rampage = {hp_threshold = 0.7, active = false, damage_mult = 1.0, duration = 0},
+  crush = {hp_threshold = 0.3, used = false}
 }
 
 -- boss pattern system (attack sequences that cycle throughout fight)
@@ -543,14 +510,12 @@ function update_play()
       -- left (button 0) - attack
       if (input & 1) > 0 and (prev_input & 1) == 0 then
         player_action = "attack"
-        player_act_val = 0
         sfx(2)  -- attack sound
         combat_step()
         _log("action:attack")
       -- right (button 1) - defend
       elseif (input & 2) > 0 and (prev_input & 2) == 0 then
         player_action = "defend"
-        player_act_val = 0
         sfx(6)  -- defend sound
         combat_step()
         _log("action:defend")
@@ -558,15 +523,13 @@ function update_play()
       elseif (input & 4) > 0 and (prev_input & 4) == 0 then
         if player.potions > 0 then
           player_action = "potion"
-          player_act_val = 0
-          sfx(5)  -- heal/potion sound
+            sfx(5)  -- heal/potion sound
           combat_step()
           _log("action:potion")
         end
       -- down (button 3) - flee
       elseif (input & 8) > 0 and (prev_input & 8) == 0 then
         player_action = "flee"
-        player_act_val = 0
         sfx(7)  -- flee sound
         combat_step()
         _log("action:flee")
@@ -883,61 +846,41 @@ function get_player_max_hp()
 end
 
 function drop_loot(is_boss, is_elite)
-  -- base drop chance 60-70%, 1.5x for elite
-  local drop_thresh = 0.65
-  if is_elite then drop_thresh = 0.85 end  -- 85% chance for elite (1.5x)
-  if not is_boss and rnd() > drop_thresh then return end
+  if not is_boss and rnd() > (is_elite and 0.85 or 0.65) then return end
   if is_boss and rnd() > 0.9 then return end
 
-  local drop_table = {}
-  local diff_bonus = 0
-  if difficulty == 3 then diff_bonus = 0.15 end
-  if difficulty == 1 then diff_bonus = -0.1 end
+  local db = {}
+  local diff_bonus = difficulty == 3 and 0.15 or (difficulty == 1 and -0.1 or 0)
 
   if is_boss or current_floor == 5 then
-    -- final boss: guaranteed rare loot
-    drop_table = {
-      {item=3, chance=0.95},    -- steel sword
-      {item=7, chance=0.9},     -- mithril armor
-      {item=10, chance=0.85},   -- vigor amulet
-      {item=11, chance=0.4 + diff_bonus},   -- golden ring (rare)
+    db = {
+      {3,0.95},{7,0.9},{10,0.85},{11,0.4+diff_bonus}
     }
   elseif current_floor == 4 then
-    -- mini-boss: good loot
-    drop_table = {
-      {item=3, chance=0.8 + diff_bonus},   -- steel sword
-      {item=7, chance=0.75},    -- mithril armor
-      {item=10, chance=0.6},    -- vigor amulet
+    db = {
+      {3,0.8+diff_bonus},{7,0.75},{10,0.6}
     }
   elseif current_floor == 3 then
-    -- floor 3: uncommon/rare
-    drop_table = {
-      {item=3, chance=0.5 + diff_bonus},   -- steel sword
-      {item=7, chance=0.45},    -- mithril armor
-      {item=9, chance=0.3},     -- health ring
+    db = {
+      {3,0.5+diff_bonus},{7,0.45},{9,0.3}
     }
   elseif current_floor == 2 then
-    -- floor 2: common/uncommon
-    drop_table = {
-      {item=2, chance=0.5},     -- iron sword
-      {item=6, chance=0.45},    -- leather armor
-      {item=9, chance=0.2 + diff_bonus},  -- health ring
+    db = {
+      {2,0.5},{6,0.45},{9,0.2+diff_bonus}
     }
   else
-    -- floor 1: common
-    drop_table = {
-      {item=1, chance=0.5},     -- wooden sword
-      {item=5, chance=0.45},    -- cloth armor
-      {item=9, chance=0.1},     -- health ring
+    db = {
+      {1,0.5},{5,0.45},{9,0.1}
     }
   end
 
-  for entry in all(drop_table) do
-    if rnd() < entry.chance then
-      pending_loot = equipment_list[entry.item]
-      add(combat_log, equipment_list[entry.item].name.." dropped!")
-      _log("loot:"..equipment_list[entry.item].name)
-      break  -- only one item per drop
+  for entry in all(db) do
+    if rnd() < entry[2] then
+      local item = equipment_list[entry[1]]
+      pending_loot = item
+      add(combat_log, item.name.." dropped!")
+      _log("loot:"..item.name)
+      break
     end
   end
 end
@@ -1257,132 +1200,59 @@ function get_boss_ability()
 end
 
 function execute_boss_ability(ability, player_def)
-  local dmg = 0
+  local ab = {power_attack={msg="boss power attack! ",dmg_mult=2,dmg_var=3,si=2,sc=12,fcol=8,ft=2,rock=true},
+    heal={msg="boss heals +8 hp!",heal=8,sc=13,fcol=11,ft=3},
+    multi_strike={msg="boss strikes 3x!",hits=3,dmg_var=2,si=2,sc=14,fcol=8,ft=3},
+    spell_burst={msg="mage spells!",hits=2,dmg_mult=1.3,def_mult=0.5,si=0,sc=15,fcol=12,ft=2,px=50,py=30},
+    arcane_shield={msg="shield raised!",sc=16,fcol=12,ft=2,shield=true},
+    rampage={msg="berserker rages!",dmg_var=3,si=2,sc=12,fcol=14,ft=2,rock=true,ramp=true},
+    crush={msg="crush! ",dmg_var=3,dmg_mult=1.8,si=2,sc=14,fcol=14,ft=3}}[ability]
 
-  if ability == "power_attack" then
-    -- double damage, but boss needs recovery
-    dmg = max(1, (enemy.atk * 2) - player_def + flr(rnd(3)))
-    player.hp -= dmg
-    add(combat_log, "boss power attack! "..dmg.." dmg")
-    add_damage_popup(dmg, 25, 40)
-    add_particles(25, 45, 8, 5)
-    sfx(12)  -- boss power attack sound
-    anim.player_swing.active = true
-    anim.player_swing.frame = 0
-    screen_shake(2, 5)  -- impactful but brief
-    anim.flash_color.active = true
-    anim.flash_color.col = 8
-    anim.flash_color.timer = 2  -- quicker flash
-    boss_abilities.power_attack.charged = true
-    boss_abilities.power_attack.recovery_turn = 1
-    _log("boss_ability:power_attack")
+  if not ab then return end
+  local dmg, total = 0, 0
 
-  elseif ability == "heal" then
-    -- boss heals itself (limited uses)
-    local heal = 8
-    enemy.hp = min(enemy.max_hp, enemy.hp + heal)
-    add(combat_log, "boss heals +"..heal.." hp!")
-    add_damage_popup(-heal, 85, 40)
-    add_particles(85, 45, 11, 5)
-    sfx(13)  -- boss heal sound
-    anim.flash_color.active = true
-    anim.flash_color.col = 11
-    anim.flash_color.timer = 3
-    boss_abilities.heal.used = true
-    _log("boss_ability:heal")
-
-  elseif ability == "multi_strike" then
-    -- hit player 3 times
-    local hits = 3
-    local total_dmg = 0
-    add(combat_log, "boss strikes 3x!")
-    sfx(14)  -- boss multi-strike sound
-    for i = 1, hits do
-      dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
-      total_dmg += dmg
-      player.hp -= dmg
-      add_damage_popup(dmg, 25 - i*2, 40)
-    end
-    add_particles(25, 45, 8, 7)
-    anim.player_swing.active = true
-    anim.player_swing.frame = 0
-    screen_shake(2, 5)  -- slightly reduced intensity
-    anim.flash_color.active = true
-    anim.flash_color.col = 8
-    anim.flash_color.timer = 3
-    add(combat_log, "dmg: "..total_dmg)
-    _log("boss_ability:multi_strike")
-
-  -- mage abilities
-  elseif ability == "spell_burst" then
-    -- mage ranged attack: 2 hits with arcane damage
-    local hits = 2
-    local total_dmg = 0
-    add(combat_log, "mage spells!")
-    sfx(15)  -- mage spell sound
-    for i = 1, hits do
-      dmg = max(1, flr(enemy.atk * 1.3) - flr(player_def * 0.5) + flr(rnd(2)))
-      total_dmg += dmg
-      player.hp -= dmg
-      add_damage_popup(dmg, 30 + i, 35)
-    end
-    add_particles(50, 30, 12, 6)
-    anim.flash_color.active = true
-    anim.flash_color.col = 12
-    anim.flash_color.timer = 2
-    add(combat_log, "dmg: "..total_dmg)
-    boss_abilities.spell_burst.used = true
-    _log("boss_ability:spell_burst")
-
-  elseif ability == "arcane_shield" then
-    -- mage defense: reduce damage taken for 2 turns
-    add(combat_log, "shield raised!")
-    sfx(16)  -- shield spell sound
+  if ab.shield then
+    add(combat_log, ab.msg)
+    add_particles(85, 45, 12, 5)
     boss_abilities.arcane_shield.active = true
     boss_abilities.arcane_shield.duration = 2
-    add_particles(85, 45, 12, 5)
-    anim.flash_color.active = true
-    anim.flash_color.col = 12
-    anim.flash_color.timer = 2
-    _log("boss_ability:arcane_shield")
-
-  -- berserker abilities
-  elseif ability == "rampage" then
-    -- berserker escalating damage ability
-    local dmg_mult = boss_abilities.rampage.damage_mult
-    dmg = max(1, flr(enemy.atk * dmg_mult) - player_def + flr(rnd(3)))
-    player.hp -= dmg
-    add(combat_log, "berserker rages!")
-    add_damage_popup(dmg, 25, 40)
-    add_particles(25, 45, 14, 6)
-    sfx(12)  -- rampage sound
-    anim.player_swing.active = true
-    anim.player_swing.frame = 0
-    screen_shake(2, 6)  -- intense but not excessive
-    anim.flash_color.active = true
-    anim.flash_color.col = 14
-    anim.flash_color.timer = 2
-    boss_abilities.rampage.active = true
-    boss_abilities.rampage.duration = 2
-    boss_abilities.rampage.damage_mult += 0.2  -- escalate next rampage
-    add(combat_log, dmg.." dmg!")
-    _log("boss_ability:rampage")
-
-  elseif ability == "crush" then
-    -- berserker heavy attack (high damage single hit)
-    dmg = max(1, flr(enemy.atk * 1.8) - player_def + flr(rnd(3)))
-    player.hp -= dmg
-    add(combat_log, "crush! "..dmg.." dmg!")
-    add_damage_popup(dmg, 25, 40)
-    add_particles(25, 45, 14, 8)
-    sfx(14)  -- crush sound
-    screen_shake(2, 6)  -- proportional intensity
-    anim.flash_color.active = true
-    anim.flash_color.col = 14
-    anim.flash_color.timer = 3
-    boss_abilities.crush.used = true
-    _log("boss_ability:crush")
+  elseif ab.heal then
+    enemy.hp = min(enemy.max_hp, enemy.hp + ab.heal)
+    add(combat_log, ab.msg)
+    add_damage_popup(-ab.heal, 85, 40)
+    add_particles(85, 45, 11, 5)
+    boss_abilities.heal.used = true
+  else
+    local hits = ab.hits or 1
+    add(combat_log, ab.msg)
+    for i = 1, hits do
+      local base = ab.dmg_mult or 1
+      local def_r = ab.def_mult or 1
+      dmg = max(1, flr(enemy.atk * base) - flr(player_def * def_r) + flr(rnd(ab.dmg_var or 2)))
+      total += dmg
+      player.hp -= dmg
+      add_damage_popup(dmg, ab.px or 25, ab.py or 40)
+    end
+    if total > 0 then add(combat_log, "dmg: "..total) end
+    add_particles(ab.px or 25, ab.py or 45, ab.fcol or 8, ab.hits and 7 or 5)
+    if ab.rock then anim.player_swing.active = true
+      anim.player_swing.frame = 0 end
+    if ab.ramp then
+      boss_abilities.rampage.active = true
+      boss_abilities.rampage.duration = 2
+      boss_abilities.rampage.damage_mult += 0.2
+    end
+    if ability == "power_attack" then
+      boss_abilities.power_attack.charged = true
+      boss_abilities.power_attack.recovery_turn = 1
+    elseif ability == "spell_burst" then
+      boss_abilities.spell_burst.used = true
+    elseif ability == "crush" then
+      boss_abilities.crush.used = true
+    end
   end
+  apply_fx(0, 0, 0, ab.fcol, 0, ab.si or 0, ab.sc or 0, ab.fcol, ab.ft)
+  _log("boss_ability:"..ability)
 end
 
 -- enemy special abilities
@@ -1435,7 +1305,6 @@ end
 
 function execute_enemy_ability(ability, player_def)
   if ability == "archer_rapid_fire" then
-    -- attack twice with reduced damage
     add(combat_log, "archer uses rapid fire!")
     sfx(11)
     for i = 1, 2 do
@@ -1450,9 +1319,7 @@ function execute_enemy_ability(ability, player_def)
     anim.flash_color.timer = 3
     enemy_abilities.archer_rapid_fire.used = true
     _log("enemy_ability:archer_rapid_fire")
-
   elseif ability == "troll_stone_skin" then
-    -- temporary defense boost
     add(combat_log, "troll hardens its skin!")
     enemy.ability_active = true
     enemy.ability_def_boost = 2
@@ -1465,23 +1332,18 @@ function execute_enemy_ability(ability, player_def)
     enemy_abilities.troll_stone_skin.active = true
     enemy_abilities.troll_stone_skin.duration = 2
     _log("enemy_ability:troll_stone_skin")
-
   elseif ability == "troll_regen" then
-    -- restore health
     add(combat_log, "troll regenerates!")
-    local heal = 3
-    enemy.hp = min(enemy.max_hp, enemy.hp + heal)
+    enemy.hp = min(enemy.max_hp, enemy.hp + 3)
     sfx(13)
-    add_damage_popup(-heal, 85, 40)
+    add_damage_popup(-3, 85, 40)
     add_particles(85, 45, 11, 5)
     anim.flash_color.active = true
     anim.flash_color.col = 11
     anim.flash_color.timer = 3
     enemy_abilities.troll_regen.used = true
     _log("enemy_ability:troll_regen")
-
   elseif ability == "orc_rage" then
-    -- damage boost and damage reduction
     add(combat_log, "orc enters a rage!")
     enemy.ability_active = true
     enemy.ability_power = 1.5
@@ -1495,9 +1357,7 @@ function execute_enemy_ability(ability, player_def)
     enemy_abilities.orc_rage.active = true
     enemy_abilities.orc_rage.duration = 1
     _log("enemy_ability:orc_rage")
-
   elseif ability == "orc_challenge" then
-    -- sustained damage boost
     add(combat_log, "orc challenges you!")
     enemy.ability_active = true
     enemy.ability_power = 1.5
@@ -1538,7 +1398,6 @@ function update_status_effects()
 end
 
 function update_enemy_abilities()
-  -- update ability durations
   if enemy.ability_active and enemy.ability_duration > 0 then
     enemy.ability_duration -= 1
     if enemy.ability_duration <= 0 then
@@ -1547,34 +1406,22 @@ function update_enemy_abilities()
       enemy.ability_def_boost = 0
     end
   end
-  -- update ability state trackers
-  if enemy_abilities.troll_stone_skin.duration > 0 then
-    enemy_abilities.troll_stone_skin.duration -= 1
-    if enemy_abilities.troll_stone_skin.duration <= 0 then
-      enemy_abilities.troll_stone_skin.active = false
+  for name,ab in pairs(enemy_abilities) do
+    if ab.duration and ab.duration > 0 then
+      ab.duration -= 1
+      if ab.duration <= 0 and ab.active then ab.active = false end
     end
-  end
-  if enemy_abilities.orc_rage.duration > 0 then
-    enemy_abilities.orc_rage.duration -= 1
-  end
-  if enemy_abilities.orc_challenge.duration > 0 then
-    enemy_abilities.orc_challenge.duration -= 1
   end
 end
 
 function update_boss_abilities()
-  -- update boss ability durations (arcane_shield, rampage)
-  if boss_abilities.arcane_shield.duration > 0 then
-    boss_abilities.arcane_shield.duration -= 1
-    if boss_abilities.arcane_shield.duration <= 0 then
-      boss_abilities.arcane_shield.active = false
-    end
-  end
-  if boss_abilities.rampage.duration > 0 then
-    boss_abilities.rampage.duration -= 1
-    if boss_abilities.rampage.duration <= 0 then
-      boss_abilities.rampage.active = false
-      boss_abilities.rampage.damage_mult = 1.0  -- reset escalation when effect ends
+  for name,ab in pairs(boss_abilities) do
+    if ab.duration and ab.duration > 0 then
+      ab.duration -= 1
+      if ab.duration <= 0 then
+        ab.active = false
+        if name == "rampage" then ab.damage_mult = 1.0 end
+      end
     end
   end
 end
@@ -1882,42 +1729,38 @@ function reset_combat()
   player_won = false
   combat_escaped = false
   pending_loot = nil
-
-  -- clear status effects
   enemy.status_effects = {}
   enemy.is_elite = false
 
-  -- reset boss abilities for new fight
-  boss_abilities.power_attack.charged = false
-  boss_abilities.power_attack.recovery_turn = 0
-  boss_abilities.heal.used = false
-  boss_abilities.spell_burst.used = false
-  boss_abilities.arcane_shield.active = false
-  boss_abilities.arcane_shield.duration = 0
-  boss_abilities.rampage.active = false
-  boss_abilities.rampage.damage_mult = 1.0
-  boss_abilities.rampage.duration = 0
-  boss_abilities.crush.used = false
+  -- reset all abilities
+  for name,ab in pairs(boss_abilities) do
+    for k,v in pairs(ab) do
+      if k == "charged" or k == "active" or k == "used" then
+        ab[k] = false
+      elseif k == "recovery_turn" or k == "duration" then
+        ab[k] = 0
+      elseif k == "damage_mult" then
+        ab[k] = 1.0
+      end
+    end
+  end
 
-  -- reset boss pattern system for new fight
-  boss_pattern_system.current_pattern_idx = 1
-  boss_pattern_system.current_turn_idx = 1
-  boss_pattern_system.prev_hp_pct = 1.0
-  boss_pattern_system.pattern_name = "aggressive"
-
-  -- reset enemy abilities for new fight
   enemy.ability_active = false
   enemy.ability_power = 0
   enemy.ability_def_boost = 0
   enemy.ability_duration = 0
-  enemy_abilities.archer_rapid_fire.used = false
-  enemy_abilities.troll_stone_skin.active = false
-  enemy_abilities.troll_stone_skin.duration = 0
-  enemy_abilities.troll_regen.used = false
-  enemy_abilities.orc_rage.active = false
-  enemy_abilities.orc_rage.duration = 0
-  enemy_abilities.orc_challenge.active = false
-  enemy_abilities.orc_challenge.duration = 0
+
+  for name,ab in pairs(enemy_abilities) do
+    for k,v in pairs(ab) do
+      if k == "active" or k == "used" then ab[k] = false end
+      if k == "duration" then ab[k] = 0 end
+    end
+  end
+
+  boss_pattern_system.current_pattern_idx = 1
+  boss_pattern_system.current_turn_idx = 1
+  boss_pattern_system.prev_hp_pct = 1.0
+  boss_pattern_system.pattern_name = "aggressive"
 
   -- multi-floor enemy spawning
   local floor_info = floor_enemies[current_floor]
@@ -1928,7 +1771,6 @@ function reset_combat()
   -- determine enemy type for this floor
   local floor_type = floor_info.type
   enemy.type = floor_type
-  enemy.armor_active = false
 
   -- helper: select boss type by difficulty
   local function select_boss_type()
