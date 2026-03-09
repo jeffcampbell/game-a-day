@@ -901,7 +901,7 @@ function drop_loot(is_boss, is_elite)
   local db = {}
   local diff_bonus = difficulty == 3 and 0.15 or (difficulty == 1 and -0.1 or 0)
 
-  if is_boss or current_floor == 5 then
+  if is_boss or current_floor == 8 then
     db = {
       {3,0.95},{7,0.9},{10,0.85},{11,0.4+diff_bonus}
     }
