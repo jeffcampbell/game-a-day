@@ -22,7 +22,7 @@ A turn-based dungeon crawler RPG where the player fights through enemy encounter
 
 ### Difficulty Curve
 - **Goblin 1**: 8 HP, 3 ATK (starting encounter)
-- **Goblin 2**: 14 HP, 4 ATK (after leveling)
+- **Goblin 2**: 11 HP, 4 ATK (after leveling)
 - **Boss**: 25 HP, 6 ATK, 2 DEF (final challenge)
 
 ## Menu System

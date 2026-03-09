@@ -25,6 +25,7 @@ end
 -- game state machine
 state = "menu"
 menu_sel = 0
+prev_input = 0
 
 -- player stats
 player = {
@@ -74,10 +75,18 @@ end
 
 -- menu
 function update_menu()
-  if btnp(2) then menu_sel = min(menu_sel + 1, 1) end
-  if btnp(0) then menu_sel = max(menu_sel - 1, 0) end
+  local input = test_input()
 
-  if btnp(4) then
+  -- right (button 1)
+  if (input & 2) > 0 and (prev_input & 2) == 0 then
+    menu_sel = min(menu_sel + 1, 1)
+  end
+  -- left (button 0)
+  if (input & 1) > 0 and (prev_input & 1) == 0 then
+    menu_sel = max(menu_sel - 1, 0)
+  end
+  -- O button (button 4)
+  if (input & 16) > 0 and (prev_input & 16) == 0 then
     if menu_sel == 0 then
       _log("state:play")
       state = "play"
@@ -87,6 +96,8 @@ function update_menu()
       state = "gameover"
     end
   end
+
+  prev_input = input
 end
 
 function draw_menu()
@@ -115,8 +126,11 @@ end
 
 -- play state
 function update_play()
+  local input = test_input()
+
   if combat_over then
-    if btnp(4) then
+    -- O button (button 4)
+    if (input & 16) > 0 and (prev_input & 16) == 0 then
       if player_won then
         _log("enemy_defeated")
         enemy_count += 1
@@ -125,6 +139,7 @@ function update_play()
           _log("gameover:win")
           state = "gameover"
           boss_defeated = true
+          prev_input = input
           return
         end
         reset_combat()
@@ -132,35 +147,42 @@ function update_play()
         _log("state:gameover")
         _log("gameover:lose")
         state = "gameover"
+        prev_input = input
         return
       end
     end
   else
     -- player action selection
-    if btnp(0) then
+    -- left (button 0) - attack
+    if (input & 1) > 0 and (prev_input & 1) == 0 then
       player_action = "attack"
       player_act_val = 0
       combat_step()
       _log("action:attack")
-    elseif btnp(1) then
+    -- right (button 1) - defend
+    elseif (input & 2) > 0 and (prev_input & 2) == 0 then
       player_action = "defend"
       player_act_val = 0
       combat_step()
       _log("action:defend")
-    elseif btnp(2) then
+    -- up (button 2) - potion
+    elseif (input & 4) > 0 and (prev_input & 4) == 0 then
       if player.potions > 0 then
         player_action = "potion"
         player_act_val = 0
         combat_step()
         _log("action:potion")
       end
-    elseif btnp(3) then
+    -- down (button 3) - flee
+    elseif (input & 8) > 0 and (prev_input & 8) == 0 then
       player_action = "flee"
       player_act_val = 0
       combat_step()
       _log("action:flee")
     end
   end
+
+  prev_input = input
 end
 
 function draw_play()
@@ -201,12 +223,17 @@ end
 
 -- gameover
 function update_gameover()
-  if btnp(4) then
+  local input = test_input()
+
+  -- O button (button 4)
+  if (input & 16) > 0 and (prev_input & 16) == 0 then
     _log("state:menu")
     state = "menu"
     menu_sel = 0
     reset_game()
   end
+
+  prev_input = input
 end
 
 function draw_gameover()
