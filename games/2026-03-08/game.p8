@@ -588,7 +588,7 @@ function draw_endless_difficulty_select()
  local colors={8,7,11}
  local y_positions={50,70,90}
  local labels={"easy","normal","hard"}
- local desc={"few waves","balanced","intense"}
+ local desc={"45s between waves","30s between waves","21s between waves"}
 
  for i=1,3 do
   local col=colors[i]
@@ -819,16 +819,16 @@ function update_play()
 
    local enemy_count
    if wave<=2 then
-    enemy_count=flr((2+wave)*enemy_mult)  -- wave 1: 2-3, wave 2: 3-4
+    enemy_count=flr((2+wave)*enemy_mult+0.5)  -- Scaled by difficulty: easy 0.8x, normal 1.0x, hard 1.2x. Wave 1: easy 2, normal 3, hard 4
    else
-    enemy_count=min(flr((4+flr((wave-2)/2))*enemy_mult),max_enemies)
+    enemy_count=min(flr((4+flr((wave-2)/2))*enemy_mult+0.5),max_enemies)
    end
 
-   -- award points: 10 per enemy + 100 for wave survival (scaled by difficulty)
+   -- award points: 30 per enemy + 100 for wave survival (scaled by difficulty)
    local difficulty_multiplier=1.0
    if difficulty=="easy" then difficulty_multiplier=0.7
    elseif difficulty=="hard" then difficulty_multiplier=1.5 end
-   score+=flr(enemy_count*10*difficulty_multiplier+100*difficulty_multiplier)
+   score+=flr(enemy_count*30*difficulty_multiplier+100*difficulty_multiplier)
 
    for j=1,enemy_count do
     local spawn_y=20+flr(rnd(80))

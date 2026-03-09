@@ -600,11 +600,11 @@ Convert partially-implemented endless mode into a fully-supported, balanced game
 - **Normal**: 50-60% (balanced challenge)
 - **Hard**: 30-40% (expert-only content)
 
-**Validation Results** (synthetic playtest data):
-- Generated 30 test sessions (2 per difficulty-playstyle combo)
-- 15 easy mode sessions: 12 wins (80% completion)
-- 10 normal mode sessions: 6 wins (60% completion)
-- 5 hard mode sessions: 1 win (20% - intentionally expert-only)
+**Validation Results** (SUPERSEDED BY CODE FIXES):
+- Previous synthetic data (80%/60%/20% completion) was based on incorrect score formulas
+- Code has been corrected: Hard mode spawning now uses proper rounding, score multiplier increased from 10x to 30x
+- Synthetic validation requires regeneration with corrected formulas
+- Real playtesting recommended via run-interactive-test.py --record to validate actual completion rates
 
 **Why Difficulty Scaling Works**:
 1. **Easy mode increases wave intervals**: Gives passive/casual players time to plan
@@ -615,16 +615,16 @@ Convert partially-implemented endless mode into a fully-supported, balanced game
 
 ### Score Multiplier System
 
-**Implementation**:
-- Wave survival grants base points: `enemy_count * 10 * difficulty_multiplier + 100 * difficulty_multiplier`
+**Implementation** (CORRECTED):
+- Wave survival grants base points: `enemy_count * 30 * difficulty_multiplier + 100 * difficulty_multiplier`
 - Easy (0.7x): 21 points per enemy + 70 per wave
 - Normal (1.0x): 30 points per enemy + 100 per wave
 - Hard (1.5x): 45 points per enemy + 150 per wave
 
-**Example Scenarios**:
-- Easy mode wave 3: 2 enemies × 21 + 70 = **112 points**
-- Normal mode wave 3: 4 enemies × 30 + 100 = **220 points**
-- Hard mode wave 3: 5 enemies × 45 + 150 = **375 points** (3.3x easy mode)
+**Example Scenarios** (with corrected hard mode spawning):
+- Easy mode wave 1: 2 enemies × 21 + 70 = **112 points**
+- Normal mode wave 1: 3 enemies × 30 + 100 = **190 points**
+- Hard mode wave 1: 4 enemies × 45 + 150 = **330 points** (3.0x easy mode)
 
 This creates exponential score growth on hard difficulty, rewarding skillful players.
 
