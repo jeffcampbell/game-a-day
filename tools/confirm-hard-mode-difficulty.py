@@ -48,13 +48,15 @@ def generate_hard_mode_session(outcome_seed, session_num):
     # Game start - at menu state
     logs.append("state:menu")
 
-    # Menu navigation - select hard difficulty (down from default)
+    # Menu navigation - select hard difficulty (right twice from default)
     idle_frames = random.randint(15, 30)
     for _ in range(idle_frames):
         button_sequence.append(0)
 
-    # Navigate menu to hard (down button)
-    button_sequence.append(BTN_DOWN)
+    # Navigate menu to hard (right twice: 0->1->2)
+    button_sequence.append(BTN_RIGHT)
+    button_sequence.extend([0] * random.randint(3, 5))
+    button_sequence.append(BTN_RIGHT)
     for _ in range(random.randint(5, 10)):
         button_sequence.append(0)
 

@@ -68,16 +68,22 @@ def generate_dungeon_session(difficulty, outcome, session_num):
     for _ in range(idle_frames):
         button_sequence.append(0)
 
-    # Navigate menu to select difficulty
-    if difficulty == 1:  # Easy - up from normal
-        button_sequence.append(BTN_UP)
+    # Navigate menu to select difficulty (use LEFT/RIGHT buttons, not UP/DOWN)
+    # menu_sel defaults to 0 (easy), so:
+    # - Easy (1): already at 0, no navigation needed
+    # - Normal (2): press RIGHT once to move to 1
+    # - Hard (3): press RIGHT twice to move to 2
+    if difficulty == 1:  # Easy - already selected
         for _ in range(random.randint(5, 10)):
             button_sequence.append(0)
-    elif difficulty == 3:  # Hard - down from normal
-        button_sequence.append(BTN_DOWN)
+    elif difficulty == 2:  # Normal - right once
+        button_sequence.append(BTN_RIGHT)
         for _ in range(random.randint(5, 10)):
             button_sequence.append(0)
-    else:  # Normal - already selected
+    else:  # Hard - right twice
+        button_sequence.append(BTN_RIGHT)
+        button_sequence.extend([0] * random.randint(3, 5))
+        button_sequence.append(BTN_RIGHT)
         for _ in range(random.randint(5, 10)):
             button_sequence.append(0)
 
