@@ -686,6 +686,8 @@ function get_stat(t, stat)
     return stat == "hp" and 0.8 or (stat == "atk" and 1.3 or 0.8)
   elseif t == 2 then
     return stat == "hp" and 1.5 or (stat == "atk" and 0.8 or 1.0)
+  elseif t == 3 then
+    return stat == "hp" and 1.0 or (stat == "atk" and 1.2 or 1.2)
   end
   return 1.0
 end
