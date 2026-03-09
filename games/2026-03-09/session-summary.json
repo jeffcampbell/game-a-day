@@ -1,29 +1,48 @@
 {
   "game_date": "2026-03-09",
-  "sessions_analyzed": 26,
+  "sessions_analyzed": 8,
   "completion_summary": {
-    "completion_rate": 0.5,
-    "avg_playtime_seconds": 15.8,
-    "wins": 13,
-    "losses": 9,
-    "quits": 4
+    "completion_rate": 0.38,
+    "avg_playtime_seconds": 16.1,
+    "wins": 3,
+    "losses": 4,
+    "quits": 1
   },
-  "critical_failure_points": [],
+  "critical_failure_points": [
+    {
+      "location": "state:gameover",
+      "failure_rate": 0.57,
+      "frequency": "4 of 7 sessions",
+      "likely_cause": "Player retention issue at gameover"
+    }
+  ],
   "input_heatmap": {
     "left": 0,
-    "right": 142,
-    "up": 13,
-    "down": 185,
-    "o_button": 556,
+    "right": 56,
+    "up": 0,
+    "down": 71,
+    "o_button": 191,
     "x_button": 0
   },
-  "state_flow": "menu \u2192 play \u2192 gameover / won(13) + lost(9) + quit(4)",
+  "state_flow": "menu \u2192 play \u2192 gameover / lost(4) + won(3) + quit(1)",
   "next_steps": [
     {
       "priority": 1,
-      "recommendation": "Controls not used: left, x_button - consider removing from tutorial or assigning functions",
+      "recommendation": "Critical failure point at 'gameover' (50%+ quit rate) - check difficulty, clarity, or fairness",
+      "estimated_impact": "high",
+      "estimated_tokens_to_fix": 30
+    },
+    {
+      "priority": 2,
+      "recommendation": "Controls not used: left, up, x_button - consider removing from tutorial or assigning functions",
       "estimated_impact": "low",
       "estimated_tokens_to_fix": 5
+    },
+    {
+      "priority": 3,
+      "recommendation": "Low completion rate (37% wins) - consider adding hints, reducing difficulty, or clarifying objectives",
+      "estimated_impact": "medium",
+      "estimated_tokens_to_fix": 40
     }
   ]
 }
