@@ -1186,7 +1186,7 @@ function get_boss_ability()
 end
 
 function execute_boss_ability(ability, player_def)
-  local ab = {power_attack={msg="boss power attack! ",dmg_mult=2,si=2,sc=12,fcol=8,ft=2,rock=true},
+  local ab = {power_attack={msg="boss power attack! ",dmg_mult=2,dmg_var=3,si=2,sc=12,fcol=8,ft=2,rock=true},
     heal={msg="boss heals +8 hp!",heal=8,sc=13,fcol=11,ft=3},
     multi_strike={msg="boss strikes 3x!",hits=3,dmg_var=2,si=2,sc=14,fcol=8,ft=3},
     spell_burst={msg="mage spells!",hits=2,dmg_mult=1.3,def_mult=0.5,si=0,sc=15,fcol=12,ft=2,px=50,py=30},
@@ -1214,7 +1214,7 @@ function execute_boss_ability(ability, player_def)
     for i = 1, hits do
       local base = ab.dmg_mult or 1
       local def_r = ab.def_mult or 1
-      dmg = max(1, flr(enemy.atk * base) - flr(player_def * def_r) + flr(rnd((ab.dmg_var or 2) - 1)))
+      dmg = max(1, flr(enemy.atk * base) - flr(player_def * def_r) + flr(rnd(ab.dmg_var or 2)))
       total += dmg
       player.hp -= dmg
       add_damage_popup(dmg, ab.px or 25, ab.py or 40)
@@ -1237,7 +1237,7 @@ function execute_boss_ability(ability, player_def)
       boss_abilities.crush.used = true
     end
   end
-  apply_fx(total > 0 and total or 0, 0, 0, ab.fcol, 0, ab.si or 0, ab.sc or 0, ab.fcol, ab.ft)
+  apply_fx(0, 0, 0, ab.fcol, 0, ab.si or 0, ab.sc or 0, ab.fcol, ab.ft)
   _log("boss_ability:"..ability)
 end
 
