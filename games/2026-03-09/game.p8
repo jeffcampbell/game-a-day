@@ -158,6 +158,14 @@ floor_enemy_idx = 1
 floor_combat_count = 0
 pending_loot = nil
 
+-- boss types with stat multipliers and distinct patterns
+boss_types = {
+  warrior = {name="warrior", hp_mult=1.0, atk_mult=1.0, def_mult=1.0, color=8, desc="Warrior"},
+  mage = {name="mage", hp_mult=0.9, atk_mult=1.1, def_mult=0.8, color=12, desc="Mage"},
+  berserker = {name="berserker", hp_mult=1.2, atk_mult=0.9, def_mult=0.7, color=14, desc="Berserker"}
+}
+enemy.boss_type = "warrior"  -- current boss type
+
 -- boss abilities
 boss_abilities = {
   power_attack = {
@@ -174,20 +182,58 @@ boss_abilities = {
   multi_strike = {
     enabled = true,
     hp_threshold = 0.25  -- trigger at 25% hp
+  },
+  -- mage abilities
+  spell_burst = {
+    enabled = true,
+    hp_threshold = 0.6,
+    used = false
+  },
+  arcane_shield = {
+    enabled = true,
+    hp_threshold = 0.4,
+    active = false,
+    duration = 0
+  },
+  -- berserker abilities
+  rampage = {
+    enabled = true,
+    hp_threshold = 0.7,
+    active = false,
+    damage_mult = 1.0,
+    duration = 0
+  },
+  crush = {
+    enabled = true,
+    hp_threshold = 0.3,
+    used = false
   }
 }
 
 -- boss pattern system (attack sequences that cycle throughout fight)
 boss_pattern_system = {
   patterns = {
-    -- pattern 1: 75-100% hp (aggressive early game)
-    {name="aggressive", threshold=0.75, turns={"power_attack","power_attack"}},
-    -- pattern 2: 50-75% hp (balanced midgame)
-    {name="balanced", threshold=0.50, turns={"heal","power_attack"}},
-    -- pattern 3: 25-50% hp (desperate)
-    {name="desperate", threshold=0.25, turns={"multi_strike","multi_strike"}},
-    -- pattern 4: 0-25% hp (frenzy - hard mode only)
-    {name="frenzy", threshold=0, turns={"power_attack","multi_strike"}}
+    -- warrior patterns
+    warrior = {
+      {name="aggressive", threshold=0.75, turns={"power_attack","power_attack"}},
+      {name="balanced", threshold=0.50, turns={"heal","power_attack"}},
+      {name="desperate", threshold=0.25, turns={"multi_strike","multi_strike"}},
+      {name="frenzy", threshold=0, turns={"power_attack","multi_strike"}}
+    },
+    -- mage patterns
+    mage = {
+      {name="spellcast", threshold=0.75, turns={"spell_burst","spell_burst"}},
+      {name="defensive", threshold=0.50, turns={"arcane_shield","spell_burst"}},
+      {name="frantic", threshold=0.25, turns={"spell_burst","spell_burst"}},
+      {name="desperate", threshold=0, turns={"spell_burst","arcane_shield"}}
+    },
+    -- berserker patterns
+    berserker = {
+      {name="rampage", threshold=0.75, turns={"rampage","power_attack"}},
+      {name="enraged", threshold=0.50, turns={"power_attack","rampage"}},
+      {name="berserk", threshold=0.25, turns={"crush","power_attack"}},
+      {name="frenzy", threshold=0, turns={"crush","crush"}}
+    }
   },
   current_pattern_idx = 1,
   current_turn_idx = 1,
@@ -566,6 +612,10 @@ function draw_play()
   local enemy_name = "boss"
   if not enemy.is_boss then
     enemy_name = enemy.type == 1 and "goblin archer" or (enemy.type == 2 and "troll" or (enemy.type == 3 and "orc warrior" or "goblin"))
+  else
+    -- display boss type name
+    local btype = boss_types[enemy.boss_type]
+    enemy_name = btype.desc.." Boss"
   end
   print(enemy_name.." hp: "..enemy.hp.."/"..enemy.max_hp, 12, 28, 8)
 
@@ -626,7 +676,9 @@ function draw_play()
   if enemy.hp <= 0 then
     enemy_y += 2
   elseif enemy.is_boss then
-    enemy_col = 10
+    -- use boss type color
+    local btype = boss_types[enemy.boss_type]
+    enemy_col = btype.color
   elseif enemy.type == 2 then
     enemy_col = 3  -- troll is greenish
   elseif enemy.type == 3 then
@@ -1049,6 +1101,7 @@ function update_boss_pattern()
 
   local hp_pct = enemy.hp / enemy.max_hp
   local pattern_idx = 1
+  local patterns = boss_pattern_system.patterns[enemy.boss_type]
 
   -- select pattern by hp threshold
   if difficulty == 1 then  -- easy: use only first 3 patterns
@@ -1064,7 +1117,7 @@ function update_boss_pattern()
 
   -- pattern changed: log transition and reset turn counter
   if pattern_idx ~= boss_pattern_system.current_pattern_idx then
-    local pattern = boss_pattern_system.patterns[pattern_idx]
+    local pattern = patterns[pattern_idx]
     boss_pattern_system.current_pattern_idx = pattern_idx
     boss_pattern_system.current_turn_idx = 1
     boss_pattern_system.pattern_name = pattern.name
@@ -1080,7 +1133,8 @@ function get_boss_ability()
 
   update_boss_pattern()
 
-  local pattern = boss_pattern_system.patterns[boss_pattern_system.current_pattern_idx]
+  local patterns = boss_pattern_system.patterns[enemy.boss_type]
+  local pattern = patterns[boss_pattern_system.current_pattern_idx]
   local turn_idx = boss_pattern_system.current_turn_idx
   local pattern_action = pattern.turns[turn_idx]
 
@@ -1091,14 +1145,20 @@ function get_boss_ability()
   end
 
   -- add randomness to make patterns not completely predictable
-  -- 30% chance to deviate from pattern and do a normal attack
-  if rnd() < 0.3 then
+  -- 25% chance to deviate from pattern and do a normal attack
+  if rnd() < 0.25 then
     return nil  -- normal attack
   end
 
-  -- validate ability can be used (check limits like heal.used)
+  -- validate ability can be used (check limits like heal.used, arcane_shield active)
   if pattern_action == "heal" and boss_abilities.heal.used then
-    return nil  -- heal already used, do normal attack
+    return nil
+  end
+  if pattern_action == "arcane_shield" and boss_abilities.arcane_shield.active then
+    return nil
+  end
+  if pattern_action == "rampage" and boss_abilities.rampage.active then
+    return nil
   end
 
   return pattern_action
@@ -1160,6 +1220,74 @@ function execute_boss_ability(ability, player_def)
     anim.flash_color.timer = 4
     add(combat_log, "total: "..total_dmg.." dmg")
     _log("boss_ability:multi_strike")
+
+  -- mage abilities
+  elseif ability == "spell_burst" then
+    -- mage ranged attack: 2 hits with arcane damage
+    local hits = 2
+    local total_dmg = 0
+    add(combat_log, "boss casts spell burst!")
+    sfx(15)  -- mage spell sound
+    for i = 1, hits do
+      dmg = max(1, flr(enemy.atk * 1.3) - flr(player_def * 0.5) + flr(rnd(2)))
+      total_dmg += dmg
+      player.hp -= dmg
+      add_damage_popup(dmg, 30 + i, 35)
+    end
+    add_particles(50, 30, 12, 6)
+    anim.flash_color.active = true
+    anim.flash_color.col = 12
+    anim.flash_color.timer = 3
+    add(combat_log, "total: "..total_dmg.." dmg")
+    _log("boss_ability:spell_burst")
+
+  elseif ability == "arcane_shield" then
+    -- mage defense: reduce damage taken for 2 turns
+    add(combat_log, "boss raises arcane shield!")
+    sfx(16)  -- shield spell sound
+    boss_abilities.arcane_shield.active = true
+    boss_abilities.arcane_shield.duration = 2
+    add_particles(85, 45, 12, 5)
+    anim.flash_color.active = true
+    anim.flash_color.col = 12
+    anim.flash_color.timer = 3
+    _log("boss_ability:arcane_shield")
+
+  -- berserker abilities
+  elseif ability == "rampage" then
+    -- berserker escalating damage ability
+    local dmg_mult = boss_abilities.rampage.damage_mult
+    dmg = max(1, flr(enemy.atk * dmg_mult) - player_def + flr(rnd(3)))
+    player.hp -= dmg
+    add(combat_log, "boss rampages! "..dmg.." dmg")
+    add_damage_popup(dmg, 25, 40)
+    add_particles(25, 45, 14, 6)
+    sfx(12)  -- rampage sound
+    anim.player_swing.active = true
+    anim.player_swing.frame = 0
+    screen_shake(3, 7)
+    anim.flash_color.active = true
+    anim.flash_color.col = 14
+    anim.flash_color.timer = 3
+    boss_abilities.rampage.active = true
+    boss_abilities.rampage.duration = 2
+    boss_abilities.rampage.damage_mult += 0.2  -- escalate next rampage
+    _log("boss_ability:rampage")
+
+  elseif ability == "crush" then
+    -- berserker heavy attack (high damage single hit)
+    dmg = max(1, flr(enemy.atk * 1.8) - player_def + flr(rnd(3)))
+    player.hp -= dmg
+    add(combat_log, "boss crushes down! "..dmg.." dmg")
+    add_damage_popup(dmg, 25, 40)
+    add_particles(25, 45, 14, 8)
+    sfx(14)  -- crush sound
+    screen_shake(4, 8)
+    anim.flash_color.active = true
+    anim.flash_color.col = 14
+    anim.flash_color.timer = 4
+    boss_abilities.crush.used = true
+    _log("boss_ability:crush")
   end
 end
 
@@ -1337,6 +1465,22 @@ function update_enemy_abilities()
   end
   if enemy_abilities.orc_challenge.duration > 0 then
     enemy_abilities.orc_challenge.duration -= 1
+  end
+end
+
+function update_boss_abilities()
+  -- update boss ability durations (arcane_shield, rampage)
+  if boss_abilities.arcane_shield.duration > 0 then
+    boss_abilities.arcane_shield.duration -= 1
+    if boss_abilities.arcane_shield.duration <= 0 then
+      boss_abilities.arcane_shield.active = false
+    end
+  end
+  if boss_abilities.rampage.duration > 0 then
+    boss_abilities.rampage.duration -= 1
+    if boss_abilities.rampage.duration <= 0 then
+      boss_abilities.rampage.active = false
+    end
   end
 end
 
@@ -1570,6 +1714,11 @@ function combat_step()
           player_def_mod += enemy.ability_def_boost
           dmg = max(0, dmg - enemy.ability_def_boost)
         end
+        -- apply boss arcane shield (50% damage reduction)
+        if enemy.is_boss and boss_abilities.arcane_shield.active then
+          dmg = max(1, flr(dmg * 0.5))
+          add(combat_log, "arcane shield blocks!")
+        end
 
         player.hp -= dmg
         add(combat_log, "enemy attacks! "..dmg.." dmg")
@@ -1618,6 +1767,7 @@ function combat_step()
   update_status_effects()
   update_player_status()
   update_enemy_abilities()
+  update_boss_abilities()
 
   turn += 1
 end
@@ -1638,6 +1788,13 @@ function reset_combat()
   boss_abilities.power_attack.charged = false
   boss_abilities.power_attack.recovery_turn = 0
   boss_abilities.heal.used = false
+  boss_abilities.spell_burst.used = false
+  boss_abilities.arcane_shield.active = false
+  boss_abilities.arcane_shield.duration = 0
+  boss_abilities.rampage.active = false
+  boss_abilities.rampage.damage_mult = 1.0
+  boss_abilities.rampage.duration = 0
+  boss_abilities.crush.used = false
 
   -- reset boss pattern system for new fight
   boss_pattern_system.current_pattern_idx = 1
@@ -1670,9 +1827,21 @@ function reset_combat()
   enemy.type = floor_type
   enemy.armor_active = false
 
+  -- helper: select boss type by difficulty
+  local function select_boss_type()
+    -- easy: only warrior
+    if difficulty == 1 then return "warrior" end
+    -- normal: warrior or mage
+    if difficulty == 2 then return rnd() < 0.5 and "warrior" or "mage" end
+    -- hard: any type (berserker is hardest)
+    local r = rnd()
+    return r < 0.33 and "warrior" or (r < 0.67 and "mage" or "berserker")
+  end
+
   -- special handling for mini-boss (floor 4) and final boss (floor 5)
   if current_floor == 4 then
-    -- mini-boss: stronger orc
+    -- floor 4: warrior mini-boss (always warrior, easier encounters)
+    enemy.boss_type = "warrior"
     enemy.hp = 18
     enemy.max_hp = 18
     enemy.atk = 7
@@ -1688,14 +1857,19 @@ function reset_combat()
       enemy.atk = flr(enemy.atk * 5 / 4)
     end
     add(combat_log, "a powerful orc appears!")
+    _log("mini_boss:warrior")
   elseif current_floor == 5 then
-    -- final boss
-    enemy.hp = 30
-    enemy.max_hp = 30
-    enemy.atk = 8
-    enemy.def = 2
+    -- final boss: difficulty-based boss type
+    enemy.boss_type = select_boss_type()
+    local btype = boss_types[enemy.boss_type]
+    enemy.hp = flr(30 * btype.hp_mult)
+    enemy.max_hp = enemy.hp
+    enemy.atk = flr(8 * btype.atk_mult)
+    enemy.def = flr(2 * btype.def_mult)
     enemy.is_boss = true
     enemy.type = 0
+
+    -- difficulty scaling
     if difficulty == 1 then
       enemy.hp = flr(enemy.hp * 3 / 4)
       enemy.max_hp = enemy.hp
@@ -1705,8 +1879,9 @@ function reset_combat()
       enemy.max_hp = enemy.hp
       enemy.atk = flr(enemy.atk * 5 / 4)
     end
-    add(combat_log, "the final boss appears!")
-    _log("boss_fight:start")
+
+    add(combat_log, "the "..btype.desc.." appears!")
+    _log("boss_fight:start:"..enemy.boss_type)
   else
     -- regular floor enemies
     local base_hp = 8 + (current_floor - 1) * 3
