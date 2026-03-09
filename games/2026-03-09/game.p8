@@ -378,7 +378,7 @@ function update_menu()
 
   -- right (button 1)
   if (input & 2) > 0 and (prev_input & 2) == 0 then
-    menu_sel = min(menu_sel + 1, 3)
+    menu_sel = min(menu_sel + 1, 2)
     sfx(0)  -- menu nav sound
   end
   -- left (button 0)
