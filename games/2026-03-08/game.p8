@@ -126,6 +126,8 @@ level_2_dash_reminder=false
 damage_prompt_frame=-1000  -- when player took damage to show prompt
 first_hit_shown=false  -- track if we've shown first hit prompt
 first_enemy_shown=false  -- track if we've shown first enemy encounter prompt
+first_play_shown=false  -- track if we've shown first-play control hint
+pause_hint_shown=false  -- track if we've shown pause hint
 
 -- adaptive difficulty tracking
 hit_times={}  -- sliding window of last hit frames
@@ -585,10 +587,12 @@ function draw_menu()
  print("dash to dodge (x)",24,52,11)
  print("survive + score points",16,64,7)
  print("arrow keys move",28,80,11)
- print("x=dash  o=pause",24,90,11)
+ -- enhanced control display
+ rectfill(14,88,114,102,0)  -- dark background for contrast
+ print("controls: x=dash o=pause",16,90,14)  -- bright yellow
  local ach_count=count_achievements()
- print("achievements:"..ach_count.."/11",36,100,3)
- print("z or x to start",32,110,11)
+ print("achievements:"..ach_count.."/11",36,108,3)
+ print("z or x to start",32,120,11)
 end
 
 function draw_tutorial_mode_select()
@@ -636,6 +640,8 @@ function draw_difficulty_select()
 
  print("up/down select",32,110,7)
  print("z/x confirm",36,118,7)
+ -- control hint on difficulty select
+ print("x=dash  o=pause",24,4,10)
 end
 
 function draw_endless_difficulty_select()
@@ -1469,6 +1475,19 @@ function draw_play()
    print("tip: o=pause anytime",18,14,10)
   end
 
+  -- first-play control hint (first 5 seconds, all levels)
+  if not first_play_shown and elapsed<300 then
+   first_play_shown=true
+   _log("first_play_control_hint")
+  end
+  if elapsed<300 then
+   -- bright yellow highlight for control hints with pulsing effect
+   local flash_color=14  -- yellow
+   if elapsed%60<30 then flash_color=15 end  -- white flash every 0.5s
+   rectfill(0,110,128,128,0)  -- dark background for contrast
+   print("x=dash  o=pause",28,115,flash_color)  -- pulsing bright color
+  end
+
   -- dash feedback: show "DASH!" briefly when player dashes
   local is_dash_invuln=frames-dash_invuln_start<dash_invuln_frames
   if is_dash_invuln and frames-last_dash_frame<6 then
@@ -1502,10 +1521,16 @@ function draw_play()
   -- paused text
   print("paused",48,46,15)
 
-  -- key instructions
+  -- key instructions - enhanced clarity
   print("o=pause",40,56,11)  -- show the key binding
   print("press o or x",32,66,7)
   print("to resume",38,74,7)
+
+  -- additional help text
+  if not pause_hint_shown then
+   pause_hint_shown=true
+   _log("pause_help_shown")
+  end
  end
 
  -- reset camera after screen shake
