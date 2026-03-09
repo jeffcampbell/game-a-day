@@ -155,7 +155,7 @@ floor_enemies = {
   {type=1, count=2},   -- floor 2: 2 archers
   {type=2, count=2},   -- floor 3: 2 trolls
   {type=4, count=1},   -- floor 4: shaman encounter
-  {type=3, count=1},   -- floor 5: 1 orc (mini-boss)
+  {type=3, count=1},   -- floor 5: 1 orc warrior
   {type=5, count=1},   -- floor 6: mage encounter
   {type=6, count=2},   -- floor 7: thief encounters
   {type=7, count=1}    -- floor 8: 1 final boss
