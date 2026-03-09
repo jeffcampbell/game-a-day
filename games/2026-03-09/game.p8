@@ -592,8 +592,12 @@ function draw_status_icons()
   for s, d in pairs(enemy.status_effects) do
     if d.d > 0 then
       local l = s == "poison" and "POI" or (s == "stun" and "STN" or "PAR")
-      print(l, x, 36, get_status_color(s))
-      x += 10
+      local col = get_status_color(s)
+      -- draw background for visibility
+      rectfill(x-1, 35, x+16, 43, 0)
+      rect(x-1, 35, x+16, 43, col)
+      print(l, x, 37, col)
+      x += 19
     end
   end
 end
@@ -695,12 +699,20 @@ function draw_play()
 
   spr(enemy_spr, enemy_x, enemy_y)
 
-  -- draw damage popups
+  -- draw damage popups with outline for visibility
   for popup in all(anim.damage_popups) do
     local alpha = popup.timer / 30
     local col = 8  -- red damage
     if popup.val < 0 then col = 11 end  -- green heal
-    print(abs(popup.val), flr(popup.x), flr(popup.y), col)
+    local px = flr(popup.x)
+    local py = flr(popup.y)
+    -- draw outline for better visibility
+    print(abs(popup.val), px-1, py, 0)
+    print(abs(popup.val), px+1, py, 0)
+    print(abs(popup.val), px, py-1, 0)
+    print(abs(popup.val), px, py+1, 0)
+    -- draw main number
+    print(abs(popup.val), px, py, col)
   end
 
   -- draw particles
@@ -712,11 +724,11 @@ function draw_play()
   end
 
   -- combat log
-  local log_y = 63
+  local log_y = 61
   for i = max(1, #combat_log - 3), #combat_log do
     if combat_log[i] then
       print(combat_log[i], 5, log_y, 7)
-      log_y += 8
+      log_y += 7
     end
   end
 
@@ -736,8 +748,12 @@ function draw_play()
   for s, d in pairs(player.status_effects) do
     if d.d > 0 then
       local l = s == "poison" and "POI" or (s == "stun" and "STN" or "PAR")
-      print(l, psx, 22, get_status_color(s))
-      psx += 10
+      local col = get_status_color(s)
+      -- draw background for visibility
+      rectfill(psx-1, 21, psx+16, 29, 0)
+      rect(psx-1, 21, psx+16, 29, col)
+      print(l, psx, 23, col)
+      psx += 19
     end
   end
 end
@@ -1193,10 +1209,10 @@ function execute_boss_ability(ability, player_def)
     sfx(12)  -- boss power attack sound
     anim.player_swing.active = true
     anim.player_swing.frame = 0
-    screen_shake(2, 6)
+    screen_shake(2, 5)  -- impactful but brief
     anim.flash_color.active = true
     anim.flash_color.col = 8
-    anim.flash_color.timer = 3
+    anim.flash_color.timer = 2  -- quicker flash
     boss_abilities.power_attack.charged = true
     boss_abilities.power_attack.recovery_turn = 1
     _log("boss_ability:power_attack")
@@ -1205,7 +1221,7 @@ function execute_boss_ability(ability, player_def)
     -- boss heals itself (limited uses)
     local heal = 8
     enemy.hp = min(enemy.max_hp, enemy.hp + heal)
-    add(combat_log, "boss heals "..heal.." hp!")
+    add(combat_log, "boss heals +"..heal.." hp!")
     add_damage_popup(-heal, 85, 40)
     add_particles(85, 45, 11, 5)
     sfx(13)  -- boss heal sound
@@ -1219,7 +1235,7 @@ function execute_boss_ability(ability, player_def)
     -- hit player 3 times
     local hits = 3
     local total_dmg = 0
-    add(combat_log, "boss multi-strike!")
+    add(combat_log, "boss strikes 3x!")
     sfx(14)  -- boss multi-strike sound
     for i = 1, hits do
       dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
@@ -1230,11 +1246,11 @@ function execute_boss_ability(ability, player_def)
     add_particles(25, 45, 8, 7)
     anim.player_swing.active = true
     anim.player_swing.frame = 0
-    screen_shake(2, 6)
+    screen_shake(2, 5)  -- slightly reduced intensity
     anim.flash_color.active = true
     anim.flash_color.col = 8
-    anim.flash_color.timer = 4
-    add(combat_log, "total: "..total_dmg.." dmg")
+    anim.flash_color.timer = 3
+    add(combat_log, "dmg: "..total_dmg)
     _log("boss_ability:multi_strike")
 
   -- mage abilities
@@ -1242,7 +1258,7 @@ function execute_boss_ability(ability, player_def)
     -- mage ranged attack: 2 hits with arcane damage
     local hits = 2
     local total_dmg = 0
-    add(combat_log, "boss casts spell burst!")
+    add(combat_log, "mage spells!")
     sfx(15)  -- mage spell sound
     for i = 1, hits do
       dmg = max(1, flr(enemy.atk * 1.3) - flr(player_def * 0.5) + flr(rnd(2)))
@@ -1253,21 +1269,21 @@ function execute_boss_ability(ability, player_def)
     add_particles(50, 30, 12, 6)
     anim.flash_color.active = true
     anim.flash_color.col = 12
-    anim.flash_color.timer = 3
-    add(combat_log, "total: "..total_dmg.." dmg")
+    anim.flash_color.timer = 2
+    add(combat_log, "dmg: "..total_dmg)
     boss_abilities.spell_burst.used = true
     _log("boss_ability:spell_burst")
 
   elseif ability == "arcane_shield" then
     -- mage defense: reduce damage taken for 2 turns
-    add(combat_log, "boss raises arcane shield!")
+    add(combat_log, "shield raised!")
     sfx(16)  -- shield spell sound
     boss_abilities.arcane_shield.active = true
     boss_abilities.arcane_shield.duration = 2
     add_particles(85, 45, 12, 5)
     anim.flash_color.active = true
     anim.flash_color.col = 12
-    anim.flash_color.timer = 3
+    anim.flash_color.timer = 2
     _log("boss_ability:arcane_shield")
 
   -- berserker abilities
@@ -1276,33 +1292,34 @@ function execute_boss_ability(ability, player_def)
     local dmg_mult = boss_abilities.rampage.damage_mult
     dmg = max(1, flr(enemy.atk * dmg_mult) - player_def + flr(rnd(3)))
     player.hp -= dmg
-    add(combat_log, "boss rampages! "..dmg.." dmg")
+    add(combat_log, "berserker rages!")
     add_damage_popup(dmg, 25, 40)
     add_particles(25, 45, 14, 6)
     sfx(12)  -- rampage sound
     anim.player_swing.active = true
     anim.player_swing.frame = 0
-    screen_shake(3, 7)
+    screen_shake(2, 6)  -- intense but not excessive
     anim.flash_color.active = true
     anim.flash_color.col = 14
-    anim.flash_color.timer = 3
+    anim.flash_color.timer = 2
     boss_abilities.rampage.active = true
     boss_abilities.rampage.duration = 2
     boss_abilities.rampage.damage_mult += 0.2  -- escalate next rampage
+    add(combat_log, dmg.." dmg!")
     _log("boss_ability:rampage")
 
   elseif ability == "crush" then
     -- berserker heavy attack (high damage single hit)
     dmg = max(1, flr(enemy.atk * 1.8) - player_def + flr(rnd(3)))
     player.hp -= dmg
-    add(combat_log, "boss crushes down! "..dmg.." dmg")
+    add(combat_log, "crush! "..dmg.." dmg!")
     add_damage_popup(dmg, 25, 40)
     add_particles(25, 45, 14, 8)
     sfx(14)  -- crush sound
-    screen_shake(4, 8)
+    screen_shake(2, 6)  -- proportional intensity
     anim.flash_color.active = true
     anim.flash_color.col = 14
-    anim.flash_color.timer = 4
+    anim.flash_color.timer = 3
     boss_abilities.crush.used = true
     _log("boss_ability:crush")
   end
@@ -1566,44 +1583,44 @@ function combat_step()
     if rnd() < 0.15 then apply_status("stun", 1) end
     if rnd() < 0.15 then apply_status("paralysis", 2) end
 
-    -- screen shake on crit (high damage)
+    -- screen shake on crit (high damage) - subtle
     if dmg >= 6 then
-      screen_shake(2, 6)
+      screen_shake(1, 5)
       anim.flash_color.active = true
       anim.flash_color.col = 8
-      anim.flash_color.timer = 4
+      anim.flash_color.timer = 3
     else
-      screen_shake(1, 4)
+      screen_shake(1, 3)
     end
   elseif player_action == "defend" then
-    add(combat_log, "you defend!")
+    add(combat_log, "you brace! def+2")
     anim.flash_color.active = true
-    anim.flash_color.col = 14
+    anim.flash_color.col = 6  -- blue for defense
     anim.flash_color.timer = 3
   elseif player_action == "potion" then
     local heal = 8
     player.hp = min(player.max_hp, player.hp + heal)
     player.potions -= 1
-    add(combat_log, "you heal "..heal.." hp")
+    add(combat_log, "drink potion +"..heal.." hp")
     -- heal effect: green popup and particles
     add_damage_popup(-heal, 25, 40)
     add_particles(25, 45, 11, 4)  -- green healing particles
     sfx(5)  -- heal/potion sound
     anim.flash_color.active = true
     anim.flash_color.col = 11
-    anim.flash_color.timer = 3
+    anim.flash_color.timer = 2
   elseif player_action == "item_antidote" then
     add(combat_log, "poison removed!")
   elseif player_action == "item_cure" then
     add(combat_log, "status effects removed!")
   elseif player_action == "flee" then
     if rnd() < 0.5 then
-      add(combat_log, "escaped!")
+      add(combat_log, "fled safely!")
       combat_over = true
       combat_escaped = true
       return
     else
-      add(combat_log, "flee failed!")
+      add(combat_log, "can't escape!")
     end
   end
 
@@ -1639,7 +1656,7 @@ function combat_step()
       _log("level_up:"..player.level)
       -- level up particles and effects
       add_particles(25, 35, 7, 6)
-      screen_shake(2, 8)
+      screen_shake(1, 6)  -- celebratory but not excessive
       anim.flash_color.active = true
       anim.flash_color.col = 7
       anim.flash_color.timer = 5
@@ -1671,11 +1688,13 @@ function combat_step()
       -- check for special abilities (with difficulty adjustment)
       local ability_chance = 1.0
       if difficulty == 1 then  -- easy: reduce special ability frequency
-        ability_chance = 0.7
+        ability_chance = 0.5  -- only 50% chance on easy
+      elseif difficulty == 3 then  -- hard: increase frequency
+        ability_chance = 1.2  -- always use (clamped to 1.0 by rnd comparison)
       end
 
       ability = get_boss_ability()
-      if ability and rnd() < ability_chance then
+      if ability and rnd() < min(ability_chance, 1.0) then
         execute_boss_ability(ability, player_def)
       else
         -- normal boss attack
@@ -1695,7 +1714,7 @@ function combat_step()
         anim.player_swing.frame = 0
         add_damage_popup(dmg, 25, 40)
         add_particles(25, 45, 8, 3)
-        screen_shake(1, 4)
+        screen_shake(1, 3)  -- subtle shake
         anim.flash_color.active = true
         anim.flash_color.col = 8
         anim.flash_color.timer = 2
@@ -1759,7 +1778,7 @@ function combat_step()
         anim.player_swing.frame = 0
         add_damage_popup(dmg, 25, 40)
         add_particles(25, 45, 8, 3)
-        screen_shake(1, 4)
+        screen_shake(1, 3)  -- subtle
         if rnd() < 0.15 then apply_player_status("poison", 2) end
         if rnd() < 0.1 then apply_player_status("stun", 1) end
         anim.flash_color.active = true
@@ -1872,13 +1891,13 @@ function reset_combat()
     enemy.def = 2
     enemy.is_boss = false
     if difficulty == 1 then
-      enemy.hp = flr(enemy.hp * 3 / 4)
-      enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 3 / 4)
+      enemy.hp = 12
+      enemy.max_hp = 12
+      enemy.atk = 4
     elseif difficulty == 3 then
-      enemy.hp = flr(enemy.hp * 5 / 4)
-      enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 5 / 4)
+      enemy.hp = 24
+      enemy.max_hp = 24
+      enemy.atk = 10
     end
     add(combat_log, "a powerful orc appears!")
     _log("mini_boss:warrior")
@@ -1895,13 +1914,13 @@ function reset_combat()
 
     -- difficulty scaling
     if difficulty == 1 then
-      enemy.hp = flr(enemy.hp * 3 / 4)
+      enemy.hp = flr(enemy.hp / 2)  -- 50% for easy
       enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 3 / 4)
+      enemy.atk = flr(enemy.atk * 0.6)  -- 60% attack
     elseif difficulty == 3 then
-      enemy.hp = flr(enemy.hp * 5 / 4)
+      enemy.hp = flr(enemy.hp * 1.3)  -- 130% for hard
       enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 5 / 4)
+      enemy.atk = flr(enemy.atk * 1.3)  -- 130% attack
     end
 
     add(combat_log, "the "..btype.desc.." appears!")
@@ -1919,13 +1938,13 @@ function reset_combat()
 
     -- difficulty scaling
     if difficulty == 1 then
-      enemy.hp = flr(enemy.hp * 3 / 4)
+      enemy.hp = flr(enemy.hp * 0.65)  -- easier on easy mode
       enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 3 / 4)
+      enemy.atk = flr(enemy.atk * 0.65)
     elseif difficulty == 3 then
-      enemy.hp = flr(enemy.hp * 5 / 4)
+      enemy.hp = flr(enemy.hp * 1.35)  -- harder on hard mode
       enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 5 / 4)
+      enemy.atk = flr(enemy.atk * 1.35)
     end
 
     -- elite enemy spawn (10-15% chance)
@@ -1968,8 +1987,8 @@ function reset_game()
     player.cure_scrolls = 1
   else  -- hard
     player.potions = 1
-    player.antidotes = 1
-    player.cure_scrolls = 1
+    player.antidotes = 0  -- no antidotes on hard
+    player.cure_scrolls = 0  -- no cures on hard
   end
 
   player.weapon = nil
