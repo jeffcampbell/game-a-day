@@ -27,7 +27,7 @@ end
 
 state="menu"
 paused=false  -- pause flag for play state
-pause_pressed_frame=-100  -- debounce pause toggle
+pause_debounce=0  -- independent debounce counter for pause toggle
 game_mode="adventure"  -- "adventure" or "endless"
 difficulty="normal"
 difficulty_cursor=2
@@ -633,11 +633,13 @@ function update_play()
  if not player.alive then return end
 
  -- handle pause toggle (O button index 4 to pause, O or X to resume)
+ -- use separate debounce counter that increments even while paused
+ pause_debounce+=1
  local o_pressed=test_input(4)>0
  local x_pressed=test_input(5)>0
- if (o_pressed or (paused and x_pressed)) and frames-pause_pressed_frame>20 then
+ if (o_pressed or (paused and x_pressed)) and pause_debounce>20 then
   paused=not paused
-  pause_pressed_frame=frames
+  pause_debounce=0
   if paused then
    _log("pause")
    music(-1)  -- stop music
@@ -647,7 +649,7 @@ function update_play()
   end
  end
 
- -- if paused, skip game logic updates but still increment frames
+ -- if paused, skip game logic updates and stop frame progression
  if paused then return end
 
  -- update adaptive difficulty based on player performance
