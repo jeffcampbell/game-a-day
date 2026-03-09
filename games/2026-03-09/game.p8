@@ -1006,6 +1006,10 @@ function combat_step()
       boss_abilities.power_attack.recovery_turn -= 1
       add(combat_log, "boss recovers...")
       _log("boss_action:recovering")
+      -- reset charged flag after recovery is complete
+      if boss_abilities.power_attack.recovery_turn == 0 then
+        boss_abilities.power_attack.charged = false
+      end
     else
       -- check for special abilities (with difficulty adjustment)
       local ability_chance = 1.0
