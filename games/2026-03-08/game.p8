@@ -83,7 +83,6 @@ last_move_frame=-10
 last_hit_frame=-10
 last_dash_avoid_frame=-100  -- debounce dash-avoid sound
 last_near_miss_frame=-100  -- debounce near-miss sound
-last_difficulty_change_frame=-1000  -- debounce difficulty transition sound
 last_wave_escalation_frame=-1000  -- debounce wave escalation sound
 dash_hit_shield_frame=-100  -- track when dash prevented damage
 dash_shake_intensity=0  -- screen shake intensity on dash hits
@@ -483,7 +482,7 @@ function update_difficulty_select()
  if test_input(4)>0 or test_input(5)>0 then
   if difficulty_cursor==1 then
    difficulty="easy"
-   sfx(9)  -- easy mode: gentle ascending tone
+   sfx(7)  -- easy mode: gentle ascending tone
   elseif difficulty_cursor==2 then
    difficulty="normal"
    sfx(7)  -- normal mode: neutral beep
@@ -513,7 +512,7 @@ function update_endless_difficulty_select()
  if test_input(4)>0 or test_input(5)>0 then
   if difficulty_cursor==1 then
    difficulty="easy"
-   sfx(9)  -- easy mode: gentle ascending tone
+   sfx(7)  -- easy mode: gentle ascending tone
   elseif difficulty_cursor==2 then
    difficulty="normal"
    sfx(7)  -- normal mode: neutral beep
@@ -855,11 +854,10 @@ function update_play()
    if frames-last_wave_escalation_frame>60 then
     if difficulty=="hard" then
      -- hard mode escalation: ominous 4-note progression
-     sfx(8,0,flr(wave/3)%7)
-     last_difficulty_change_frame=frames
+     sfx(8,0,flr(wave/3)%4)
     else
      -- normal/easy mode escalation: ascending pair for buildup
-     sfx(9,0,flr(wave/2)%6)
+     sfx(7,0,flr(wave/2)%3)
     end
     last_wave_escalation_frame=frames
    end
