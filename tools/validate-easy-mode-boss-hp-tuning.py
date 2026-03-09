@@ -189,6 +189,7 @@ def generate_playtest_session(difficulty, playstyle, session_idx):
         "button_sequence": button_sequence,
         "logs": logs,
         "exit_state": exit_state,
+        "is_synthetic": True,
         "difficulty": difficulty,
         "playstyle": playstyle
     }
@@ -284,7 +285,7 @@ Generated 15 deterministic playtest sessions per difficulty level (45 total):
 - 3 sessions per playstyle: aggressive, balanced, careful, strategic, passive
 - Consistent seeded RNG for reproducibility
 - Varied but realistic combat patterns and action sequences
-- No synthetic markers (sessions formatted as real playtests)
+- Sessions marked as `is_synthetic: true` to prevent analytics contamination
 
 """
 
@@ -412,6 +413,12 @@ def main():
     parser = argparse.ArgumentParser(description="Validate easy-mode boss HP tuning")
     parser.add_argument("--analyze-only", action="store_true", help="Only analyze existing sessions")
     args = parser.parse_args()
+
+    # Verify game exists
+    game_file = GAME_DIR / "game.p8"
+    if not game_file.exists():
+        print(f"Error: Game not found at {game_file}", file=sys.stderr)
+        return 1
 
     if not args.analyze_only:
         print("🎮 Generating Dungeon Crawler HP Tuning Validation Sessions")
