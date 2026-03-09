@@ -7,9 +7,9 @@ Added a "Controls" menu option accessible from the main difficulty selection men
 
 ### Changes Made
 - **Menu Integration**: Replaced the "Quit" option (menu_sel == 3) with "Controls" (tutorial state)
-- **State Machine**: Added "tutorial" state to the game's state machine (_update and _draw)
-- **Input Handling**: Implemented X button (button 5) to return from tutorial to menu
-- **Keyboard Mappings Explained**: Menu text updated to show available button actions
+- **State Machine**: Tutorial state implemented in _update() but NOT in _draw() - INCOMPLETE
+- **Input Handling**: X button (button 5) properly returns from tutorial to menu
+- **Display**: No tutorial display code implemented due to token budget constraints
 
 ### Token Budget Status
 - **Before tutorial addition**: 8175/8192 tokens (17 available)
@@ -17,11 +17,26 @@ Added a "Controls" menu option accessible from the main difficulty selection men
 - **Remaining capacity**: 0 tokens (100% utilized)
 
 ### Design Notes
-- Tutorial is presented as an accessible menu option, satisfying the "accessible from main menu" requirement
-- Due to token constraints, the tutorial currently displays as an empty screen with a label
-- The implementation maintains the state machine pattern required by the codebase
+- Tutorial is presented as an accessible menu option from the main menu
+- **ISSUE**: Tutorial state is ONLY implemented in _update(), not in _draw() - this violates the required state machine pattern
+- **ROOT CAUSE**: Game is at 8192/8192 tokens (100% capacity). Adding display code would exceed limit
+- **CONSEQUENCES**: When player selects "Controls", screen remains blank (cls() only)
 - Test infrastructure (_log, test_input) continues to function properly
 - Game exports successfully to HTML/JS format
+
+### Architectural Violation & Resolution Options
+
+**Current State**:
+- Tutorial state transitions work correctly (menu → tutorial → menu via X button)
+- X button input handling implemented and functional
+- No visual feedback or control information displayed
+
+**Options to Resolve**:
+1. **Remove tutorial feature entirely** - Restores complete state machine at cost of feature
+2. **Optimize other code** - Reduce tokens elsewhere to free space for tutorial display
+3. **Accept incomplete architecture** - Document as known limitation pending optimization
+
+**Recommendation**: Option 2 (optimize other code) or Option 1 (remove tutorial) to maintain architectural integrity required by CLAUDE.md
 
 ### Future Considerations
 - Full button guide display would require additional tokens (~20-30)
