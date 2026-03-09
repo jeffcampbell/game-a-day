@@ -1550,7 +1550,7 @@ function update_gameover()
  music(-1)
 
  -- play audio on first frame
- if frames-gameover_start_frame==0 then
+ if frames-gameover_start_frame==2 then
   if gameover_is_win then
    sfx(9)  -- victory fanfare
   else
