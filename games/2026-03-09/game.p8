@@ -101,7 +101,7 @@ function update_menu()
 
   -- right (button 1)
   if (input & 2) > 0 and (prev_input & 2) == 0 then
-    menu_sel = min(menu_sel + 1, 2)
+    menu_sel = min(menu_sel + 1, 3)
   end
   -- left (button 0)
   if (input & 1) > 0 and (prev_input & 1) == 0 then
@@ -127,6 +127,11 @@ function update_menu()
       _log("state:play")
       state = "play"
       reset_combat()
+    elseif menu_sel == 3 then
+      _log("quit")
+      _log("state:gameover")
+      state = "gameover"
+      boss_defeated = false
     end
   end
 
@@ -164,6 +169,15 @@ function draw_menu()
     print("hard", 60, y, 7)
   else
     print("hard", 60, y, 5)
+  end
+
+  y += 10
+  -- quit
+  if menu_sel == 3 then
+    print(">", 50, y, sel_col)
+    print("quit", 60, y, 7)
+  else
+    print("quit", 60, y, 5)
   end
 
   print("z/c to select", 22, 110, 5)
