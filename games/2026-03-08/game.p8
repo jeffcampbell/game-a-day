@@ -70,6 +70,8 @@ difficulty_ramp_duration=1800
 -- audio state tracking
 last_move_frame=-10
 last_hit_frame=-10
+last_dash_avoid_frame=-100  -- debounce dash-avoid sound
+last_near_miss_frame=-100  -- debounce near-miss sound
 
 -- dash mechanics
 dash_cooldown=30  -- 0.5 seconds at 60fps
@@ -143,6 +145,10 @@ function init_level()
 
  -- reset dash streak
  dash_streak=0
+
+ -- reset sound debouncing for new level
+ last_dash_avoid_frame=-100
+ last_near_miss_frame=-100
 
  -- start background music
  music(0)
@@ -949,7 +955,10 @@ function update_play()
     end
    elseif is_dash_invuln then
     -- near-miss: dash avoided enemy
-    sfx(6)  -- success tone
+    if frames-last_dash_avoid_frame>10 then
+     sfx(6)  -- success tone
+     last_dash_avoid_frame=frames
+    end
     level_score+=10*(1+flr(dash_streak*0.1))  -- streak bonus
     _log("dash_avoid:"..dash_streak)
    end
@@ -958,7 +967,10 @@ function update_play()
    local dx_dist=abs(e.x-player.x)
    local dy_dist=abs(e.y-player.y)
    if dx_dist<14 and dy_dist<14 then
-    sfx(4)  -- near-miss feedback
+    if frames-last_near_miss_frame>10 then
+     sfx(4)  -- near-miss feedback
+     last_near_miss_frame=frames
+    end
    end
   end
  end
