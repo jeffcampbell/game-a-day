@@ -22,6 +22,7 @@ end
 -- game state machine
 state = "menu"
 menu_sel = 0  -- 0=easy, 1=normal, 2=hard
+gameover_sel = 0  -- 0=retry, 1=menu
 prev_input = 0
 difficulty = 2  -- 1=easy, 2=normal, 3=hard
 
@@ -825,11 +826,21 @@ end
 function update_gameover()
   local input = test_input()
 
-  -- O button (button 4)
+  -- left/right to switch options
+  if (input & 3) > 0 and (prev_input & 3) == 0 then
+    gameover_sel = 1 - gameover_sel
+  end
+
+  -- O button to select
   if (input & 16) > 0 and (prev_input & 16) == 0 then
-    _log("state:menu")
-    state = "menu"
-    menu_sel = 0
+    if gameover_sel == 0 then
+      _log("state:play")
+      state = "play"
+    else
+      _log("state:menu")
+      state = "menu"
+      menu_sel = 0
+    end
     reset_game()
   end
 
@@ -838,19 +849,21 @@ end
 
 function draw_gameover()
   local enemies_killed = (current_floor - 1) * 2 + floor_combat_count
-
   if boss_defeated then
-    local flash_col = flr(t() * 4) % 2 == 0 and 11 or 7
-    print("victory!", 45, 30, flash_col)
-    print("quest complete!", 28, 45, 11)
-    print("level: "..player.level, 42, 60, 7)
-    print("defeated: "..enemies_killed, 38, 70, 7)
+    print("victory!", 45, 20, 11)
+    print("level: "..player.level, 40, 35, 11)
   else
-    print("game over", 35, 30, 8)
-    print("level: "..player.level, 42, 50, 5)
-    print("defeated: "..enemies_killed, 38, 60, 5)
+    print("defeat!", 44, 20, 8)
+    print("level: "..player.level, 40, 35, 5)
   end
-  print("press o to continue", 22, 110, 7)
+  print("enemies: "..enemies_killed, 35, 48, 7)
+
+  -- options
+  local c1 = gameover_sel == 0 and 11 or 5
+  local c2 = gameover_sel == 1 and 11 or 5
+  print(">retry", 44, 70, c1)
+  print(" menu", 44, 82, c2)
+  print("o:select", 48, 105, 7)
 end
 
 -- equipment system helpers
