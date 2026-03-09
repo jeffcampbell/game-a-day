@@ -26,6 +26,8 @@ function test_input(b)
 end
 
 state="menu"
+paused=false  -- pause flag for play state
+pause_pressed_frame=-100  -- debounce pause toggle
 game_mode="adventure"  -- "adventure" or "endless"
 difficulty="normal"
 difficulty_cursor=2
@@ -178,6 +180,9 @@ function init_level()
 
  -- reset dash streak
  dash_streak=0
+
+ -- reset pause state for new level
+ paused=false
 
  -- reset sound debouncing for new level
  last_dash_avoid_frame=-100
@@ -626,6 +631,23 @@ end
 
 function update_play()
  if not player.alive then return end
+
+ -- handle pause toggle (O button index 4 to pause, O or X to resume)
+ local o_pressed=test_input(4)>0
+ local x_pressed=test_input(5)>0
+ if (o_pressed or (paused and x_pressed)) and frames-pause_pressed_frame>20 then
+  paused=not paused
+  pause_pressed_frame=frames
+  if paused then
+   _log("pause")
+   music(-1)  -- stop music
+  else
+   _log("resume")
+  end
+ end
+
+ -- if paused, skip game logic updates but still increment frames
+ if paused then return end
 
  -- update adaptive difficulty based on player performance
  update_adaptive_difficulty()
@@ -1197,6 +1219,27 @@ function draw_play()
   end
 
   print("find exit (top right)",10,120,14)
+ end
+
+ -- draw pause ui
+ if paused then
+  -- semi-transparent overlay
+  rectfill(0,0,128,128,0)
+  for i=0,128,2 do
+   for j=0,128,2 do
+    pset(i,j,1)
+   end
+  end
+
+  -- pause dialog box
+  rectfill(32,45,96,83,1)
+  rect(32,45,96,83,15)
+
+  -- paused text
+  print("paused",48,52,15)
+
+  -- resume instructions
+  print("o or x to resume",35,66,7)
  end
 end
 
