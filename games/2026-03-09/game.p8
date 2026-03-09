@@ -1412,9 +1412,7 @@ function update_enemy_abilities()
       if ab.duration <= 0 and ab.active then ab.active = false end
     end
   end
-end
-
-function update_boss_abilities()
+  -- handle boss abilities
   for name,ab in pairs(boss_abilities) do
     if ab.duration and ab.duration > 0 then
       ab.duration -= 1
@@ -1716,7 +1714,6 @@ function combat_step()
   update_status_effects()
   update_player_status()
   update_enemy_abilities()
-  update_boss_abilities()
 
   turn += 1
 end
