@@ -177,6 +177,24 @@ boss_abilities = {
   }
 }
 
+-- boss pattern system (attack sequences that cycle throughout fight)
+boss_pattern_system = {
+  patterns = {
+    -- pattern 1: 75-100% hp (aggressive early game)
+    {name="aggressive", threshold=0.75, turns={"power_attack","power_attack"}},
+    -- pattern 2: 50-75% hp (balanced midgame)
+    {name="balanced", threshold=0.50, turns={"heal","power_attack"}},
+    -- pattern 3: 25-50% hp (desperate)
+    {name="desperate", threshold=0.25, turns={"multi_strike","multi_strike"}},
+    -- pattern 4: 0-25% hp (frenzy - hard mode only)
+    {name="frenzy", threshold=0, turns={"power_attack","multi_strike"}}
+  },
+  current_pattern_idx = 1,
+  current_turn_idx = 1,
+  prev_hp_pct = 1.0,
+  pattern_name = "aggressive"
+}
+
 -- enemy abilities (for regular enemies)
 enemy_abilities = {
   -- archer (type 1)
@@ -1025,35 +1043,65 @@ function get_stat(t, stat)
   return 1.0
 end
 
--- boss special abilities
-function get_boss_ability()
-  -- return which ability the boss should use, or nil for normal attack
-  if not enemy.is_boss then return nil end
+-- update boss attack pattern based on hp threshold
+function update_boss_pattern()
+  if not enemy.is_boss then return end
 
   local hp_pct = enemy.hp / enemy.max_hp
+  local pattern_idx = 1
 
-  -- power attack at 50% hp (50% chance if enabled)
-  if boss_abilities.power_attack.enabled and hp_pct <= boss_abilities.power_attack.hp_threshold then
-    if not boss_abilities.power_attack.charged and rnd() < 0.6 then
-      return "power_attack"
-    end
+  -- select pattern by hp threshold
+  if difficulty == 1 then  -- easy: use only first 3 patterns
+    if hp_pct > 0.5 then pattern_idx = 1
+    elseif hp_pct > 0.25 then pattern_idx = 2
+    else pattern_idx = 3 end
+  else  -- normal/hard: all 4 patterns
+    if hp_pct > 0.75 then pattern_idx = 1
+    elseif hp_pct > 0.5 then pattern_idx = 2
+    elseif hp_pct > 0.25 then pattern_idx = 3
+    else pattern_idx = 4 end
   end
 
-  -- heal at 75% hp (first time only)
-  if boss_abilities.heal.enabled and hp_pct <= boss_abilities.heal.hp_threshold then
-    if not boss_abilities.heal.used and rnd() < 0.5 then
-      return "heal"
-    end
+  -- pattern changed: log transition and reset turn counter
+  if pattern_idx ~= boss_pattern_system.current_pattern_idx then
+    local pattern = boss_pattern_system.patterns[pattern_idx]
+    boss_pattern_system.current_pattern_idx = pattern_idx
+    boss_pattern_system.current_turn_idx = 1
+    boss_pattern_system.pattern_name = pattern.name
+    add(combat_log, "boss enters "..pattern.name.." phase!")
+    _log("boss_pattern:"..pattern.name)
+  end
+end
+
+-- boss special abilities with pattern system
+function get_boss_ability()
+  -- return next action in pattern sequence, with randomness for unpredictability
+  if not enemy.is_boss then return nil end
+
+  update_boss_pattern()
+
+  local pattern = boss_pattern_system.patterns[boss_pattern_system.current_pattern_idx]
+  local turn_idx = boss_pattern_system.current_turn_idx
+  local pattern_action = pattern.turns[turn_idx]
+
+  -- advance turn counter for next call
+  boss_pattern_system.current_turn_idx += 1
+  if boss_pattern_system.current_turn_idx > #pattern.turns then
+    boss_pattern_system.current_turn_idx = 1
   end
 
-  -- multi strike at 25% hp (desperation move)
-  if boss_abilities.multi_strike.enabled and hp_pct <= boss_abilities.multi_strike.hp_threshold then
-    if rnd() < 0.7 then
-      return "multi_strike"
-    end
+  -- add randomness to make patterns not completely predictable
+  -- 30% chance to deviate from pattern and do a normal attack
+  if rnd() < 0.3 then
+    return nil  -- normal attack
   end
 
-  return nil
+  -- validate ability can be used (check limits like heal.used)
+  if pattern_action == "heal" and boss_abilities.heal.used then
+    return nil  -- heal already used, do normal attack
+  end
+
+  return pattern_action
 end
 
 function execute_boss_ability(ability, player_def)
@@ -1590,6 +1638,12 @@ function reset_combat()
   boss_abilities.power_attack.charged = false
   boss_abilities.power_attack.recovery_turn = 0
   boss_abilities.heal.used = false
+
+  -- reset boss pattern system for new fight
+  boss_pattern_system.current_pattern_idx = 1
+  boss_pattern_system.current_turn_idx = 1
+  boss_pattern_system.prev_hp_pct = 1.0
+  boss_pattern_system.pattern_name = "aggressive"
 
   -- reset enemy abilities for new fight
   enemy.ability_active = false
