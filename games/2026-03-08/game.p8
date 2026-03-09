@@ -389,19 +389,24 @@ function init_level()
 
   -- level 4: dash tutorial - tight corridors require dashing
   -- design: enemies in strategic positions creating gaps to navigate
+  -- increased speeds and tighter spacing to force dash mechanic
   if level_start_frame>0 then
    local passive_speed_mult=1.0
    if is_passive_player then
     passive_speed_mult=0.75
     _log("difficulty:passive_level4_adjust")
    end
-   -- create tight corridor pattern: enemies at y=40, y=80, y=120 (vertical lanes)
-   -- only center lane passable without dash
-   add(enemies,{x=50,y=30,w=8,h=8,speed=0.85*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
-   add(enemies,{x=100,y=90,w=8,h=8,speed=0.85*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
-   add(enemies,{x=40,y=60,w=8,h=8,speed=0.85*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+   -- create tight corridor pattern with faster enemies (1.0 instead of 0.85)
+   -- y positions much closer to force dash navigation
+   add(enemies,{x=50,y=35,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+   add(enemies,{x=100,y=85,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
+   add(enemies,{x=40,y=60,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+   -- add 4th enemy for non-passive players to increase pressure
+   if not is_passive_player then
+    add(enemies,{x=80,y=110,w=8,h=8,speed=1.0*speed_mult*adaptive_speed_mult,dir=-1})
+   end
   end
-  _log("level_4_start:dash_tutorial")
+  _log("level_4_start:dash_tutorial:tight_corridors")
 
  elseif level==5 then
   player.x=12
@@ -853,6 +858,11 @@ function update_play()
   sfx(3,0,dash_pitch%8)
   _log("dash:"..dash_streak)
 
+  -- level-specific dash logging for teaching mechanic
+  if level==4 then
+   _log("dash_in_tutorial:attempt")
+  end
+
   -- track dashes in first 5 seconds for passive detection
   if not passive_check_done and elapsed<300 then
    dash_count_first_5s+=1
@@ -1002,8 +1012,10 @@ function update_play()
    elseif level==4 then
     local passive_speed_mult=1.0
     if is_passive_player then passive_speed_mult=0.75 end
-    add(enemies,{x=75,y=25,w=8,h=8,speed=0.85*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
-    _log("enemy_spawn_ramp:level4")
+    -- spawn 2 enemies at 10s mark to force dash
+    add(enemies,{x=75,y=25,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
+    add(enemies,{x=25,y=95,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+    _log("enemy_spawn_ramp:level4_tight_corridors")
    elseif level==5 then
     local passive_speed_mult=1.0
     if is_passive_player then passive_speed_mult=0.75 end
@@ -1031,8 +1043,10 @@ function update_play()
    elseif level==4 then
     local passive_speed_mult=1.0
     if is_passive_player then passive_speed_mult=0.75 end
-    add(enemies,{x=60,y=95,w=8,h=8,speed=0.85*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
-    _log("enemy_spawn_ramp:level4")
+    -- spawn 2 more enemies at 20s to create continuous dash pressure
+    add(enemies,{x=60,y=45,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+    add(enemies,{x=70,y=75,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
+    _log("enemy_spawn_ramp:level4_ramp_20s")
    elseif level==5 then
     local passive_speed_mult=1.0
     if is_passive_player then passive_speed_mult=0.75 end
@@ -1054,8 +1068,8 @@ function update_play()
     add(enemies,{x=70,y=70,w=8,h=8,speed=0.95*speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
    elseif level==4 then
-    add(enemies,{x=70,y=50,w=8,h=8,speed=0.85*speed_mult,dir=-1})
-    _log("enemy_spawn_ramp")
+    add(enemies,{x=50,y=50,w=8,h=8,speed=1.1*speed_mult,dir=-1})
+    _log("enemy_spawn_ramp:hard")
    elseif level==5 then
     add(enemies,{x=50,y=120,w=8,h=8,speed=1.0*speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
@@ -1440,9 +1454,13 @@ function draw_play()
    level_2_dash_reminder=true
   end
 
-  -- level 4: dash tutorial prompt
-  if level==4 and elapsed<180 then
-   print("dash through tight spots!",20,115,11)
+  -- level 4: dash tutorial prompt (PROMINENT - extended to 5 seconds)
+  if level==4 and elapsed<300 then
+   -- large prominent background box at top
+   rectfill(10,5,118,25,1)  -- dark background
+   rect(10,5,118,25,11)  -- yellow border (urgent color)
+   print("press x to dash!",32,8,11)  -- top instruction
+   print("navigate tight corridors",18,17,14)  -- subtitle in bright yellow
   end
 
   -- level 5: expert challenge prompt
