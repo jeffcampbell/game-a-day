@@ -63,7 +63,6 @@ def generate_easy_mode_session(session_num, outcome="varied"):
                 button_sequence.append(0)   # Idle
 
         logs.extend([
-            "state:play",
             "player_attack",
             "enemy_attack",
             "potion_used",
@@ -92,7 +91,6 @@ def generate_easy_mode_session(session_num, outcome="varied"):
                 button_sequence.append(0)
 
         logs.extend([
-            "state:play",
             "player_attack",
             "enemy_attack",
             "player_hit",
@@ -122,7 +120,6 @@ def generate_easy_mode_session(session_num, outcome="varied"):
                 button_sequence.append(0)
 
         logs.extend([
-            "state:play",
             "player_attack",
             "enemy_attack",
             "player_hit",
@@ -139,7 +136,7 @@ def generate_easy_mode_session(session_num, outcome="varied"):
         "playstyle": "human_simulation",
         "difficulty_selected": "easy",
         "exit_state": outcome,
-        "is_synthetic": False,  # Mark as real session for analysis
+        "is_synthetic": True,  # Synthetic data for validation demonstration
         "execution_notes": f"Human-simulated easy mode playtest (outcome: {outcome})"
     }
 
