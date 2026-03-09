@@ -907,6 +907,10 @@ function update_play()
   end
 
   -- minion spawning in phase 2+ (limit to max 2 active minions)
+  -- note: minions are marked with is_boss_minion=true flag.
+  -- when boss is defeated, all minions are explicitly removed from
+  -- the enemies array (see boss defeat logic ~line 938-944).
+  -- the boss_active_minions counter acts as a spawn rate limiter.
   if boss_phase>=2 and frames>boss_minion_spawn_frame then
    if boss_active_minions<2 then
     local minion_speed=1.1*speed_mult
