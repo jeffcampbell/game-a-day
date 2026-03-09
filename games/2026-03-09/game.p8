@@ -1915,7 +1915,7 @@ function reset_combat()
     return r < 0.33 and "warrior" or (r < 0.67 and "mage" or "berserker")
   end
 
-  -- special handling for mini-boss (floor 5) and final boss (floor 8)
+  -- special handling for final boss (floor 8)
   if current_floor == 8 then
     -- floor 8: final boss: difficulty-based boss type
     enemy.boss_type = select_boss_type()
