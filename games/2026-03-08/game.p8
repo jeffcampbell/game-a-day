@@ -59,8 +59,19 @@ exit_portal={x=115,y=15,w=8,h=8}
 -- boss entity (only in level 3)
 boss=nil
 boss_health=0
+boss_max_health=0
 boss_hit_frame=-1000
 boss_invuln_frames=30  -- 0.5 seconds visual feedback
+boss_phase=1  -- 1, 2, or 3 based on health
+boss_phase_change_frame=-1000
+boss_dash_charging=false  -- is boss in dash charge state
+boss_dash_charge_frame=-1000  -- when dash started
+boss_dash_target_x=0  -- target x position for dash
+boss_flash_warning=false  -- flash yellow warning before dash
+boss_warning_frame=-1000  -- when warning started
+boss_minion_spawn_frame=-1000  -- when last minion spawned
+boss_minion_spawn_interval=600  -- spawn minion every 10 seconds in phase 2+
+boss_active_minions=0  -- track active boss minions
 
 -- difficulty ramp-up: ease in enemies during first 30s (1800 frames)
 difficulty_ramp_duration=1800
@@ -135,7 +146,16 @@ function init_level()
  level_score=0
  boss=nil
  boss_health=0
+ boss_max_health=0
  boss_hit_frame=-1000
+ boss_phase=1
+ boss_phase_change_frame=-1000
+ boss_dash_charging=false
+ boss_dash_charge_frame=-1000
+ boss_flash_warning=false
+ boss_warning_frame=-1000
+ boss_minion_spawn_frame=-1000
+ boss_active_minions=0
 
  -- reset adaptive difficulty tracking
  hit_times={}
@@ -233,16 +253,26 @@ function init_level()
   -- boss spawns at center-top
   local boss_speed=0.7
   local boss_health_val=3
+  local boss_minion_spawn_interval_val=600
   if difficulty=="hard" then
    boss_speed=0.8  -- slightly faster than normal
-   boss_health_val=4  -- more health than normal (harder to defeat)
+   boss_health_val=5  -- more health than normal (harder to defeat)
+   boss_minion_spawn_interval_val=450  -- spawn minions more frequently on hard
   elseif difficulty=="easy" then
    boss_speed=0.6  -- slower than normal
-   boss_health_val=3  -- same as normal (accessible)
+   boss_health_val=2  -- less health on easy (more accessible)
+   boss_minion_spawn_interval_val=800  -- spawn minions less frequently on easy
   end
 
   boss={x=64,y=25,w=12,h=12,speed=boss_speed,dir=1,health=boss_health_val}
   boss_health=boss_health_val
+  boss_max_health=boss_health_val
+  boss_phase=1
+  boss_phase_change_frame=frames
+  boss_dash_charging=false
+  boss_minion_spawn_frame=frames+300  -- first minion spawn at 5 seconds
+  boss_minion_spawn_interval=boss_minion_spawn_interval_val
+  boss_active_minions=0
   _log("boss_encounter")
 
   -- level 3: 3-5 enemies initially, 5-10% faster than level 2
@@ -819,10 +849,73 @@ function update_play()
 
  -- boss update and collision (level 3 only)
  if boss~=nil then
-  boss.x+=boss.speed*boss.dir
+  -- update boss phase based on health
+  local health_pct=boss.health/boss_max_health
+  local new_phase=1
+  if health_pct>0.5 then
+   new_phase=1
+  elseif health_pct>0.25 then
+   new_phase=2
+  else
+   new_phase=3
+  end
 
-  if boss.x<2 or boss.x>126 then
-   boss.dir=-boss.dir
+  if new_phase~=boss_phase then
+   boss_phase=new_phase
+   boss_phase_change_frame=frames
+   _log("boss_phase:"..new_phase)
+   sfx(7)  -- phase transition sound
+  end
+
+  -- boss movement and dash attack logic
+  if boss_dash_charging then
+   local dash_duration=60  -- 1 second dash
+   local elapsed=frames-boss_dash_charge_frame
+   if elapsed<dash_duration then
+    -- accelerate toward target
+    local dx_to_target=boss_dash_target_x-boss.x
+    boss.x+=sgn(dx_to_target)*2.5  -- fast dash speed
+   else
+    -- dash ended
+    boss_dash_charging=false
+    boss_flash_warning=false
+   end
+  else
+   -- normal bouncing movement
+   boss.x+=boss.speed*boss.dir
+   if boss.x<2 or boss.x>126 then
+    boss.dir=-boss.dir
+   end
+
+   -- trigger dash attack based on phase
+   if boss_phase>=1 and frames>boss_dash_charge_frame+180 then
+    -- boss initiates dash charge every 3 seconds
+    boss_dash_charging=true
+    boss_dash_charge_frame=frames+30  -- 0.5s warning, then dash
+    boss_dash_target_x=player.x
+    boss_flash_warning=true
+    boss_warning_frame=frames
+    _log("boss_dash_warning")
+   end
+  end
+
+  -- show warning flash
+  if boss_flash_warning and frames-boss_warning_frame<30 then
+   -- visual warning (handled in draw)
+  elseif boss_flash_warning then
+   boss_flash_warning=false
+  end
+
+  -- minion spawning in phase 2+ (limit to max 2 active minions)
+  if boss_phase>=2 and frames>boss_minion_spawn_frame then
+   if boss_active_minions<2 then
+    local minion_speed=1.1*speed_mult
+    local minion_dir=rnd(2)<1 and 1 or -1
+    add(enemies,{x=boss.x,y=boss.y,w=8,h=8,speed=minion_speed,dir=minion_dir,is_boss_minion=true})
+    boss_active_minions+=1
+    boss_minion_spawn_frame=frames+boss_minion_spawn_interval
+    _log("boss_minion_spawn")
+   end
   end
 
   -- boss collision detection
@@ -839,8 +932,17 @@ function update_play()
     if boss.health<=0 then
      score+=500
      _log("boss_defeated")
-     -- fanfare sound
+     -- victory fanfare
      sfx(6)
+     -- clear boss minions
+     local new_enemies={}
+     for i=1,#enemies do
+      if enemies[i].is_boss_minion~=true then
+       add(new_enemies,enemies[i])
+      end
+     end
+     enemies=new_enemies
+     boss_active_minions=0
     else
      player.x-=dx*4
     end
@@ -963,13 +1065,38 @@ function draw_play()
  -- draw boss with visual feedback on hit
  if boss~=nil then
   -- flash on hit (0.5s visual feedback)
-  local boss_draw_color=8  -- darker red normally
+  -- phase-based color: phase 1=red, phase 2=orange, phase 3=yellow
+  local boss_draw_color=8  -- phase 1: darker red
+  if boss_phase==2 then
+   boss_draw_color=9  -- phase 2: orange
+  elseif boss_phase==3 then
+   boss_draw_color=10  -- phase 3: yellow
+  end
+
+  -- flash warning before dash
+  if boss_flash_warning then
+   if frames%10<5 then  -- blink warning
+    boss_draw_color=10  -- yellow flash
+   end
+  end
+
+  -- white flash on hit
   if frames-boss_hit_frame<boss_invuln_frames then
    boss_draw_color=15  -- white flash on hit
   end
+
+  -- visual effect for dash attack
+  if boss_dash_charging and frames>boss_dash_charge_frame then
+   -- draw dash motion trail (5 frames)
+   if frames%3==0 then
+    rectfill(boss.x-2,boss.y-2,boss.x+2,boss.y+2,boss_draw_color)
+   end
+  end
+
   -- draw boss as larger sprite with outline
   rectfill(boss.x-6,boss.y-6,boss.x+6,boss.y+6,boss_draw_color)
   rect(boss.x-6,boss.y-6,boss.x+6,boss.y+6,15)  -- white outline
+
   -- draw enemy sprite (1) in center
   pal(8,boss_draw_color)
   spr(get_enemy_sprite(boss),boss.x-4,boss.y-4)
