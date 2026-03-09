@@ -676,7 +676,7 @@ function draw_play()
 
   -- draw health aura based on remaining HP percent
   if player.hp > 0 then
-    local hp_pct = player.hp / player.maxhp
+    local hp_pct = player.hp / player.max_hp
     local aura_col = 11  -- green if healthy
     if hp_pct < 0.5 then aura_col = 8  -- red if low HP
     elseif hp_pct < 0.75 then aura_col = 10  -- yellow if medium HP
