@@ -1,139 +1,78 @@
-# Dungeon Crawler RPG - Assessment
+# Dungeon Crawler RPG - Balance & Polish Assessment
 
-## Gameplay Overview
+## Completed Improvements
 
-A turn-based dungeon crawler RPG where the player fights through enemy encounters to defeat a final boss. Features character progression, inventory management, and tactical combat choices.
+### Difficulty Scaling
+**Easy Mode** (Target: 70%+ win rate, forgiving)
+- Boss HP: 50% of base (was 75%)
+- Boss ATK: 60% of base (was 75%)
+- Mini-boss HP: 12 (was 13-14)
+- Regular enemy scaling: 65% HP/ATK
+- Boss ability frequency: 50% (was 70%)
+- Starting resources: 3 potions, 2 antidotes, 2 cure scrolls
+- Effect: Bosses are now 2-3 turns faster to defeat
 
-## Core Mechanics
+**Normal Mode** (Target: 60-70% win rate, challenging but fair)
+- Standard 1x stat scaling
+- Starting resources: 2 potions, 1 antidote, 1 cure scroll
+- Boss ability frequency: 100%
+- Balanced difficulty for experienced players
 
-### Combat System
-- **Turn-Based**: Player and enemy take turns each round
-- **Actions**:
-  - **Attack**: Deals damage based on ATK stat minus enemy DEF, with slight variance
-  - **Defend**: Reduces incoming damage (currently passive for turn)
-  - **Potion**: Heals 8 HP (limited supply: 2 potions per quest)
-  - **Flee**: 50% chance to escape encounter
+**Hard Mode** (Target: 40-50% win rate, very challenging)
+- Boss HP: 130% of base (was 125%)
+- Boss ATK: 130% of base (was 125%)
+- Mini-boss HP: 24 (was 22-23)
+- Regular enemy scaling: 135% HP/ATK
+- Starting resources: 1 potion, 0 antidotes, 0 cure scrolls
+- Boss ability frequency: Always active
+- Effect: Bosses are significantly tougher; no consumable safety net
 
-### Character Progression
-- **Leveling**: Gain 10 EXP per enemy defeat; level up at 30 EXP
-- **Stats at Level 1**: HP=20, ATK=5, DEF=2
-- **Stat Gains per Level**: +5 max HP, +1 ATK, +1 DEF
-- **Progression Arc**: Fight 2 goblin encounters, then face the boss
+### Combat Feel Improvements
+- **Damage Numbers**: Black outline for visibility on any background
+- **Status Indicators**: Added background boxes (POI/STN/PAR) for clarity
+- **Action Feedback**: Clearer messages ("brace! def+2", "drink potion +8 hp")
+- **Ability Messages**: More descriptive ("boss strikes 3x!", "mage spells!")
 
-### Difficulty Curve
-- **Goblin 1**: 8 HP, 3 ATK (starting encounter)
-- **Goblin 2**: 11 HP, 4 ATK (after leveling)
-- **Boss**: 25 HP, 6 ATK, 2 DEF (final challenge)
+### Screen Shake Tuning
+- All screen shake reduced to be responsive without being jarring
+- Power attacks: 2 intensity (was 2-3)
+- Multi-strike: 2 intensity (was 2-3)
+- Regular attacks: 1 intensity (subtle)
+- Boss defeat: 3 intensity (celebratory but not excessive)
 
-## Menu System
-- **Start Quest**: Enter combat encounter
-- **Quit**: Exit to menu
+### Flash Effects
+- Reduced durations for snappier visual feedback
+- 2-3 frames for most effects (was 3-4)
 
-## Game States
-1. **Menu**: Select "Start Quest" or "Quit"
-2. **Play**: Combat encounters (can have multiple)
-3. **Game Over**: Win (defeated boss) or lose (player HP = 0)
+## Testing Recommendations
 
-## Boss Special Abilities
+### Difficulty Validation
+- Test Easy mode: Should win >70% of playthroughs
+- Test Normal mode: Should win 60-70% of playthroughs
+- Test Hard mode: Should win 40-50% of playthroughs
+- Verify boss pacing: Easy 10-15 turns, Normal 15-20 turns, Hard 20-25 turns
 
-The boss now has 3 unique special abilities that trigger at specific HP thresholds:
+### Combat Mechanics
+- Verify status effects don't make bosses trivial
+- Test flee mechanic (50% success rate on all difficulties)
+- Verify potion usage impacts difficulty appropriately
+- Test equipment progression feels rewarding
 
-### 1. Power Attack (50% HP Threshold)
-- **Effect**: Deals double damage with 1-turn recovery
-- **Mechanics**: After activation, boss needs 1 turn to recover before using again
-- **Animation**: Red flash, screen shake, red particles
-- **Tactical Impact**: Forces player to heal or defend proactively
+### UI/UX
+- Verify damage numbers are readable at 128x128
+- Confirm status effect boxes don't overlap
+- Test combat log shows enough context
+- Verify menu navigation is smooth
 
-### 2. Healing (75% HP Threshold)
-- **Effect**: Restores 8 HP (one-time per fight)
-- **Mechanics**: Boss can only use this once, balances resource pressure
-- **Animation**: Green flash, green particles
-- **Tactical Impact**: Extends fight duration, rewards consistent player damage
+### Edge Cases
+- Test out of potions mid-combat
+- Test stun/paralysis/poison combinations
+- Verify elite enemies feel more dangerous (1.3-1.5x scaling)
+- Test multi-floor progression pacing
+- Verify boss patterns transition at correct HP thresholds
 
-### 3. Multi-Strike (25% HP Threshold)
-- **Effect**: Hits player 3 times rapidly
-- **Mechanics**: Desperation attack when boss is low on health
-- **Animation**: Multiple damage popups, extended screen shake
-- **Tactical Impact**: High-risk finale, rewards player survival and defense
-
-**Difficulty Scaling**: Boss ability frequency reduced on Easy mode (70% trigger chance vs 100%)
-
-## Test Results
-
-- ✓ State machine transitions work correctly
-- ✓ Combat mechanics function as designed
-- ✓ Leveling system progresses appropriately
-- ✓ Win condition (3 enemy defeats) triggers correctly
-- ✓ Lose condition (player HP = 0) triggers correctly
-- ✓ Boss special abilities trigger correctly at HP thresholds
-- ✓ Power attack recovery mechanic works (ability can trigger multiple times per fight)
-- ✓ Healing ability limited to one use per fight
-- ✓ Multi-strike activates during endgame (25% HP)
-- ✓ Test infrastructure in place (_log, test_input, testmode)
-
-## Design Notes
-
-### Strengths
-- Clear progression: player starts weak, levels up, then faces boss
-- Engaging decision space: choose between attack, defend, heal
-- Manageable scope: ~1050 tokens, well under limit
-- Simple but complete game loop
-
-## Status Effects System (New!)
-
-Three tactical status effects add complexity and strategy to combat:
-
-### 1. Poison (20% chance on attack, 3 turns)
-- **Effect**: Reduces enemy DEF by 1, increasing player damage output
-- **Visual**: Green "POI" status indicator appears next to enemy HP
-- **Tactical Bonus**: Encourages sustained attacking, rewards consistent damage
-- **Mechanics**: Stacks with other status effects; duration refreshes if reapplied
-
-### 2. Stun (15% chance on attack, 1 turn)
-- **Effect**: Enemy loses its turn (cannot attack this round)
-- **Mechanics**: 30% chance per turn to break free from stun early
-- **Tactical Impact**: Highest value status - turn denial is powerful
-- **Visual**: Yellow "STN" status indicator
-
-### 3. Paralysis (15% chance on attack, 2 turns)
-- **Effect**: Enemy attack reduced by 50% (rounds down, min 1 damage)
-- **Visual**: Blue "PAR" status indicator
-- **Tactical Use**: Reduces enemy threat, extends battle survival
-- **Mechanics**: Applies to both regular enemies and boss abilities
-
-**Visual Indicators**:
-- Color-coded 3-letter abbreviations (POI/STN/PAR) appear next to enemy HP bar
-- Uses existing color palette: green (11), yellow (13), blue (12)
-- Each status shows duration implicitly (icon disappears when expired)
-
-**Sound & Feedback**:
-- Status application: enemy sound (sfx 11)
-- Purple particles on status application for visual impact
-- Combat log messages track all status changes
-
-## Test Results (with Status Effects)
-
-- ✓ Status effects apply on player attack with correct probabilities
-- ✓ Poison DEF reduction increases player damage by 1
-- ✓ Stun prevents enemy action (enemy skip turn)
-- ✓ Stun has 30% per-turn recovery chance
-- ✓ Paralysis reduces enemy attack by 50%
-- ✓ Status durations countdown and expire correctly
-- ✓ Status icons display in UI
-- ✓ Multiple status effects can stack on same enemy
-- ✓ Status effects persist across enemy actions
-- ✓ Status effects clear on new combat encounter
-
-### Possible Improvements (Future)
-- Status effect removal items (antidotes, cures)
-- Multi-floor dungeons with treasure drops
-- Boss AI improvements (pattern-based attacks, stat scaling)
-
-## Technical Details
-- **Token Usage**: 4689/8192 (57.3% - good headroom for future features)
-- **Sprites**: 6 (player, goblins, archers, trolls, orc warriors, boss)
-- **Sound Effects**: 18+ (menu, combat, abilities, status, level-up, boss encounters)
-- **Music Patterns**: Multiple patterns for menu, combat, and victory states
-- **Equipment Items**: 11 (weapons, armor, accessories with stat bonuses and rarity tiers)
-- **Status Effects**: 3 (poison, stun, paralysis with unique mechanics)
-- **Target Playtime**: 3-5 minutes per playthrough
+## Token Budget
+- Before changes: 7518/8192 tokens
+- After changes: 7581/8192 tokens
+- Net change: +63 tokens
+- Remaining capacity: 611 tokens (92.5% utilized)
