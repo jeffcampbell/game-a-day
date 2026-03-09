@@ -71,6 +71,10 @@ health_on_adventure_start=3  -- track starting health for flawless_run achieveme
 adventure_damage_taken=0  -- track cumulative damage across all adventure levels
 adventure_start_frame=0  -- track when adventure mode starts
 
+-- gameover state tracking
+gameover_start_frame=-1000
+gameover_is_win=false
+
 -- player
 player={x=64,y=100,w=8,h=8,speed=1.5,alive=true}
 
@@ -1175,6 +1179,8 @@ function update_play()
     if health<=0 then
      player.alive=false
      state="gameover"
+     gameover_start_frame=frames
+     gameover_is_win=false
      if level==3 then _log("level_3_fail") end
      _log("gameover:lose")
     else
@@ -1218,6 +1224,8 @@ function update_play()
   if level>4 then
    _log("level_5_complete")
    state="gameover"
+   gameover_start_frame=frames
+   gameover_is_win=true
    -- check boss status for perfect victory
    if boss~=nil and boss.health<=0 then
     _log("gameover:win_perfect")
@@ -1540,54 +1548,144 @@ end
 function update_gameover()
  -- stop background music when game ends
  music(-1)
- if test_input(4)>0 or test_input(5)>0 then
-  state="menu"
-  _log("state:menu")
+
+ -- play audio on first frame
+ if frames-gameover_start_frame==0 then
+  if gameover_is_win then
+   sfx(9)  -- victory fanfare
+  else
+   sfx(10)  -- defeat cue
+  end
+ end
+
+ -- allow returning to menu after 2 seconds (120 frames at 60fps)
+ local time_in_gameover=frames-gameover_start_frame
+ if time_in_gameover>=120 then
+  if test_input(4)>0 or test_input(5)>0 then
+   state="menu"
+   _log("state:menu")
+  end
  end
 end
 
 function draw_gameover()
- cls(0)
+ local time_in_gameover=frames-gameover_start_frame
 
- if is_endless then
-  -- endless mode gameover
-  print("endless mode",40,15,11)
-  local diff_col=7
-  if difficulty=="easy" then diff_col=3
-  elseif difficulty=="hard" then diff_col=8 end
-  print(difficulty.." difficulty",32,25,diff_col)
-
-  print("waves survived:"..wave,28,40,11)
-  local survival_time=flr((frames-level_start_frame)/60)
-  print("survival:"..survival_time.."s",36,50,7)
-  print("score:"..score,48,60,7)
-  if score>best_endless_score then
-   best_endless_score=score
-   print("new record!",44,70,11)
-   _log("endless_new_record:"..score)
+ if gameover_is_win then
+  -- victory state
+  -- flash white background for first 30 frames
+  if time_in_gameover<30 then
+   cls(7)
   else
-   print("best:"..best_endless_score,44,70,7)
+   cls(0)
   end
  else
-  -- standard mode gameover
-  local final_score=score
-  if level>4 then
-   final_score+=level_score+500
-   print("victory!",44,20,11)
-   print("escaped all five",28,35,11)
-   print("cave levels!",36,46,11)
-  else
-   final_score+=level_score
-   print("game over",40,20,8)
-   print("caught!",48,35,8)
+  -- defeat state - darker background
+  cls(1)
+ end
+
+ -- draw animated main title
+ local title_scale=1.0
+ if time_in_gameover<60 then
+  -- pulse effect: scale from 1.2 to 1.0 over first second
+  title_scale=1.2-(time_in_gameover/60)*0.2
+ else
+  -- subtle pulse after
+  title_scale=1.0+sin(time_in_gameover/20)*0.05
+ end
+
+ if gameover_is_win then
+  -- victory effects
+
+  -- draw victory particles (circles)
+  for i=0,5 do
+   local px=64+sin((time_in_gameover+i*30)/30)*30
+   local py=30+cos((time_in_gameover+i*20)/25)*20
+   local psize=2+sin((time_in_gameover+i*15)/40)
+   if psize>0 then
+    circfill(px,py,psize,11+((i*3)%4))
+   end
   end
 
-  print("score:"..final_score,44,60,7)
-  if final_score>best_score then
-   best_score=final_score
-   print("new best!",44,70,11)
+  -- animated victory text
+  local title_col=11
+  if time_in_gameover<60 then
+   title_col=11+(flr(time_in_gameover/5)%2)*3  -- flash between colors
+  end
+  print("victory!",44,20,title_col)
+  print("you won!",44,30,7)
+
+  if is_endless then
+   -- endless victory
+   local diff_col=7
+   if difficulty=="easy" then diff_col=3
+   elseif difficulty=="hard" then diff_col=8 end
+   print(difficulty.." difficulty",32,45,diff_col)
+   print("waves: "..wave,40,55,11)
+   local survival_time=flr((frames-level_start_frame)/60)
+   print("time: "..survival_time.."s",40,65,7)
+
+   -- animated score counter
+   local score_display=score
+   if time_in_gameover<120 then
+    score_display=flr(score*time_in_gameover/120)
+   end
+   print("score: "..score_display,40,75,11)
+
+   if score>best_endless_score then
+    best_endless_score=score
+    local flash=(flr(frames/10)%2==0)
+    local col=11
+    if not flash then col=7 end
+    print("new record!",40,85,col)
+   end
   else
-   print("best:"..best_score,44,70,7)
+   -- adventure victory
+   print("escaped all five",28,45,11)
+   print("cave levels!",36,55,11)
+
+   -- animated score counter
+   local final_score_display=score
+   if time_in_gameover<120 then
+    final_score_display=flr(score*time_in_gameover/120)
+   end
+   print("score: "..final_score_display,44,70,11)
+
+   if (score+level_score+500)>best_score then
+    best_score=score+level_score+500
+    local flash=(flr(frames/10)%2==0)
+    local col=11
+    if not flash then col=7 end
+    print("new record!",40,80,col)
+   end
+  end
+
+ else
+  -- defeat state
+  local title_col=8
+  if time_in_gameover<60 then
+   title_col=8+(flr(time_in_gameover/10)%2)*1  -- slight color flicker
+  end
+  print("game over",40,20,title_col)
+  print("you lost",44,30,8)
+
+  if is_endless then
+   -- endless defeat stats
+   local diff_col=7
+   if difficulty=="easy" then diff_col=3
+   elseif difficulty=="hard" then diff_col=8 end
+   print(difficulty.." difficulty",32,50,diff_col)
+   print("waves reached: "..wave,24,60,7)
+   local survival_time=flr((frames-level_start_frame)/60)
+   print("survived: "..survival_time.."s",32,70,7)
+   print("score: "..score,48,80,7)
+   print("best: "..best_endless_score,44,90,7)
+  else
+   -- adventure defeat stats
+   print("level "..level.." - reached",24,50,7)
+   local final_score=score+level_score
+   print("score: "..final_score,44,65,7)
+   print("best: "..best_score,44,75,7)
   end
  end
 
@@ -1597,11 +1695,14 @@ function draw_gameover()
   local ach_name=achievement_names[last_unlock_id] or last_unlock_id
   local col=14
   if not flash then col=7 end
-  print("achievement unlocked!",28,80,3)
-  print(ach_name,48-(#ach_name*2),90,col)
+  print("achievement unlocked!",28,100,3)
+  print(ach_name,48-(#ach_name*2),107,col)
  end
 
- print("z or x to menu",32,100,7)
+ -- show menu prompt after delay
+ if time_in_gameover>=120 then
+  print("z or x to menu",32,110,7)
+ end
 end
 
 function _update()
@@ -1912,4 +2013,6 @@ __sfx__
 001004,255,000,000,5005,6006,7007,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,2002,3003,4004,5005,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 001004,255,000,000,5005,5005,6006,6006,7007,7007,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
+001004,255,000,000,5005,6006,7007,7007,6006,7007,7007,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
+001004,255,000,000,6006,5005,4004,2002,1001,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,0000
 
