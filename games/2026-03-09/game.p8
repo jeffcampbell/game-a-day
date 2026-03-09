@@ -597,7 +597,7 @@ function draw_status_icons()
       -- draw background for visibility
       rectfill(x-1, 35, x+16, 43, 0)
       rect(x-1, 35, x+16, 43, col)
-      print(l, x, 37, col)
+      print(l..":"..d.d, x, 37, col)
       x += 19
     end
   end
@@ -607,7 +607,8 @@ function draw_play()
   -- header
   print("level "..player.level, 5, 5, 7)
   print("hp: "..player.hp.."/"..player.max_hp, 50, 5, 7)
-  print("floor "..current_floor.."/"..max_floors, 90, 5, 11)
+  print("p:"..player.potions.." a:"..player.antidotes.." c:"..player.cure_scrolls, 90, 5, 11)
+  print("floor "..current_floor.."/"..max_floors, 90, 13, 11)
 
   -- equipment in header
   local wep_str = "no weapon"
@@ -824,7 +825,7 @@ function draw_play()
       -- draw background for clear visibility (dark bg with colored border)
       rectfill(psx-1, 20, psx+17, 30, 0)
       rect(psx-1, 20, psx+17, 30, col)
-      print(l, psx, 23, col)
+      print(l..":"..d.d, psx, 23, col)
       psx += 21  -- increased spacing for no overlap
     end
   end
