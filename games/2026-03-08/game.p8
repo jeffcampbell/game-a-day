@@ -136,14 +136,18 @@ function init_level()
  music(0)
 
  -- difficulty modifiers
- local speed_mult=1
- local health_val=3
+ -- target completion rates: easy 80%+, normal 60-65%, hard 35-40%
+ -- strategy: easy has slowest enemies + most health for accessibility
+ --           normal baseline with boosted health for 60-65% target
+ --           hard increased speed + reduced health for 35-40% challenge
+ local speed_mult=1.0  -- normal mode baseline
+ local health_val=4    -- +1 health vs original 3 to boost normal completion to 60-65%
  if difficulty=="easy" then
-  speed_mult=0.4
-  health_val=5
+  speed_mult=0.35  -- 35% speed: very forgiving, accessible for all skill levels
+  health_val=5     -- +2 health vs normal, gives large margin for error
  elseif difficulty=="hard" then
-  speed_mult=1.3
-  health_val=2
+  speed_mult=1.35  -- 135% speed: fast enemies, tight spacing, expert challenge
+  health_val=2     -- -2 health vs normal, punishes careless play but not instant-death
  end
 
  health=health_val
@@ -199,11 +203,11 @@ function init_level()
   local boss_speed=0.7
   local boss_health_val=3
   if difficulty=="hard" then
-   boss_speed=0.8
-   boss_health_val=4
+   boss_speed=0.8  -- slightly faster than normal
+   boss_health_val=4  -- more health than normal (harder to defeat)
   elseif difficulty=="easy" then
-   boss_speed=0.6
-   boss_health_val=3
+   boss_speed=0.6  -- slower than normal
+   boss_health_val=3  -- same as normal (accessible)
   end
 
   boss={x=64,y=25,w=12,h=12,speed=boss_speed,dir=1,health=boss_health_val}
@@ -273,7 +277,9 @@ function init_endless_level()
 end
 
 function update_adaptive_difficulty()
- -- disable adaptive scaling in hard mode
+ -- adaptive difficulty system helps players find their skill level
+ -- enables smoother learning curve in easy and normal modes
+ -- disabled in hard mode to maintain consistent challenge
  if difficulty=="hard" then return end
 
  local elapsed_since_check=frames-last_difficulty_check
@@ -301,18 +307,18 @@ function update_adaptive_difficulty()
 
  -- struggling: 2+ hits in last 5 seconds
  if recent_hits>=2 then
-  -- reduce enemy speed by 15%
-  adaptive_speed_mult=max(0.6,adaptive_speed_mult*0.85)
-  -- increase spawn delays by 20% (spawn_mult < 1 delays spawns)
-  adaptive_spawn_mult=min(1.0,adaptive_spawn_mult*0.8)
+  -- reduce enemy speed by 17% (balanced between 15% and 20%)
+  adaptive_speed_mult=max(0.55,adaptive_speed_mult*0.83)
+  -- increase spawn delays by 22% (balanced improvement)
+  adaptive_spawn_mult=min(1.0,adaptive_spawn_mult*0.78)
   _log("difficulty:down")
 
  -- thriving: no hits in last 30 seconds AND game is long enough
  elseif recent_30s_hits==0 and frames-level_start_frame>1800 then
-  -- increase enemy speed by 5%
-  adaptive_speed_mult=min(1.5,adaptive_speed_mult*1.05)
-  -- increase spawn frequency slightly
-  adaptive_spawn_mult=min(1.5,adaptive_spawn_mult*1.02)
+  -- increase enemy speed by 6% (balanced between 5% and 7%)
+  adaptive_speed_mult=min(1.5,adaptive_speed_mult*1.06)
+  -- increase spawn frequency by 2.5% (slight increase from 2%)
+  adaptive_spawn_mult=min(1.5,adaptive_spawn_mult*1.025)
   _log("difficulty:up")
  end
 end
