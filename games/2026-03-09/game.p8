@@ -140,6 +140,20 @@ equip_menu_sel = 0
 show_items_menu = false
 items_menu_sel = 0
 
+-- multi-floor dungeon progression
+current_floor = 1
+max_floors = 5
+floor_enemies = {
+  {type=0, count=2},   -- floor 1: 2 goblins
+  {type=1, count=2},   -- floor 2: 2 archers
+  {type=2, count=2},   -- floor 3: 2 trolls
+  {type=3, count=1},   -- floor 4: 1 orc (mini-boss)
+  {type=4, count=1}    -- floor 5: 1 final boss
+}
+floor_enemy_idx = 1
+floor_combat_count = 0
+pending_loot = nil
+
 -- boss abilities
 boss_abilities = {
   power_attack = {
@@ -386,16 +400,32 @@ function update_play()
           reset_combat()
         elseif player_won then
           _log("enemy_defeated")
-          enemy_count += 1
-          if enemy_count >= 3 then
-            _log("state:gameover")
-            _log("gameover:win")
-            state = "gameover"
-            boss_defeated = true
-            prev_input = input
-            return
+          -- auto-pickup loot
+          if pending_loot then
+            add(player.inventory, pending_loot)
+            pending_loot = nil
           end
-          reset_combat()
+          -- check if floor is complete
+          local floor_info = floor_enemies[current_floor]
+          if floor_combat_count >= floor_info.count then
+            -- move to next floor
+            if current_floor >= max_floors then
+              _log("state:gameover")
+              _log("gameover:win")
+              state = "gameover"
+              boss_defeated = true
+              prev_input = input
+              return
+            else
+              current_floor += 1
+              floor_combat_count = 0
+              add(combat_log, "advancing to floor "..current_floor.."...")
+              _log("floor:"..current_floor)
+              reset_combat()
+            end
+          else
+            reset_combat()
+          end
         else
           _log("state:gameover")
           _log("gameover:lose")
@@ -468,7 +498,7 @@ function draw_play()
   -- header
   print("level "..player.level, 5, 5, 7)
   print("hp: "..player.hp.."/"..player.max_hp, 50, 5, 7)
-  print("potions: "..player.potions, 90, 5, 7)
+  print("floor "..current_floor.."/"..max_floors, 90, 5, 11)
 
   -- equipment in header
   local wep_str = "no weapon"
@@ -660,49 +690,59 @@ function get_player_max_hp()
 end
 
 function drop_loot(is_boss)
+  -- base drop chance 60-70%
+  if not is_boss and rnd() > 0.65 then return end
+  if is_boss and rnd() > 0.9 then return end
+
   local drop_table = {}
-
-  -- difficulty modifier affects drop chances
   local diff_bonus = 0
-  if difficulty == 3 then diff_bonus = 0.15 end  -- hard: +15% chance for rare loot
-  if difficulty == 1 then diff_bonus = -0.1 end  -- easy: -10% chance
+  if difficulty == 3 then diff_bonus = 0.15 end
+  if difficulty == 1 then diff_bonus = -0.1 end
 
-  if is_boss then
-    -- boss drops guaranteed good loot
+  if is_boss or current_floor == 5 then
+    -- final boss: guaranteed rare loot
     drop_table = {
-      {item=3, chance=0.9},    -- steel sword (uncommon weapon)
-      {item=7, chance=0.85},   -- mithril armor (uncommon armor)
-      {item=10, chance=0.7},   -- vigor amulet (rare accessory)
-      {item=11, chance=0.2 + diff_bonus},   -- golden ring (rare)
+      {item=3, chance=0.95},    -- steel sword
+      {item=7, chance=0.9},     -- mithril armor
+      {item=10, chance=0.85},   -- vigor amulet
+      {item=11, chance=0.4 + diff_bonus},   -- golden ring (rare)
     }
-  elseif enemy_count >= 2 then
-    -- late game: better weapons and armor
+  elseif current_floor == 4 then
+    -- mini-boss: good loot
     drop_table = {
-      {item=3, chance=0.4 + diff_bonus},   -- steel sword
-      {item=7, chance=0.35 + diff_bonus},  -- mithril armor
-      {item=9, chance=0.3},    -- vigor amulet
+      {item=3, chance=0.8 + diff_bonus},   -- steel sword
+      {item=7, chance=0.75},    -- mithril armor
+      {item=10, chance=0.6},    -- vigor amulet
     }
-  elseif enemy_count >= 1 then
-    -- mid game: mix of common and uncommon
+  elseif current_floor == 3 then
+    -- floor 3: uncommon/rare
     drop_table = {
-      {item=2, chance=0.45},    -- iron sword (common)
-      {item=6, chance=0.4},     -- leather armor (common)
-      {item=9, chance=0.15 + diff_bonus},  -- health ring (uncommon accessory)
+      {item=3, chance=0.5 + diff_bonus},   -- steel sword
+      {item=7, chance=0.45},    -- mithril armor
+      {item=9, chance=0.3},     -- health ring
+    }
+  elseif current_floor == 2 then
+    -- floor 2: common/uncommon
+    drop_table = {
+      {item=2, chance=0.5},     -- iron sword
+      {item=6, chance=0.45},    -- leather armor
+      {item=9, chance=0.2 + diff_bonus},  -- health ring
     }
   else
-    -- early game: common drops only
+    -- floor 1: common
     drop_table = {
-      {item=1, chance=0.5},     -- wooden sword (common)
-      {item=5, chance=0.45},    -- cloth armor (common)
-      {item=9, chance=0.08},    -- health ring (rare for early)
+      {item=1, chance=0.5},     -- wooden sword
+      {item=5, chance=0.45},    -- cloth armor
+      {item=9, chance=0.1},     -- health ring
     }
   end
 
   for entry in all(drop_table) do
     if rnd() < entry.chance then
-      add(player.inventory, equipment_list[entry.item])
+      pending_loot = equipment_list[entry.item]
       add(combat_log, equipment_list[entry.item].name.." dropped!")
       _log("loot:"..equipment_list[entry.item].name)
+      break  -- only one item per drop
     end
   end
 end
@@ -1331,6 +1371,7 @@ function reset_combat()
   combat_over = false
   player_won = false
   combat_escaped = false
+  pending_loot = nil
 
   -- clear status effects
   enemy.status_effects = {}
@@ -1340,19 +1381,63 @@ function reset_combat()
   boss_abilities.power_attack.recovery_turn = 0
   boss_abilities.heal.used = false
 
-  -- spawn new enemy
-  if enemy_count < 2 then
-    enemy.type = flr(rnd(3)) + 1  -- pick type 1-3
-    enemy.armor_active = false
+  -- multi-floor enemy spawning
+  local floor_info = floor_enemies[current_floor]
+  if not floor_info then return end
 
-    -- base stats with type multipliers
-    local base_hp = 8 + enemy_count * 3
-    local base_atk = 3 + enemy_count
+  floor_combat_count += 1
 
-    enemy.hp = flr(base_hp * get_stat(enemy.type, "hp"))
+  -- determine enemy type for this floor
+  local floor_type = floor_info.type
+  enemy.type = floor_type
+  enemy.armor_active = false
+
+  -- special handling for mini-boss (floor 4) and final boss (floor 5)
+  if current_floor == 4 then
+    -- mini-boss: stronger orc
+    enemy.hp = 18
+    enemy.max_hp = 18
+    enemy.atk = 7
+    enemy.def = 2
+    enemy.is_boss = false
+    if difficulty == 1 then
+      enemy.hp = flr(enemy.hp * 3 / 4)
+      enemy.max_hp = enemy.hp
+      enemy.atk = flr(enemy.atk * 3 / 4)
+    elseif difficulty == 3 then
+      enemy.hp = flr(enemy.hp * 5 / 4)
+      enemy.max_hp = enemy.hp
+      enemy.atk = flr(enemy.atk * 5 / 4)
+    end
+    add(combat_log, "a powerful orc appears!")
+  elseif current_floor == 5 then
+    -- final boss
+    enemy.hp = 30
+    enemy.max_hp = 30
+    enemy.atk = 8
+    enemy.def = 2
+    enemy.is_boss = true
+    enemy.type = 0
+    if difficulty == 1 then
+      enemy.hp = flr(enemy.hp * 3 / 4)
+      enemy.max_hp = enemy.hp
+      enemy.atk = flr(enemy.atk * 3 / 4)
+    elseif difficulty == 3 then
+      enemy.hp = flr(enemy.hp * 5 / 4)
+      enemy.max_hp = enemy.hp
+      enemy.atk = flr(enemy.atk * 5 / 4)
+    end
+    add(combat_log, "the final boss appears!")
+    _log("boss_fight:start")
+  else
+    -- regular floor enemies
+    local base_hp = 8 + (current_floor - 1) * 3
+    local base_atk = 3 + (current_floor - 1) * 2
+
+    enemy.hp = flr(base_hp * get_stat(floor_type, "hp"))
     enemy.max_hp = enemy.hp
-    enemy.atk = flr(base_atk * get_stat(enemy.type, "atk"))
-    enemy.def = flr(1 * get_stat(enemy.type, "def"))
+    enemy.atk = flr(base_atk * get_stat(floor_type, "atk"))
+    enemy.def = flr(1 * get_stat(floor_type, "def"))
     enemy.is_boss = false
 
     -- difficulty scaling
@@ -1366,33 +1451,11 @@ function reset_combat()
       enemy.atk = flr(enemy.atk * 5 / 4)
     end
 
-    local ename = enemy.type == 1 and "goblin archer" or (enemy.type == 2 and "troll" or (enemy.type == 3 and "orc warrior" or "goblin"))
+    local ename = floor_type == 1 and "goblin archer" or (floor_type == 2 and "troll" or (floor_type == 3 and "orc warrior" or "goblin"))
     add(combat_log, "a "..ename.." appears!")
-  else
-    -- boss fight
-    enemy.hp = 25
-    enemy.max_hp = 25
-    enemy.atk = 6
-    enemy.def = 2
-    enemy.is_boss = true
-    enemy.type = 0
-    enemy.armor_active = false
-
-    -- apply difficulty scaling to boss
-    if difficulty == 1 then  -- easy
-      enemy.hp = flr(enemy.hp * 3 / 4)
-      enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 3 / 4)
-    elseif difficulty == 3 then  -- hard
-      enemy.hp = flr(enemy.hp * 5 / 4)
-      enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 5 / 4)
-    end
-
-    add(combat_log, "the boss appears!")
-    _log("boss_fight:start")
   end
 
+  _log("floor:"..current_floor)
   _log("enemy_spawn:"..enemy.is_boss)
 end
 
@@ -1434,6 +1497,11 @@ function reset_game()
   turn = 0
   show_equip_menu = false
   equip_menu_sel = 0
+
+  -- reset floor progression
+  current_floor = 1
+  floor_combat_count = 0
+  pending_loot = nil
 end
 
 __gfx__
