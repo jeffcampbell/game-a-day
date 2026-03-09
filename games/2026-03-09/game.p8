@@ -160,7 +160,6 @@ floor_enemies = {
   {type=6, count=2},   -- floor 7: thief encounters
   {type=7, count=1}    -- floor 8: 1 final boss
 }
-floor_enemy_idx = 1
 floor_combat_count = 0
 pending_loot = nil
 
@@ -1913,9 +1912,7 @@ function reset_combat()
 
   floor_combat_count += 1
 
-  -- determine enemy type for this floor
-  local floor_type = floor_info.type
-  enemy.type = floor_type
+  enemy.type = rnd() < 0.4 and flr(rnd(7)) or floor_info.type
 
   -- helper: select boss type by difficulty
   local function select_boss_type()
