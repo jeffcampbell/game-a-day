@@ -17,10 +17,10 @@
       "tutorial_dash",
       "menu"
     ],
-    "logs_captured": 84,
+    "logs_captured": 85,
     "events": {
       "state_transitions": 7,
-      "game_events": 73,
+      "game_events": 74,
       "gameover_events": 3
     },
     "exit_state": "analysis_complete",
