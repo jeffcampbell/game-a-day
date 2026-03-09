@@ -102,10 +102,13 @@ player = {
   level = 1,
   exp = 0,
   potions = 2,
+  antidotes = 1,  -- removes poison
+  cure_scrolls = 1,  -- removes any status
   weapon = nil,
   armor = nil,
   accessory = nil,
   inventory = {},
+  status_effects = {},  -- poison, stun, paralysis
   last_equip_feedback = ""
 }
 
@@ -134,6 +137,8 @@ enemy_count = 0
 boss_defeated = false
 show_equip_menu = false
 equip_menu_sel = 0
+show_items_menu = false
+items_menu_sel = 0
 
 -- boss abilities
 boss_abilities = {
@@ -238,7 +243,9 @@ function _draw()
     end
   end
 
-  if show_equip_menu then
+  if show_items_menu then
+    draw_items_menu()
+  elseif show_equip_menu then
     draw_equip_menu()
   end
 end
@@ -330,8 +337,28 @@ end
 function update_play()
   local input = test_input()
 
+  -- items menu
+  if show_items_menu then
+    -- up (button 2)
+    if (input & 4) > 0 and (prev_input & 4) == 0 then
+      items_menu_sel = max(0, items_menu_sel - 1)
+    end
+    -- down (button 3)
+    if (input & 8) > 0 and (prev_input & 8) == 0 then
+      items_menu_sel = min(1, items_menu_sel + 1)
+    end
+    -- O button (button 4) - use item
+    if (input & 16) > 0 and (prev_input & 16) == 0 then
+      use_item(items_menu_sel)
+    end
+    -- X button (button 5) - close menu
+    if (input & 32) > 0 and (prev_input & 32) == 0 then
+      show_items_menu = false
+      items_menu_sel = 0
+      sfx(0)
+    end
   -- equipment menu
-  if show_equip_menu then
+  elseif show_equip_menu then
     local max_menu = #player.inventory  -- position 1 to #inventory, plus 0 for unequip
     -- up (button 2)
     if (input & 4) > 0 and (prev_input & 4) == 0 then
@@ -409,6 +436,11 @@ function update_play()
         sfx(7)  -- flee sound
         combat_step()
         _log("action:flee")
+      -- O button (button 4) - open items menu
+      elseif (input & 16) > 0 and (prev_input & 16) == 0 then
+        show_items_menu = true
+        items_menu_sel = 0
+        sfx(0)  -- menu nav sound
       -- X button (button 5) - open equipment menu
       elseif (input & 32) > 0 and (prev_input & 32) == 0 then
         show_equip_menu = true
@@ -549,7 +581,17 @@ function draw_play()
       print("defeated! press z/c", 22, 105, 8)
     end
   else
-    print("left:atk right:def up:pot down:flee x:equip", 0, 115, 5)
+    print("left:atk right:def up:pot down:flee z:items x:equip", 0, 115, 5)
+  end
+
+  -- draw player status effects
+  local psx = 12
+  for s, d in pairs(player.status_effects) do
+    if d.d > 0 then
+      local l = s == "poison" and "POI" or (s == "stun" and "STN" or "PAR")
+      print(l, psx, 22, get_status_color(s))
+      psx += 10
+    end
   end
 end
 
@@ -725,6 +767,42 @@ function draw_equip_menu()
   print("z:equip x:close", 12, 100, 5)
 end
 
+function draw_items_menu()
+  -- overlay with border animation
+  rectfill(10, 35, 118, 100, 0)
+  rect(10, 35, 118, 100, 7)
+  rect(9, 34, 119, 101, 7)
+
+  print("items", 50, 38, 7)
+
+  local y = 48
+  -- antidote option
+  local sel_marker = " "
+  local sel_col = 7
+  if items_menu_sel == 0 then
+    sel_marker = ">"
+    sel_col = 8
+  end
+  local antidote_col = player.antidotes > 0 and 7 or 5
+  print(sel_marker.." antidote: "..player.antidotes, 15, y, sel_col)
+  print("remove poison", 60, y, antidote_col)
+  y += 8
+
+  -- cure scroll option
+  sel_marker = " "
+  sel_col = 7
+  if items_menu_sel == 1 then
+    sel_marker = ">"
+    sel_col = 8
+  end
+  local cure_col = player.cure_scrolls > 0 and 7 or 5
+  print(sel_marker.." cure scroll: "..player.cure_scrolls, 15, y, sel_col)
+  print("remove all", 60, y, cure_col)
+  y += 8
+
+  print("z:use x:close", 20, 95, 5)
+end
+
 function equip_item(idx)
   if idx == 0 then
     -- unequip all
@@ -811,6 +889,50 @@ function equip_item(idx)
 
   -- log stat changes
   _log("stat_change:atk="..old_atk.."->"..new_atk.."|def="..old_def.."->"..new_def.."|hp="..old_max_hp.."->"..new_max_hp)
+end
+
+function use_item(idx)
+  if idx == 0 then
+    -- antidote: removes poison
+    if player.antidotes > 0 then
+      if player_has_status("poison") then
+        remove_player_status("poison")
+        player.antidotes -= 1
+        sfx(5)  -- healing sound
+        add_particles(25, 45, 11, 3)
+        player_action = "item_antidote"
+        combat_step()
+        _log("action:item_antidote")
+      else
+        add(combat_log, "no poison!")
+      end
+    end
+    show_items_menu = false
+  elseif idx == 1 then
+    -- cure scroll: removes any status
+    if player.cure_scrolls > 0 then
+      local has_any = false
+      for s, d in pairs(player.status_effects) do
+        has_any = true
+        break
+      end
+      if has_any then
+        for s, d in pairs(player.status_effects) do
+          remove_player_status(s)
+        end
+        player.cure_scrolls -= 1
+        sfx(5)  -- healing sound
+        add_particles(25, 45, 11, 3)
+        player_action = "item_cure"
+        combat_step()
+        _log("action:item_cure")
+      else
+        add(combat_log, "no status effects!")
+      end
+    end
+    show_items_menu = false
+  end
+  items_menu_sel = 0
 end
 
 function get_stat(t, stat)
@@ -946,6 +1068,38 @@ function get_status_color(s)
   return s == "poison" and 11 or (s == "stun" and 13 or 12)
 end
 
+function player_has_status(s)
+  return player.status_effects[s] ~= nil
+end
+
+function apply_player_status(s, d)
+  if player.status_effects[s] then
+    player.status_effects[s].d = max(player.status_effects[s].d, d)
+  else
+    player.status_effects[s] = {d = d}
+  end
+  add(combat_log, "you're "..s.."!")
+  sfx(11)
+  add_particles(25, 45, 12, 3)
+end
+
+function update_player_status()
+  for s, d in pairs(player.status_effects) do
+    d.d -= 1
+    if d.d <= 0 then
+      player.status_effects[s] = nil
+      add(combat_log, s.." cured!")
+    end
+  end
+end
+
+function remove_player_status(s)
+  if player.status_effects[s] then
+    player.status_effects[s] = nil
+    add(combat_log, s.." cured!")
+  end
+end
+
 -- combat system
 function combat_step()
   add(combat_log, "--- turn "..turn.." ---")
@@ -996,6 +1150,10 @@ function combat_step()
     anim.flash_color.active = true
     anim.flash_color.col = 11
     anim.flash_color.timer = 3
+  elseif player_action == "item_antidote" then
+    add(combat_log, "poison removed!")
+  elseif player_action == "item_cure" then
+    add(combat_log, "status effects removed!")
   elseif player_action == "flee" then
     if rnd() < 0.5 then
       add(combat_log, "escaped!")
@@ -1094,6 +1252,8 @@ function combat_step()
         anim.flash_color.active = true
         anim.flash_color.col = 8
         anim.flash_color.timer = 2
+        if rnd() < 0.1 then apply_player_status("poison", 2) end
+        if rnd() < 0.08 then apply_player_status("stun", 1) end
         _log("boss_action:attack")
       end
     end
@@ -1132,6 +1292,8 @@ function combat_step()
       add_damage_popup(dmg, 25, 40)
       add_particles(25, 45, 8, 3)
       screen_shake(1, 4)
+      if rnd() < 0.15 then apply_player_status("poison", 2) end
+      if rnd() < 0.1 then apply_player_status("stun", 1) end
       anim.flash_color.active = true
       anim.flash_color.col = 8
       anim.flash_color.timer = 2
@@ -1157,6 +1319,7 @@ function combat_step()
 
   -- update status effects at end of turn
   update_status_effects()
+  update_player_status()
 
   turn += 1
 end
@@ -1244,16 +1407,23 @@ function reset_game()
   -- set potions based on difficulty
   if difficulty == 1 then  -- easy
     player.potions = 3
+    player.antidotes = 2
+    player.cure_scrolls = 2
   elseif difficulty == 2 then  -- normal
     player.potions = 2
+    player.antidotes = 1
+    player.cure_scrolls = 1
   else  -- hard
     player.potions = 1
+    player.antidotes = 1
+    player.cure_scrolls = 1
   end
 
   player.weapon = nil
   player.armor = nil
   player.accessory = nil
   player.inventory = {}
+  player.status_effects = {}
 
   enemy_count = 0
   boss_defeated = false
