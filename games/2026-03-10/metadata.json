@@ -1,0 +1,12 @@
+{
+  "title": "Beat Blast",
+  "description": "A rhythm game where you match falling notes to four lanes by pressing buttons at the right time. Select from three difficulty levels (easy, normal, hard) that affect note speed and scoring. Achieve a score of 300+ or max combo of 15+ to win. Perfect for quick reflex challenges.",
+  "genres": ["rhythm"],
+  "difficulty": 3,
+  "playtime_minutes": 5,
+  "completion_status": "in-progress",
+  "target_audience": "general",
+  "token_count": 1001,
+  "sprite_count": 0,
+  "sound_count": 0
+}
