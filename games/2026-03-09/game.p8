@@ -120,6 +120,7 @@ enemy = {
   def = 1,
   name = "goblin",
   is_boss = false,
+  is_elite = false,  -- elite enemy with stat scaling
   type = 0,  -- 0=default, 1-3=type index
   armor_active = false,  -- for troll armor buff
   ability_active = false,  -- for damage/def buff abilities
@@ -610,14 +611,19 @@ function draw_play()
 
   -- enemy
   local enemy_name = "boss"
+  local name_col = 8
   if not enemy.is_boss then
     enemy_name = enemy.type == 1 and "goblin archer" or (enemy.type == 2 and "troll" or (enemy.type == 3 and "orc warrior" or "goblin"))
+    if enemy.is_elite then
+      enemy_name = "ELITE "..enemy_name
+      name_col = 9  -- orange for elite
+    end
   else
     -- display boss type name
     local btype = boss_types[enemy.boss_type]
     enemy_name = btype.desc.." Boss"
   end
-  print(enemy_name.." hp: "..enemy.hp.."/"..enemy.max_hp, 12, 28, 8)
+  print(enemy_name.." hp: "..enemy.hp.."/"..enemy.max_hp, 12, 28, name_col)
 
   -- draw status effects
   draw_status_icons()
@@ -679,6 +685,8 @@ function draw_play()
     -- use boss type color
     local btype = boss_types[enemy.boss_type]
     enemy_col = btype.color
+  elseif enemy.is_elite then
+    enemy_col = 9  -- orange for elite
   elseif enemy.type == 2 then
     enemy_col = 3  -- troll is greenish
   elseif enemy.type == 3 then
@@ -798,9 +806,11 @@ function get_player_max_hp()
   return total
 end
 
-function drop_loot(is_boss)
-  -- base drop chance 60-70%
-  if not is_boss and rnd() > 0.65 then return end
+function drop_loot(is_boss, is_elite)
+  -- base drop chance 60-70%, 1.5x for elite
+  local drop_thresh = 0.65
+  if is_elite then drop_thresh = 0.85 end  -- 85% chance for elite (1.5x)
+  if not is_boss and rnd() > drop_thresh then return end
   if is_boss and rnd() > 0.9 then return end
 
   local drop_table = {}
@@ -1601,7 +1611,12 @@ function combat_step()
   if enemy.hp <= 0 then
     enemy.hp = 0
     add(combat_log, "enemy defeated!")
-    player.exp += 10
+    -- 1.5x exp for elite enemies
+    local exp_gain = 10
+    if enemy.is_elite then
+      exp_gain = flr(exp_gain * 1.5)
+    end
+    player.exp += exp_gain
     screen_shake(3, 10)
     anim.flash_color.active = true
     anim.flash_color.col = 11
@@ -1612,7 +1627,7 @@ function combat_step()
     else
       sfx(9)  -- enemy defeat sound
     end
-    drop_loot(enemy.is_boss)
+    drop_loot(enemy.is_boss, enemy.is_elite)
     if player.exp >= 30 then
       player.level += 1
       player.exp = 0
@@ -1791,6 +1806,7 @@ function reset_combat()
 
   -- clear status effects
   enemy.status_effects = {}
+  enemy.is_elite = false
 
   -- reset boss abilities for new fight
   boss_abilities.power_attack.charged = false
@@ -1912,8 +1928,21 @@ function reset_combat()
       enemy.atk = flr(enemy.atk * 5 / 4)
     end
 
+    -- elite enemy spawn (10-15% chance)
+    enemy.is_elite = rnd() < 0.125  -- 12.5% chance
+    if enemy.is_elite then
+      -- 1.3-1.5x stat scaling
+      local mult = 1.3 + rnd() * 0.2
+      enemy.hp = flr(enemy.hp * mult)
+      enemy.max_hp = enemy.hp
+      enemy.atk = flr(enemy.atk * mult)
+      enemy.def = flr(enemy.def * mult)
+    end
+
     local ename = floor_type == 1 and "goblin archer" or (floor_type == 2 and "troll" or (floor_type == 3 and "orc warrior" or "goblin"))
+    if enemy.is_elite then ename = "ELITE "..ename end
     add(combat_log, "a "..ename.." appears!")
+    _log("elite:"..tostr(enemy.is_elite))
   end
 
   _log("floor:"..current_floor)
