@@ -643,6 +643,7 @@ function update_play()
    music(-1)  -- stop music
   else
    _log("resume")
+   music(0)  -- resume music
   end
  end
 
