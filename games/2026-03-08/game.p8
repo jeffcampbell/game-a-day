@@ -188,8 +188,8 @@ function init_level()
   if level_start_frame==0 then
    local passive_speed_mult=1.0
    if is_passive_player then
-    passive_speed_mult=0.8  -- 20% speed reduction for passive players
-    _log("difficulty:passive_adjust")
+    passive_speed_mult=0.75  -- 25% speed reduction for passive players (improved from 20%)
+    _log("difficulty:passive_level1_adjust_25pct")
    end
    add(enemies,{x=60,y=30,w=8,h=8,speed=0.6*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
    add(enemies,{x=100,y=60,w=8,h=8,speed=0.6*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
@@ -203,8 +203,8 @@ function init_level()
   if level_start_frame>0 then
    local passive_speed_mult=1.0
    if is_passive_player then
-    passive_speed_mult=0.8  -- 20% speed reduction for passive players
-    _log("difficulty:passive_adjust")
+    passive_speed_mult=0.75  -- 25% speed reduction for passive players (improved from 20%)
+    _log("difficulty:passive_level2_adjust_25pct")
    end
    add(enemies,{x=50,y=25,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
    add(enemies,{x=95,y=40,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
@@ -235,18 +235,21 @@ function init_level()
   _log("boss_encounter")
 
   -- level 3: 3-5 enemies initially, 5-10% faster than level 2
-  -- reduced to 3 for passive players to improve completion rate
+  -- reduced to 2 for passive players to improve completion rate
   if level_start_frame>0 then
    local passive_speed_mult=1.0
    if is_passive_player then
     passive_speed_mult=0.75  -- 25% speed reduction for passive players (increased from 20%)
-    _log("difficulty:passive_adjust_level3")
+    _log("difficulty:passive_level3_adjust_25pct_2enemies")
    end
    -- base speed 0.95 is ~5% faster than level 2's 0.9
    add(enemies,{x=40,y=30,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
    add(enemies,{x=90,y=50,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
-   add(enemies,{x=30,y=80,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
-   -- 4th enemy: only add if not passive (reduces initial spawn for passive)
+   -- 3rd enemy: only add if not passive (passive gets 2, non-passive gets 5)
+   if not is_passive_player then
+    add(enemies,{x=30,y=80,w=8,h=8,speed=0.95*speed_mult*adaptive_speed_mult,dir=1})
+   end
+   -- 4th enemy: only add if not passive
    if not is_passive_player then
     add(enemies,{x=100,y=100,w=8,h=8,speed=0.95*speed_mult*adaptive_speed_mult,dir=-1})
    end
@@ -770,7 +773,7 @@ function update_play()
     local spawn_x=10+flr(rnd(100))
     local speed_base=0.6+wave*0.05  -- slightly more conservative speed increase
     local passive_speed_mult=1.0
-    if is_passive_player then passive_speed_mult=0.8 end  -- 20% speed reduction for passive players
+    if is_passive_player then passive_speed_mult=0.75 end  -- 25% speed reduction for passive players
     local dir=1
     if j%2==0 then dir=-1 end
     add(enemies,{x=spawn_x,y=spawn_y,w=8,h=8,speed=speed_base*adaptive_speed_mult*passive_speed_mult,dir=dir})
@@ -812,38 +815,38 @@ function update_play()
   if elapsed==flr(900*spawn_delay_mult)+passive_spawn_delay then  -- 15 seconds (adaptive)
    if level==1 then
     local passive_speed_mult=1.0
-    if is_passive_player then passive_speed_mult=0.8 end
+    if is_passive_player then passive_speed_mult=0.75 end
     add(enemies,{x=30,y=70,w=8,h=8,speed=0.6*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
-    _log("enemy_spawn_ramp")
+    _log("enemy_spawn_ramp:passive_25pct")
    elseif level==2 then
     local passive_speed_mult=1.0
-    if is_passive_player then passive_speed_mult=0.8 end
+    if is_passive_player then passive_speed_mult=0.75 end
     add(enemies,{x=70,y=80,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
-    _log("enemy_spawn_ramp")
+    _log("enemy_spawn_ramp:passive_25pct")
    elseif level==3 then
     local passive_speed_mult=1.0
-    if is_passive_player then passive_speed_mult=0.8 end
+    if is_passive_player then passive_speed_mult=0.75 end
     add(enemies,{x=50,y=35,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
-    _log("enemy_spawn_ramp")
+    _log("enemy_spawn_ramp:passive_25pct")
    end
   elseif elapsed==flr(1200*spawn_delay_mult)+passive_spawn_delay then  -- 20 seconds (adaptive)
    if level==1 then
     local passive_speed_mult=1.0
-    if is_passive_player then passive_speed_mult=0.8 end
+    if is_passive_player then passive_speed_mult=0.75 end
     add(enemies,{x=80,y=90,w=8,h=8,speed=0.6*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
-    _log("enemy_spawn_ramp")
+    _log("enemy_spawn_ramp:passive_25pct")
    elseif level==2 then
     local passive_speed_mult=1.0
-    if is_passive_player then passive_speed_mult=0.8 end
+    if is_passive_player then passive_speed_mult=0.75 end
     add(enemies,{x=40,y=110,w=8,h=8,speed=0.9*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
-    _log("enemy_spawn_ramp")
+    _log("enemy_spawn_ramp:passive_25pct")
    elseif level==3 then
     local passive_speed_mult=1.0
-    if is_passive_player then passive_speed_mult=0.8 end
+    if is_passive_player then passive_speed_mult=0.75 end
     -- level 3: ramp to 6-7 enemies by 20 seconds
     add(enemies,{x=80,y=110,w=8,h=8,speed=0.98*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
     add(enemies,{x=20,y=50,w=8,h=8,speed=0.98*speed_mult*adaptive_speed_mult,dir=1})
-    _log("enemy_spawn_ramp")
+    _log("enemy_spawn_ramp:passive_25pct")
    end
   end
 
