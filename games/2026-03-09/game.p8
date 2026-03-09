@@ -19,20 +19,25 @@ function test_input(b)
   return btn()
 end
 
+
+-- button press helper
+function bp(b, inp, prev)
+  return (inp & b) > 0 and (prev & b) == 0
+end
 -- game state machine
 state = "menu"
 menu_sel = 0  -- 0=easy, 1=normal, 2=hard
 gameover_sel = 0  -- 0=retry, 1=menu
-prev_input = 0
+pi = 0
 difficulty = 2  -- 1=easy, 2=normal, 3=hard
 
 -- animation system
 anim = {
-  player_swing = {active=false, frame=0, dur=6},
-  enemy_flinch = {active=false, frame=0, dur=4},
-  damage_popups = {},
-  screen_shake = {intensity=0, timer=0},
-  flash_color = {active=false, col=0, timer=0}
+  ps={active=false, frame=0, dur=6},
+  ef={active=false, frame=0, dur=4},
+  dp={},
+  ss={intensity=0, timer=0},
+  fc={active=false, col=0, timer=0}
 }
 
 -- particle system for visual effects
@@ -40,7 +45,7 @@ particles = {}
 
 -- helper: add damage popup
 function add_damage_popup(dmg_val, x, y)
-  add(anim.damage_popups, {
+  add(anim.dp, {
     val = dmg_val,
     x = x,
     y = y,
@@ -52,8 +57,8 @@ end
 
 -- helper: trigger screen shake
 function screen_shake(intensity, duration)
-  anim.screen_shake.intensity = intensity
-  anim.screen_shake.timer = duration or 8
+  anim.ss.intensity = intensity
+  anim.ss.timer = duration or 8
 end
 
 -- helper: add particles
@@ -78,9 +83,9 @@ function apply_fx(dmg, px, py, pcol, pcount, si, sc, fcol, ft)
   end
   if si > 0 then screen_shake(si, 5) end
   if fcol then
-    anim.flash_color.active = true
-    anim.flash_color.col = fcol
-    anim.flash_color.timer = ft or 2
+    anim.fc.active = true
+    anim.fc.col = fcol
+    anim.fc.timer = ft or 2
   end
   if sc > 0 then sfx(sc) end
 end
@@ -113,8 +118,8 @@ player = {
   weapon = nil,
   armor = nil,
   accessory = nil,
-  inventory = {},
-  status_effects = {},  -- poison, stun, paralysis
+  inventory={},
+  status_effects={},  -- poison, stun, paralysis
   last_equip_feedback = ""
 }
 
@@ -132,7 +137,7 @@ enemy = {
   ability_power = 0,  -- multiplier for damage boost (rage: 1.5, challenge: 1.5)
   ability_def_boost = 0,  -- def boost amount
   ability_duration = 0,  -- remaining turns for buff
-  status_effects = {}  -- poison, stun, paralysis
+  status_effects={}  -- poison, stun, paralysis
 }
 
 -- combat state
@@ -165,25 +170,25 @@ floor_combat_count = 0
 pending_loot = nil
 
 boss_types = {
-  warrior = {hp_mult=1.0, atk_mult=1.0, def_mult=1.0, color=8},
-  mage = {hp_mult=0.9, atk_mult=1.1, def_mult=0.8, color=12},
-  berserker = {hp_mult=1.2, atk_mult=0.9, def_mult=0.7, color=14}
+  warrior={hp_mult=1.0, atk_mult=1.0, def_mult=1.0, color=8},
+  mage={hp_mult=0.9, atk_mult=1.1, def_mult=0.8, color=12},
+  berserker={hp_mult=1.2, atk_mult=0.9, def_mult=0.7, color=14}
 }
 enemy.boss_type = "warrior"  -- current boss type
 
 boss_abilities = {
-  power_attack = {hp_threshold = 0.5, charged = false, recovery_turn = 0},
-  heal = {hp_threshold = 0.75, used = false},
-  multi_strike = {hp_threshold = 0.25},
-  spell_burst = {hp_threshold = 0.6, used = false},
-  arcane_shield = {hp_threshold = 0.4, active = false, duration = 0},
-  rampage = {hp_threshold = 0.7, active = false, damage_mult = 1.0, duration = 0},
-  crush = {hp_threshold = 0.3, used = false}
+  power_attack={hp_threshold = 0.5, charged = false, recovery_turn = 0},
+  heal={hp_threshold = 0.75, used = false},
+  multi_strike={hp_threshold = 0.25},
+  spell_burst={hp_threshold = 0.6, used = false},
+  arcane_shield={hp_threshold = 0.4, active = false, duration = 0},
+  rampage={hp_threshold = 0.7, active = false, damage_mult = 1.0, duration = 0},
+  crush={hp_threshold = 0.3, used = false}
 }
 
 -- boss pattern system (attack sequences that cycle throughout fight)
 boss_pattern_system = {
-  patterns = {
+  patterns={
     -- warrior patterns
     warrior = {
       {name="aggressive", threshold=0.75, turns={"power_attack","power_attack"}},
@@ -215,66 +220,66 @@ boss_pattern_system = {
 -- enemy abilities (for regular enemies)
 enemy_abilities = {
   -- archer (type 1)
-  archer_rapid_fire = {
+  archer_rapid_fire={
     type = 1,
     hp_threshold = 0.5,
     used = false
   },
   -- troll (type 2)
-  troll_stone_skin = {
+  troll_stone_skin={
     type = 2,
     hp_threshold = 0.6,
     active = false,
     duration = 0
   },
-  troll_regen = {
+  troll_regen={
     type = 2,
     hp_threshold = 0.3,
     used = false
   },
   -- orc warrior (type 3)
-  orc_rage = {
+  orc_rage={
     type = 3,
     hp_threshold = 0.5,
     active = false,
     duration = 0
   },
-  orc_challenge = {
+  orc_challenge={
     type = 3,
     hp_threshold = 0.4,
     active = false,
     duration = 0
   },
   -- shaman (type 4)
-  shaman_heal = {
+  shaman_heal={
     type = 4,
     hp_threshold = 0.6,
     used = false
   },
-  shaman_curse = {
+  shaman_curse={
     type = 4,
     hp_threshold = 0.4,
     used = false
   },
   -- mage (type 5)
-  mage_fireball = {
+  mage_fireball={
     type = 5,
     hp_threshold = 0.7,
     used = false
   },
-  mage_shield = {
+  mage_shield={
     type = 5,
     hp_threshold = 0.5,
     active = false,
     duration = 0
   },
   -- thief (type 6)
-  thief_backstab = {
+  thief_backstab={
     type = 6,
     hp_threshold = 0.6,
     used = false
   },
-  thief_evasion = {
+  thief_evasion={
     type = 6,
     hp_threshold = 0.3,
     active = false,
@@ -284,27 +289,27 @@ enemy_abilities = {
 
 function _update()
   -- update animations
-  if anim.player_swing.active then
-    anim.player_swing.frame += 1
-    if anim.player_swing.frame > anim.player_swing.dur then
-      anim.player_swing.active = false
+  if anim.ps.active then
+    anim.ps.frame += 1
+    if anim.ps.frame > anim.ps.dur then
+      anim.ps.active = false
     end
   end
 
-  if anim.enemy_flinch.active then
-    anim.enemy_flinch.frame += 1
-    if anim.enemy_flinch.frame > anim.enemy_flinch.dur then
-      anim.enemy_flinch.active = false
+  if anim.ef.active then
+    anim.ef.frame += 1
+    if anim.ef.frame > anim.ef.dur then
+      anim.ef.active = false
     end
   end
 
   -- update damage popups
-  for i = #anim.damage_popups, 1, -1 do
-    local p = anim.damage_popups[i]
+  for i = #anim.dp, 1, -1 do
+    local p = anim.dp[i]
     p.timer -= 1
     p.y -= 0.3
     if p.timer <= 0 then
-      deli(anim.damage_popups, i)
+      deli(anim.dp, i)
     end
   end
 
@@ -321,15 +326,15 @@ function _update()
   end
 
   -- update screen shake
-  if anim.screen_shake.timer > 0 then
-    anim.screen_shake.timer -= 1
+  if anim.ss.timer > 0 then
+    anim.ss.timer -= 1
   end
 
   -- update flash
-  if anim.flash_color.active then
-    anim.flash_color.timer -= 1
-    if anim.flash_color.timer <= 0 then
-      anim.flash_color.active = false
+  if anim.fc.active then
+    anim.fc.timer -= 1
+    if anim.fc.timer <= 0 then
+      anim.fc.active = false
     end
   end
 
@@ -345,9 +350,9 @@ function _draw()
   -- apply screen shake
   local shake_x = 0
   local shake_y = 0
-  if anim.screen_shake.timer > 0 then
-    shake_x = flr(rnd(anim.screen_shake.intensity * 2)) - anim.screen_shake.intensity
-    shake_y = flr(rnd(anim.screen_shake.intensity * 2)) - anim.screen_shake.intensity
+  if anim.ss.timer > 0 then
+    shake_x = flr(rnd(anim.ss.intensity * 2)) - anim.ss.intensity
+    shake_y = flr(rnd(anim.ss.intensity * 2)) - anim.ss.intensity
   end
   camera(shake_x, shake_y)
 
@@ -359,10 +364,10 @@ function _draw()
   camera(0, 0)
 
   -- apply flash color overlay
-  if anim.flash_color.active then
-    local alpha = anim.flash_color.timer / 8
+  if anim.fc.active then
+    local alpha = anim.fc.timer / 8
     if alpha > 0.5 then
-      rectfill(0, 0, 127, 127, anim.flash_color.col)
+      rectfill(0, 0, 127, 127, anim.fc.col)
     end
   end
 
@@ -378,17 +383,17 @@ function update_menu()
   local input = test_input()
 
   -- right (button 1)
-  if (input & 2) > 0 and (prev_input & 2) == 0 then
+  if bp(2,input,pi) then
     menu_sel = min(menu_sel + 1, 2)
     sfx(0)  -- menu nav sound
   end
   -- left (button 0)
-  if (input & 1) > 0 and (prev_input & 1) == 0 then
+  if bp(1,input,pi) then
     menu_sel = max(menu_sel - 1, 0)
     sfx(0)  -- menu nav sound
   end
   -- O button (button 4)
-  if (input & 16) > 0 and (prev_input & 16) == 0 then
+  if bp(16,input,pi) then
     sfx(1)  -- menu confirm sound
     if menu_sel == 0 then
       difficulty = 1  -- easy
@@ -411,7 +416,7 @@ function update_menu()
     end
   end
 
-  prev_input = input
+  pi = input
 end
 
 function draw_menu()
@@ -454,19 +459,19 @@ function update_play()
   -- items menu
   if show_items_menu then
     -- up (button 2)
-    if (input & 4) > 0 and (prev_input & 4) == 0 then
+    if bp(4,input,pi) then
       items_menu_sel = max(0, items_menu_sel - 1)
     end
     -- down (button 3)
-    if (input & 8) > 0 and (prev_input & 8) == 0 then
+    if bp(8,input,pi) then
       items_menu_sel = min(1, items_menu_sel + 1)
     end
     -- O button (button 4) - use item
-    if (input & 16) > 0 and (prev_input & 16) == 0 then
+    if bp(16,input,pi) then
       use_item(items_menu_sel)
     end
     -- X button (button 5) - close menu
-    if (input & 32) > 0 and (prev_input & 32) == 0 then
+    if bp(32,input,pi) then
       show_items_menu = false
       items_menu_sel = 0
       sfx(0)
@@ -475,26 +480,26 @@ function update_play()
   elseif show_equip_menu then
     local max_menu = #player.inventory  -- position 1 to #inventory, plus 0 for unequip
     -- up (button 2)
-    if (input & 4) > 0 and (prev_input & 4) == 0 then
+    if bp(4,input,pi) then
       equip_menu_sel = max(0, equip_menu_sel - 1)
     end
     -- down (button 3)
-    if (input & 8) > 0 and (prev_input & 8) == 0 then
+    if bp(8,input,pi) then
       equip_menu_sel = min(max_menu, equip_menu_sel + 1)
     end
     -- O button (button 4) - equip/unequip
-    if (input & 16) > 0 and (prev_input & 16) == 0 then
+    if bp(16,input,pi) then
       equip_item(equip_menu_sel)
     end
     -- X button (button 5) - close menu
-    if (input & 32) > 0 and (prev_input & 32) == 0 then
+    if bp(32,input,pi) then
       show_equip_menu = false
       equip_menu_sel = 0
     end
   else
     if combat_over then
       -- O button (button 4)
-      if (input & 16) > 0 and (prev_input & 16) == 0 then
+      if bp(16,input,pi) then
         if combat_escaped then
           _log("combat_escaped")
           reset_combat()
@@ -514,7 +519,7 @@ function update_play()
               _log("gameover:win")
               state = "gameover"
               boss_defeated = true
-              prev_input = input
+              pi = input
               return
             else
               current_floor += 1
@@ -530,26 +535,26 @@ function update_play()
           _log("state:gameover")
           _log("gameover:lose")
           state = "gameover"
-          prev_input = input
+          pi = input
           return
         end
       end
     else
       -- player action selection
       -- left (button 0) - attack
-      if (input & 1) > 0 and (prev_input & 1) == 0 then
+      if bp(1,input,pi) then
         player_action = "attack"
         sfx(2)  -- attack sound
         combat_step()
         _log("action:attack")
       -- right (button 1) - defend
-      elseif (input & 2) > 0 and (prev_input & 2) == 0 then
+      elseif bp(2,input,pi) then
         player_action = "defend"
         sfx(6)  -- defend sound
         combat_step()
         _log("action:defend")
       -- up (button 2) - potion
-      elseif (input & 4) > 0 and (prev_input & 4) == 0 then
+      elseif bp(4,input,pi) then
         if player.potions > 0 then
           player_action = "potion"
             sfx(5)  -- heal/potion sound
@@ -557,18 +562,18 @@ function update_play()
           _log("action:potion")
         end
       -- down (button 3) - flee
-      elseif (input & 8) > 0 and (prev_input & 8) == 0 then
+      elseif bp(8,input,pi) then
         player_action = "flee"
         sfx(7)  -- flee sound
         combat_step()
         _log("action:flee")
       -- O button (button 4) - open items menu
-      elseif (input & 16) > 0 and (prev_input & 16) == 0 then
+      elseif bp(16,input,pi) then
         show_items_menu = true
         items_menu_sel = 0
         sfx(0)  -- menu nav sound
       -- X button (button 5) - open equipment menu
-      elseif (input & 32) > 0 and (prev_input & 32) == 0 then
+      elseif bp(32,input,pi) then
         show_equip_menu = true
         equip_menu_sel = 0
         sfx(0)  -- menu nav sound
@@ -576,7 +581,7 @@ function update_play()
     end
   end
 
-  prev_input = input
+  pi = input
 end
 
 function draw_status_icons()
@@ -637,10 +642,10 @@ function draw_play()
   local player_spr = 0
   local player_col = 7
 
-  if anim.player_swing.active then
+  if anim.ps.active then
     -- swing animation: move sprite right and down
-    player_x += flr(anim.player_swing.frame / 2)
-    player_y += flr(sin(anim.player_swing.frame / 6) * 2)
+    player_x += flr(anim.ps.frame / 2)
+    player_y += flr(sin(anim.ps.frame / 6) * 2)
   end
 
   if player.hp <= 0 then
@@ -711,8 +716,8 @@ function draw_play()
   end
   local enemy_col = 7
 
-  if anim.enemy_flinch.active then
-    enemy_col = (anim.enemy_flinch.frame % 2 == 0) and 8 or 7
+  if anim.ef.active then
+    enemy_col = (anim.ef.frame % 2 == 0) and 8 or 7
     enemy_x += 1
   end
 
@@ -759,7 +764,7 @@ function draw_play()
   end
 
   -- draw damage popups with enhanced outline for visibility
-  for popup in all(anim.damage_popups) do
+  for popup in all(anim.dp) do
     local alpha = popup.timer / 30
     local col = 8  -- red damage
     if popup.val < 0 then col = 11 end  -- green heal
@@ -827,12 +832,12 @@ function update_gameover()
   local input = test_input()
 
   -- left/right to switch options
-  if (input & 3) > 0 and (prev_input & 3) == 0 then
+  if (input & 3) > 0 and (pi & 3) == 0 then
     gameover_sel = 1 - gameover_sel
   end
 
   -- O button to select
-  if (input & 16) > 0 and (prev_input & 16) == 0 then
+  if bp(16,input,pi) then
     if gameover_sel == 0 then
       _log("state:play")
       state = "play"
@@ -845,7 +850,7 @@ function update_gameover()
     if state == "play" then reset_combat() end
   end
 
-  prev_input = input
+  pi = input
 end
 
 function draw_gameover()
@@ -1288,8 +1293,8 @@ function execute_boss_ability(ability, player_def)
     end
     if total > 0 then add(combat_log, "dmg: "..total) end
     add_particles(ab.px or 25, ab.py or 45, ab.fcol or 8, ab.hits and 7 or 5)
-    if ab.rock then anim.player_swing.active = true
-      anim.player_swing.frame = 0 end
+    if ab.rock then anim.ps.active = true
+      anim.ps.frame = 0 end
     if ab.ramp then
       boss_abilities.rampage.active = true
       boss_abilities.rampage.duration = 2
@@ -1394,9 +1399,9 @@ function execute_enemy_ability(ability, player_def)
       add_particles(25, 45, 8, 2)
     end
     screen_shake(2, 4)
-    anim.flash_color.active = true
-    anim.flash_color.col = 8
-    anim.flash_color.timer = 3
+    anim.fc.active = true
+    anim.fc.col = 8
+    anim.fc.timer = 3
     enemy_abilities.archer_rapid_fire.used = true
     _log("enemy_ability:archer_rapid_fire")
   elseif ability == "troll_stone_skin" then
@@ -1406,9 +1411,9 @@ function execute_enemy_ability(ability, player_def)
     enemy.ability_duration = 2
     sfx(15)
     add_particles(85, 45, 14, 6)
-    anim.flash_color.active = true
-    anim.flash_color.col = 6
-    anim.flash_color.timer = 3
+    anim.fc.active = true
+    anim.fc.col = 6
+    anim.fc.timer = 3
     enemy_abilities.troll_stone_skin.active = true
     enemy_abilities.troll_stone_skin.duration = 2
     _log("enemy_ability:troll_stone_skin")
@@ -1418,9 +1423,9 @@ function execute_enemy_ability(ability, player_def)
     sfx(13)
     add_damage_popup(-3, 85, 40)
     add_particles(85, 45, 11, 5)
-    anim.flash_color.active = true
-    anim.flash_color.col = 11
-    anim.flash_color.timer = 3
+    anim.fc.active = true
+    anim.fc.col = 11
+    anim.fc.timer = 3
     enemy_abilities.troll_regen.used = true
     _log("enemy_ability:troll_regen")
   elseif ability == "orc_rage" then
@@ -1431,9 +1436,9 @@ function execute_enemy_ability(ability, player_def)
     sfx(16)
     add_particles(85, 45, 8, 7)
     screen_shake(2, 4)
-    anim.flash_color.active = true
-    anim.flash_color.col = 8
-    anim.flash_color.timer = 4
+    anim.fc.active = true
+    anim.fc.col = 8
+    anim.fc.timer = 4
     enemy_abilities.orc_rage.active = true
     enemy_abilities.orc_rage.duration = 1
     _log("enemy_ability:orc_rage")
@@ -1444,9 +1449,9 @@ function execute_enemy_ability(ability, player_def)
     enemy.ability_duration = 2
     sfx(16)
     add_particles(85, 45, 10, 5)
-    anim.flash_color.active = true
-    anim.flash_color.col = 9
-    anim.flash_color.timer = 3
+    anim.fc.active = true
+    anim.fc.col = 9
+    anim.fc.timer = 3
     enemy_abilities.orc_challenge.active = true
     enemy_abilities.orc_challenge.duration = 2
     _log("enemy_ability:orc_challenge")
@@ -1455,18 +1460,18 @@ function execute_enemy_ability(ability, player_def)
     enemy.hp = min(enemy.max_hp, enemy.hp + 4)
     sfx(13)
     add_damage_popup(-4, 85, 40)
-    anim.flash_color.active = true
-    anim.flash_color.col = 12
-    anim.flash_color.timer = 3
+    anim.fc.active = true
+    anim.fc.col = 12
+    anim.fc.timer = 3
     enemy_abilities.shaman_heal.used = true
     _log("enemy_ability:shaman_heal")
   elseif ability == "shaman_curse" then
     add(combat_log, "shaman curses!")
     apply_player_status("poison", 2)
     sfx(11)
-    anim.flash_color.active = true
-    anim.flash_color.col = 13
-    anim.flash_color.timer = 2
+    anim.fc.active = true
+    anim.fc.col = 13
+    anim.fc.timer = 2
     enemy_abilities.shaman_curse.used = true
     _log("enemy_ability:shaman_curse")
   elseif ability == "mage_fireball" then
@@ -1475,9 +1480,9 @@ function execute_enemy_ability(ability, player_def)
     player.hp -= dmg
     sfx(12)
     add_damage_popup(dmg, 25, 40)
-    anim.flash_color.active = true
-    anim.flash_color.col = 8
-    anim.flash_color.timer = 2
+    anim.fc.active = true
+    anim.fc.col = 8
+    anim.fc.timer = 2
     enemy_abilities.mage_fireball.used = true
     _log("enemy_ability:mage_fireball")
   elseif ability == "mage_shield" then
@@ -1486,9 +1491,9 @@ function execute_enemy_ability(ability, player_def)
     enemy.ability_def_boost = 3
     enemy.ability_duration = 2
     sfx(15)
-    anim.flash_color.active = true
-    anim.flash_color.col = 12
-    anim.flash_color.timer = 2
+    anim.fc.active = true
+    anim.fc.col = 12
+    anim.fc.timer = 2
     enemy_abilities.mage_shield.active = true
     enemy_abilities.mage_shield.duration = 2
     _log("enemy_ability:mage_shield")
@@ -1498,9 +1503,9 @@ function execute_enemy_ability(ability, player_def)
     player.hp -= dmg
     sfx(4)
     add_damage_popup(dmg, 25, 40)
-    anim.flash_color.active = true
-    anim.flash_color.col = 8
-    anim.flash_color.timer = 2
+    anim.fc.active = true
+    anim.fc.col = 8
+    anim.fc.timer = 2
     enemy_abilities.thief_backstab.used = true
     _log("enemy_ability:thief_backstab")
   elseif ability == "thief_evasion" then
@@ -1509,9 +1514,9 @@ function execute_enemy_ability(ability, player_def)
     enemy.ability_def_boost = 1
     enemy.ability_duration = 2
     sfx(15)
-    anim.flash_color.active = true
-    anim.flash_color.col = 6
-    anim.flash_color.timer = 2
+    anim.fc.active = true
+    anim.fc.col = 6
+    anim.fc.timer = 2
     enemy_abilities.thief_evasion.active = true
     enemy_abilities.thief_evasion.duration = 2
     _log("enemy_ability:thief_evasion")
@@ -1622,10 +1627,10 @@ function combat_step()
     dmg = max(1, player_atk - enemy.def + (has_status("poison") and 1 or 0) + flr(rnd(3)))
     enemy.hp -= dmg
     add(combat_log, "attack! "..dmg.." dmg")
-    anim.player_swing.active = true
-    anim.player_swing.frame = 0
-    anim.enemy_flinch.active = true
-    anim.enemy_flinch.frame = 0
+    anim.ps.active = true
+    anim.ps.frame = 0
+    anim.ef.active = true
+    anim.ef.frame = 0
     add_damage_popup(dmg, 85, 40)
     add_particles(85, 45, 8, 3)
     sfx(4)
@@ -1636,17 +1641,17 @@ function combat_step()
     -- screen shake on crit (high damage) - subtle
     if dmg >= 6 then
       screen_shake(1, 5)
-      anim.flash_color.active = true
-      anim.flash_color.col = 8
-      anim.flash_color.timer = 3
+      anim.fc.active = true
+      anim.fc.col = 8
+      anim.fc.timer = 3
     else
       screen_shake(1, 3)
     end
   elseif player_action == "defend" then
     add(combat_log, "you brace! def+2")
-    anim.flash_color.active = true
-    anim.flash_color.col = 6  -- blue for defense
-    anim.flash_color.timer = 3
+    anim.fc.active = true
+    anim.fc.col = 6  -- blue for defense
+    anim.fc.timer = 3
   elseif player_action == "potion" then
     local heal = 8
     player.hp = min(player.max_hp, player.hp + heal)
@@ -1656,9 +1661,9 @@ function combat_step()
     add_damage_popup(-heal, 25, 40)
     add_particles(25, 45, 11, 4)  -- green healing particles
     sfx(5)  -- heal/potion sound
-    anim.flash_color.active = true
-    anim.flash_color.col = 11
-    anim.flash_color.timer = 2
+    anim.fc.active = true
+    anim.fc.col = 11
+    anim.fc.timer = 2
   elseif player_action == "item_antidote" then
     add(combat_log, "poison removed!")
   elseif player_action == "item_cure" then
@@ -1685,9 +1690,9 @@ function combat_step()
     end
     player.exp += exp_gain
     screen_shake(3, 10)
-    anim.flash_color.active = true
-    anim.flash_color.col = 11
-    anim.flash_color.timer = 8
+    anim.fc.active = true
+    anim.fc.col = 11
+    anim.fc.timer = 8
     -- enemy defeat fanfare
     if enemy.is_boss then
       sfx(10)  -- boss defeat fanfare
@@ -1707,9 +1712,9 @@ function combat_step()
       -- level up particles and effects
       add_particles(25, 35, 7, 6)
       screen_shake(1, 6)  -- celebratory but not excessive
-      anim.flash_color.active = true
-      anim.flash_color.col = 7
-      anim.flash_color.timer = 5
+      anim.fc.active = true
+      anim.fc.col = 7
+      anim.fc.timer = 5
       sfx(8)  -- level up fanfare
     end
     combat_over = true
@@ -1760,14 +1765,14 @@ function combat_step()
         player.hp -= dmg
         add(combat_log, "boss attacks! "..dmg.." dmg")
         sfx(3)  -- boss attack sound
-        anim.player_swing.active = true
-        anim.player_swing.frame = 0
+        anim.ps.active = true
+        anim.ps.frame = 0
         add_damage_popup(dmg, 25, 40)
         add_particles(25, 45, 8, 3)
         screen_shake(1, 3)  -- subtle shake
-        anim.flash_color.active = true
-        anim.flash_color.col = 8
-        anim.flash_color.timer = 2
+        anim.fc.active = true
+        anim.fc.col = 8
+        anim.fc.timer = 2
         if rnd() < 0.1 then apply_player_status("poison", 2) end
         if rnd() < 0.08 then apply_player_status("stun", 1) end
         _log("boss_action:attack")
@@ -1824,16 +1829,16 @@ function combat_step()
         else
           sfx(3)  -- default enemy attack sound
         end
-        anim.player_swing.active = true
-        anim.player_swing.frame = 0
+        anim.ps.active = true
+        anim.ps.frame = 0
         add_damage_popup(dmg, 25, 40)
         add_particles(25, 45, 8, 3)
         screen_shake(1, 3)  -- subtle
         if rnd() < 0.15 then apply_player_status("poison", 2) end
         if rnd() < 0.1 then apply_player_status("stun", 1) end
-        anim.flash_color.active = true
-        anim.flash_color.col = 8
-        anim.flash_color.timer = 2
+        anim.fc.active = true
+        anim.fc.col = 8
+        anim.fc.timer = 2
         _log("enemy_action:attack")
       else
         add(combat_log, "enemy defend!")
@@ -1847,9 +1852,9 @@ function combat_step()
     player.hp = 0
     add(combat_log, "you were defeated!")
     screen_shake(4, 12)
-    anim.flash_color.active = true
-    anim.flash_color.col = 8
-    anim.flash_color.timer = 10
+    anim.fc.active = true
+    anim.fc.col = 8
+    anim.fc.timer = 10
     sfx(17)  -- game over/defeat sound
     combat_over = true
     player_won = false
@@ -1865,7 +1870,7 @@ end
 
 function reset_combat()
   turn = 0
-  combat_log = {}
+  combat_log={}
   player_action = nil
   combat_over = false
   player_won = false
@@ -2029,7 +2034,7 @@ function reset_game()
 
   enemy_count, turn, equip_menu_sel, gameover_sel = 0, 0, 0, 0
   boss_defeated, combat_over, player_won, combat_escaped, show_equip_menu = false, false, false, false, false
-  combat_log = {}
+  combat_log={}
 
   -- reset floor progression
   current_floor = 1
