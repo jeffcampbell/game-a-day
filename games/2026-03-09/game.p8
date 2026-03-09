@@ -648,19 +648,42 @@ function draw_play()
     -- hurt state: change color/position
     player_y += 1
     player_col = 5
-  elseif player.weapon then
-    -- equipped weapon visual indicator (slight color change)
-    player_col = 8
+  else
+    -- equipment progression color changes
+    local equipment_count = (player.weapon and 1 or 0) + (player.armor and 1 or 0)
+    if equipment_count >= 2 then
+      player_col = 14  -- pink for fully equipped (legendary)
+    elseif player.weapon then
+      player_col = 8   -- red for weapon
+    elseif player.armor then
+      player_col = 6   -- gray for armor
+    end
   end
 
   spr(player_spr, player_x, player_y)
 
-  -- draw simple equipment indicator dots
+  -- draw enhanced equipment indicators
   if player.weapon then
-    pset(player_x + 1, player_y - 1, 8)  -- weapon dot
+    -- weapon: draw sword-like indicator
+    pset(player_x + 6, player_y, 8)   -- weapon glow
+    pset(player_x + 7, player_y - 1, 8)
   end
   if player.armor then
-    pset(player_x + 5, player_y - 1, 6)  -- armor dot
+    -- armor: draw shield-like indicator
+    pset(player_x + 1, player_y - 1, 6)   -- armor glow
+    pset(player_x + 0, player_y, 6)
+  end
+
+  -- draw health aura based on remaining HP percent
+  if player.hp > 0 then
+    local hp_pct = player.hp / player.maxhp
+    local aura_col = 11  -- green if healthy
+    if hp_pct < 0.5 then aura_col = 8  -- red if low HP
+    elseif hp_pct < 0.75 then aura_col = 10  -- yellow if medium HP
+    end
+    if hp_pct <= 0.99 then
+      pset(player_x - 1, player_y + 4, aura_col)  -- HP indicator at feet
+    end
   end
 
   -- draw enemy sprite with flinch animation
@@ -669,6 +692,17 @@ function draw_play()
   local enemy_spr = 1  -- default goblin
   if enemy.is_boss then
     enemy_spr = 5  -- boss
+  elseif enemy.is_elite then
+    -- elite variant sprites
+    if enemy.type == 1 then
+      enemy_spr = 6  -- elite goblin archer
+    elseif enemy.type == 2 then
+      enemy_spr = 7  -- elite troll
+    elseif enemy.type == 3 then
+      enemy_spr = 8  -- elite orc warrior
+    else
+      enemy_spr = 6  -- default elite variant
+    end
   elseif enemy.type == 1 then
     enemy_spr = 2  -- goblin archer
   elseif enemy.type == 2 then
@@ -698,6 +732,32 @@ function draw_play()
   end
 
   spr(enemy_spr, enemy_x, enemy_y)
+
+  -- draw status effect indicators above enemy sprite
+  local status_x = enemy_x + 1
+  local status_y = enemy_y - 4
+  if has_status("poison") then
+    -- green poison aura (3x2 indicator)
+    pset(status_x, status_y, 11)
+    pset(status_x + 1, status_y, 11)
+    pset(status_x + 2, status_y, 11)
+    pset(status_x, status_y - 1, 11)
+    pset(status_x + 2, status_y - 1, 11)
+  end
+  if has_status("stun") then
+    -- yellow stun sparks (zigzag pattern)
+    pset(status_x + 3, status_y - 1, 10)
+    pset(status_x + 4, status_y, 10)
+    pset(status_x + 5, status_y - 1, 10)
+    pset(status_x + 4, status_y - 2, 10)
+  end
+  if has_status("paralysis") then
+    -- blue paralysis lines (vertical striped)
+    pset(status_x + 6, status_y - 1, 12)
+    pset(status_x + 6, status_y, 12)
+    pset(status_x + 7, status_y - 1, 12)
+    pset(status_x + 7, status_y, 12)
+  end
 
   -- draw damage popups with outline for visibility
   for popup in all(anim.damage_popups) do
@@ -2014,14 +2074,14 @@ function reset_game()
 end
 
 __gfx__
-0007770000033300000333000005550000088800000ddd0000000000000000000000000000000000000000000000000000000000000000000000000000000000
-007777700033333000333330005555500088888000ddddd000000000000000000000000000000000000000000000000000000000000000000000000000000000
-007777700033333000333330005555500088888000ddddd000000000000000000000000000000000000000000000000000000000000000000000000000000000
-07777770033333300333333005555550088888800ddddddd00000000000000000000000000000000000000000000000000000000000000000000000000000000
-007777000033330000333aaa005555000088880000ddddd000000000000000000000000000000000000000000000000000000000000000000000000000000000
-007777000033330000333aaa005555000088880000ddddd000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000777000003330000033a000005550000088800000ddd0000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00007700000033000000330000005500000088000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00077700000333000003330000053300002088800000dd800000333300002033300000533300003333300003333300000000000000000000000000000000000000
+00777770003333300033333002535350002088880000ddd8000033333000203333302053535000333333003333330000000000000000000000000000000000000
+00777770003333300033333002535350002088880000ddd8000033333000203333302053535000333333003333330000000000000000000000000000000000000
+07777770033333300333333025353530020888800ddddddd00033333000203333302053535000333333003333330000000000000000000000000000000000000
+00777700003333000033aaaa0253530000208880000dddddd00033333000203332000235332002333330023333300000000000000000000000000000000000000
+00777700003333000033aaaa0253530000208880000dddddd00033333000203332000235332002333330023333300000000000000000000000000000000000000
+00077700000333000003a0002053300000088800000ddd000003333000203330000235300000333300023330000000000000000000000000000000000000000000
+00007700000033000003300000053300000088000000dd0000003300000203300000235300000033000023300000000000000000000000000000000000000000
 
 __label__
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
