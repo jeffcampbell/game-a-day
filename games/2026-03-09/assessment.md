@@ -606,11 +606,11 @@ end
 **Regular Enemy Difficulty (Floors 1-7, line ~1969-1976):**
 ```lua
 if difficulty == 1 then
-  enemy.hp = flr(enemy.hp * 0.52)  -- CHANGED: 0.48 → 0.52
-  enemy.atk = flr(enemy.atk * 0.52)  -- CHANGED: 0.48 → 0.52
+  enemy.hp = flr(enemy.hp * 0.52)  -- CHANGED: 0.50 → 0.52
+  enemy.atk = flr(enemy.atk * 0.52)  -- CHANGED: 0.50 → 0.52
 elseif difficulty == 3 then
-  enemy.hp = flr(enemy.hp * 1.3)  -- Maintained
-  enemy.atk = flr(enemy.atk * 1.3)  -- Maintained
+  enemy.hp = flr(enemy.hp * 1.3)  -- CHANGED: 1.35 → 1.3
+  enemy.atk = flr(enemy.atk * 1.3)  -- CHANGED: 1.35 → 1.3
 end
 ```
 
