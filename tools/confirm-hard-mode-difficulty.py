@@ -186,7 +186,8 @@ def generate_hard_mode_session(outcome_seed, session_num):
         "duration_frames": duration_frames,
         "button_sequence": button_sequence,
         "logs": logs,
-        "exit_state": exit_state
+        "exit_state": exit_state,
+        "is_synthetic": True
     }
 
 
