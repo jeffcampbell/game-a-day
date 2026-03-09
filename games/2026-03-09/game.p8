@@ -120,6 +120,25 @@ boss_defeated = false
 show_equip_menu = false
 equip_menu_sel = 0
 
+-- boss abilities
+boss_abilities = {
+  power_attack = {
+    enabled = true,
+    hp_threshold = 0.5,  -- trigger at 50% hp
+    charged = false,
+    recovery_turn = 0
+  },
+  heal = {
+    enabled = true,
+    hp_threshold = 0.75,  -- trigger at 75% hp
+    used = false
+  },
+  multi_strike = {
+    enabled = true,
+    hp_threshold = 0.25  -- trigger at 25% hp
+  }
+}
+
 function _update()
   -- update animations
   if anim.player_swing.active then
@@ -668,6 +687,93 @@ function equip_item(idx)
   end
 end
 
+-- boss special abilities
+function get_boss_ability()
+  -- return which ability the boss should use, or nil for normal attack
+  if not enemy.is_boss then return nil end
+
+  local hp_pct = enemy.hp / enemy.max_hp
+
+  -- power attack at 50% hp (50% chance if enabled)
+  if boss_abilities.power_attack.enabled and hp_pct <= boss_abilities.power_attack.hp_threshold then
+    if not boss_abilities.power_attack.charged and rnd() < 0.6 then
+      return "power_attack"
+    end
+  end
+
+  -- heal at 75% hp (first time only)
+  if boss_abilities.heal.enabled and hp_pct <= boss_abilities.heal.hp_threshold then
+    if not boss_abilities.heal.used and rnd() < 0.5 then
+      return "heal"
+    end
+  end
+
+  -- multi strike at 25% hp (desperation move)
+  if boss_abilities.multi_strike.enabled and hp_pct <= boss_abilities.multi_strike.hp_threshold then
+    if rnd() < 0.7 then
+      return "multi_strike"
+    end
+  end
+
+  return nil
+end
+
+function execute_boss_ability(ability, player_def)
+  local dmg = 0
+
+  if ability == "power_attack" then
+    -- double damage, but boss needs recovery
+    dmg = max(1, (enemy.atk * 2) - player_def + flr(rnd(3)))
+    player.hp -= dmg
+    add(combat_log, "boss power attack! "..dmg.." dmg")
+    add_damage_popup(dmg, 25, 40)
+    add_particles(25, 45, 8, 5)
+    anim.player_swing.active = true
+    anim.player_swing.frame = 0
+    screen_shake(2, 6)
+    anim.flash_color.active = true
+    anim.flash_color.col = 8
+    anim.flash_color.timer = 3
+    boss_abilities.power_attack.charged = true
+    boss_abilities.power_attack.recovery_turn = 1
+    _log("boss_ability:power_attack")
+
+  elseif ability == "heal" then
+    -- boss heals itself (limited uses)
+    local heal = 8
+    enemy.hp = min(enemy.max_hp, enemy.hp + heal)
+    add(combat_log, "boss heals "..heal.." hp!")
+    add_damage_popup(-heal, 85, 40)
+    add_particles(85, 45, 11, 5)
+    anim.flash_color.active = true
+    anim.flash_color.col = 11
+    anim.flash_color.timer = 3
+    boss_abilities.heal.used = true
+    _log("boss_ability:heal")
+
+  elseif ability == "multi_strike" then
+    -- hit player 3 times
+    local hits = 3
+    local total_dmg = 0
+    add(combat_log, "boss multi-strike!")
+    for i = 1, hits do
+      dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
+      total_dmg += dmg
+      player.hp -= dmg
+      add_damage_popup(dmg, 25 - i*2, 40)
+    end
+    add_particles(25, 45, 8, 7)
+    anim.player_swing.active = true
+    anim.player_swing.frame = 0
+    screen_shake(2, 6)
+    anim.flash_color.active = true
+    anim.flash_color.col = 8
+    anim.flash_color.timer = 4
+    add(combat_log, "total: "..total_dmg.." dmg")
+    _log("boss_ability:multi_strike")
+  end
+end
+
 -- combat system
 function combat_step()
   add(combat_log, "--- turn "..turn.." ---")
@@ -757,25 +863,68 @@ function combat_step()
   end
 
   -- enemy action
-  local enemy_act = flr(rnd(2))
-  if enemy_act == 0 then
-    dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
-    if player_action == "defend" then
-      dmg = max(1, flr(dmg / 2))
+  if enemy.is_boss then
+    -- boss has special abilities
+    local ability = nil
+
+    -- check if recovering from power attack
+    if boss_abilities.power_attack.recovery_turn > 0 then
+      boss_abilities.power_attack.recovery_turn -= 1
+      add(combat_log, "boss recovers...")
+      _log("boss_action:recovering")
+    else
+      -- check for special abilities (with difficulty adjustment)
+      local ability_chance = 1.0
+      if difficulty == 1 then  -- easy: reduce special ability frequency
+        ability_chance = 0.7
+      end
+
+      ability = get_boss_ability()
+      if ability and rnd() < ability_chance then
+        execute_boss_ability(ability, player_def)
+      else
+        -- normal boss attack
+        dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
+        if player_action == "defend" then
+          dmg = max(1, flr(dmg / 2))
+        end
+        player.hp -= dmg
+        add(combat_log, "boss attacks! "..dmg.." dmg")
+        anim.player_swing.active = true
+        anim.player_swing.frame = 0
+        add_damage_popup(dmg, 25, 40)
+        add_particles(25, 45, 8, 3)
+        screen_shake(1, 4)
+        anim.flash_color.active = true
+        anim.flash_color.col = 8
+        anim.flash_color.timer = 2
+        _log("boss_action:attack")
+      end
     end
-    player.hp -= dmg
-    add(combat_log, "enemy attacks! "..dmg.." dmg")
-    -- trigger enemy attack animation
-    anim.player_swing.active = true
-    anim.player_swing.frame = 0
-    add_damage_popup(dmg, 25, 40)
-    add_particles(25, 45, 8, 3)  -- red damage particles
-    screen_shake(1, 4)
-    anim.flash_color.active = true
-    anim.flash_color.col = 8
-    anim.flash_color.timer = 2
   else
-    add(combat_log, "enemy defend!")
+    -- regular enemy combat
+    local enemy_act = flr(rnd(2))
+    if enemy_act == 0 then
+      dmg = max(1, enemy.atk - player_def + flr(rnd(2)))
+      if player_action == "defend" then
+        dmg = max(1, flr(dmg / 2))
+      end
+      player.hp -= dmg
+      add(combat_log, "enemy attacks! "..dmg.." dmg")
+      -- trigger enemy attack animation
+      anim.player_swing.active = true
+      anim.player_swing.frame = 0
+      add_damage_popup(dmg, 25, 40)
+      add_particles(25, 45, 8, 3)  -- red damage particles
+      screen_shake(1, 4)
+      anim.flash_color.active = true
+      anim.flash_color.col = 8
+      anim.flash_color.timer = 2
+      _log("enemy_action:attack")
+    else
+      add(combat_log, "enemy defend!")
+      _log("enemy_action:defend")
+    end
   end
 
   -- check player defeated
@@ -800,6 +949,11 @@ function reset_combat()
   combat_over = false
   player_won = false
   combat_escaped = false
+
+  -- reset boss abilities for new fight
+  boss_abilities.power_attack.charged = false
+  boss_abilities.power_attack.recovery_turn = 0
+  boss_abilities.heal.used = false
 
   -- spawn new enemy
   if enemy_count < 2 then
@@ -840,6 +994,7 @@ function reset_combat()
     end
 
     add(combat_log, "the boss appears!")
+    _log("boss_fight:start")
   end
 
   _log("enemy_spawn:"..enemy.is_boss)
