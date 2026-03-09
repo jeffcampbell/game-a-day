@@ -1943,13 +1943,13 @@ function reset_combat()
 
     -- difficulty scaling
     if difficulty == 1 then
-      enemy.hp = flr(enemy.hp * 0.35)  -- 35% for easy
+      enemy.hp = flr(enemy.hp * 0.32)  -- 32% for easy
       enemy.max_hp = enemy.hp
       enemy.atk = flr(enemy.atk * 0.5)  -- 50% attack
     elseif difficulty == 3 then
-      enemy.hp = flr(enemy.hp * 1.3)  -- 130% for hard
+      enemy.hp = flr(enemy.hp * 1.25)  -- 125% for hard
       enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 1.3)  -- 130% attack
+      enemy.atk = flr(enemy.atk * 1.25)  -- 125% attack
     end
 
     add(combat_log, "the "..btype.desc.." appears!")
@@ -1967,13 +1967,13 @@ function reset_combat()
 
     -- difficulty scaling
     if difficulty == 1 then
-      enemy.hp = flr(enemy.hp * 0.50)  -- easier on easy mode
+      enemy.hp = flr(enemy.hp * 0.52)  -- easier on easy mode
       enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 0.50)
+      enemy.atk = flr(enemy.atk * 0.52)
     elseif difficulty == 3 then
-      enemy.hp = flr(enemy.hp * 1.35)  -- harder on hard mode
+      enemy.hp = flr(enemy.hp * 1.3)  -- harder on hard mode
       enemy.max_hp = enemy.hp
-      enemy.atk = flr(enemy.atk * 1.35)
+      enemy.atk = flr(enemy.atk * 1.3)
     end
 
     -- elite enemy spawn (10-15% chance)
