@@ -722,19 +722,22 @@ function draw_play()
     pset(status_x + 7, status_y, 12)
   end
 
-  -- draw damage popups with outline for visibility
+  -- draw damage popups with enhanced outline for visibility
   for popup in all(anim.damage_popups) do
     local alpha = popup.timer / 30
     local col = 8  -- red damage
     if popup.val < 0 then col = 11 end  -- green heal
     local px = flr(popup.x)
     local py = flr(popup.y)
-    -- draw outline for better visibility
-    print(abs(popup.val), px-1, py, 0)
-    print(abs(popup.val), px+1, py, 0)
-    print(abs(popup.val), px, py-1, 0)
-    print(abs(popup.val), px, py+1, 0)
-    -- draw main number
+    -- draw thick black outline (2-pixel border) for better visibility on any background
+    for dx = -1, 1 do
+      for dy = -1, 1 do
+        if dx ~= 0 or dy ~= 0 then
+          print(abs(popup.val), px+dx, py+dy, 0)
+        end
+      end
+    end
+    -- draw main number on top
     print(abs(popup.val), px, py, col)
   end
 
@@ -763,20 +766,22 @@ function draw_play()
       print("defeated! press z/c", 22, 105, 8)
     end
   else
-    print("left:atk right:def up:pot down:flee z:items x:equip", 0, 115, 5)
+    -- split controls into two lines to fit 128px width
+    print("L:atk R:def U:pot D:flee", 14, 115, 5)
+    print("Z:items X:equip", 39, 122, 5)
   end
 
-  -- draw player status effects
-  local psx = 12
+  -- draw player status effects with clear spacing
+  local psx = 8
   for s, d in pairs(player.status_effects) do
     if d.d > 0 then
       local l = s == "poison" and "POI" or (s == "stun" and "STN" or "PAR")
       local col = get_status_color(s)
-      -- draw background for visibility
-      rectfill(psx-1, 21, psx+16, 29, 0)
-      rect(psx-1, 21, psx+16, 29, col)
+      -- draw background for clear visibility (dark bg with colored border)
+      rectfill(psx-1, 20, psx+17, 30, 0)
+      rect(psx-1, 20, psx+17, 30, col)
       print(l, psx, 23, col)
-      psx += 19
+      psx += 21  -- increased spacing for no overlap
     end
   end
 end
