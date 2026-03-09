@@ -49,6 +49,28 @@ is_endless=false
 wave=1
 wave_start_frame=-10000
 
+-- achievement system
+achievements={
+ explorer=false,pathfinder=false,boss_slayer=false,
+ corridor_master=false,expert_escape=false,survivor=false,
+ wave_master=false,endless_champion=false,hard_warrior=false,
+ flawless_run=false,speed_runner=false,dash_master=false
+}
+achievement_names={
+ explorer="explorer",pathfinder="pathfinder",boss_slayer="boss slayer",
+ corridor_master="corridor master",expert_escape="expert escape",
+ survivor="survivor",wave_master="wave master",endless_champion="endless champ",
+ hard_warrior="hard warrior",flawless_run="flawless",speed_runner="speed runner",
+ dash_master="dash master"
+}
+last_unlock_id=nil  -- track most recent achievement unlock
+last_unlock_frame=-1000
+dash_count_this_level=0
+health_on_level_start=3
+health_on_adventure_start=3  -- track starting health for flawless_run achievement
+adventure_damage_taken=0  -- track cumulative damage across all adventure levels
+adventure_start_frame=0  -- track when adventure mode starts
+
 -- player
 player={x=64,y=100,w=8,h=8,speed=1.5,alive=true}
 
@@ -125,6 +147,23 @@ function update_anim()
  anim_frame=flr(anim_counter/10)  -- gives 0,1,2,1,2,0... pattern
 end
 
+function unlock_achievement(id)
+ if not achievements[id] then
+  achievements[id]=true
+  last_unlock_id=id
+  last_unlock_frame=frames
+  _log("achievement:"..id)
+ end
+end
+
+function count_achievements()
+ local count=0
+ for k,v in pairs(achievements) do
+  if v then count+=1 end
+ end
+ return count
+end
+
 function get_player_sprite()
  -- sprite 0 is standing, 3-5 are animation frames
  if not player.alive then return 0 end
@@ -184,6 +223,9 @@ function init_level()
  -- reset dash streak
  dash_streak=0
 
+ -- reset achievement metrics
+ dash_count_this_level=0
+
  -- reset pause state for new level
  paused=false
 
@@ -210,6 +252,7 @@ function init_level()
  end
 
  health=health_val
+ health_on_level_start=health_val
  -- passive players get +1 health on level 3 for better survivability
  if is_passive_player and level==3 then
   health=health+1
@@ -491,12 +534,15 @@ function update_difficulty_select()
    sfx(8)  -- hard mode: ominous descending progression
   end
   is_endless=false
+  adventure_start_frame=frames
   state="play"
   score=0
   level=1
   wave=1
   wave_start_frame=0
   init_level()
+  health_on_adventure_start=health  -- capture starting health for flawless_run check at level 5 end
+  adventure_damage_taken=0  -- reset cumulative damage tracking for this adventure
   _log("state:play")
  end
 end
@@ -540,6 +586,8 @@ function draw_menu()
  print("survive + score points",16,64,7)
  print("arrow keys move",28,80,11)
  print("x=dash  o=pause",24,90,11)
+ local ach_count=count_achievements()
+ print("achievements:"..ach_count.."/11",36,100,3)
  print("z or x to start",32,110,11)
 end
 
@@ -756,6 +804,9 @@ function update_play()
   -- increment dash streak
   dash_streak+=1
 
+  -- track dash count for achievement
+  dash_count_this_level+=1
+
   -- visual feedback: screen flash
   dash_flash_frames=3
 
@@ -822,6 +873,19 @@ function update_play()
   if wave_elapsed>=spawn_interval then  -- adaptive spawn interval
    wave+=1
    wave_start_frame=frames
+
+   -- unlock wave-based achievements
+   if wave==5 then
+    unlock_achievement("survivor")
+   elseif wave==10 then
+    unlock_achievement("wave_master")
+   elseif wave==20 then
+    unlock_achievement("endless_champion")
+   end
+   -- hard mode achievements
+   if difficulty=="hard" and wave==5 then
+    unlock_achievement("hard_warrior")
+   end
 
    -- progressive difficulty: start at 3, increase by 1-2 per wave, cap at difficulty-dependent max
    local max_enemies=10
@@ -1087,6 +1151,9 @@ function update_play()
    if not is_dash_invuln then
     -- take damage from enemy
     health-=1
+    if game_mode=="adventure" then
+     adventure_damage_taken+=1
+    end
     dash_streak=0  -- reset dash streak on damage
     -- track hit for adaptive difficulty
     add(hit_times,frames)
@@ -1151,7 +1218,32 @@ function update_play()
    else
     _log("gameover:win")
    end
+   -- unlock adventure achievements
+   unlock_achievement("expert_escape")
+   -- check flawless run (no damage throughout entire adventure)
+   if adventure_damage_taken==0 then
+    unlock_achievement("flawless_run")
+   end
+   -- check speed runner (complete all 5 levels in under 90s)
+   local total_time=flr((frames-adventure_start_frame)/60)
+   if total_time<90 then
+    unlock_achievement("speed_runner")
+   end
   else
+   -- unlock level-specific achievements
+   if level==1 then
+    unlock_achievement("explorer")
+   elseif level==2 then
+    unlock_achievement("pathfinder")
+   elseif level==3 then
+    unlock_achievement("boss_slayer")
+   elseif level==4 then
+    unlock_achievement("corridor_master")
+   end
+   -- check dash master (20+ dashes in a level)
+   if dash_count_this_level>=20 then
+    unlock_achievement("dash_master")
+   end
    init_level()
    _log("level_complete")
   end
@@ -1472,6 +1564,16 @@ function draw_gameover()
   else
    print("best:"..best_score,44,70,7)
   end
+ end
+
+ -- display newly unlocked achievement
+ if last_unlock_id~=nil and frames-last_unlock_frame<180 then
+  local flash=(flr(frames/10)%2==0)
+  local ach_name=achievement_names[last_unlock_id] or last_unlock_id
+  local col=14
+  if not flash then col=7 end
+  print("achievement unlocked!",28,80,3)
+  print(ach_name,48-(#ach_name*2),90,col)
  end
 
  print("z or x to menu",32,100,7)
