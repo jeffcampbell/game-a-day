@@ -1912,7 +1912,8 @@ function reset_combat()
 
   floor_combat_count += 1
 
-  enemy.type = rnd() < 0.4 and flr(rnd(7)) or floor_info.type
+  local floor_type = floor_info.type
+  enemy.type = rnd() < 0.4 and flr(rnd(7)) or floor_type
 
   -- helper: select boss type by difficulty
   local function select_boss_type()
