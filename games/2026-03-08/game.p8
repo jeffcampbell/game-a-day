@@ -97,6 +97,8 @@ player_used_dash=false
 player_used_shield=false
 level_2_dash_reminder=false
 level_3_shield_reminder=false
+damage_prompt_frame=-1000  -- when player took damage to show prompt
+first_hit_shown=false  -- track if we've shown first hit prompt
 
 -- adaptive difficulty tracking
 hit_times={}  -- sliding window of last hit frames
@@ -142,6 +144,10 @@ function init_level()
  -- reset reminder flags for new level
  level_2_dash_reminder=false
  level_3_shield_reminder=false
+
+ -- reset damage prompt for new level
+ damage_prompt_frame=-1000
+ if level==1 then first_hit_shown=false end
 
  -- reset dash streak
  dash_streak=0
@@ -942,6 +948,12 @@ function update_play()
     dash_streak=0  -- reset dash streak on damage
     -- track hit for adaptive difficulty
     add(hit_times,frames)
+    -- show damage prompt on first hit in level 1
+    if level==1 and not first_hit_shown then
+     damage_prompt_frame=frames
+     first_hit_shown=true
+     _log("first_hit_damage_prompt")
+    end
     _log("hit_enemy")
     sfx(1)
 
@@ -1142,6 +1154,15 @@ function draw_play()
   end
   if elapsed<300 and not player_used_dash then
    print("x:dash!",48,115,10)  -- early game prompt
+  end
+
+  -- damage prompt: show for 2 seconds (120 frames) after taking first hit
+  if frames-damage_prompt_frame<120 then
+   local prompt_color=8  -- red for urgency
+   -- large centered message
+   rectfill(20,50,108,70,1)  -- background
+   rect(20,50,108,70,8)  -- red border
+   print("press x to dodge!",26,57,prompt_color)
   end
 
   print("find exit (top right)",10,120,14)
