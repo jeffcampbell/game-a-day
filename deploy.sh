@@ -45,7 +45,18 @@ python3 tools/daily-intelligence.py --date "$TODAY" || true
 # Sync all games to pixel-dashboard
 SYNC_SCRIPT="/home/pi/Development/pixel-dashboard/scripts/sync-games.sh"
 if [ -x "$SYNC_SCRIPT" ]; then
-    "$SYNC_SCRIPT"
+    echo "Syncing games to pixel-dashboard..."
+    if "$SYNC_SCRIPT"; then
+        echo "✅ Games synced successfully"
+    else
+        echo "⚠️  WARNING: Failed to sync games to pixel-dashboard"
+        echo "   This may indicate issues with pixel-dashboard build or dependencies"
+        echo "   Games will not be available on the web dashboard"
+        # Don't exit on failure — game-a-day deployment should still succeed
+    fi
+else
+    echo "⚠️  WARNING: pixel-dashboard sync script not found at $SYNC_SCRIPT"
+    echo "   Games will not be synced to the web dashboard"
 fi
 
 # Build GitHub Pages site (exports all games to docs/)
