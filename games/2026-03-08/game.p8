@@ -270,6 +270,46 @@ function init_level()
    end
   end
   _log("level_3_start")
+
+ elseif level==4 then
+  player.x=12
+  player.y=100
+
+  -- level 4: dash tutorial - tight corridors require dashing
+  -- design: enemies in strategic positions creating gaps to navigate
+  if level_start_frame>0 then
+   local passive_speed_mult=1.0
+   if is_passive_player then
+    passive_speed_mult=0.75
+    _log("difficulty:passive_level4_adjust")
+   end
+   -- create tight corridor pattern: enemies at y=40, y=80, y=120 (vertical lanes)
+   -- only center lane passable without dash
+   add(enemies,{x=50,y=30,w=8,h=8,speed=0.85*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+   add(enemies,{x=100,y=90,w=8,h=8,speed=0.85*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
+   add(enemies,{x=40,y=60,w=8,h=8,speed=0.85*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+  end
+  _log("level_4_start:dash_tutorial")
+
+ elseif level==5 then
+  player.x=12
+  player.y=100
+
+  -- level 5: expert dash challenge - rapid enemy sequences
+  if level_start_frame>0 then
+   local passive_speed_mult=1.0
+   if is_passive_player then
+    passive_speed_mult=0.75
+    _log("difficulty:passive_level5_adjust")
+   end
+   -- spawn 5 enemies in aggressive pattern
+   add(enemies,{x=35,y=20,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+   add(enemies,{x=95,y=40,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
+   add(enemies,{x=45,y=70,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+   add(enemies,{x=85,y=100,w=8,h=8,speed=1.0*speed_mult*adaptive_speed_mult,dir=-1})
+   add(enemies,{x=60,y=50,w=8,h=8,speed=1.0*speed_mult*adaptive_speed_mult,dir=1})
+  end
+  _log("level_5_start:expert_challenge")
  end
 end
 
@@ -708,6 +748,16 @@ function update_play()
     if is_passive_player then passive_speed_mult=0.75 end
     add(enemies,{x=50,y=35,w=8,h=8,speed=0.95*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
     _log("enemy_spawn_ramp:passive_25pct")
+   elseif level==4 then
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.75 end
+    add(enemies,{x=75,y=25,w=8,h=8,speed=0.85*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
+    _log("enemy_spawn_ramp:level4")
+   elseif level==5 then
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.75 end
+    add(enemies,{x=30,y=120,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+    _log("enemy_spawn_ramp:level5")
    end
   elseif elapsed==flr(1200*spawn_delay_mult)+passive_spawn_delay then  -- 20 seconds (adaptive)
    if level==1 then
@@ -727,6 +777,17 @@ function update_play()
     add(enemies,{x=80,y=110,w=8,h=8,speed=0.98*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
     add(enemies,{x=20,y=50,w=8,h=8,speed=0.98*speed_mult*adaptive_speed_mult,dir=1})
     _log("enemy_spawn_ramp:passive_25pct")
+   elseif level==4 then
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.75 end
+    add(enemies,{x=60,y=95,w=8,h=8,speed=0.85*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=1})
+    _log("enemy_spawn_ramp:level4")
+   elseif level==5 then
+    local passive_speed_mult=1.0
+    if is_passive_player then passive_speed_mult=0.75 end
+    add(enemies,{x=90,y=80,w=8,h=8,speed=1.0*speed_mult*passive_speed_mult*adaptive_speed_mult,dir=-1})
+    add(enemies,{x=25,y=110,w=8,h=8,speed=1.0*speed_mult*adaptive_speed_mult,dir=1})
+    _log("enemy_spawn_ramp:level5")
    end
   end
 
@@ -740,6 +801,12 @@ function update_play()
     _log("enemy_spawn_ramp")
    elseif level==3 then
     add(enemies,{x=70,y=70,w=8,h=8,speed=0.95*speed_mult,dir=-1})
+    _log("enemy_spawn_ramp")
+   elseif level==4 then
+    add(enemies,{x=70,y=50,w=8,h=8,speed=0.85*speed_mult,dir=-1})
+    _log("enemy_spawn_ramp")
+   elseif level==5 then
+    add(enemies,{x=50,y=120,w=8,h=8,speed=1.0*speed_mult,dir=-1})
     _log("enemy_spawn_ramp")
    end
   end
@@ -847,8 +914,8 @@ function update_play()
   score+=500
   _log("score:"..score)
 
-  if level>2 then
-   _log("level_3_complete")
+  if level>4 then
+   _log("level_5_complete")
    state="gameover"
    -- check boss status for perfect victory
    if boss~=nil and boss.health<=0 then
@@ -964,6 +1031,16 @@ function draw_play()
    level_2_dash_reminder=true
   end
 
+  -- level 4: dash tutorial prompt
+  if level==4 and elapsed<180 then
+   print("dash through tight spots!",20,115,11)
+  end
+
+  -- level 5: expert challenge prompt
+  if level==5 and elapsed<180 then
+   print("master rapid dashes!",28,115,10)
+  end
+
   -- dash streak counter and early game prompt
   if dash_streak>0 then
    print("dash x"..dash_streak,2,22,11)  -- show dash streak
@@ -1018,10 +1095,10 @@ function draw_gameover()
  else
   -- standard mode gameover
   local final_score=score
-  if level>2 then
+  if level>4 then
    final_score+=level_score+500
    print("victory!",44,20,11)
-   print("escaped all three",28,35,11)
+   print("escaped all five",28,35,11)
    print("cave levels!",36,46,11)
   else
    final_score+=level_score
