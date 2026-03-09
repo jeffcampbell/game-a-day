@@ -842,6 +842,7 @@ function update_gameover()
       menu_sel = 0
     end
     reset_game()
+    state=="play"and reset_combat()
   end
 
   prev_input = input
