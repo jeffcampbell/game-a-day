@@ -1938,7 +1938,7 @@ function reset_combat()
 
     -- difficulty scaling
     if difficulty == 1 then
-      enemy.hp = flr(enemy.hp * 0.4)  -- 40% for easy
+      enemy.hp = flr(enemy.hp * 0.35)  -- 35% for easy
       enemy.max_hp = enemy.hp
       enemy.atk = flr(enemy.atk * 0.5)  -- 50% attack
     elseif difficulty == 3 then

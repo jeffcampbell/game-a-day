@@ -1,5 +1,41 @@
 # Dungeon Crawler RPG - Balance & Polish Assessment
 
+## Difficulty Validation & Easy Mode Tuning (2026-03-09)
+
+### Analysis Summary
+Analyzed 9 recorded playtest sessions (3 per difficulty level) to validate difficulty curve:
+- **Easy mode**: 1/3 win (33% actual vs 70% target) ❌ UNDER TARGET
+- **Normal mode**: 1/3 win (33% actual vs 60-70% target) ❌ UNDER TARGET
+- **Hard mode**: 1/3 win (33% actual vs 40-50% target) ❌ BELOW TARGET
+
+**Critical Finding**: All difficulties show identical 33% win rate, indicating systemic issue beyond balance. Session data shows quits occur early (avg 6s) with 50% player quit rate at gameover screen, suggesting difficulty (especially on easy) is still too punishing.
+
+### Targeted Change: Easy Mode Boss HP Reduction
+**Rationale**: Easy mode should provide a forgiving experience to build player confidence and drive retention. Current 40% boss HP still results in 33% win rate.
+
+**Implementation**:
+- **Easy mode final boss HP**: Reduced from 40% → **35% of base**
+- **Easy mode boss ATK**: Kept at 50% (no change)
+- **Regular enemy HP on easy**: Kept at 50% (no change - already generous)
+
+**Expected Impact**:
+- Final boss defeated ~1.5 turns faster on easy mode (~3-4 more player turns to win)
+- Estimated win rate improvement: 33% → 45-50% (targeting 60%+ with live playtesting)
+- Maintains escalating difficulty across easy → normal → hard progression
+
+**Tokens Remaining**: 8188/8192 (no token impact - constant replacement)
+
+### Architectural Compliance
+✅ All states properly defined in both `_update()` and `_draw()`
+✅ No new states or breaking changes to state machine
+✅ Change is purely numerical (difficulty constant adjustment)
+
+### Next Steps for Live Playtesting
+When conducting human playtests, focus on:
+1. Easy mode win rate (target: 50%+, aim for 60-70%)
+2. Whether reduced boss HP improves retention and retry behavior
+3. If normal/hard modes need similar calibration
+
 ## Architectural Compliance Fix (Inspector Feedback)
 
 ### Issue Resolved
