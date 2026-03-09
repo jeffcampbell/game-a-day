@@ -28,6 +28,50 @@ menu_sel = 0  -- 0=easy, 1=normal, 2=hard, 3=quit
 prev_input = 0
 difficulty = 2  -- 1=easy, 2=normal, 3=hard
 
+-- animation system
+anim = {
+  player_swing = {active=false, frame=0, dur=6},
+  enemy_flinch = {active=false, frame=0, dur=4},
+  damage_popups = {},
+  screen_shake = {intensity=0, timer=0},
+  flash_color = {active=false, col=0, timer=0}
+}
+
+-- particle system for visual effects
+particles = {}
+
+-- helper: add damage popup
+function add_damage_popup(dmg_val, x, y)
+  add(anim.damage_popups, {
+    val = dmg_val,
+    x = x,
+    y = y,
+    timer = 30,
+    vx = rnd(1) - 0.5,
+    vy = -0.5
+  })
+end
+
+-- helper: trigger screen shake
+function screen_shake(intensity, duration)
+  anim.screen_shake.intensity = intensity
+  anim.screen_shake.timer = duration or 8
+end
+
+-- helper: add particles
+function add_particles(x, y, col, count)
+  for i = 1, count do
+    add(particles, {
+      x = x,
+      y = y,
+      vx = (rnd(2) - 1) * 0.5,
+      vy = (rnd(2) - 1) * 0.3,
+      timer = 15,
+      col = col
+    })
+  end
+end
+
 -- equipment system
 equipment_list = {
   {name="wooden sword", atk=1, def=0},
@@ -77,6 +121,56 @@ show_equip_menu = false
 equip_menu_sel = 0
 
 function _update()
+  -- update animations
+  if anim.player_swing.active then
+    anim.player_swing.frame += 1
+    if anim.player_swing.frame > anim.player_swing.dur then
+      anim.player_swing.active = false
+    end
+  end
+
+  if anim.enemy_flinch.active then
+    anim.enemy_flinch.frame += 1
+    if anim.enemy_flinch.frame > anim.enemy_flinch.dur then
+      anim.enemy_flinch.active = false
+    end
+  end
+
+  -- update damage popups
+  for i = #anim.damage_popups, 1, -1 do
+    local p = anim.damage_popups[i]
+    p.timer -= 1
+    p.y -= 0.3
+    if p.timer <= 0 then
+      deli(anim.damage_popups, i)
+    end
+  end
+
+  -- update particles
+  for i = #particles, 1, -1 do
+    local p = particles[i]
+    p.timer -= 1
+    p.x += p.vx
+    p.y += p.vy
+    p.vy -= 0.05  -- gravity
+    if p.timer <= 0 then
+      deli(particles, i)
+    end
+  end
+
+  -- update screen shake
+  if anim.screen_shake.timer > 0 then
+    anim.screen_shake.timer -= 1
+  end
+
+  -- update flash
+  if anim.flash_color.active then
+    anim.flash_color.timer -= 1
+    if anim.flash_color.timer <= 0 then
+      anim.flash_color.active = false
+    end
+  end
+
   if state == "menu" then update_menu()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
@@ -85,9 +179,29 @@ end
 
 function _draw()
   cls(1)
+
+  -- apply screen shake
+  local shake_x = 0
+  local shake_y = 0
+  if anim.screen_shake.timer > 0 then
+    shake_x = flr(rnd(anim.screen_shake.intensity * 2)) - anim.screen_shake.intensity
+    shake_y = flr(rnd(anim.screen_shake.intensity * 2)) - anim.screen_shake.intensity
+  end
+  camera(shake_x, shake_y)
+
   if state == "menu" then draw_menu()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
+  end
+
+  camera(0, 0)
+
+  -- apply flash color overlay
+  if anim.flash_color.active then
+    local alpha = anim.flash_color.timer / 8
+    if alpha > 0.5 then
+      rectfill(0, 0, 127, 127, anim.flash_color.col)
+    end
   end
 
   if show_equip_menu then
@@ -145,40 +259,32 @@ function draw_menu()
 
   local y = 62
   local sel_col = 8
+
+  -- helper to draw menu item
+  local function draw_item(idx, name, col)
+    local is_sel = menu_sel == idx
+    local x_offset = is_sel and 2 or 0
+    local text_col = is_sel and col or 5
+    local arrow = is_sel and ">" or " "
+
+    print(arrow, 48 + x_offset, y, sel_col)
+    print(name, 60 + x_offset, y, text_col)
+  end
+
   -- easy
-  if menu_sel == 0 then
-    print(">", 50, y, sel_col)
-    print("easy", 60, y, 7)
-  else
-    print("easy", 60, y, 5)
-  end
-
+  draw_item(0, "easy", 7)
   y += 10
+
   -- normal
-  if menu_sel == 1 then
-    print(">", 50, y, sel_col)
-    print("normal", 60, y, 7)
-  else
-    print("normal", 60, y, 5)
-  end
-
+  draw_item(1, "normal", 7)
   y += 10
+
   -- hard
-  if menu_sel == 2 then
-    print(">", 50, y, sel_col)
-    print("hard", 60, y, 7)
-  else
-    print("hard", 60, y, 5)
-  end
-
+  draw_item(2, "hard", 7)
   y += 10
+
   -- quit
-  if menu_sel == 3 then
-    print(">", 50, y, sel_col)
-    print("quit", 60, y, 7)
-  else
-    print("quit", 60, y, 5)
-  end
+  draw_item(3, "quit", 8)
 
   print("z/c to select", 22, 110, 5)
 end
@@ -289,9 +395,85 @@ function draw_play()
   if not enemy.is_boss then enemy_name = "enemy" end
   print(enemy_name.." hp: "..enemy.hp.."/"..enemy.max_hp, 20, 28, 8)
 
-  -- sprites (simple placeholder)
-  spr(0, 20, 43)  -- player
-  spr(1, 80, 43)  -- enemy
+  -- draw player sprite with swing animation
+  local player_x = 20
+  local player_y = 43
+  local player_spr = 0
+  local player_col = 7
+
+  if anim.player_swing.active then
+    -- swing animation: move sprite right and down
+    player_x += flr(anim.player_swing.frame / 2)
+    player_y += flr(sin(anim.player_swing.frame / 6) * 2)
+  end
+
+  if player.hp <= 0 then
+    -- hurt state: change color/position
+    player_y += 1
+    player_col = 5
+  elseif player.weapon then
+    -- equipped weapon visual indicator (slight color change)
+    player_col = 8
+  end
+
+  spr(player_spr, player_x, player_y)
+
+  -- draw simple equipment indicator dots
+  if player.weapon then
+    pset(player_x + 1, player_y - 1, 8)  -- weapon dot
+  end
+  if player.armor then
+    pset(player_x + 5, player_y - 1, 6)  -- armor dot
+  end
+
+  -- draw enemy sprite with flinch animation
+  local enemy_x = 80
+  local enemy_y = 43
+  local enemy_spr = 1
+  local enemy_col = 7
+
+  if anim.enemy_flinch.active then
+    -- flinch: flash color and knockback
+    enemy_col = (anim.enemy_flinch.frame % 2 == 0) and 8 or 7
+    enemy_x += 1
+  end
+
+  if enemy.hp <= 0 then
+    enemy_y += 2  -- dead pose
+  elseif enemy.is_boss then
+    -- boss visual indicator (different color)
+    enemy_col = 10
+  end
+
+  spr(enemy_spr, enemy_x, enemy_y)
+
+  -- draw enemy type indicator (boss crown or goblin teeth)
+  if enemy.is_boss then
+    -- boss indicator
+    pset(enemy_x + 2, enemy_y - 1, 10)
+    pset(enemy_x + 4, enemy_y - 1, 10)
+    pset(enemy_x + 3, enemy_y - 2, 10)
+  else
+    -- goblin indicator
+    pset(enemy_x + 2, enemy_y - 1, 8)
+    pset(enemy_x + 4, enemy_y - 1, 8)
+  end
+
+  -- draw damage popups
+  for popup in all(anim.damage_popups) do
+    local alpha = popup.timer / 30
+    local col = 8  -- red damage
+    if popup.val < 0 then col = 11 end  -- green heal
+    print(abs(popup.val), flr(popup.x), flr(popup.y), col)
+  end
+
+  -- draw particles
+  for p in all(particles) do
+    local fade = p.timer / 15
+    if fade > 0.5 then
+      pset(flr(p.x), flr(p.y), p.col)
+    end
+  end
 
   -- combat log
   local log_y = 63
@@ -338,7 +520,9 @@ function draw_gameover()
   end
 
   if boss_defeated then
-    print("you defeated the boss!", 18, 30, 11)
+    -- victory screen with color flash
+    local flash_col = flr(t() * 4) % 2 == 0 and 11 or 7
+    print("you defeated the boss!", 18, 30, flash_col)
     print("quest complete!", 32, 45, 11)
     print("level: "..player.level, 40, 60, 7)
     print("exp: "..player.exp, 40, 72, 7)
@@ -398,17 +582,22 @@ end
 
 -- equipment menu
 function draw_equip_menu()
-  -- overlay
+  -- overlay with border animation
   rectfill(5, 30, 123, 100, 0)
   rect(5, 30, 123, 100, 7)
+  rect(4, 29, 124, 101, 7)  -- double border for polish
 
   print("equipment", 40, 33, 7)
 
   local y = 43
-  -- unequip option
+  -- unequip option with highlight
   local sel_marker = " "
-  if equip_menu_sel == 0 then sel_marker = ">" end
-  print(sel_marker.." unequip all", 10, y, 7)
+  local sel_col = 7
+  if equip_menu_sel == 0 then
+    sel_marker = ">"
+    sel_col = 8
+  end
+  print(sel_marker.." unequip all", 10, y, sel_col)
   y += 8
 
   if #player.inventory == 0 then
@@ -417,14 +606,18 @@ function draw_equip_menu()
     for i = 1, #player.inventory do
       local item = player.inventory[i]
       local sel_marker = " "
-      if i == equip_menu_sel then sel_marker = ">" end
+      local sel_col = 7
+      if i == equip_menu_sel then
+        sel_marker = ">"
+        sel_col = 8
+      end
 
       local equipped = ""
       if player.weapon == item or player.armor == item then
         equipped = " (eq)"
       end
 
-      print(sel_marker.." "..item.name..equipped, 10, y, 7)
+      print(sel_marker.." "..item.name..equipped, 10, y, sel_col)
       y += 8
     end
   end
@@ -488,13 +681,39 @@ function combat_step()
     dmg = max(1, player_atk - enemy.def + flr(rnd(3)))
     enemy.hp -= dmg
     add(combat_log, "you attack! "..dmg.." dmg")
+    -- trigger attack animation
+    anim.player_swing.active = true
+    anim.player_swing.frame = 0
+    anim.enemy_flinch.active = true
+    anim.enemy_flinch.frame = 0
+    -- add damage popup and particles
+    add_damage_popup(dmg, 85, 40)
+    add_particles(85, 45, 8, 3)  -- red damage particles
+    -- screen shake on crit (high damage)
+    if dmg >= 6 then
+      screen_shake(2, 6)
+      anim.flash_color.active = true
+      anim.flash_color.col = 8
+      anim.flash_color.timer = 4
+    else
+      screen_shake(1, 4)
+    end
   elseif player_action == "defend" then
     add(combat_log, "you defend!")
+    anim.flash_color.active = true
+    anim.flash_color.col = 14
+    anim.flash_color.timer = 3
   elseif player_action == "potion" then
     local heal = 8
     player.hp = min(player.max_hp, player.hp + heal)
     player.potions -= 1
     add(combat_log, "you heal "..heal.." hp")
+    -- heal effect: green popup and particles
+    add_damage_popup(-heal, 25, 40)
+    add_particles(25, 45, 11, 4)  -- green healing particles
+    anim.flash_color.active = true
+    anim.flash_color.col = 11
+    anim.flash_color.timer = 3
   elseif player_action == "flee" then
     if rnd() < 0.5 then
       add(combat_log, "escaped!")
@@ -511,6 +730,10 @@ function combat_step()
     enemy.hp = 0
     add(combat_log, "enemy defeated!")
     player.exp += 10
+    screen_shake(3, 10)
+    anim.flash_color.active = true
+    anim.flash_color.col = 11
+    anim.flash_color.timer = 8
     drop_loot(enemy.is_boss)
     if player.exp >= 30 then
       player.level += 1
@@ -521,6 +744,12 @@ function combat_step()
       player.def += 1
       add(combat_log, "level up!")
       _log("level_up:"..player.level)
+      -- level up particles and effects
+      add_particles(25, 35, 7, 6)
+      screen_shake(2, 8)
+      anim.flash_color.active = true
+      anim.flash_color.col = 7
+      anim.flash_color.timer = 5
     end
     combat_over = true
     player_won = true
@@ -536,6 +765,15 @@ function combat_step()
     end
     player.hp -= dmg
     add(combat_log, "enemy attacks! "..dmg.." dmg")
+    -- trigger enemy attack animation
+    anim.player_swing.active = true
+    anim.player_swing.frame = 0
+    add_damage_popup(dmg, 25, 40)
+    add_particles(25, 45, 8, 3)  -- red damage particles
+    screen_shake(1, 4)
+    anim.flash_color.active = true
+    anim.flash_color.col = 8
+    anim.flash_color.timer = 2
   else
     add(combat_log, "enemy defend!")
   end
@@ -544,6 +782,10 @@ function combat_step()
   if player.hp <= 0 then
     player.hp = 0
     add(combat_log, "you were defeated!")
+    screen_shake(4, 12)
+    anim.flash_color.active = true
+    anim.flash_color.col = 8
+    anim.flash_color.timer = 10
     combat_over = true
     player_won = false
   end
