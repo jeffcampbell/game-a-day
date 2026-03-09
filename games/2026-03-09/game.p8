@@ -149,13 +149,16 @@ items_menu_sel = 0
 
 -- multi-floor dungeon progression
 current_floor = 1
-max_floors = 5
+max_floors = 8
 floor_enemies = {
   {type=0, count=2},   -- floor 1: 2 goblins
   {type=1, count=2},   -- floor 2: 2 archers
   {type=2, count=2},   -- floor 3: 2 trolls
-  {type=3, count=1},   -- floor 4: 1 orc (mini-boss)
-  {type=4, count=1}    -- floor 5: 1 final boss
+  {type=4, count=1},   -- floor 4: shaman encounter
+  {type=3, count=1},   -- floor 5: 1 orc (mini-boss)
+  {type=5, count=1},   -- floor 6: mage encounter
+  {type=6, count=2},   -- floor 7: thief encounters
+  {type=7, count=1}    -- floor 8: 1 final boss
 }
 floor_enemy_idx = 1
 floor_combat_count = 0
@@ -239,6 +242,41 @@ enemy_abilities = {
   orc_challenge = {
     type = 3,
     hp_threshold = 0.4,
+    active = false,
+    duration = 0
+  },
+  -- shaman (type 4)
+  shaman_heal = {
+    type = 4,
+    hp_threshold = 0.6,
+    used = false
+  },
+  shaman_curse = {
+    type = 4,
+    hp_threshold = 0.4,
+    used = false
+  },
+  -- mage (type 5)
+  mage_fireball = {
+    type = 5,
+    hp_threshold = 0.7,
+    used = false
+  },
+  mage_shield = {
+    type = 5,
+    hp_threshold = 0.5,
+    active = false,
+    duration = 0
+  },
+  -- thief (type 6)
+  thief_backstab = {
+    type = 6,
+    hp_threshold = 0.6,
+    used = false
+  },
+  thief_evasion = {
+    type = 6,
+    hp_threshold = 0.3,
     active = false,
     duration = 0
   }
@@ -580,7 +618,13 @@ function draw_play()
   local enemy_name = "boss"
   local name_col = 8
   if not enemy.is_boss then
-    enemy_name = enemy.type == 1 and "goblin archer" or (enemy.type == 2 and "troll" or (enemy.type == 3 and "orc warrior" or "goblin"))
+    if enemy.type == 1 then enemy_name = "goblin archer"
+    elseif enemy.type == 2 then enemy_name = "troll"
+    elseif enemy.type == 3 then enemy_name = "orc warrior"
+    elseif enemy.type == 4 then enemy_name = "shaman"
+    elseif enemy.type == 5 then enemy_name = "mage"
+    elseif enemy.type == 6 then enemy_name = "thief"
+    else enemy_name = "goblin" end
     if enemy.is_elite then
       enemy_name = "ELITE "..enemy_name
       name_col = 9  -- orange for elite
@@ -1125,6 +1169,12 @@ function get_stat(t, stat)
     return stat == "hp" and 1.5 or (stat == "atk" and 0.8 or 1.0)
   elseif t == 3 then
     return stat == "hp" and 1.0 or (stat == "atk" and 1.2 or 1.2)
+  elseif t == 4 then  -- shaman: supportive, moderate stats
+    return stat == "hp" and 0.9 or (stat == "atk" and 0.9 or 0.9)
+  elseif t == 5 then  -- mage: low hp, high attack
+    return stat == "hp" and 0.7 or (stat == "atk" and 1.4 or 0.7)
+  elseif t == 6 then  -- thief: quick, fragile
+    return stat == "hp" and 0.6 or (stat == "atk" and 1.2 or 0.8)
   end
   return 1.0
 end
@@ -1284,24 +1334,39 @@ function get_enemy_ability()
     elseif hp_pct <= 0.4 and not enemy_abilities.orc_challenge.active then
       ability = "orc_challenge"
     end
+  elseif enemy.type == 4 then  -- shaman
+    if hp_pct <= 0.6 and not enemy_abilities.shaman_heal.used then
+      ability = "shaman_heal"
+    elseif hp_pct <= 0.4 and not enemy_abilities.shaman_curse.used then
+      ability = "shaman_curse"
+    end
+  elseif enemy.type == 5 then  -- mage
+    if hp_pct <= 0.7 and not enemy_abilities.mage_fireball.used then
+      ability = "mage_fireball"
+    elseif hp_pct <= 0.5 and not enemy_abilities.mage_shield.active then
+      ability = "mage_shield"
+    end
+  elseif enemy.type == 6 then  -- thief
+    if hp_pct <= 0.6 and not enemy_abilities.thief_backstab.used then
+      ability = "thief_backstab"
+    elseif hp_pct <= 0.3 and not enemy_abilities.thief_evasion.active then
+      ability = "thief_evasion"
+    end
   end
 
   -- difficulty scaling: hard mode has chance to use ability even without threshold
   if ability == nil and difficulty == 3 and rnd() < 0.1 then
     if enemy.type == 1 and not enemy_abilities.archer_rapid_fire.used then
       ability = "archer_rapid_fire"
-    elseif enemy.type == 2 and rnd() < 0.5 then
-      if not enemy_abilities.troll_stone_skin.active then
-        ability = "troll_stone_skin"
-      elseif not enemy_abilities.troll_regen.used then
-        ability = "troll_regen"
-      end
-    elseif enemy.type == 3 and rnd() < 0.5 then
-      if not enemy_abilities.orc_rage.active then
-        ability = "orc_rage"
-      elseif not enemy_abilities.orc_challenge.active then
-        ability = "orc_challenge"
-      end
+    elseif enemy.type == 4 and rnd() < 0.5 then
+      if not enemy_abilities.shaman_heal.used then ability = "shaman_heal"
+      elseif not enemy_abilities.shaman_curse.used then ability = "shaman_curse" end
+    elseif enemy.type == 5 and rnd() < 0.5 then
+      if not enemy_abilities.mage_fireball.used then ability = "mage_fireball"
+      elseif not enemy_abilities.mage_shield.active then ability = "mage_shield" end
+    elseif enemy.type == 6 and rnd() < 0.5 then
+      if not enemy_abilities.thief_backstab.used then ability = "thief_backstab"
+      elseif not enemy_abilities.thief_evasion.active then ability = "thief_evasion" end
     end
   end
 
@@ -1375,6 +1440,71 @@ function execute_enemy_ability(ability, player_def)
     enemy_abilities.orc_challenge.active = true
     enemy_abilities.orc_challenge.duration = 2
     _log("enemy_ability:orc_challenge")
+  elseif ability == "shaman_heal" then
+    add(combat_log, "shaman heals!")
+    enemy.hp = min(enemy.max_hp, enemy.hp + 4)
+    sfx(13)
+    add_damage_popup(-4, 85, 40)
+    anim.flash_color.active = true
+    anim.flash_color.col = 12
+    anim.flash_color.timer = 3
+    enemy_abilities.shaman_heal.used = true
+    _log("enemy_ability:shaman_heal")
+  elseif ability == "shaman_curse" then
+    add(combat_log, "shaman curses!")
+    apply_player_status("poison", 2)
+    sfx(11)
+    anim.flash_color.active = true
+    anim.flash_color.col = 13
+    anim.flash_color.timer = 2
+    enemy_abilities.shaman_curse.used = true
+    _log("enemy_ability:shaman_curse")
+  elseif ability == "mage_fireball" then
+    add(combat_log, "mage fireball!")
+    local dmg = max(1, flr(enemy.atk * 1.2) - flr(player_def * 0.5))
+    player.hp -= dmg
+    sfx(12)
+    add_damage_popup(dmg, 25, 40)
+    anim.flash_color.active = true
+    anim.flash_color.col = 8
+    anim.flash_color.timer = 2
+    enemy_abilities.mage_fireball.used = true
+    _log("enemy_ability:mage_fireball")
+  elseif ability == "mage_shield" then
+    add(combat_log, "mage shield!")
+    enemy.ability_active = true
+    enemy.ability_def_boost = 3
+    enemy.ability_duration = 2
+    sfx(15)
+    anim.flash_color.active = true
+    anim.flash_color.col = 12
+    anim.flash_color.timer = 2
+    enemy_abilities.mage_shield.active = true
+    enemy_abilities.mage_shield.duration = 2
+    _log("enemy_ability:mage_shield")
+  elseif ability == "thief_backstab" then
+    add(combat_log, "thief backstabs!")
+    local dmg = max(1, flr(enemy.atk * 1.3) - flr(player_def * 0.3))
+    player.hp -= dmg
+    sfx(4)
+    add_damage_popup(dmg, 25, 40)
+    anim.flash_color.active = true
+    anim.flash_color.col = 8
+    anim.flash_color.timer = 2
+    enemy_abilities.thief_backstab.used = true
+    _log("enemy_ability:thief_backstab")
+  elseif ability == "thief_evasion" then
+    add(combat_log, "thief evades!")
+    enemy.ability_active = true
+    enemy.ability_def_boost = 1
+    enemy.ability_duration = 2
+    sfx(15)
+    anim.flash_color.active = true
+    anim.flash_color.col = 6
+    anim.flash_color.timer = 2
+    enemy_abilities.thief_evasion.active = true
+    enemy_abilities.thief_evasion.duration = 2
+    _log("enemy_ability:thief_evasion")
   end
 end
 
@@ -1785,28 +1915,9 @@ function reset_combat()
     return r < 0.33 and "warrior" or (r < 0.67 and "mage" or "berserker")
   end
 
-  -- special handling for mini-boss (floor 4) and final boss (floor 5)
-  if current_floor == 4 then
-    -- floor 4: warrior mini-boss (always warrior, easier encounters)
-    enemy.boss_type = "warrior"
-    enemy.hp = 18
-    enemy.max_hp = 18
-    enemy.atk = 7
-    enemy.def = 2
-    enemy.is_boss = false
-    if difficulty == 1 then
-      enemy.hp = 12
-      enemy.max_hp = 12
-      enemy.atk = 4
-    elseif difficulty == 3 then
-      enemy.hp = 24
-      enemy.max_hp = 24
-      enemy.atk = 10
-    end
-    add(combat_log, "a powerful orc appears!")
-    _log("mini_boss:warrior")
-  elseif current_floor == 5 then
-    -- final boss: difficulty-based boss type
+  -- special handling for mini-boss (floor 5) and final boss (floor 8)
+  if current_floor == 8 then
+    -- floor 8: final boss: difficulty-based boss type
     enemy.boss_type = select_boss_type()
     local btype = boss_types[enemy.boss_type]
     enemy.hp = flr(30 * btype.hp_mult)
@@ -1862,7 +1973,13 @@ function reset_combat()
       enemy.def = flr(enemy.def * mult)
     end
 
-    local ename = floor_type == 1 and "goblin archer" or (floor_type == 2 and "troll" or (floor_type == 3 and "orc warrior" or "goblin"))
+    local ename = "goblin"
+    if floor_type == 1 then ename = "goblin archer"
+    elseif floor_type == 2 then ename = "troll"
+    elseif floor_type == 3 then ename = "orc warrior"
+    elseif floor_type == 4 then ename = "shaman"
+    elseif floor_type == 5 then ename = "mage"
+    elseif floor_type == 6 then ename = "thief" end
     if enemy.is_elite then ename = "ELITE "..ename end
     add(combat_log, "a "..ename.." appears!")
     _log("elite:"..tostr(enemy.is_elite))
