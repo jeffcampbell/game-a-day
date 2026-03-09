@@ -1585,14 +1585,6 @@ function draw_gameover()
  end
 
  -- draw animated main title
- local title_scale=1.0
- if time_in_gameover<60 then
-  -- pulse effect: scale from 1.2 to 1.0 over first second
-  title_scale=1.2-(time_in_gameover/60)*0.2
- else
-  -- subtle pulse after
-  title_scale=1.0+sin(time_in_gameover/20)*0.05
- end
 
  if gameover_is_win then
   -- victory effects
