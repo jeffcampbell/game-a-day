@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Real playtest session generator for difficulty validation.
+"""Synthetic playtest session generator for difficulty validation.
 
-Generates real gameplay sessions (marked is_synthetic: false) for Dungeon Crawler RPG
-by simulating realistic player patterns with explicit difficulty selection.
+Generates simulated gameplay sessions (marked is_synthetic: true) for Dungeon Crawler RPG
+by synthesizing realistic player patterns with explicit difficulty selection.
 
-Generates 4-5 sessions per difficulty level, allowing proper analysis of win rates
+NOTE: These are synthetic/simulated sessions, not real playtest data. They are useful for
+testing analysis pipelines and validating game mechanics, but should not be confused with
+actual human playtests (which come from run-interactive-test.py --record).
+
+Generates 4-5 sessions per difficulty level, allowing validation of win rates
 and session characteristics across Easy, Normal, and Hard modes.
 
 Usage:
@@ -314,10 +318,10 @@ def save_session(game_date, difficulty_idx, playstyle, session_data):
         "difficulty": difficulty_names[difficulty_idx],
         "playstyle": playstyle,
         "duration_frames": session_data["duration_frames"],
-        "button_sequence": [],  # Empty - real data generation
+        "button_sequence": [],  # Empty - simulated data generation
         "logs": session_data["logs"],
         "exit_state": session_data["exit_state"],
-        "is_synthetic": False  # Mark as real playtest data
+        "is_synthetic": True  # Mark as synthetic simulation data
     }
 
     with open(filename, 'w') as f:

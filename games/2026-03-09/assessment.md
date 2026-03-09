@@ -532,14 +532,14 @@ Conducted comprehensive difficulty validation using simulated playtest sessions 
 **Adjustment 1: Reduce Easy Mode Boss HP**
 - Changed: Boss final form 0.35 → 0.32 (32% of base HP)
 - Rationale: Easy mode target is 70%+ win rate; previous 50% showed insufficient forgiving difficulty
-- Regular enemy scaling: Increased 0.48 → 0.52 (52% of base)
-- Impact: Makes easy mode progressively more forgiving
+- Regular enemy scaling: Changed 0.50 → 0.52 (52% of base)
+- Impact: Boss reduction makes easy mode more forgiving; regular enemy increase (0.50→0.52) makes them slightly harder (52% vs 50% of base strength)
 
-**Adjustment 2: Reduce Hard Mode Boss HP**
+**Adjustment 2: Reduce Hard Mode Boss HP & Regular Enemies**
 - Changed: Boss final form 1.3 → 1.25 (125% of base HP)
 - Rationale: Hard mode was at 25% (too punishing); target is 40-50%
-- Boss attack scaling: Maintained at 1.25 (matched HP reduction)
-- Regular enemy scaling: Maintained at 1.30
+- Boss attack scaling: Reduced from 1.3 → 1.25 (matched HP reduction)
+- Regular enemy scaling: Reduced from 1.35 → 1.30 (130% of base)
 - Impact: Hard mode remains challenging but winnable
 
 **Token Cost**: 0 tokens (numeric constant adjustments don't increase token usage)
