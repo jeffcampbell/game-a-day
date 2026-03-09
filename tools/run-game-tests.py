@@ -281,7 +281,6 @@ def generate_test_report(game_dir, date, status, analysis, errors):
             'errors': errors,
             'state_transitions': analysis.get('expected_states', []),
             'logs_captured': analysis.get('log_count', 0),
-            'logs': analysis.get('expected_logs', [])[:20],  # Store first 20 expected logs
             'events': {
                 'state_transitions': len(analysis.get('state_transitions', {})),
                 'game_events': analysis.get('game_events', 0),
