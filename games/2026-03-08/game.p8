@@ -75,6 +75,12 @@ adventure_start_frame=0  -- track when adventure mode starts
 gameover_start_frame=-1000
 gameover_is_win=false
 
+-- badge system for endless mode milestones
+badges={wave_5=false,wave_10=false,wave_15=false,wave_20=false,wave_25=false,wave_30=false}
+badge_names={wave_5="wave 5",wave_10="wave 10",wave_15="wave 15",wave_20="wave 20",wave_25="wave 25",wave_30="wave 30+"}
+last_badge_unlock_id=nil  -- track most recent badge unlock
+last_badge_unlock_frame=-1000
+
 -- player
 player={x=64,y=100,w=8,h=8,speed=1.5,alive=true}
 
@@ -159,6 +165,25 @@ function unlock_achievement(id)
   last_unlock_id=id
   last_unlock_frame=frames
   _log("achievement:"..id)
+ end
+end
+
+function unlock_badge(wave_num)
+ local badge_id=nil
+ if wave_num==5 then badge_id="wave_5"
+ elseif wave_num==10 then badge_id="wave_10"
+ elseif wave_num==15 then badge_id="wave_15"
+ elseif wave_num==20 then badge_id="wave_20"
+ elseif wave_num==25 then badge_id="wave_25"
+ elseif wave_num>=30 then badge_id="wave_30"
+ end
+
+ if badge_id and not badges[badge_id] then
+  badges[badge_id]=true
+  last_badge_unlock_id=badge_id
+  last_badge_unlock_frame=frames
+  _log("badge:"..badge_id)
+  sfx(9)  -- victory fanfare for badge unlock
  end
 end
 
@@ -897,6 +922,9 @@ function update_play()
     unlock_achievement("hard_warrior")
    end
 
+   -- unlock badges for milestone waves
+   unlock_badge(wave)
+
    -- progressive difficulty: start at 3, increase by 1-2 per wave, cap at difficulty-dependent max
    local max_enemies=10
    if difficulty=="easy" then max_enemies=7
@@ -1545,6 +1573,37 @@ function draw_play()
  camera(0,0)
 end
 
+function draw_badges(x,y,time_in_gameover)
+ -- draws compact badge grid on gameover screen
+ if not is_endless then return end
+
+ local badge_list={"wave_5","wave_10","wave_15","wave_20","wave_25","wave_30"}
+ local badge_colors={14,11,10,8,5,6}
+ local cols=6  -- 6 badges in one row
+ local spacing=18
+
+ print("badges:",x,y,7)
+
+ for i,badge_id in ipairs(badge_list) do
+  if badges[badge_id] then
+   local bx=x+(i-1)*spacing+4
+   local by=y+8
+
+   -- pulsing effect for newly unlocked badge
+   local pulse=1
+   if badge_id==last_badge_unlock_id and time_in_gameover<120 then
+    pulse=1.5+sin(time_in_gameover/12)*0.3
+   end
+
+   -- draw small badge circle
+   local radius=flr(3*pulse)
+   local bcol=badge_colors[i]
+   circfill(bx,by,radius,bcol)
+   circfill(bx,by,radius-1,0)
+  end
+ end
+end
+
 function update_gameover()
  -- stop background music when game ends
  music(-1)
@@ -1681,8 +1740,21 @@ function draw_gameover()
   end
  end
 
- -- display newly unlocked achievement
- if last_unlock_id~=nil and frames-last_unlock_frame<180 then
+ -- display badges on endless mode gameover screen
+ if is_endless then
+  draw_badges(8,95,time_in_gameover)
+ end
+
+ -- display newly unlocked badge notification
+ if is_endless and last_badge_unlock_id~=nil and frames-last_badge_unlock_frame<120 then
+  local flash=(flr(frames/10)%2==0)
+  local badge_name=badge_names[last_badge_unlock_id] or last_badge_unlock_id
+  local col=13
+  if not flash then col=11 end
+  print("badge unlocked!",32,110,13)
+  print(badge_name,52-(#badge_name*2),117,col)
+ elseif last_unlock_id~=nil and frames-last_unlock_frame<180 then
+  -- display newly unlocked achievement
   local flash=(flr(frames/10)%2==0)
   local ach_name=achievement_names[last_unlock_id] or last_unlock_id
   local col=14
