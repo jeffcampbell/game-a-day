@@ -33,10 +33,8 @@ mode_cursor=1  -- 1=adventure, 2=endless, 3=tutorial
 score=0
 
 -- tutorial mode variables
-tutorial_phase=0  -- 0=intro, 1=dash, 2=shield, 3=challenge
 tutorial_frames=0
 tutorial_dash_count=0
-tutorial_shield_count=0
 tutorial_enemy=nil
 best_score=0
 best_endless_score=0
@@ -83,20 +81,10 @@ dash_streak=0  -- consecutive dashes without damage
 dash_flash_frames=0  -- screen flash effect duration
 dash_near_miss=false  -- did this dash avoid an enemy?
 
--- shield mechanics
-shield_cooldown=90  -- 1.5 seconds at 60fps
-last_shield_frame=-100
-shield_invuln_frames=30  -- 0.5 seconds at 60fps
-shield_invuln_start=-100
-prev_down_btn=0  -- track previous down button state for press detection
-
 -- discovery cues: track ready state for audio feedback
 dash_ready_last_frame=-1000
-shield_ready_last_frame=-1000
 player_used_dash=false
-player_used_shield=false
 level_2_dash_reminder=false
-level_3_shield_reminder=false
 damage_prompt_frame=-1000  -- when player took damage to show prompt
 first_hit_shown=false  -- track if we've shown first hit prompt
 
@@ -111,21 +99,10 @@ is_passive_player=false
 dash_count_first_5s=0
 passive_check_done=false
 
--- power-up system
-power_ups={}
-player_power_up=nil  -- current held power-up: {type,spawn_frame}
-prev_down_btn=0  -- track down button state for power-up activation
-power_up_spawn_frame=-10000
-power_up_spawned=false  -- track if power-up has spawned for this level
-
 function init_level()
  enemies={}
- power_ups={}
- player_power_up=nil
- power_up_spawn_frame=frames
  level_start_frame=frames
  level_score=0
- power_up_spawned=false
  boss=nil
  boss_health=0
  boss_hit_frame=-1000
@@ -143,7 +120,6 @@ function init_level()
 
  -- reset reminder flags for new level
  level_2_dash_reminder=false
- level_3_shield_reminder=false
 
  -- reset damage prompt for new level
  damage_prompt_frame=-1000
@@ -264,16 +240,8 @@ end
 
 function init_endless_level()
  enemies={}
- power_ups={}
- player_power_up=nil
- power_up_spawn_frame=frames
  level_start_frame=frames
  level_score=0
-
- -- reset shield state
- shield_invuln_start=-100
- last_shield_frame=-100
- prev_down_btn=0
 
  -- reset adaptive difficulty tracking
  hit_times={}
@@ -383,10 +351,8 @@ function update_tutorial_mode_select()
    _log("state:play")
   else
    state="tutorial_intro"
-   tutorial_phase=0
    tutorial_frames=0
    tutorial_dash_count=0
-   tutorial_shield_count=0
    player.x=32
    player.y=64
    enemies={}
@@ -431,8 +397,6 @@ function draw_menu()
  print("reach both levels",24,68,11)
  print("arrow keys move",28,80,11)
  print("x button dash!",32,90,11)
- print("down button: activate",22,98,11)
- print("power-ups!",40,104,11)
  print("z or x to start",32,114,11)
 end
 
@@ -484,7 +448,6 @@ function update_tutorial_intro()
  tutorial_frames+=1
  if tutorial_frames>120 then  -- 2 seconds at 60fps
   state="tutorial_dash"
-  tutorial_phase=1
   tutorial_frames=0
   tutorial_dash_count=0
   _log("state:tutorial_dash")
@@ -515,47 +478,11 @@ function update_tutorial_dash()
   last_dash_frame=frames
   _log("tutorial_dash_performed")
   if tutorial_dash_count>=3 then
-   state="tutorial_shield"
-   tutorial_phase=2
-   tutorial_frames=0
-   tutorial_shield_count=0
-   _log("state:tutorial_shield")
-  end
- end
-
- if test_input(4)>0 or tutorial_frames>300 then  -- 5 seconds max
-  state="menu"
-  _log("tutorial_skip")
- end
-end
-
-function update_tutorial_shield()
- tutorial_frames+=1
-
- -- handle movement
- local dx=0
- local dy=0
- if test_input(0)>0 then dx-=player.speed end
- if test_input(1)>0 then dx+=player.speed end
- if test_input(2)>0 then dy-=player.speed end
- if test_input(3)>0 then dy+=player.speed end
-
- player.x=mid(8,player.x+dx,120)
- player.y=mid(8,player.y+dy,120)
-
- -- shield detection (down button + not pressing it previously)
- local down_input=test_input(3)
- if down_input>0 and prev_down_btn==0 and frames-last_shield_frame>=shield_cooldown then
-  tutorial_shield_count+=1
-  last_shield_frame=frames
-  shield_invuln_start=frames
-  _log("tutorial_shield_performed")
-  if tutorial_shield_count>=3 then
    state="menu"
+   tutorial_frames=0
    _log("tutorial_complete")
   end
  end
- prev_down_btn=down_input
 
  if test_input(4)>0 or tutorial_frames>300 then  -- 5 seconds max
   state="menu"
@@ -568,7 +495,6 @@ function draw_tutorial_intro()
  print("welcome to tutorial",20,20,7)
  print("learn advanced tactics",16,35,11)
  print("x button dash fast",22,50,11)
- print("down shield protect",20,65,11)
  print("arrows to move",28,90,7)
  print("starting soon...",28,110,7)
 end
@@ -586,24 +512,6 @@ function draw_tutorial_dash()
  -- flash player if recently dashed
  if frames-last_dash_frame<dash_invuln_frames then
   spr(2,player.x-4,player.y-4)
- end
-
- print("z to skip",40,115,8)
-end
-
-function draw_tutorial_shield()
- cls(1)
- print("shield practice",28,15,7)
- print("hold down to shield",20,35,11)
- print("try 3 shields",32,50,11)
- print("progress: "..tutorial_shield_count.."/3",24,70,14)
-
- -- draw player
- spr(1,player.x-4,player.y-4)
-
- -- show shield if active
- if frames-shield_invuln_start<shield_invuln_frames then
-  circ(player.x,player.y,12,14)
  end
 
  print("z to skip",40,115,8)
@@ -682,24 +590,6 @@ function update_play()
   end
  end
 
- -- shield mechanic (o button)
- local shield_ready=frames-last_shield_frame>=shield_cooldown
- if test_input(4)>0 and shield_ready then
-  shield_invuln_start=frames
-  last_shield_frame=frames
-  player_used_shield=true
-  sfx(8)  -- shield activate beep (lower pitch)
-  _log("shield")
- end
-
- -- play ready cue when shield becomes available
- if shield_ready and frames-shield_ready_last_frame>60 then
-  if frames-last_shield_frame>shield_cooldown+5 then  -- just became ready
-   sfx(7)  -- shield ready beep
-   shield_ready_last_frame=frames
-  end
- end
-
  -- passive playstyle detection: check at 5 seconds mark
  if not passive_check_done and elapsed>=300 then
   passive_check_done=true
@@ -711,37 +601,6 @@ function update_play()
   end
  end
 
- -- power-up activation (down button)
- local down_btn=test_input(3)
- if down_btn>0 and prev_down_btn==0 and player_power_up~=nil then
-  -- activate held power-up
-  local ptype=player_power_up.type
-  sfx(4)
-  _log("power_use:"..ptype)
-
-  if ptype=="shield" then
-   shield_invuln_start=frames
-   last_shield_frame=frames
-  elseif ptype=="speed" then
-   player.speed=player.speed*2.0
-   player.speed_boost_end=frames+90  -- 1.5 seconds
-  elseif ptype=="slow" then
-   adaptive_speed_mult=0.5
-   player.slow_end=frames+120  -- 2 seconds
-  elseif ptype=="heal" then
-   health=min(health+1,3)
-  end
-
-  player_power_up=nil
- end
-
- -- auto-drop power-up if held for 10 seconds without use (600 frames)
- if player_power_up~=nil and frames-player_power_up.spawn_frame>600 then
-  _log("power_drop")
-  player_power_up=nil
- end
-
- prev_down_btn=down_btn
 
  player.x+=dx
  player.y+=dy
@@ -779,22 +638,6 @@ function update_play()
     add(enemies,{x=spawn_x,y=spawn_y,w=8,h=8,speed=speed_base*adaptive_speed_mult*passive_speed_mult,dir=dir})
    end
    _log("wave:"..wave)
-  end
-
-  -- endless mode power-up spawning: every 25 seconds (1500 frames)
-  if player_power_up==nil then
-   local endless_power_spawn_interval=1500
-
-   -- spawn power-up regularly in endless mode
-   if frames-power_up_spawn_frame>endless_power_spawn_interval then
-    power_up_spawn_frame=frames
-    local power_types={"shield","speed","slow","heal"}
-    local ptype=power_types[flr(rnd(4))+1]
-    local spawn_x=20+flr(rnd(88))
-    local spawn_y=20+flr(rnd(88))
-    add(power_ups,{x=spawn_x,y=spawn_y,w=8,h=8,type=ptype})
-    _log("power_spawn:"..ptype)
-   end
   end
 
  else
@@ -867,33 +710,8 @@ function update_play()
   -- calculate time bonus: 10 points per second survived, max 300 per level
   local level_elapsed=(frames-level_start_frame)/60
   level_score=flr(min(level_elapsed*10,300))
-
-  -- spawn power-up at specific time (only if not holding one)
-  if player_power_up==nil then
-   local power_types={"shield","speed","slow","heal"}
-   -- spawn power-up at 15 seconds (900 frames)
-   if not power_up_spawned and elapsed>=900 then
-    power_up_spawned=true
-    local ptype=power_types[flr(rnd(4))+1]
-    local spawn_x=20+flr(rnd(88))
-    local spawn_y=20+flr(rnd(88))
-    add(power_ups,{x=spawn_x,y=spawn_y,w=8,h=8,type=ptype})
-    _log("power_spawn:"..ptype)
-   end
-  end
  end
 
- -- update speed boost duration
- if player.speed_boost_end~=nil and frames>=player.speed_boost_end then
-  player.speed=player.speed/2.0
-  player.speed_boost_end=nil
- end
-
- -- update slow enemies duration
- if player.slow_end~=nil and frames>=player.slow_end then
-  adaptive_speed_mult=1.0
-  player.slow_end=nil
- end
 
  -- boss update and collision (level 3 only)
  if boss~=nil then
@@ -905,13 +723,9 @@ function update_play()
 
   -- boss collision detection
   local is_dash_invuln=frames-dash_invuln_start<dash_invuln_frames
-  local is_shield_invuln=frames-shield_invuln_start<shield_invuln_frames
 
   if collide(player,boss) then
-   if is_shield_invuln then
-    -- shield blocks the collision
-    _log("shield_block")
-   elseif not is_dash_invuln then
+   if not is_dash_invuln then
     -- hit boss
     boss.health-=1
     boss_hit_frame=frames
@@ -938,14 +752,10 @@ function update_play()
    e.dir=-e.dir
   end
 
-  -- check collision only if not in invulnerability window (dash or shield)
+  -- check collision only if not in invulnerability window (dash)
   local is_dash_invuln=frames-dash_invuln_start<dash_invuln_frames
-  local is_shield_invuln=frames-shield_invuln_start<shield_invuln_frames
   if collide(player,e) then
-   if is_shield_invuln then
-    -- shield blocks the collision
-    _log("shield_block")
-   elseif not is_dash_invuln then
+   if not is_dash_invuln then
     -- take damage from enemy
     health-=1
     dash_streak=0  -- reset dash streak on damage
@@ -987,17 +797,6 @@ function update_play()
      last_near_miss_frame=frames
     end
    end
-  end
- end
-
- -- power-up collision detection
- for i=#power_ups,1,-1 do
-  local p=power_ups[i]
-  if collide(player,p) then
-   player_power_up={type=p.type,spawn_frame=frames}
-   _log("power_pickup:"..p.type)
-   sfx(4)
-   del(power_ups,p)
   end
  end
 
@@ -1046,13 +845,10 @@ function draw_play()
  end
 
  if player.alive then
-  -- change color during shield or dash invulnerability
+  -- change color during dash invulnerability
   local is_dash_invuln=frames-dash_invuln_start<dash_invuln_frames
-  local is_shield_invuln=frames-shield_invuln_start<shield_invuln_frames
 
-  if is_shield_invuln then
-   pal(11,9)  -- shield: change to cyan
-  elseif is_dash_invuln then
+  if is_dash_invuln then
    pal(11,7)  -- dash: change to white
   end
 
@@ -1085,21 +881,8 @@ function draw_play()
   spr(2,exit_portal.x-4,exit_portal.y-4)
  end
 
- -- draw power-ups
- for i=1,#power_ups do
-  local p=power_ups[i]
-  local spr_id=2  -- default
-  if p.type=="shield" then spr_id=3
-  elseif p.type=="speed" then spr_id=4
-  elseif p.type=="slow" then spr_id=5
-  elseif p.type=="heal" then spr_id=6
-  end
-  spr(spr_id,p.x-4,p.y-4)
- end
-
  -- draw mechanic ready indicators at top right
  local dash_ready=frames-last_dash_frame>=dash_cooldown
- local shield_ready=frames-last_shield_frame>=shield_cooldown
 
  -- dash indicator (X button)
  local dash_color=5  -- red when on cooldown
@@ -1107,14 +890,6 @@ function draw_play()
  rectfill(110,1,121,9,dash_color)
  if dash_ready then
   print("x",113,2,0)  -- show "x" in black when ready
- end
-
- -- shield indicator (O button)
- local shield_color=5  -- red when on cooldown
- if shield_ready then shield_color=11 end  -- cyan when ready
- rectfill(110,11,121,19,shield_color)
- if shield_ready then
-  print("o",114,12,0)  -- show "o" in black when ready
  end
 
  if is_endless then
@@ -1134,21 +909,12 @@ function draw_play()
   if boss~=nil then
    print("boss hp:"..max(0,boss.health),55,12,8)
   end
-  -- display held power-up with activation hint
-  if player_power_up~=nil then
-   print("pow:"..player_power_up.type,50,22,10)
-   print("press down!",52,32,11)
-  end
 
   -- show tutorial reminders for unused mechanics
   local elapsed=frames-level_start_frame
   if level==2 and not player_used_dash and elapsed>600 and not level_2_dash_reminder then
    print("try x!",58,120,11)  -- prompt for dash
    level_2_dash_reminder=true
-  end
-  if level==3 and not player_used_shield and elapsed>600 and not level_3_shield_reminder then
-   print("press o!",55,120,11)  -- prompt for shield
-   level_3_shield_reminder=true
   end
 
   -- dash streak counter and early game prompt
@@ -1177,7 +943,6 @@ function update_gameover()
  music(-1)
  if test_input(4)>0 or test_input(5)>0 then
   state="menu"
-  prev_down_btn=0
   _log("state:menu")
  end
 end
@@ -1231,7 +996,6 @@ function _update()
  elseif state=="difficulty_select" then update_difficulty_select()
  elseif state=="tutorial_intro" then update_tutorial_intro()
  elseif state=="tutorial_dash" then update_tutorial_dash()
- elseif state=="tutorial_shield" then update_tutorial_shield()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
  end
@@ -1244,7 +1008,6 @@ function _draw()
  elseif state=="difficulty_select" then draw_difficulty_select()
  elseif state=="tutorial_intro" then draw_tutorial_intro()
  elseif state=="tutorial_dash" then draw_tutorial_dash()
- elseif state=="tutorial_shield" then draw_tutorial_shield()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
  end
