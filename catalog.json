@@ -1,5 +1,5 @@
 {
-  "generated": "2026-03-09T13:27:42.667722",
+  "generated": "2026-03-09T13:32:06.483449",
   "version": "1.0",
   "total_games": 14,
   "statistics": {
@@ -64,7 +64,7 @@
         "gameover",
         "menu"
       ],
-      "logs_captured": 14,
+      "logs_captured": 13,
       "sessions_recorded": 0,
       "completion_rate": 0.0,
       "has_insights": false,
