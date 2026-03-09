@@ -11,21 +11,22 @@
     "state_transitions": [
       "tutorial_mode_select",
       "difficulty_select",
-      "play",
+      "endless_difficulty_select",
       "tutorial_intro",
+      "play",
       "tutorial_dash",
       "menu"
     ],
-    "logs_captured": 70,
+    "logs_captured": 78,
     "events": {
-      "state_transitions": 6,
-      "game_events": 60,
+      "state_transitions": 7,
+      "game_events": 67,
       "gameover_events": 3
     },
     "exit_state": "analysis_complete",
     "metadata": {
       "title": "Cave Escape",
-      "description": "Navigate a dangerous cave while avoiding enemies. Progress through five escalating levels to escape to freedom. Use arrow keys to move and reach the glowing exit portal before you run out of health. Master the dash mechanic (X button) - Level 4 teaches tight corridor navigation while Level 5 presents expert rapid-dash challenges.",
+      "description": "Navigate a dangerous cave while avoiding enemies in adventure mode or survive infinite waves in endless mode. Progress through five escalating levels in adventure mode, or face endless waves of enemies with difficulty scaling (easy/normal/hard). Use arrow keys to move and the dash mechanic (X button) to dodge. Master the dash mechanic - Level 4 teaches tight corridor navigation while Level 5 presents expert rapid-dash challenges. In endless mode, survive waves, rack up score multipliers, and beat your best score.",
       "genres": [
         "adventure",
         "action"
