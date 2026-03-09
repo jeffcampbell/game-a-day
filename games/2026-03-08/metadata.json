@@ -1,19 +1,23 @@
 {
   "title": "Cave Escape",
-  "description": "Navigate a dangerous cave while avoiding enemies. Progress through five escalating levels to escape to freedom. Use arrow keys to move and reach the glowing exit portal before you run out of health. Master the dash mechanic (X button) - Level 4 teaches tight corridor navigation while Level 5 presents expert rapid-dash challenges.",
+  "description": "Navigate a dangerous cave while avoiding enemies in adventure mode or survive infinite waves in endless mode. Progress through five escalating levels in adventure mode, or face endless waves of enemies with difficulty scaling (easy/normal/hard). Use arrow keys to move and the dash mechanic (X button) to dodge. Master the dash mechanic - Level 4 teaches tight corridor navigation while Level 5 presents expert rapid-dash challenges. In endless mode, survive waves, rack up score multipliers, and beat your best score.",
   "release_date": "2026-03-08",
   "genres": [
     "adventure",
     "action"
   ],
+  "game_modes": [
+    "adventure",
+    "endless"
+  ],
   "theme": "exploration",
   "difficulty": 3,
   "playtime_minutes": 8,
   "target_audience": "general",
-  "keywords": ["dodge", "exploration", "adventure", "five-level", "dash", "tutorial", "expert"],
+  "keywords": ["dodge", "exploration", "adventure", "five-level", "dash", "tutorial", "expert", "endless", "waves", "survival", "score"],
   "completion_status": "polished",
-  "tester_notes": "Extended to 5 levels. Level 4 is dash tutorial with tight corridors (3 enemies, slower). Level 5 is expert challenge with 5 rapid enemies at normal speed. Target completion rate 70%+ with adaptive difficulty scaling.",
-  "token_count": 4509,
+  "tester_notes": "Extended to 5 levels with endless mode. Adventure mode: Level 4 is dash tutorial with tight corridors (3 enemies, slower). Level 5 is expert challenge with 5 rapid enemies at normal speed. Endless mode: Wave-based survival with difficulty scaling (easy/normal/hard). Easy: 45s wave intervals, 60% enemy count, 0.6x speed, 0.7x score. Normal: 30s intervals, normal scaling. Hard: 21s intervals, 120% enemies, 1.3x speed, 1.5x score. Target completion rate 50%+ per difficulty with adaptive difficulty scaling.",
+  "token_count": 5411,
   "sprite_count": 3,
-  "sound_count": 4
+  "sound_count": 8
 }
