@@ -4,9 +4,9 @@
   "genres": ["rpg"],
   "difficulty": 3,
   "playtime_minutes": 5,
-  "completion_status": "complete",
+  "completion_status": "polished",
   "target_audience": "general",
-  "token_count": 4404,
+  "token_count": 7581,
   "sprite_count": 6,
   "sound_count": 18
 }
