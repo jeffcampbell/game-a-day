@@ -76,13 +76,15 @@ function update_play()
   if btnp(2) then cursor.y = max(0, cursor.y-1) end
   if btnp(3) then cursor.y = min(15, cursor.y+1) end
 
-  -- select tower type
-  if btnp(4) and tower_type < 3 then tower_type += 1
-  elseif btnp(5) and tower_type > 1 then tower_type -= 1
+  -- cycle tower type (x button)
+  if btnp(5) then
+    tower_type += 1
+    if tower_type > 3 then tower_type = 1 end
+    _log("tower_selected:"..t_names[tower_type])
   end
 
-  -- place tower (x button)
-  if btnp(5) and gold >= t_cost[tower_type] then
+  -- place tower (z button)
+  if btnp(4) and gold >= t_cost[tower_type] then
     local ok = true
     for t in all(towers) do
       if t.x == cursor.x and t.y == cursor.y then ok = false end
