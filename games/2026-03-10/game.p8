@@ -32,6 +32,7 @@ tower_type = 1
 towers = {}
 enemies = {}
 wave_timer = 0
+selected_tower = nil -- for selling
 
 -- tower types: 1=basic(cost:10), 2=spread(cost:20), 3=slow(cost:15)
 t_cost = {10, 20, 15}
@@ -63,9 +64,11 @@ function update_menu()
 end
 
 function spawn_wave()
-  local count = 2 + wave
+  -- reduced spawn rates for better pacing
+  local count = 2 + flr(wave * 0.8)
+  local base_speed = 0.2 + wave * 0.04
   for i=1, count do
-    add(enemies, {x=-i*8, y=rnd(16), speed=0.25+wave*0.05, hp=1, age=0})
+    add(enemies, {x=-i*8, y=rnd(16), speed=base_speed, hp=1, age=0, hit_flash=0})
   end
   _log("wave:"..wave)
 end
@@ -84,13 +87,25 @@ function update_play()
     _log("tower_selected:"..t_names[tower_type])
   end
 
-  -- place tower (z button)
-  if btnp(4) and gold >= t_cost[tower_type] then
-    local ok = true
+  -- place tower (z button) or sell tower
+  if btnp(4) then
+    -- check if cursor is on existing tower
+    local tower_at_cursor = nil
     for t in all(towers) do
-      if t.x == cursor.x and t.y == cursor.y then ok = false end
+      if t.x == cursor.x and t.y == cursor.y then
+        tower_at_cursor = t
+        break
+      end
     end
-    if ok then
+
+    if tower_at_cursor then
+      -- sell tower for 50% refund
+      gold += flr(t_cost[tower_at_cursor.type] * 0.5)
+      del(towers, tower_at_cursor)
+      sfx(2)
+      _log("tower_sold")
+    elseif gold >= t_cost[tower_type] then
+      -- place new tower
       add(towers, {x=cursor.x, y=cursor.y, type=tower_type})
       gold -= t_cost[tower_type]
       sfx(tower_type - 1)
@@ -102,6 +117,7 @@ function update_play()
   for e in all(enemies) do
     e.age += 1
     e.x += e.speed
+    e.hit_flash -= 1
 
     -- lost
     if e.x > 15 then
@@ -136,15 +152,20 @@ function update_play()
         -- spread: hit multiple
         for e in all(enemies) do
           local d = abs(e.x - target.x) + abs(e.y - target.y)
-          if d <= 2 then e.hp -= 0.5 end
+          if d <= 2 then
+            e.hp -= 0.5
+            e.hit_flash = 3
+          end
         end
       elseif t.type == 3 then
         -- slow: deals damage and slows
         target.hp -= 1
+        target.hit_flash = 3
         target.speed = 0.05
       else
         -- basic
         target.hp -= 1
+        target.hit_flash = 3
       end
     end
   end
@@ -235,10 +256,11 @@ function draw_play()
     circ(t.x*8+4, t.y*8+4, t_range[t.type]*8, col)
   end
 
-  -- cursor
+  -- cursor (improved visibility)
   local cx = cursor.x*8
   local cy = cursor.y*8
-  rect(cx, cy, cx+7, cy+7, 7)
+  rect(cx, cy, cx+7, cy+7, 15)
+  rect(cx+1, cy+1, cx+6, cy+6, 7)
 
   -- enemies
   for e in all(enemies) do
@@ -250,16 +272,22 @@ function draw_play()
     else
       spr(3, ex, ey)
     end
+    -- hit flash effect
+    if e.hit_flash > 0 then
+      rectfill(ex, ey, ex+7, ey+7, 7)
+    end
   end
 
-  -- info
+  -- tower selector (improved clarity)
+  local sname = t_names[tower_type]
+  local sel_str = sname.." ($"..t_cost[tower_type]..")"
+  rectfill(2, 2, 80, 10, 1)
+  print(sel_str, 5, 4, 7)
+
+  -- info bar at bottom
   print("wave "..wave.."/5", 3, 120, 7)
   print("gold "..gold, 40, 120, 11)
   print("lives "..lives, 75, 120, 12)
-
-  -- tower selector
-  local sname = t_names[tower_type]
-  print(sname.."($"..t_cost[tower_type]..")", 5, 3, 7)
 end
 
 function draw_gameover()
