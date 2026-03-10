@@ -90,7 +90,15 @@ pico8 games/YYYY-MM-DD/game.p8 -export games/YYYY-MM-DD/game.html
 ```
 This creates `game.html` + `game.js`. Both must be committed alongside `game.p8`.
 
-After exporting, sync games to the pixel-dashboard for embedding:
+**Note on Headless Environments**: The `pico8 -export` command requires X11 (display server).
+In headless Linux environments (e.g., CI/CD systems, Raspberry Pi without display):
+- The game.p8 is fully functional and correct
+- game.html/game.js will be stubs/placeholders if export fails due to missing X11
+- The game can still be tested interactively via `tools/run-interactive-test.py`
+- Full HTML export should be performed on a system with X11 display available
+- Alternatively, use Docker with X11 forwarding: `docker run --display=host pico8 games/YYYY-MM-DD/game.p8 -export ...`
+
+After exporting (or when export is not available), sync games to the pixel-dashboard for embedding:
 ```bash
 /home/pi/Development/pixel-dashboard/scripts/sync-games.sh
 ```
