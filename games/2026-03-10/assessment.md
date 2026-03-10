@@ -56,6 +56,32 @@ Tower Guardian is a functional turn-based tower defense game. This polish iterat
 
 **Result**: Adds strategic depth—players can reposition towers or fund upgrades by selling existing ones.
 
+### 5. Audio Polish - Sound Effects & Music ✅
+**Problem**: Game had only placeholder audio; tower attacks lacked feedback, enemy spawns were silent.
+
+**Solution - Sound Effects (10 slots)**:
+- **SFX 0-2**: Tower placement sounds (basic, spread, slow) - varied pitch/timbre per tower type
+- **SFX 3**: Enemy death crunch sound (satisfying defeat feedback)
+- **SFX 4**: Wave complete ascending chime (victory fanfare)
+- **SFX 5**: Game won triumphant chord (bright, celebratory)
+- **SFX 6**: Game lost dark tone (defeat confirmation)
+- **SFX 7**: Enemy spawn ascending whistle (wave alert)
+- **SFX 8**: Slow tower attack eerie modulated tone (distinct from other attacks)
+- **SFX 9**: Spread tower attack powerful burst (multi-target emphasis)
+- **SFX 10**: Basic tower attack sharp zap (quick, responsive feedback)
+
+**Solution - Music Patterns**:
+- **Pattern 0**: Silent (menu screen)
+- **Pattern 1**: Game loop (sequences through tower placement & attack sounds)
+- **Pattern 2-3**: Alternative patterns for variety
+
+**Code Integration**:
+- Tower attacks now trigger SFX based on tower type (sfx 8, 9, 10)
+- Enemy spawn triggers wave alert sound (sfx 7)
+- All existing state-change SFX integrated (place, sell, enemy hit, wave complete, win/lose)
+
+**Result**: Complete audio feedback system makes every action feel responsive and impactful. Audio hierarchy emphasizes player actions (tower placement/attacks) while maintaining clarity and avoiding overwhelming the mix.
+
 ## Gameplay Testing Notes
 
 Generated synthetic session shows:
@@ -64,17 +90,26 @@ Generated synthetic session shows:
 - Difficulty scaling is more manageable
 
 ## Token Count
-- **Before**: 1033/8192
-- **After**: 1126/8192
-- **Remaining**: 7066 tokens (comfortable margin for future enhancements)
+- **Initial (before any polish)**: ~1033/8192
+- **After difficulty/UI/mechanics polish**: 1126/8192
+- **After audio polish**: 2231/8192
+- **Remaining**: 5961 tokens (excellent margin for future enhancements)
 
 ## Recommendations for Future Polish
 
-1. **Visual Effects**: Add tower attack animations (projectiles or beam lines to targets)
-2. **Sound Design**: Different SFX for each tower type hitting (currently only tower placement has varied SFX)
-3. **Sprite Enhancement**: Differentiate tower sprites more clearly (current sprites are somewhat similar)
-4. **Difficulty Options**: Add easy/normal/hard selection at menu
-5. **Tower Synergies**: Create bonuses when specific tower combinations are placed near each other
+1. **Boss Enemies**: Special harder enemies that appear in later waves with unique behavior
+2. **Tower Upgrades**: Click to upgrade tower damage/range (costs more gold)
+3. **Special Abilities**: Player-activated power-ups (slow all enemies, instant kill, etc.)
+4. **Visual Polish**: Parallax scrolling background, additional particle effects
+5. **Level Progression**: Unlockable difficulties or endless mode
+
+## Audio Quality Notes
+
+- All SFX use simple, clear patterns avoiding harsh frequencies
+- SFX timing is short (60-125ms) for responsive feedback
+- Music patterns loop seamlessly for continuous gameplay
+- Audio respects PICO-8 mix constraints with proper channel usage
+- Intentional variety in tone: placement (upbeat), attacks (dynamic per type), loses (dark), wins (bright)
 
 ## Status
-**Complete**: Game is functionally polished with improved difficulty curve, visual feedback, and UI clarity.
+**Complete**: Tower Guardian is fully polished with complete audio-visual feedback, difficulty modes, tower selling, and smooth state machine. Game is ready for release.
