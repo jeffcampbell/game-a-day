@@ -33,10 +33,12 @@ towers = {}
 enemies = {}
 beams = {}
 bursts = {}
+particles = {}
 wave_timer = 0
 selected_tower = nil -- for selling
 difficulty = 2 -- 1=easy, 2=normal, 3=hard
 difficulty_cursor = 2 -- cursor for difficulty selection
+screen_shake = 0 -- screen shake intensity/timer
 
 -- difficulty settings
 diff_max_waves = {3, 5, 7}
@@ -85,7 +87,9 @@ function update_difficulty_select()
     enemies = {}
     beams = {}
     bursts = {}
+    particles = {}
     wave_timer = 0
+    screen_shake = 0
     _log("state:play")
     music(1)
     spawn_wave()
@@ -104,6 +108,17 @@ function spawn_wave()
     add(enemies, {x=-i*8, y=rnd(16), speed=base_speed, hp=1, age=0, hit_flash=0})
   end
   _log("wave:"..wave)
+end
+
+function create_particles(cx, cy, count)
+  -- create radiating particles from impact point
+  for i=1, count do
+    local angle = (i / count) * 1 -- angle in turns (0-1)
+    local speed = 0.3 + rnd(0.2)
+    local vx = cos(angle) * speed
+    local vy = sin(angle) * speed
+    add(particles, {x=cx, y=cy, vx=vx, vy=vy, age=0, ttl=4})
+  end
 end
 
 function update_play()
@@ -181,6 +196,10 @@ function update_play()
     end
 
     if target then
+      -- check if close range for screen shake
+      local close = abs(target.x - t.x) < 4
+      if close then screen_shake = 3 end
+
       if t.type == 2 then
         -- spread: hit multiple
         _log("tower_attack:spread")
@@ -190,9 +209,10 @@ function update_play()
             e.hp -= 0.5
             e.hit_flash = 3
             -- create beam from tower to this enemy
-            add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(e.x)*8+4, y1=e.y*8+4, age=0, duration=3})
-            -- create burst at enemy
-            add(bursts, {x=flr(e.x)*8+4, y=e.y*8+4, age=0})
+            add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(e.x)*8+4, y1=e.y*8+4, age=0, duration=3, type=2})
+            -- create burst at enemy with particles
+            add(bursts, {x=flr(e.x)*8+4, y=e.y*8+4, age=0, type=2})
+            create_particles(flr(e.x)*8+4, e.y*8+4, 10)
           end
         end
       elseif t.type == 3 then
@@ -202,18 +222,20 @@ function update_play()
         target.hit_flash = 3
         target.speed = 0.05
         -- create beam from tower to target
-        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0, duration=3})
-        -- create burst at target
-        add(bursts, {x=flr(target.x)*8+4, y=target.y*8+4, age=0})
+        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0, duration=3, type=3})
+        -- create burst at target with particles
+        add(bursts, {x=flr(target.x)*8+4, y=target.y*8+4, age=0, type=3})
+        create_particles(flr(target.x)*8+4, target.y*8+4, 8)
       else
         -- basic
         _log("tower_attack:basic")
         target.hp -= 1
         target.hit_flash = 3
         -- create beam from tower to target
-        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0, duration=3})
-        -- create burst at target
-        add(bursts, {x=flr(target.x)*8+4, y=target.y*8+4, age=0})
+        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0, duration=3, type=1})
+        -- create burst at target with particles
+        add(bursts, {x=flr(target.x)*8+4, y=target.y*8+4, age=0, type=1})
+        create_particles(flr(target.x)*8+4, target.y*8+4, 9)
       end
     end
   end
@@ -243,6 +265,21 @@ function update_play()
     if b.age > 2 then
       del(bursts, b)
     end
+  end
+
+  -- update particles
+  for p in all(particles) do
+    p.x += p.vx
+    p.y += p.vy
+    p.age += 1
+    if p.age > p.ttl then
+      del(particles, p)
+    end
+  end
+
+  -- decay screen shake
+  if screen_shake > 0 then
+    screen_shake -= 1
   end
 
   -- wave progress
@@ -318,6 +355,15 @@ function draw_difficulty_select()
 end
 
 function draw_play()
+  -- apply screen shake
+  local shake_x = 0
+  local shake_y = 0
+  if screen_shake > 0 then
+    shake_x = (screen_shake % 2 == 0) and 1 or -1
+    shake_y = (screen_shake % 2 == 1) and 1 or 0
+  end
+  camera(shake_x, shake_y)
+
   -- grid background
   for x=0, 15 do
     line(x*8, 0, x*8, 127, 1)
@@ -347,21 +393,70 @@ function draw_play()
   rect(cx, cy, cx+7, cy+7, 15)
   rect(cx+1, cy+1, cx+6, cy+6, 7)
 
-  -- draw beams (tower attack animations) with fade effect
+  -- draw beams (tower attack animations) with variety by tower type
   for b in all(beams) do
-    -- fade: bright yellow initially, dimmer over time
     local col = 11
-    if b.age > b.duration - 1 then col = 7 end -- last frame: dim
-    line(b.x0, b.y0, b.x1, b.y1, col)
+    if b.age > b.duration - 1 then col = 7 end
+
+    if b.type == 1 then
+      -- basic: thin single line
+      line(b.x0, b.y0, b.x1, b.y1, col)
+    elseif b.type == 2 then
+      -- spread: thick lines for more impact
+      line(b.x0, b.y0, b.x1, b.y1, col)
+      if b.age < 2 then
+        line(b.x0+1, b.y0, b.x1+1, b.y1, col)
+        line(b.x0-1, b.y0, b.x1-1, b.y1, col)
+      end
+    else
+      -- slow: wavy line with pulsing color
+      line(b.x0, b.y0, b.x1, b.y1, col)
+      if b.age % 2 == 0 then
+        -- pulsing glow
+        local pc = col == 7 and 7 or 8
+        line(b.x0+1, b.y0+1, b.x1+1, b.y1+1, pc)
+      end
+    end
   end
 
-  -- draw bursts (impact effects)
+  -- draw bursts (multi-ring explosion patterns)
   for b in all(bursts) do
-    -- burst: expanding circles, fading with age
-    local size = 1 + b.age
     local col = 9
-    if b.age > 1 then col = 8 end -- dim on frame 2
-    circ(b.x, b.y, size, col)
+    if b.age > 1 then col = 8 end
+
+    if b.type == 1 then
+      -- basic: 3-ring expansion
+      local r1 = b.age + 1
+      circ(b.x, b.y, r1, col)
+    elseif b.type == 2 then
+      -- spread: wider rings
+      local r1 = b.age + 1
+      local r2 = b.age * 1.5
+      circ(b.x, b.y, r1, col)
+      if b.age < 2 then circ(b.x, b.y, r2 + 1, 9) end
+    else
+      -- slow: slow expanding rings
+      local r1 = flr(b.age * 0.8) + 1
+      local r2 = flr(b.age * 1.2) + 2
+      local r3 = flr(b.age * 1.6) + 3
+      circ(b.x, b.y, r1, col)
+      if b.age < 2 then
+        circ(b.x, b.y, r2, 8)
+        circ(b.x, b.y, r3, 5)
+      end
+    end
+  end
+
+  -- draw particles
+  for p in all(particles) do
+    local px = flr(p.x)
+    local py = flr(p.y)
+    local pcol = 11 - flr((p.age / p.ttl) * 4) -- fade from yellow to dim
+    pset(px, py, pcol)
+    if p.age < 2 then
+      pset(px+1, py, pcol)
+      pset(px, py+1, pcol)
+    end
   end
 
   -- enemies
@@ -379,6 +474,9 @@ function draw_play()
       rectfill(ex, ey, ex+7, ey+7, 7)
     end
   end
+
+  -- reset camera
+  camera(0, 0)
 
   -- tower selector (improved clarity)
   local sname = t_names[tower_type]
