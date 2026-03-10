@@ -32,6 +32,7 @@ tower_type = 1
 towers = {}
 enemies = {}
 beams = {}
+bursts = {}
 wave_timer = 0
 selected_tower = nil -- for selling
 difficulty = 2 -- 1=easy, 2=normal, 3=hard
@@ -83,6 +84,7 @@ function update_difficulty_select()
     towers = {}
     enemies = {}
     beams = {}
+    bursts = {}
     wave_timer = 0
     _log("state:play")
     music(1)
@@ -181,28 +183,37 @@ function update_play()
     if target then
       if t.type == 2 then
         -- spread: hit multiple
+        _log("tower_attack:spread")
         for e in all(enemies) do
           local d = abs(e.x - target.x) + abs(e.y - target.y)
           if d <= 2 then
             e.hp -= 0.5
             e.hit_flash = 3
             -- create beam from tower to this enemy
-            add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(e.x)*8+4, y1=e.y*8+4, age=0})
+            add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(e.x)*8+4, y1=e.y*8+4, age=0, duration=3})
+            -- create burst at enemy
+            add(bursts, {x=flr(e.x)*8+4, y=e.y*8+4, age=0})
           end
         end
       elseif t.type == 3 then
         -- slow: deals damage and slows
+        _log("tower_attack:slow")
         target.hp -= 1
         target.hit_flash = 3
         target.speed = 0.05
         -- create beam from tower to target
-        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0})
+        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0, duration=3})
+        -- create burst at target
+        add(bursts, {x=flr(target.x)*8+4, y=target.y*8+4, age=0})
       else
         -- basic
+        _log("tower_attack:basic")
         target.hp -= 1
         target.hit_flash = 3
         -- create beam from tower to target
-        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0})
+        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0, duration=3})
+        -- create burst at target
+        add(bursts, {x=flr(target.x)*8+4, y=target.y*8+4, age=0})
       end
     end
   end
@@ -221,8 +232,16 @@ function update_play()
   -- update beams (age and remove expired ones)
   for b in all(beams) do
     b.age += 1
-    if b.age > 2 then
+    if b.age > b.duration then
       del(beams, b)
+    end
+  end
+
+  -- update bursts (age and remove expired ones)
+  for b in all(bursts) do
+    b.age += 1
+    if b.age > 2 then
+      del(bursts, b)
     end
   end
 
@@ -328,9 +347,21 @@ function draw_play()
   rect(cx, cy, cx+7, cy+7, 15)
   rect(cx+1, cy+1, cx+6, cy+6, 7)
 
-  -- draw beams (tower attack animations)
+  -- draw beams (tower attack animations) with fade effect
   for b in all(beams) do
-    line(b.x0, b.y0, b.x1, b.y1, 11)
+    -- fade: bright yellow initially, dimmer over time
+    local col = 11
+    if b.age > b.duration - 1 then col = 7 end -- last frame: dim
+    line(b.x0, b.y0, b.x1, b.y1, col)
+  end
+
+  -- draw bursts (impact effects)
+  for b in all(bursts) do
+    -- burst: expanding circles, fading with age
+    local size = 1 + b.age
+    local col = 9
+    if b.age > 1 then col = 8 end -- dim on frame 2
+    circ(b.x, b.y, size, col)
   end
 
   -- enemies
