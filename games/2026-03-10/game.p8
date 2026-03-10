@@ -27,7 +27,7 @@ state = "menu"
 score = 0
 keys_collected = 0
 keys_needed = 3
-time_left = 300 -- 5 seconds at 60fps
+time_left = 18000 -- 300 seconds (5 minutes) at 60fps
 won = false
 
 -- player
@@ -52,7 +52,7 @@ function init_game()
     {x=80, y=80, unlocked=false}
   }
   keys_collected = 0
-  time_left = 300
+  time_left = 18000
   won = false
   px, py = 64, 64
   _log("state:play")
@@ -80,10 +80,10 @@ function update_play()
   time_left -= 1
 
   -- player movement
-  if btn(0) then px = max(0, px - pspeed) end   -- left
-  if btn(1) then px = min(128, px + pspeed) end -- right
-  if btn(2) then py = max(0, py - pspeed) end   -- up
-  if btn(3) then py = min(128, py + pspeed) end -- down
+  if test_input(0) then px = max(0, px - pspeed) end   -- left
+  if test_input(1) then px = min(128, px + pspeed) end -- right
+  if test_input(2) then py = max(0, py - pspeed) end   -- up
+  if test_input(3) then py = min(128, py + pspeed) end -- down
 
   -- check key collisions
   for i, key in ipairs(keys) do

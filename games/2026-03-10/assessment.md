@@ -13,7 +13,7 @@ Treasure Quest is a simple adventure game where the player explores a 128x128 pi
 1. **Movement**: Arrow keys move the player smoothly across the map
 2. **Item Collection**: Moving over keys automatically collects them (proximity-based, 16px radius)
 3. **Goal**: Collect all 3 keys, then reach the treasure chest to win
-4. **Time Limit**: 300 frames (5 seconds @ 60fps) to complete the quest
+4. **Time Limit**: 18000 frames (5 minutes @ 60fps) to complete the quest
 
 ### State Transitions
 - **Menu**: Shows game title and instructions, press O to start
