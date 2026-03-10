@@ -1,0 +1,12 @@
+{
+  "title": "Treasure Quest",
+  "description": "Explore the adventure and collect 3 keys to unlock the treasure chest and win! Navigate the simple island map, gather items, and reach your goal within the time limit.",
+  "genres": ["adventure"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "in-progress",
+  "target_audience": "general",
+  "token_count": 708,
+  "sprite_count": 6,
+  "sound_count": 4
+}
