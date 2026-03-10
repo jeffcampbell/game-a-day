@@ -31,6 +31,7 @@ cursor = {x=1, y=1}
 tower_type = 1
 towers = {}
 enemies = {}
+beams = {}
 wave_timer = 0
 selected_tower = nil -- for selling
 
@@ -56,6 +57,7 @@ function update_menu()
     enemies_killed = 0
     towers = {}
     enemies = {}
+    beams = {}
     wave_timer = 0
     _log("state:play")
     music(1)
@@ -155,6 +157,8 @@ function update_play()
           if d <= 2 then
             e.hp -= 0.5
             e.hit_flash = 3
+            -- create beam from tower to this enemy
+            add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(e.x)*8+4, y1=e.y*8+4, age=0})
           end
         end
       elseif t.type == 3 then
@@ -162,10 +166,14 @@ function update_play()
         target.hp -= 1
         target.hit_flash = 3
         target.speed = 0.05
+        -- create beam from tower to target
+        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0})
       else
         -- basic
         target.hp -= 1
         target.hit_flash = 3
+        -- create beam from tower to target
+        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0})
       end
     end
   end
@@ -178,6 +186,14 @@ function update_play()
       enemies_killed += 1
       sfx(3)
       _log("enemy_killed")
+    end
+  end
+
+  -- update beams (age and remove expired ones)
+  for b in all(beams) do
+    b.age += 1
+    if b.age > 2 then
+      del(beams, b)
     end
   end
 
@@ -261,6 +277,11 @@ function draw_play()
   local cy = cursor.y*8
   rect(cx, cy, cx+7, cy+7, 15)
   rect(cx+1, cy+1, cx+6, cy+6, 7)
+
+  -- draw beams (tower attack animations)
+  for b in all(beams) do
+    line(b.x0, b.y0, b.x1, b.y1, 11)
+  end
 
   -- enemies
   for e in all(enemies) do
