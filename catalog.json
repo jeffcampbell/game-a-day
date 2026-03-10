@@ -1,60 +1,57 @@
 {
-  "generated": "2026-03-10T00:05:46.317477",
+  "generated": "2026-03-08T08:29:38.178810",
   "version": "1.0",
-  "total_games": 14,
+  "total_games": 13,
   "statistics": {
-    "total_games": 14,
+    "total_games": 13,
     "total_sessions_recorded": 0,
-    "games_with_insights": 12,
+    "games_with_insights": 13,
     "average_completion_rate": 0.0,
     "engagement_score_stats": {
       "min": 0.145,
       "max": 0.48,
-      "average": 0.266
+      "average": 0.259
     },
     "quality_score_stats": {
       "min": 0.158,
       "max": 0.292,
-      "average": 0.206
+      "average": 0.204
     },
     "difficulty_stats": {
       "min": 2,
       "max": 5,
-      "average": 3.6
+      "average": 3.8
     },
     "playtime_stats": {
       "min": 5,
-      "max": 8,
-      "average": 5.2,
-      "median": 5.0
+      "max": 5,
+      "average": 5,
+      "median": 5
     },
     "genre_distribution": {
+      "puzzle": 7,
       "sports": 7,
-      "action": 5,
-      "puzzle": 5,
-      "adventure": 2,
-      "rpg": 2,
+      "action": 4,
+      "rpg": 1,
       "rhythm": 1
     },
     "completion_status_breakdown": {
-      "in-progress": 11,
-      "polished": 2,
-      "complete": 1
+      "in-progress": 13
     },
     "difficulty_assessment_breakdown": {
-      "balanced": 3,
-      "too_hard": 9
+      "too_hard": 10,
+      "balanced": 3
     }
   },
   "games": [
     {
-      "date": "2026-03-10",
-      "title": "Treasure Quest",
-      "description": "Explore the adventure and collect 3 keys to unlock the treasure chest and win! Navigate the simple island map, gather items, and reach your goal within the time limit.",
+      "date": "2026-03-09",
+      "title": "Untitled Game",
+      "description": "A PICO-8 game",
       "genres": [
-        "adventure"
+        "puzzle"
       ],
-      "difficulty": 2,
+      "difficulty": 3,
       "playtime_minutes": 5,
       "completion_status": "in-progress",
       "test_status": "UNKNOWN",
@@ -62,46 +59,27 @@
       "logs_captured": 0,
       "sessions_recorded": 0,
       "completion_rate": 0.0,
-      "has_insights": false,
-      "assessment_status": "complete",
+      "has_insights": true,
+      "difficulty_assessment": "too_hard",
+      "engagement_score": 0.185,
+      "game_quality_score": 0.174,
+      "player_playstyle": "moderate",
+      "assessment_status": "active",
       "target_audience": "general",
-      "token_count": 708,
-      "sprite_count": 6,
-      "sound_count": 4
-    },
-    {
-      "date": "2026-03-09",
-      "title": "Dungeon Crawler RPG",
-      "description": "A turn-based dungeon crawler with character progression, combat mechanics, and boss battles. Defeat goblins and the final boss to complete your quest. Manage your health with potions and level up to improve your stats. Enhanced with dynamic sound effects and music for all combat, UI, and game events.",
-      "genres": [
-        "rpg"
-      ],
-      "difficulty": 3,
-      "playtime_minutes": 5,
-      "completion_status": "polished",
-      "test_status": "UNKNOWN",
-      "state_transitions": [],
-      "logs_captured": 0,
-      "sessions_recorded": 0,
-      "completion_rate": 0.0,
-      "has_insights": false,
-      "assessment_status": "complete",
-      "target_audience": "general",
-      "token_count": 8096,
-      "sprite_count": 6,
-      "sound_count": 18
+      "token_count": 0,
+      "sprite_count": 0,
+      "sound_count": 0
     },
     {
       "date": "2026-03-08",
-      "title": "Cave Escape",
-      "description": "Navigate a dangerous cave while avoiding enemies in adventure mode or survive infinite waves in endless mode. Progress through five escalating levels in adventure mode, or face endless waves of enemies with difficulty scaling (easy/normal/hard). Use arrow keys to move and the dash mechanic (X button) to dodge. Master the dash mechanic - Level 4 teaches tight corridor navigation while Level 5 presents expert rapid-dash challenges. In endless mode, survive waves, rack up score multipliers, and beat your best score.",
+      "title": "Untitled Game",
+      "description": "A PICO-8 game",
       "genres": [
-        "adventure",
-        "action"
+        "puzzle"
       ],
       "difficulty": 3,
-      "playtime_minutes": 8,
-      "completion_status": "polished",
+      "playtime_minutes": 5,
+      "completion_status": "in-progress",
       "test_status": "UNKNOWN",
       "state_transitions": [],
       "logs_captured": 0,
@@ -112,26 +90,11 @@
       "engagement_score": 0.404,
       "game_quality_score": 0.262,
       "player_playstyle": "moderate",
-      "assessment_status": "complete",
-      "theme": "exploration",
+      "assessment_status": "active",
       "target_audience": "general",
-      "keywords": [
-        "dodge",
-        "exploration",
-        "adventure",
-        "five-level",
-        "dash",
-        "tutorial",
-        "expert",
-        "endless",
-        "waves",
-        "survival",
-        "score"
-      ],
-      "token_count": 5411,
-      "sprite_count": 3,
-      "sound_count": 8,
-      "tester_notes": "Extended to 5 levels with endless mode. Adventure mode: Level 4 is dash tutorial with tight corridors (3 enemies, slower). Level 5 is expert challenge with 5 rapid enemies at normal speed. Endless mode: Wave-based survival with difficulty scaling (easy/normal/hard). Easy: 45s wave intervals, 60% enemy count, 0.6x speed, 0.7x score. Normal: 30s intervals, normal scaling. Hard: 21s intervals, 120% enemies, 1.3x speed, 1.5x score. Target completion rate 50%+ per difficulty with adaptive difficulty scaling."
+      "token_count": 0,
+      "sprite_count": 0,
+      "sound_count": 0
     },
     {
       "date": "2026-03-07",
@@ -161,14 +124,14 @@
     },
     {
       "date": "2026-03-06",
-      "title": "Tile Match",
-      "description": "A tile-matching puzzle game. Select tiles of the same color and match 3 or more in a row (horizontal or vertical) to score points. Reach 100 points to win before the board fills up!",
+      "title": "Untitled Game",
+      "description": "A PICO-8 game",
       "genres": [
         "puzzle"
       ],
-      "difficulty": 2,
+      "difficulty": 3,
       "playtime_minutes": 5,
-      "completion_status": "complete",
+      "completion_status": "in-progress",
       "test_status": "UNKNOWN",
       "state_transitions": [],
       "logs_captured": 0,
@@ -179,19 +142,11 @@
       "engagement_score": 0.48,
       "game_quality_score": 0.292,
       "player_playstyle": "moderate",
-      "assessment_status": "complete",
-      "theme": "Match-3 Puzzle",
+      "assessment_status": "active",
       "target_audience": "general",
-      "keywords": [
-        "match-3",
-        "puzzle",
-        "tiles",
-        "scoring"
-      ],
-      "token_count": 841,
+      "token_count": 0,
       "sprite_count": 0,
-      "sound_count": 0,
-      "tester_notes": "Engaging puzzle mechanics with simple controls. Use arrow keys to navigate tiles, press Z to match."
+      "sound_count": 0
     },
     {
       "date": "2026-03-05",
@@ -240,7 +195,6 @@
       "engagement_score": 0.296,
       "game_quality_score": 0.218,
       "player_playstyle": "moderate",
-      "assessment_status": "complete",
       "target_audience": "general",
       "token_count": 8192,
       "sprite_count": 0,
