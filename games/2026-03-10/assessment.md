@@ -10,9 +10,9 @@ Tower Guardian is a functional turn-based tower defense game. This polish iterat
 
 **Solution**:
 - Reduced enemy spawn rate: changed from `2 + wave` to `2 + flr(wave * 0.8)`
-  - Wave 1: 2 enemies → 2 enemies
-  - Wave 3: 5 enemies → 3 enemies
-  - Wave 5: 7 enemies → 4 enemies
+  - Wave 1: 3 enemies → 2 enemies
+  - Wave 3: 5 enemies → 4 enemies
+  - Wave 5: 7 enemies → 6 enemies
 - Slower speed scaling: changed from `0.25 + wave*0.05` to `0.2 + wave*0.04`
   - Wave 1: 0.30 speed → 0.24 speed
   - Wave 5: 0.50 speed → 0.40 speed
