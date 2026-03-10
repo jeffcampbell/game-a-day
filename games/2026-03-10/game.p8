@@ -34,6 +34,15 @@ enemies = {}
 beams = {}
 wave_timer = 0
 selected_tower = nil -- for selling
+difficulty = 2 -- 1=easy, 2=normal, 3=hard
+difficulty_cursor = 2 -- cursor for difficulty selection
+
+-- difficulty settings
+diff_max_waves = {3, 5, 7}
+diff_spawn = {{1, 0.6}, {2, 0.8}, {3, 1.0}} -- {base, scale}
+diff_speed = {{0.15, 0.03}, {0.2, 0.04}, {0.25, 0.05}} -- {base, scale}
+diff_gold = {125, 100, 75}
+diff_names = {"easy", "normal", "hard"}
 
 -- tower types: 1=basic(cost:10), 2=spread(cost:20), 3=slow(cost:15)
 t_cost = {10, 20, 15}
@@ -43,6 +52,7 @@ t_names = {"basic", "spread", "slow"}
 
 function _update()
   if state == "menu" then update_menu()
+  elseif state == "difficulty_select" then update_difficulty_select()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
   end
@@ -50,9 +60,24 @@ end
 
 function update_menu()
   if btnp(4) or btnp(5) then
+    state = "difficulty_select"
+    difficulty_cursor = 2
+    _log("state:difficulty_select")
+  end
+end
+
+function update_difficulty_select()
+  -- cursor movement
+  if btnp(2) then difficulty_cursor = max(1, difficulty_cursor-1) end
+  if btnp(3) then difficulty_cursor = min(3, difficulty_cursor+1) end
+
+  -- confirm
+  if btnp(4) or btnp(5) then
+    difficulty = difficulty_cursor
+    _log("difficulty:"..diff_names[difficulty])
     state = "play"
     wave = 1
-    gold = 100
+    gold = diff_gold[difficulty]
     lives = 3
     enemies_killed = 0
     towers = {}
@@ -66,9 +91,13 @@ function update_menu()
 end
 
 function spawn_wave()
-  -- reduced spawn rates for better pacing
-  local count = 2 + flr(wave * 0.8)
-  local base_speed = 0.2 + wave * 0.04
+  -- difficulty-based spawn settings
+  local base = diff_spawn[difficulty][1]
+  local scale = diff_spawn[difficulty][2]
+  local count = base + flr(wave * scale)
+  local speed_base = diff_speed[difficulty][1]
+  local speed_scale = diff_speed[difficulty][2]
+  local base_speed = speed_base + wave * speed_scale
   for i=1, count do
     add(enemies, {x=-i*8, y=rnd(16), speed=base_speed, hp=1, age=0, hit_flash=0})
   end
@@ -200,7 +229,7 @@ function update_play()
   -- wave progress
   wave_timer += 1
   if #enemies == 0 and wave_timer > 30 then
-    if wave >= 5 then
+    if wave >= diff_max_waves[difficulty] then
       state = "gameover"
       _log("gameover:win")
       sfx(5)
@@ -226,6 +255,8 @@ function _draw()
   cls(0)
   if state == "menu" then
     draw_menu()
+  elseif state == "difficulty_select" then
+    draw_difficulty_select()
   elseif state == "play" then
     draw_play()
   elseif state == "gameover" then
@@ -246,6 +277,25 @@ function draw_menu()
   print("x: cycle towers", 35, 101, 12)
   print("survive 5 waves!", 35, 112, 10)
   print("press z to start", 32, 121, 10)
+end
+
+function draw_difficulty_select()
+  print("select difficulty", 32, 30, 7)
+  print("", 0, 40, 0)
+  local y = 50
+  for i=1, 3 do
+    local col = 7
+    local prefix = "  "
+    if i == difficulty_cursor then
+      col = 11
+      prefix = "> "
+    end
+    print(prefix..diff_names[i], 40, y, col)
+    y += 20
+  end
+  print("", 0, 100, 0)
+  print("arrows: select", 35, 110, 12)
+  print("z: confirm", 40, 120, 10)
 end
 
 function draw_play()
@@ -305,8 +355,12 @@ function draw_play()
   rectfill(2, 2, 80, 10, 1)
   print(sel_str, 5, 4, 7)
 
+  -- difficulty display (top-right)
+  print(diff_names[difficulty], 100, 4, 11)
+
   -- info bar at bottom
-  print("wave "..wave.."/5", 3, 120, 7)
+  local max_w = diff_max_waves[difficulty]
+  print("wave "..wave.."/"..max_w, 3, 120, 7)
   print("gold "..gold, 40, 120, 11)
   print("lives "..lives, 75, 120, 12)
 end
