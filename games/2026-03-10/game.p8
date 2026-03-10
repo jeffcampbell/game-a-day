@@ -239,9 +239,9 @@ function draw_play()
   end
 
   -- info
-  print("wave "..wave.."/5", 3, 130, 7)
-  print("gold "..gold, 40, 130, 11)
-  print("lives "..lives, 75, 130, 12)
+  print("wave "..wave.."/5", 3, 120, 7)
+  print("gold "..gold, 40, 120, 11)
+  print("lives "..lives, 75, 120, 12)
 
   -- tower selector
   local sname = t_names[tower_type]
