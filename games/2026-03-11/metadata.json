@@ -1,0 +1,16 @@
+{
+  "date": "2026-03-11",
+  "title": "Asteroid Dash",
+  "description": "Dodge falling asteroids in this arcade-action game. Control your ship left and right to avoid obstacles and survive as long as possible. Reach 500 points to win!",
+  "genres": [
+    "action",
+    "arcade"
+  ],
+  "difficulty": 3,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general",
+  "token_count": 709,
+  "sprite_count": 2,
+  "sound_count": 4
+}
