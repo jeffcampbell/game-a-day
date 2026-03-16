@@ -31,6 +31,17 @@ empty_x, empty_y = 4, 4
 moves = 0
 time_start = 0
 
+-- animation state
+anim_tile_x = 0
+anim_tile_y = 0
+anim_progress = 0
+anim_old_x = 0
+anim_old_y = 0
+anim_active = false
+
+-- visual state
+win_flash = 0
+
 -- init
 function init_game()
   _log("state:play")
@@ -69,6 +80,16 @@ function swap_tile(x, y)
   local i1 = y * 4 + x
   local i2 = empty_y * 4 + empty_x
   grid[i1], grid[i2] = grid[i2], grid[i1]
+
+  -- trigger animation and sound
+  anim_tile_x = x
+  anim_tile_y = y
+  anim_progress = 0
+  anim_old_x = empty_x
+  anim_old_y = empty_y
+  anim_active = true
+  sfx(0)  -- tile swap sound
+
   empty_x, empty_y = x, y
 end
 
@@ -88,7 +109,19 @@ function is_solved()
   return true
 end
 
+function update_animation()
+  if anim_active then
+    anim_progress += 1
+    if anim_progress >= 4 then
+      anim_active = false
+      anim_progress = 0
+    end
+  end
+end
+
 function _update()
+  update_animation()
+
   if state == "menu" then
     if test_input(4) > 0 then
       init_game()
@@ -119,9 +152,12 @@ function _update()
 
     if is_solved() then
       _log("gameover:win")
+      sfx(1)  -- win fanfare
+      win_flash = 0
       state = "gameover"
     end
   elseif state == "gameover" then
+    win_flash += 1
     if test_input(4) > 0 then
       state = "menu"
       _log("state:menu")
@@ -165,9 +201,21 @@ function draw_play()
       if val == 0 then
         rectfill(px, py, px + 22, py + 22, 1)
       else
-        rectfill(px, py, px + 22, py + 22, 3)
-        rect(px, py, px + 22, py + 22, 7)
-        print(val, px + 9, py + 8, 0)
+        -- check if this tile is animating
+        local draw_x, draw_y = x, y
+        if anim_active and anim_tile_x == x and anim_tile_y == y then
+          -- lerp from old position to current position
+          local t = anim_progress / 4
+          draw_x = anim_old_x + (x - anim_old_x) * t
+          draw_y = anim_old_y + (y - anim_old_y) * t
+        end
+
+        local dx = x_offset + (draw_x - 1) * tile_size
+        local dy = y_offset + (draw_y - 1) * tile_size
+
+        rectfill(dx, dy, dx + 22, dy + 22, 3)
+        rect(dx, dy, dx + 22, dy + 22, 7)
+        print(val, dx + 9, dy + 8, 0)
       end
     end
   end
@@ -177,11 +225,22 @@ function draw_play()
 end
 
 function draw_gameover()
-  print("puzzle solved!", 32, 30, 7)
-  print("moves: "..moves, 44, 50, 7)
+  -- pulsing background color based on win_flash
+  local pulse = flr((win_flash / 10) % 2)
+  cls(5 + pulse * 3)  -- alternate between colors 5 and 8
+
+  -- animated text color
+  local txt_col = 7 + pulse
+  print("puzzle solved!", 32, 30, txt_col)
+  print("moves: "..moves, 44, 50, txt_col)
   print("", 0, 65, 0)
-  print("press z for menu", 32, 80, 7)
+  print("press z for menu", 32, 80, txt_col)
 end
+
+__sfx__
+000100000e3000e300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+003c00003e1403d1403e1203e1003d1403d1203d0003c1603c1403c1203c1003b1603b1403b1203b1002b1602b1402b1202b10000000000000000000000
+00010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
