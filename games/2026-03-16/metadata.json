@@ -1,0 +1,13 @@
+{
+  "title": "Slide Puzzle",
+  "description": "Solve a challenging 4x4 sliding tile puzzle. Arrange the numbered tiles in order by sliding them into the empty space. Track your move count as you optimize your solution. This classic puzzle mechanics game offers a relaxing but strategic experience.",
+  "release_date": "2026-03-16",
+  "genres": ["puzzle"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "target_audience": "general",
+  "completion_status": "complete",
+  "token_count": 670,
+  "sprite_count": 0,
+  "sound_count": 0
+}
