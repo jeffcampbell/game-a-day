@@ -42,7 +42,7 @@ function init_game()
       num += 1
     end
   end
-  grid[16] = 0 -- empty space
+  grid[20] = 0 -- empty space at (4,4)
   empty_x, empty_y = 4, 4
   moves = 0
 
@@ -97,22 +97,22 @@ function _update()
   elseif state == "play" then
     -- handle tile swaps
     if btnp(0) then -- left
-      swap_tile(empty_x + 1, empty_y)
-      moves += 1
-      _log("move:"..moves)
-    end
-    if btnp(1) then -- right
       swap_tile(empty_x - 1, empty_y)
       moves += 1
       _log("move:"..moves)
     end
+    if btnp(1) then -- right
+      swap_tile(empty_x + 1, empty_y)
+      moves += 1
+      _log("move:"..moves)
+    end
     if btnp(2) then -- up
-      swap_tile(empty_x, empty_y + 1)
+      swap_tile(empty_x, empty_y - 1)
       moves += 1
       _log("move:"..moves)
     end
     if btnp(3) then -- down
-      swap_tile(empty_x, empty_y - 1)
+      swap_tile(empty_x, empty_y + 1)
       moves += 1
       _log("move:"..moves)
     end
