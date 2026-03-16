@@ -23,7 +23,7 @@ function test_input(b)
     test_input_idx += 1
     return test_inputs[test_input_idx] or 0
   end
-  return btn()
+  return btn(b)
 end
 
 -- game state
