@@ -35,10 +35,14 @@ beams = {}
 bursts = {}
 particles = {}
 wave_timer = 0
-selected_tower = nil -- for selling
+selected_tower = nil -- for selling/upgrading
+upgrade_menu_cursor = 1 -- 1=damage, 2=range, 3=speed, 4=sell, 5=cancel
 difficulty = 2 -- 1=easy, 2=normal, 3=hard
 difficulty_cursor = 2 -- cursor for difficulty selection
 screen_shake = 0 -- screen shake intensity/timer
+
+-- upgrade costs: base + level * scaling
+upgrade_costs = {50, 75, 100} -- cost for levels 1, 2, 3
 
 -- difficulty settings
 diff_max_waves = {3, 5, 7}
@@ -53,10 +57,21 @@ t_range = {2, 3, 2}
 t_damage = {1, 1, 1}
 t_names = {"basic", "spread", "slow"}
 
+-- get range with upgrades (+1 per level)
+function get_tower_range(tower)
+  return t_range[tower.type] + tower.rng_lvl
+end
+
+-- get damage multiplier with upgrades (+25% per level = *1.25, *1.5, *1.75)
+function get_dmg_mult(dmg_lvl)
+  return 1.0 + dmg_lvl * 0.25
+end
+
 function _update()
   if state == "menu" then update_menu()
   elseif state == "difficulty_select" then update_difficulty_select()
   elseif state == "play" then update_play()
+  elseif state == "upgrade_menu" then update_upgrade_menu()
   elseif state == "gameover" then update_gameover()
   end
 end
@@ -152,7 +167,7 @@ function update_play()
     _log("tower_selected:"..t_names[tower_type])
   end
 
-  -- place tower (z button) or sell tower
+  -- place tower (z button) or open upgrade menu
   if btnp(4) then
     -- check if cursor is on existing tower
     local tower_at_cursor = nil
@@ -164,14 +179,14 @@ function update_play()
     end
 
     if tower_at_cursor then
-      -- sell tower for 50% refund
-      gold += flr(t_cost[tower_at_cursor.type] * 0.5)
-      del(towers, tower_at_cursor)
-      sfx(2)
-      _log("tower_sold")
+      -- open upgrade menu
+      selected_tower = tower_at_cursor
+      upgrade_menu_cursor = 1
+      state = "upgrade_menu"
+      _log("upgrade_menu:open")
     elseif gold >= t_cost[tower_type] then
-      -- place new tower
-      add(towers, {x=cursor.x, y=cursor.y, type=tower_type})
+      -- place new tower with upgrade levels
+      add(towers, {x=cursor.x, y=cursor.y, type=tower_type, dmg_lvl=0, rng_lvl=0, spd_lvl=0})
       gold -= t_cost[tower_type]
       sfx(tower_type - 1)
       _log("tower_placed:"..t_names[tower_type])
@@ -201,12 +216,13 @@ function update_play()
 
   -- towers shoot
   for t in all(towers) do
-    -- find target
+    -- find target with upgraded range
     local target = nil
     local min_x = 999
+    local tower_range = get_tower_range(t)
     for e in all(enemies) do
       local d = abs(e.x - t.x) + abs(e.y - t.y)
-      if d <= t_range[t.type] and e.x < min_x then
+      if d <= tower_range and e.x < min_x then
         target = e
         min_x = e.x
       end
@@ -217,6 +233,8 @@ function update_play()
       local close = abs(target.x - t.x) < 4
       if close then screen_shake = 3 end
 
+      local dmg_mult = get_dmg_mult(t.dmg_lvl)
+
       if t.type == 2 then
         -- spread: hit multiple
         sfx(9)
@@ -224,7 +242,7 @@ function update_play()
         for e in all(enemies) do
           local d = abs(e.x - target.x) + abs(e.y - target.y)
           if d <= 2 then
-            e.hp -= 0.5
+            e.hp -= 0.5 * dmg_mult
             e.hit_flash = 3
             -- create beam from tower to this enemy
             add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(e.x)*8+4, y1=e.y*8+4, age=0, duration=3, type=2})
@@ -237,7 +255,7 @@ function update_play()
         -- slow: deals damage and slows
         sfx(8)
         _log("tower_attack:slow")
-        target.hp -= 1
+        target.hp -= 1 * dmg_mult
         target.hit_flash = 3
         target.speed = 0.05
         -- create beam from tower to target
@@ -249,7 +267,7 @@ function update_play()
         -- basic
         sfx(10)
         _log("tower_attack:basic")
-        target.hp -= 1
+        target.hp -= 1 * dmg_mult
         target.hit_flash = 3
         -- create beam from tower to target
         add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0, duration=3, type=1})
@@ -326,6 +344,69 @@ function update_play()
   end
 end
 
+function update_upgrade_menu()
+  if not selected_tower then
+    state = "play"
+    return
+  end
+
+  -- cursor movement in menu
+  if btnp(2) then upgrade_menu_cursor = max(1, upgrade_menu_cursor-1) end
+  if btnp(3) then upgrade_menu_cursor = min(5, upgrade_menu_cursor+1) end
+
+  -- select action
+  if btnp(4) then
+    local t = selected_tower
+    if upgrade_menu_cursor == 1 and t.dmg_lvl < 3 then
+      -- upgrade damage
+      if gold >= upgrade_costs[t.dmg_lvl+1] then
+        gold -= upgrade_costs[t.dmg_lvl+1]
+        t.dmg_lvl += 1
+        sfx(0)
+        _log("tower_upgraded:damage:"..t.dmg_lvl)
+      else
+        sfx(6)
+        _log("upgrade_denied:insufficient_gold")
+      end
+    elseif upgrade_menu_cursor == 2 and t.rng_lvl < 3 then
+      -- upgrade range
+      if gold >= upgrade_costs[t.rng_lvl+1] then
+        gold -= upgrade_costs[t.rng_lvl+1]
+        t.rng_lvl += 1
+        sfx(0)
+        _log("tower_upgraded:range:"..t.rng_lvl)
+      else
+        sfx(6)
+        _log("upgrade_denied:insufficient_gold")
+      end
+    elseif upgrade_menu_cursor == 3 and t.spd_lvl < 3 then
+      -- upgrade speed
+      if gold >= upgrade_costs[t.spd_lvl+1] then
+        gold -= upgrade_costs[t.spd_lvl+1]
+        t.spd_lvl += 1
+        sfx(0)
+        _log("tower_upgraded:speed:"..t.spd_lvl)
+      else
+        sfx(6)
+        _log("upgrade_denied:insufficient_gold")
+      end
+    elseif upgrade_menu_cursor == 4 then
+      -- sell tower
+      gold += flr(t_cost[t.type] * 0.5)
+      del(towers, t)
+      sfx(2)
+      _log("tower_sold")
+    end
+    -- either way, close menu
+    state = "play"
+    selected_tower = nil
+  elseif btnp(5) then
+    -- cancel
+    state = "play"
+    selected_tower = nil
+  end
+end
+
 function update_gameover()
   if btnp(4) or btnp(5) then
     state = "menu"
@@ -342,6 +423,9 @@ function _draw()
     draw_difficulty_select()
   elseif state == "play" then
     draw_play()
+  elseif state == "upgrade_menu" then
+    draw_play()
+    draw_upgrade_menu()
   elseif state == "gameover" then
     draw_gameover()
   end
@@ -406,12 +490,20 @@ function draw_play()
   for t in all(towers) do
     -- draw tower sprite (0=basic, 1=spread, 2=slow)
     spr(t.type-1, t.x*8, t.y*8)
-    -- range indicator
+
+    -- draw upgrade level as small number
+    local upgrades = t.dmg_lvl + t.rng_lvl + t.spd_lvl
+    if upgrades > 0 then
+      print(upgrades, t.x*8+1, t.y*8+1, 7)
+    end
+
+    -- range indicator with upgraded range
+    local tower_range = get_tower_range(t)
     local col = 11
     if t.type == 2 then col = 9
     elseif t.type == 3 then col = 8
     end
-    circ(t.x*8+4, t.y*8+4, t_range[t.type]*8, col)
+    circ(t.x*8+4, t.y*8+4, tower_range*8, col)
   end
 
   -- cursor (improved visibility)
@@ -538,6 +630,61 @@ function draw_gameover()
   print("gold earned: "..gold, 35, 95, 11)
   print("", 0, 105, 0)
   print("press z for menu", 35, 120, 10)
+end
+
+function draw_upgrade_menu()
+  if not selected_tower then return end
+
+  local t = selected_tower
+  local menu_y = 30
+  local menu_x = 10
+
+  -- semi-transparent background
+  rectfill(menu_x-2, menu_y-10, 118, 110, 0)
+  rect(menu_x-2, menu_y-10, 118, 110, 5)
+
+  -- title
+  print(t_names[t.type].." tower", menu_x+10, menu_y-5, 7)
+
+  -- upgrade options
+  local y = menu_y + 10
+  local options = {
+    {name="dmg", lvl=t.dmg_lvl, cost=upgrade_costs[t.dmg_lvl+1] or "max"},
+    {name="rng", lvl=t.rng_lvl, cost=upgrade_costs[t.rng_lvl+1] or "max"},
+    {name="spd", lvl=t.spd_lvl, cost=upgrade_costs[t.spd_lvl+1] or "max"},
+  }
+
+  for i, opt in ipairs(options) do
+    local col = 7
+    if i == upgrade_menu_cursor then
+      col = 11
+      print(">", menu_x, y, col)
+    end
+    local status = opt.lvl < 3 and "l"..opt.lvl.." $"..opt.cost or "max"
+    print(opt.name..": "..status, menu_x+10, y, col)
+    y += 15
+  end
+
+  -- sell option
+  y += 5
+  local sell_col = 7
+  if upgrade_menu_cursor == 4 then
+    sell_col = 12
+    print(">", menu_x, y, sell_col)
+  end
+  print("sell: $"..flr(t_cost[t.type]*0.5), menu_x+10, y, sell_col)
+
+  -- cancel option
+  y += 12
+  local cancel_col = 7
+  if upgrade_menu_cursor == 5 then
+    cancel_col = 6
+    print(">", menu_x, y, cancel_col)
+  end
+  print("cancel", menu_x+10, y, cancel_col)
+
+  -- gold display
+  print("gold: "..gold, menu_x+10, 105, 11)
 end
 __gfx__
 011111100999999008888880008888000055550000aaaaa0000000000000000000000000000000000000000000000000000000000000000000000000000000000
