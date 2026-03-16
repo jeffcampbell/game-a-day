@@ -341,12 +341,13 @@ function draw_play()
 
   -- info and high score target
   local difficulty_name = get_difficulty_name(current_difficulty)
-  print("moves: "..moves, 6, 110, 7)
-  print(difficulty_name, 90 - #difficulty_name*2, 110, 7)
+  print("moves: "..moves, 6, 108, 7)
 
   if best_time < 9999 then
-    print("best: "..flr(best_time).."s", 50, 110, 7)
+    print("best: "..flr(best_time).."s", 50, 116, 7)
   end
+
+  print(difficulty_name, 90 - #difficulty_name*2, 124, 7)
 end
 
 function draw_gameover()
@@ -383,7 +384,7 @@ function draw_gameover()
   print("time: "..flr(elapsed_time).."s", 46, 55, txt_col)
 
   print("", 0, 70, 0)
-  print("press z for menu", 32, 85, txt_col)
+  print("press z to continue", 30, 85, txt_col)
 end
 
 __sfx__
