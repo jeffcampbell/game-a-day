@@ -1,7 +1,7 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
--- Slide Puzzle - Solve a 4x4 sliding tile puzzle
+-- Slide Puzzle - Solve sliding tile puzzles at three difficulty levels
 -- test infrastructure
 testmode = false
 test_log = {}
@@ -26,10 +26,14 @@ end
 
 -- game state
 state = "menu"
+current_difficulty = 2  -- 1=easy 3x3, 2=medium 4x4, 3=hard 5x5
 grid = {}
+grid_size = 4
 empty_x, empty_y = 4, 4
 moves = 0
 time_start = 0
+best_time = 0
+is_personal_record = false
 
 -- animation state
 anim_tile_x = 0
@@ -41,29 +45,66 @@ anim_active = false
 
 -- visual state
 win_flash = 0
+record_flash = 0
+
+-- high score storage (cartridge data addresses)
+-- 3x3: 0-1 (best_moves, best_time)
+-- 4x4: 2-3 (best_moves, best_time)
+-- 5x5: 4-5 (best_moves, best_time)
+function get_hs_address(difficulty)
+  return (difficulty - 1) * 2
+end
+
+function load_best_score(difficulty)
+  local addr = get_hs_address(difficulty)
+  local best_moves = dget(addr)
+  local best_time = dget(addr + 1)
+  if best_moves == 0 then best_moves = 999 end
+  if best_time == 0 then best_time = 9999 end
+  return best_moves, best_time
+end
+
+function save_best_score(difficulty, best_moves, best_time)
+  local addr = get_hs_address(difficulty)
+  dset(addr, best_moves)
+  dset(addr + 1, best_time)
+end
 
 -- init
 function init_game()
   _log("state:play")
+  grid = {}
+
+  -- set grid size based on difficulty
+  if current_difficulty == 1 then
+    grid_size = 3
+  elseif current_difficulty == 2 then
+    grid_size = 4
+  elseif current_difficulty == 3 then
+    grid_size = 5
+  end
+
   -- create solved puzzle
   local num = 1
-  for y = 1, 4 do
-    for x = 1, 4 do
-      grid[y * 4 + x] = num
+  for y = 1, grid_size do
+    for x = 1, grid_size do
+      grid[y * grid_size + x] = num
       num += 1
     end
   end
-  grid[20] = 0 -- empty space at (4,4)
-  empty_x, empty_y = 4, 4
+  grid[grid_size * grid_size] = 0 -- empty space at corner
+  empty_x, empty_y = grid_size, grid_size
   moves = 0
+  is_personal_record = false
 
-  -- shuffle: do 100 random moves
-  for i = 1, 100 do
+  -- shuffle: do (size*20) random moves
+  local shuffle_count = grid_size * 20
+  for i = 1, shuffle_count do
     local moves_list = {}
     if empty_x > 1 then add(moves_list, {-1, 0}) end
-    if empty_x < 4 then add(moves_list, {1, 0}) end
+    if empty_x < grid_size then add(moves_list, {1, 0}) end
     if empty_y > 1 then add(moves_list, {0, -1}) end
-    if empty_y < 4 then add(moves_list, {0, 1}) end
+    if empty_y < grid_size then add(moves_list, {0, 1}) end
 
     local move = moves_list[1 + flr(rnd(#moves_list))]
     local nx, ny = empty_x + move[1], empty_y + move[2]
@@ -72,13 +113,15 @@ function init_game()
 
   moves = 0
   time_start = t()
+  local _, current_best_time = load_best_score(current_difficulty)
+  best_time = current_best_time
   _log("game:init")
 end
 
 function swap_tile(x, y)
-  if x < 1 or x > 4 or y < 1 or y > 4 then return end
-  local i1 = y * 4 + x
-  local i2 = empty_y * 4 + empty_x
+  if x < 1 or x > grid_size or y < 1 or y > grid_size then return end
+  local i1 = y * grid_size + x
+  local i2 = empty_y * grid_size + empty_x
   grid[i1], grid[i2] = grid[i2], grid[i1]
 
   -- trigger animation and sound
@@ -95,10 +138,10 @@ end
 
 function is_solved()
   local num = 1
-  for y = 1, 4 do
-    for x = 1, 4 do
-      local idx = y * 4 + x
-      if y == 4 and x == 4 then
+  for y = 1, grid_size do
+    for x = 1, grid_size do
+      local idx = y * grid_size + x
+      if y == grid_size and x == grid_size then
         if grid[idx] ~= 0 then return false end
       else
         if grid[idx] ~= num then return false end
@@ -123,9 +166,28 @@ function _update()
   update_animation()
 
   if state == "menu" then
-    if test_input(4) > 0 then
+    if test_input(2) > 0 then -- up
+      state = "select_difficulty"
+      _log("state:select_difficulty")
+    end
+  elseif state == "select_difficulty" then
+    if test_input(0) > 0 then -- left
+      current_difficulty -= 1
+      if current_difficulty < 1 then current_difficulty = 3 end
+      sfx(0)
+    end
+    if test_input(1) > 0 then -- right
+      current_difficulty += 1
+      if current_difficulty > 3 then current_difficulty = 1 end
+      sfx(0)
+    end
+    if test_input(4) > 0 then -- o (select)
       init_game()
       state = "play"
+    end
+    if test_input(5) > 0 then -- x (back to menu)
+      state = "menu"
+      _log("state:menu")
     end
   elseif state == "play" then
     -- handle tile swaps
@@ -152,15 +214,29 @@ function _update()
 
     if is_solved() then
       _log("gameover:win")
+      local elapsed_time = t() - time_start
+      local best_moves, old_best_time = load_best_score(current_difficulty)
+
+      -- check for personal record
+      if moves < best_moves or (moves == best_moves and elapsed_time < old_best_time) then
+        is_personal_record = true
+        save_best_score(current_difficulty, moves, elapsed_time)
+        _log("record:new")
+      end
+
       sfx(1)  -- win fanfare
       win_flash = 0
+      record_flash = 0
       state = "gameover"
     end
   elseif state == "gameover" then
     win_flash += 1
+    if is_personal_record then
+      record_flash += 1
+    end
     if test_input(4) > 0 then
-      state = "menu"
-      _log("state:menu")
+      state = "select_difficulty"
+      _log("state:select_difficulty")
     end
   end
 end
@@ -170,6 +246,8 @@ function _draw()
 
   if state == "menu" then
     draw_menu()
+  elseif state == "select_difficulty" then
+    draw_select_difficulty()
   elseif state == "play" then
     draw_play()
   elseif state == "gameover" then
@@ -177,29 +255,70 @@ function _draw()
   end
 end
 
+function get_difficulty_name(d)
+  if d == 1 then return "easy 3x3"
+  elseif d == 2 then return "medium 4x4"
+  else return "hard 5x5" end
+end
+
 function draw_menu()
-  print("slide puzzle", 40, 20, 7)
-  print("solve the", 44, 35, 7)
-  print("4x4 puzzle", 40, 42, 7)
+  print("slide puzzle", 38, 15, 7)
+  print("", 0, 30, 0)
+  print("a puzzle game", 34, 40, 7)
   print("", 0, 55, 0)
-  print("press z to play", 32, 70, 7)
+  print("press up to start", 28, 75, 7)
+end
+
+function draw_select_difficulty()
+  print("select difficulty", 32, 8, 7)
+  print("", 0, 20, 0)
+
+  local difficulties = {
+    {name = "easy 3x3", moves = 0, time = 0},
+    {name = "medium 4x4", moves = 0, time = 0},
+    {name = "hard 5x5", moves = 0, time = 0}
+  }
+
+  for i = 1, 3 do
+    local best_moves, best_time = load_best_score(i)
+    difficulties[i].moves = best_moves
+    difficulties[i].time = best_time
+  end
+
+  local y_offset = 30
+  for i = 1, 3 do
+    local selected = (i == current_difficulty)
+    local color = selected and 7 or 5
+    local marker = selected and ">" or " "
+
+    print(marker.." "..difficulties[i].name, 20, y_offset + (i-1)*16, color)
+
+    if difficulties[i].moves < 999 then
+      print("best: "..difficulties[i].moves.." moves", 28, y_offset + 8 + (i-1)*16, color)
+    else
+      print("best: --", 28, y_offset + 8 + (i-1)*16, color)
+    end
+  end
+
+  print("", 0, 95, 0)
+  print("z:play x:back", 34, 110, 7)
 end
 
 function draw_play()
-  -- draw grid
-  local tile_size = 24
-  local x_offset = 16
-  local y_offset = 16
+  -- calculate tile size based on grid size
+  local tile_size = 96 / grid_size
+  local x_offset = (128 - grid_size * tile_size) / 2
+  local y_offset = 10
 
-  for y = 1, 4 do
-    for x = 1, 4 do
-      local idx = y * 4 + x
+  for y = 1, grid_size do
+    for x = 1, grid_size do
+      local idx = y * grid_size + x
       local val = grid[idx]
       local px = x_offset + (x - 1) * tile_size
       local py = y_offset + (y - 1) * tile_size
 
       if val == 0 then
-        rectfill(px, py, px + 22, py + 22, 1)
+        rectfill(px, py, px + tile_size - 2, py + tile_size - 2, 1)
       else
         -- check if this tile is animating
         local draw_x, draw_y = x, y
@@ -213,28 +332,59 @@ function draw_play()
         local dx = x_offset + (draw_x - 1) * tile_size
         local dy = y_offset + (draw_y - 1) * tile_size
 
-        rectfill(dx, dy, dx + 22, dy + 22, 3)
-        rect(dx, dy, dx + 22, dy + 22, 7)
-        print(val, dx + 9, dy + 8, 0)
+        rectfill(dx, dy, dx + tile_size - 2, dy + tile_size - 2, 3)
+        rect(dx, dy, dx + tile_size - 2, dy + tile_size - 2, 7)
+        print(val, dx + tile_size/2 - 2, dy + tile_size/2 - 3, 0)
       end
     end
   end
 
-  -- info
-  print("moves: "..moves, 10, 112, 7)
+  -- info and high score target
+  local difficulty_name = get_difficulty_name(current_difficulty)
+  print("moves: "..moves, 6, 108, 7)
+
+  if best_time < 9999 then
+    print("best: "..flr(best_time).."s", 50, 116, 7)
+  end
+
+  print(difficulty_name, 90 - #difficulty_name*2, 124, 7)
 end
 
 function draw_gameover()
-  -- pulsing background color based on win_flash
+  local elapsed_time = t() - time_start
   local pulse = flr((win_flash / 10) % 2)
-  cls(5 + pulse * 3)  -- alternate between colors 5 and 8
+  local bg_color = 1
 
-  -- animated text color
-  local txt_col = 7 + pulse
-  print("puzzle solved!", 32, 30, txt_col)
-  print("moves: "..moves, 44, 50, txt_col)
-  print("", 0, 65, 0)
-  print("press z for menu", 32, 80, txt_col)
+  if is_personal_record then
+    -- record flash: rapid color cycling
+    local record_pulse = flr((record_flash / 5) % 3)
+    if record_pulse == 0 then bg_color = 8
+    elseif record_pulse == 1 then bg_color = 10
+    else bg_color = 11 end
+  else
+    bg_color = 5 + pulse * 3
+  end
+
+  cls(bg_color)
+
+  local txt_col = 7
+  if is_personal_record then
+    txt_col = 7 + (flr(record_flash / 5) % 2)
+  else
+    txt_col = 7 + pulse
+  end
+
+  print("puzzle solved!", 32, 15, txt_col)
+
+  if is_personal_record then
+    print("personal record!", 28, 30, 10)
+  end
+
+  print("moves: "..moves, 44, 45, txt_col)
+  print("time: "..flr(elapsed_time).."s", 46, 55, txt_col)
+
+  print("", 0, 70, 0)
+  print("press z to continue", 30, 85, txt_col)
 end
 
 __sfx__
