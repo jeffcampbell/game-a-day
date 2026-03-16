@@ -21,7 +21,7 @@ function test_input(b)
     test_input_idx += 1
     return test_inputs[test_input_idx] or 0
   end
-  return btn()
+  return btn(b)
 end
 
 -- game state
@@ -90,28 +90,28 @@ end
 
 function _update()
   if state == "menu" then
-    if test_input(4) > 0 or btnp(4) then
+    if test_input(4) > 0 then
       init_game()
       state = "play"
     end
   elseif state == "play" then
     -- handle tile swaps
-    if btnp(0) then -- left
+    if test_input(0) > 0 then -- left
       swap_tile(empty_x - 1, empty_y)
       moves += 1
       _log("move:"..moves)
     end
-    if btnp(1) then -- right
+    if test_input(1) > 0 then -- right
       swap_tile(empty_x + 1, empty_y)
       moves += 1
       _log("move:"..moves)
     end
-    if btnp(2) then -- up
+    if test_input(2) > 0 then -- up
       swap_tile(empty_x, empty_y - 1)
       moves += 1
       _log("move:"..moves)
     end
-    if btnp(3) then -- down
+    if test_input(3) > 0 then -- down
       swap_tile(empty_x, empty_y + 1)
       moves += 1
       _log("move:"..moves)
@@ -122,7 +122,7 @@ function _update()
       state = "gameover"
     end
   elseif state == "gameover" then
-    if test_input(4) > 0 or btnp(4) then
+    if test_input(4) > 0 then
       state = "menu"
       _log("state:menu")
     end
