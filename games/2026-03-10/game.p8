@@ -40,6 +40,7 @@ upgrade_menu_cursor = 1 -- 1=damage, 2=range, 3=speed, 4=sell, 5=cancel
 difficulty = 2 -- 1=easy, 2=normal, 3=hard
 difficulty_cursor = 2 -- cursor for difficulty selection
 screen_shake = 0 -- screen shake intensity/timer
+sandbox_mode = false -- true for freeplay sandbox mode
 
 -- upgrade costs: base + level * scaling
 upgrade_costs = {50, 75, 100} -- cost for levels 1, 2, 3
@@ -85,17 +86,28 @@ function update_menu()
 end
 
 function update_difficulty_select()
-  -- cursor movement
+  -- cursor movement (4 options: easy, normal, hard, sandbox)
   if btnp(2) then difficulty_cursor = max(1, difficulty_cursor-1) end
-  if btnp(3) then difficulty_cursor = min(3, difficulty_cursor+1) end
+  if btnp(3) then difficulty_cursor = min(4, difficulty_cursor+1) end
 
   -- confirm
   if btnp(4) or btnp(5) then
-    difficulty = difficulty_cursor
-    _log("difficulty:"..diff_names[difficulty])
+    sandbox_mode = (difficulty_cursor == 4)
+
+    if not sandbox_mode then
+      -- campaign mode
+      difficulty = difficulty_cursor
+      _log("difficulty:"..diff_names[difficulty])
+      gold = diff_gold[difficulty]
+    else
+      -- sandbox mode
+      difficulty = 2 -- default to normal for enemy difficulty
+      _log("mode:sandbox")
+      gold = 99999 -- unlimited gold
+    end
+
     state = "play"
     wave = 1
-    gold = diff_gold[difficulty]
     lives = 3
     enemies_killed = 0
     towers = {}
@@ -329,17 +341,32 @@ function update_play()
 
   -- wave progress
   wave_timer += 1
-  if #enemies == 0 and wave_timer > 30 then
-    if wave >= diff_max_waves[difficulty] then
-      state = "gameover"
-      _log("gameover:win")
-      sfx(5)
-      music(-1)
-    else
+  if sandbox_mode then
+    -- sandbox: unlimited gold, instant wave progression (with timer delay)
+    if gold < 99999 then
+      gold = 99999
+    end
+    if #enemies == 0 and wave_timer > 10 then
       sfx(4)
       wave += 1
       wave_timer = 0
+      _log("sandbox_wave:"..wave)
       spawn_wave()
+    end
+  else
+    -- campaign: timer-based wave progression
+    if #enemies == 0 and wave_timer > 30 then
+      if wave >= diff_max_waves[difficulty] then
+        state = "gameover"
+        _log("gameover:win")
+        sfx(5)
+        music(-1)
+      else
+        sfx(4)
+        wave += 1
+        wave_timer = 0
+        spawn_wave()
+      end
     end
   end
 end
@@ -410,6 +437,7 @@ end
 function update_gameover()
   if btnp(4) or btnp(5) then
     state = "menu"
+    sandbox_mode = false
     _log("state:menu")
     music(0)
   end
@@ -437,19 +465,21 @@ function draw_menu()
   print("", 0, 40, 0)
   print("place towers to stop", 20, 50, 6)
   print("enemies from reaching", 20, 58, 6)
-  print("the goal on the right.", 20, 66, 6)
-  print("", 0, 75, 0)
-  print("arrows: move cursor", 20, 85, 12)
-  print("z: place tower", 35, 93, 12)
-  print("x: cycle towers", 35, 101, 12)
-  print("survive 5 waves!", 35, 112, 10)
-  print("press z to start", 32, 121, 10)
+  print("the goal. try campaign", 20, 66, 6)
+  print("or sandbox mode!", 30, 74, 13)
+  print("", 0, 82, 0)
+  print("arrows: move cursor", 20, 92, 12)
+  print("z: place tower", 35, 100, 12)
+  print("x: cycle towers", 35, 108, 12)
+  print("press z to start", 32, 120, 10)
 end
 
 function draw_difficulty_select()
-  print("select difficulty", 32, 30, 7)
-  print("", 0, 40, 0)
-  local y = 50
+  print("select mode", 36, 20, 7)
+  print("", 0, 30, 0)
+  local y = 40
+
+  -- campaign difficulty options
   for i=1, 3 do
     local col = 7
     local prefix = "  "
@@ -457,12 +487,22 @@ function draw_difficulty_select()
       col = 11
       prefix = "> "
     end
-    print(prefix..diff_names[i], 40, y, col)
-    y += 20
+    print(prefix.."campaign: "..diff_names[i], 30, y, col)
+    y += 18
   end
-  print("", 0, 100, 0)
-  print("arrows: select", 35, 110, 12)
-  print("z: confirm", 40, 120, 10)
+
+  -- sandbox option
+  local col = 7
+  local prefix = "  "
+  if difficulty_cursor == 4 then
+    col = 13
+    prefix = "> "
+  end
+  print(prefix.."sandbox", 30, y, col)
+
+  print("", 0, 98, 0)
+  print("arrows: select", 32, 108, 12)
+  print("z: confirm", 38, 118, 10)
 end
 
 function draw_play()
@@ -605,19 +645,30 @@ function draw_play()
   rectfill(2, 2, 80, 10, 1)
   print(sel_str, 5, 4, 7)
 
-  -- difficulty display (top-right)
-  print(diff_names[difficulty], 100, 4, 11)
+  -- mode/difficulty display (top-right)
+  if sandbox_mode then
+    print("sandbox", 95, 4, 13)
+  else
+    print(diff_names[difficulty], 100, 4, 11)
+  end
 
   -- info bar at bottom
-  local max_w = diff_max_waves[difficulty]
-  print("wave "..wave.."/"..max_w, 3, 120, 7)
+  if sandbox_mode then
+    print("wave "..wave.." ∞", 3, 120, 7)
+  else
+    local max_w = diff_max_waves[difficulty]
+    print("wave "..wave.."/"..max_w, 3, 120, 7)
+  end
   print("gold "..gold, 40, 120, 11)
   print("lives "..lives, 75, 120, 12)
 end
 
 function draw_gameover()
   cls(0)
-  if lives > 0 then
+  if sandbox_mode then
+    print("sandbox ended", 38, 30, 13)
+    print("impressive exploration!", 20, 45, 13)
+  elseif lives > 0 then
     print("victory!", 50, 30, 11)
     print("all 5 waves defeated", 20, 45, 11)
   else
