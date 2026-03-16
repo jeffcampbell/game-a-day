@@ -86,7 +86,7 @@ function update_play()
       type = "normal"
     }
     add(asteroids, asteroid)
-    spawn_timer = spawn_rate - (level - 1) * 5
+    spawn_timer = max(10, spawn_rate - (level - 1) * 5)
     _log("asteroid_spawn")
   end
 
