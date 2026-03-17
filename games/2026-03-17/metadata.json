@@ -1,12 +1,14 @@
 {
   "title": "platformer: reach the top!",
   "description": "Navigate 8 challenging levels of platforming action. Jump across moving platforms, avoid enemies, and defeat the boss on level 8. Collect coins for bonus points. Progressive difficulty from gentle introduction to intense final challenges.",
-  "genres": ["platformer"],
+  "genres": [
+    "platformer"
+  ],
   "difficulty": 3,
   "playtime_minutes": 8,
   "completion_status": "polished",
   "target_audience": "general",
-  "token_count": 6278,
+  "token_count": 8167,
   "sprite_count": 4,
   "sound_count": 10
 }
