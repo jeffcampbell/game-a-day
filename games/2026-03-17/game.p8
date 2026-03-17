@@ -47,7 +47,16 @@ leaderboard_scores = {}
 leaderboard_levels = {}
 high_score_rank = -1  -- rank if score is in top 5 (-1 if not)
 lb_anim_timer = 0
-menu_option = 1  -- 1=start, 2=leaderboard, 3=clear
+menu_option = 1  -- 1=start, 2=leaderboard, 3=clear, 4=time_attack
+
+-- time-attack mode
+time_attack_mode = false
+time_attack_level = 1
+level_timer = 0  -- frames elapsed
+time_attack_times = {}  -- best times per level [level][rank] = frames
+ta_leaderboard = {}  -- leaderboard for current level display
+ta_selected_level = 1
+ta_menu_option = 1  -- 1=play, 2=view times
 
 -- player
 player = {
@@ -160,6 +169,72 @@ function clear_leaderboard()
     dset(i, 0)
   end
   _log("leaderboard:cleared")
+end
+
+-- time-attack persistence (cartridge slots 30-77: 3 times per level * 8 levels)
+function load_time_attack_times()
+  time_attack_times = {}
+  for lvl=1,8 do
+    time_attack_times[lvl] = {}
+    for rank=1,3 do
+      local slot = 30 + (lvl-1)*6 + (rank-1)*2
+      local lo = dget(slot)
+      local hi = dget(slot+1)
+      local time_val = lo + hi * 256
+      if time_val > 0 then
+        add(time_attack_times[lvl], time_val)
+      end
+    end
+  end
+  _log("time_attack:loaded")
+end
+
+function save_time_attack(lvl, time_frames)
+  -- insert into top 3 for this level
+  if not time_attack_times[lvl] then
+    time_attack_times[lvl] = {}
+  end
+  local times = time_attack_times[lvl]
+
+  -- find insertion position
+  local insert_pos = #times + 1
+  for i=1,#times do
+    if time_frames < times[i] then
+      insert_pos = i
+      break
+    end
+  end
+
+  if insert_pos <= 3 then
+    -- insert at position
+    if #times < 3 then
+      add(times, 0)
+    end
+    -- shift times down
+    for i=#times,insert_pos+1,-1 do
+      times[i] = times[i-1]
+    end
+    times[insert_pos] = time_frames
+    -- keep only top 3
+    if #times > 3 then
+      del(times, times[4])
+    end
+  end
+
+  -- persist to cartridge
+  for rank=1,3 do
+    if rank <= #times then
+      local slot = 30 + (lvl-1)*6 + (rank-1)*2
+      local t = times[rank]
+      dset(slot, t % 256)
+      dset(slot+1, flr(t / 256))
+    else
+      local slot = 30 + (lvl-1)*6 + (rank-1)*2
+      dset(slot, 0)
+      dset(slot+1, 0)
+    end
+  end
+  _log("time_attack:saved:"..lvl..":"..time_frames)
 end
 
 function create_level(lvl)
@@ -411,11 +486,18 @@ function create_level(lvl)
   end
 end
 
-function init_game()
-  level = 1
+function init_game(mode)
+  time_attack_mode = (mode == "time_attack")
+  if time_attack_mode then
+    level = ta_selected_level
+    lives = 1  -- time-attack: single life (no retry penalty)
+  else
+    level = 1
+    lives = 3
+  end
   score = 0
-  lives = 3
   game_won = false
+  level_timer = 0
   start_level(level)
 end
 
@@ -451,9 +533,10 @@ function start_level(lvl)
 end
 
 function update_menu()
-  -- load leaderboard on first menu visit
+  -- load leaderboards on first menu visit
   if #leaderboard_scores == 0 then
     load_leaderboard()
+    load_time_attack_times()
   end
 
   -- start menu music if not playing
@@ -468,14 +551,14 @@ function update_menu()
     menu_option = max(1, menu_option - 1)
   end
   if btnp(3) then  -- down
-    menu_option = min(3, menu_option + 1)
+    menu_option = min(4, menu_option + 1)
   end
 
   -- menu selection
   if btnp(4) or btnp(5) then
     if menu_option == 1 then
       _log("action:start_game")
-      init_game()
+      init_game("normal")
     elseif menu_option == 2 then
       _log("action:view_leaderboard")
       state = "leaderboard"
@@ -483,6 +566,10 @@ function update_menu()
       _log("action:clear_leaderboard")
       clear_leaderboard()
       menu_option = 1
+    elseif menu_option == 4 then
+      _log("action:time_attack")
+      state = "ta_select"
+      ta_selected_level = 1
     end
   end
 end
@@ -495,6 +582,38 @@ function update_leaderboard()
   end
 end
 
+function update_ta_select()
+  -- level selection for time-attack
+  if btnp(2) then  -- up
+    ta_selected_level = max(1, ta_selected_level - 1)
+  end
+  if btnp(3) then  -- down
+    ta_selected_level = min(8, ta_selected_level + 1)
+  end
+
+  -- select or cancel
+  if btnp(4) then
+    _log("ta:selected_level:"..ta_selected_level)
+    init_game("time_attack")
+  elseif btnp(5) then
+    -- x button: view times for this level
+    _log("ta:view_times:"..ta_selected_level)
+    state = "ta_leaderboard"
+  end
+end
+
+function update_ta_leaderboard()
+  -- navigate back to select
+  if btnp(2) then  -- up: prev level
+    ta_selected_level = max(1, ta_selected_level - 1)
+  elseif btnp(3) then  -- down: next level
+    ta_selected_level = min(8, ta_selected_level + 1)
+  elseif btnp(4) or btnp(5) then  -- any button: back to select
+    _log("state:ta_select")
+    state = "ta_select"
+  end
+end
+
 function update_level_intro()
   level_intro_timer -= 1
   if level_intro_timer <= 0 then
@@ -504,6 +623,11 @@ function update_level_intro()
 end
 
 function update_play()
+  -- track time in time-attack mode
+  if time_attack_mode then
+    level_timer += 1
+  end
+
   -- update particles and effects
   update_particles()
   update_shake()
@@ -713,6 +837,12 @@ function update_play()
     apply_shake(1, 8)
     set_flash(11, 20)  -- longer flash on completion
     spawn_particles(64, 32, 12, 11, 2)
+
+    -- save time if in time-attack mode
+    if time_attack_mode then
+      save_time_attack(level, level_timer)
+    end
+
     if level >= max_levels then
       game_won = true
       sfx(8)  -- play victory fanfare
@@ -721,9 +851,15 @@ function update_play()
       _log("gameover:win")
       state = "gameover"
     else
-      level += 1
-      _log("action:level_complete")
-      start_level(level)
+      if not time_attack_mode then
+        level += 1
+        _log("action:level_complete")
+        start_level(level)
+      else
+        -- time-attack: back to menu after single level
+        _log("ta:level_complete:"..level_timer)
+        state = "gameover"
+      end
     end
   end
 
@@ -746,7 +882,9 @@ function update_gameover()
   -- save score on first frame of gameover
   if lb_anim_timer == 0 then
     lb_anim_timer = 60  -- 1 second animation
-    save_score(score, level)
+    if not time_attack_mode then
+      save_score(score, level)
+    end
   end
 
   lb_anim_timer -= 1
@@ -755,16 +893,25 @@ function update_gameover()
     _log("state:menu")
     music(0)  -- go back to menu music
     music_playing = 0
-    state = "menu"
+
+    if time_attack_mode then
+      -- return to time-attack level select
+      state = "ta_select"
+    else
+      state = "menu"
+      menu_option = 1
+    end
+
     high_score_rank = -1
     lb_anim_timer = 0  -- reset animation timer for next game
-    menu_option = 1
   end
 end
 
 function _update()
   if state == "menu" then update_menu()
   elseif state == "leaderboard" then update_leaderboard()
+  elseif state == "ta_select" then update_ta_select()
+  elseif state == "ta_leaderboard" then update_ta_leaderboard()
   elseif state == "level_intro" then update_level_intro()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
@@ -861,13 +1008,16 @@ function draw_menu()
   local opt1_col = 3
   local opt2_col = 3
   local opt3_col = 3
+  local opt4_col = 3
   if menu_option == 1 then opt1_col = 11 end
   if menu_option == 2 then opt2_col = 11 end
   if menu_option == 3 then opt3_col = 11 end
+  if menu_option == 4 then opt4_col = 11 end
 
-  print("start game", 40, 70, opt1_col)
-  print("leaderboard", 38, 80, opt2_col)
-  print("clear scores", 38, 90, opt3_col)
+  print("start game", 40, 65, opt1_col)
+  print("leaderboard", 38, 75, opt2_col)
+  print("clear scores", 38, 85, opt3_col)
+  print("time attack", 40, 95, opt4_col)
   print("up/down to select, z to pick", 10, 110, 6)
 end
 
@@ -932,7 +1082,15 @@ function draw_play()
   end
 
   -- draw ui (always on screen)
-  print("score: "..score, 5, 5, 7)
+  if time_attack_mode then
+    -- show timer in time-attack mode
+    local secs = flr(level_timer / 60)
+    local mins = flr(secs / 60)
+    local sec_display = secs % 60
+    print(mins..":"..string.format("%02d", sec_display), 5, 5, 7)
+  else
+    print("score: "..score, 5, 5, 7)
+  end
   print("lives: "..lives, 5, 12, 7)
   print("lvl "..level, 110, 5, 7)
 end
@@ -962,7 +1120,11 @@ end
 function draw_gameover()
   cls(1)
   if state == "gameover" then
-    if game_won then
+    if time_attack_mode then
+      print("time attack complete!", 25, 40, 11)
+      print("level "..level, 50, 55, 3)
+      print("time: "..format_time(level_timer), 40, 70, 7)
+    elseif game_won then
       print("you win!", 50, 40, 11)
       print("all 8 levels complete!", 25, 55, 3)
     else
@@ -970,23 +1132,32 @@ function draw_gameover()
       print("reached level "..level, 35, 55, 7)
     end
 
-    -- show score with flash animation for high scores
-    local score_col = 7
-    if high_score_rank > 0 and lb_anim_timer > 0 then
-      -- flash effect when entering top 5
-      if flr(lb_anim_timer / 8) % 2 == 0 then
-        score_col = 11
+    if not time_attack_mode then
+      -- show score with flash animation for high scores
+      local score_col = 7
+      if high_score_rank > 0 and lb_anim_timer > 0 then
+        -- flash effect when entering top 5
+        if flr(lb_anim_timer / 8) % 2 == 0 then
+          score_col = 11
+        end
       end
-    end
-    print("score: "..score, 50, 70, score_col)
+      print("score: "..score, 50, 70, score_col)
 
-    -- show high score rank
-    if high_score_rank > 0 then
-      print("#"..high_score_rank.." high score!", 30, 80, 11)
+      -- show high score rank
+      if high_score_rank > 0 then
+        print("#"..high_score_rank.." high score!", 30, 80, 11)
+      end
     end
 
     print("press z to menu", 35, 95, 6)
   end
+end
+
+function format_time(frames)
+  local secs = flr(frames / 60)
+  local mins = flr(secs / 60)
+  local sec_display = secs % 60
+  return mins..":"..string.format("%02d", sec_display)
 end
 
 function draw_leaderboard()
@@ -1008,9 +1179,46 @@ function draw_leaderboard()
   print("press z to menu", 35, 110, 6)
 end
 
+function draw_ta_select()
+  cls(1)
+  print("time attack", 45, 20, 7)
+  print("select level:", 35, 35, 3)
+
+  for i=1,8 do
+    local col = 3
+    if i == ta_selected_level then col = 11 end
+    local x = 40 + ((i-1) % 4) * 20
+    local y = 50 + flr((i-1) / 4) * 15
+    print("l"..i, x, y, col)
+  end
+
+  print("z: play, x: times", 25, 110, 6)
+end
+
+function draw_ta_leaderboard()
+  cls(1)
+  print("best times - level "..ta_selected_level, 20, 10, 7)
+
+  if not time_attack_times[ta_selected_level] or
+     #time_attack_times[ta_selected_level] == 0 then
+    print("no times yet!", 50, 50, 8)
+  else
+    local times = time_attack_times[ta_selected_level]
+    for i=1,#times do
+      local y = 35 + (i-1) * 15
+      print("#"..i, 20, y, 3)
+      print(format_time(times[i]), 50, y, 7)
+    end
+  end
+
+  print("press z to back", 35, 110, 6)
+end
+
 function _draw()
   if state == "menu" then draw_menu()
   elseif state == "leaderboard" then draw_leaderboard()
+  elseif state == "ta_select" then draw_ta_select()
+  elseif state == "ta_leaderboard" then draw_ta_leaderboard()
   elseif state == "level_intro" then draw_level_intro()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
