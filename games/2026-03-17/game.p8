@@ -74,6 +74,7 @@ player = {
   vx = 0,
   vy = 0,
   jumping = false,
+  coyote_frames = 0,
   color = 3
 }
 
@@ -81,6 +82,7 @@ player = {
 gravity = 0.2
 jump_power = 5
 max_fall = 4
+max_coyote = 6
 move_speed = 1.5
 
 -- platforms
@@ -538,6 +540,7 @@ function start_level(lvl)
   player.vx = 0
   player.vy = 0
   player.jumping = false
+  player.coyote_frames = 0
   create_level(lvl)
   _log("level:"..lvl)
   level_intro_timer = 120  -- 2 seconds at 60fps
@@ -637,12 +640,15 @@ function update_play()
 
   -- update combo window
   if combo_window > 0 then combo_window -= 1 else combo_count = 0 end
+  -- update coyote window
+  if not player.jumping and player.coyote_frames > 0 then player.coyote_frames -= 1 end
   if test_input(0) then player.vx = -move_speed
   elseif test_input(1) then player.vx = move_speed
   else player.vx = 0 end
-  if test_input(4) and not player.jumping then
+  if test_input(4) and (not player.jumping or player.coyote_frames > 0) then
     player.vy = -jump_power
     player.jumping = true
+    player.coyote_frames = 0
     sfx(0)
     _log("action:jump")
   end
@@ -670,6 +676,7 @@ function update_play()
       player.y = plat.y - player.h
       player.vy = 0
       player.jumping = false
+      player.coyote_frames = max_coyote
       if w then sfx(4) apply_shake(1, 4) _log("action:land") end
       if plat.moving then
         if plat.vy then player.y += plat.vy end
@@ -685,7 +692,7 @@ function update_play()
       _log("action:hit_enemy")
       sfx(2) sfx(6) apply_shake(2, 6) spawn_particles(player.x+4, player.y+4, 8, 8, 1.5) set_flash(8, 3)
       if lives <= 0 then _log("gameover:lose") state = "gameover"
-      else player.x = 64 player.y = 100 player.vy = 0 end
+      else player.x = 64 player.y = 100 player.vy = 0 player.coyote_frames = max_coyote end
     end
   end
 
