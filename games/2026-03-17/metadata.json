@@ -1,6 +1,6 @@
 {
   "title": "platformer: reach the top!",
-  "description": "Navigate 8 challenging levels of platforming action. Jump across moving platforms, avoid enemies, and defeat the boss on level 8. Collect coins for bonus points. Progressive difficulty from gentle introduction to intense final challenges.",
+  "description": "Navigate 8 challenging levels of platforming action with enhanced audio and visual feedback. Jump across moving platforms, avoid enemies, and defeat the boss on level 8. Collect coins for bonus points with improved particle effects. Progressive difficulty from gentle introduction to intense final challenges. Features background music patterns, dynamic combo counter glow, and enhanced collectible sparkle effects.",
   "genres": [
     "platformer"
   ],
@@ -8,7 +8,9 @@
   "playtime_minutes": 8,
   "completion_status": "polished",
   "target_audience": "general",
-  "token_count": 8167,
+  "token_count": 8047,
   "sprite_count": 4,
-  "sound_count": 10
+  "sound_count": 10,
+  "audio_features": ["background_music", "sound_effects", "combo_feedback"],
+  "visual_features": ["particle_effects", "screen_shake", "flash_effects", "combo_glow"]
 }
