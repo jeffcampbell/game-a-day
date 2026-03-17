@@ -78,8 +78,14 @@ function load_leaderboard()
   leaderboard_scores = {}
   leaderboard_levels = {}
   for i=0,4 do
-    local s = dget(i)
-    local l = dget(i+5)
+    -- decode 2-byte score
+    local s_low = dget(i*2)
+    local s_high = dget(i*2+1)
+    local s = s_low + s_high * 256
+    -- decode 2-byte level
+    local l_low = dget(20 + i*2)
+    local l_high = dget(20 + i*2+1)
+    local l = l_low + l_high * 256
     if s > 0 then
       add(leaderboard_scores, s)
       add(leaderboard_levels, l)
@@ -89,6 +95,7 @@ function load_leaderboard()
 end
 
 function save_score(sc, lvl)
+  high_score_rank = -1  -- reset before checking
   -- check if score is in top 5
   for i=1,#leaderboard_scores do
     if sc > leaderboard_scores[i] then
@@ -120,14 +127,22 @@ function save_score(sc, lvl)
     high_score_rank = #leaderboard_scores
   end
 
-  -- persist to cartridge
+  -- persist to cartridge (2-byte encoding)
   for i=0,4 do
     if i < #leaderboard_scores then
-      dset(i, leaderboard_scores[i+1])
-      dset(i+5, leaderboard_levels[i+1])
+      local sc_val = leaderboard_scores[i+1]
+      local lv_val = leaderboard_levels[i+1]
+      -- encode score as 2 bytes
+      dset(i*2, sc_val % 256)        -- low byte
+      dset(i*2+1, flr(sc_val / 256)) -- high byte
+      -- encode level as 2 bytes
+      dset(20 + i*2, lv_val % 256)        -- low byte
+      dset(20 + i*2+1, flr(lv_val / 256)) -- high byte
     else
-      dset(i, 0)
-      dset(i+5, 0)
+      dset(i*2, 0)
+      dset(i*2+1, 0)
+      dset(20 + i*2, 0)
+      dset(20 + i*2+1, 0)
     end
   end
   _log("score:saved:"..sc)
@@ -137,7 +152,11 @@ function clear_leaderboard()
   leaderboard_scores = {}
   leaderboard_levels = {}
   high_score_rank = -1
+  -- clear all cartridge slots (0-9 for scores, 20-29 for levels)
   for i=0,9 do
+    dset(i, 0)
+  end
+  for i=20,29 do
     dset(i, 0)
   end
   _log("leaderboard:cleared")
@@ -738,6 +757,7 @@ function update_gameover()
     music_playing = 0
     state = "menu"
     high_score_rank = -1
+    lb_anim_timer = 0  -- reset animation timer for next game
     menu_option = 1
   end
 end
