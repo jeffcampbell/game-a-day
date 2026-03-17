@@ -34,6 +34,14 @@ game_won = false
 level_intro_timer = 0
 music_playing = -1  -- track which music pattern is playing
 
+-- visual effects
+particles = {}
+max_particles = 32
+shake_intensity = 0
+shake_timer = 0
+flash_color = -1
+flash_timer = 0
+
 -- player
 player = {
   x = 64,
@@ -359,6 +367,11 @@ function update_level_intro()
 end
 
 function update_play()
+  -- update particles and effects
+  update_particles()
+  update_shake()
+  update_flash()
+
   -- player movement
   if test_input(0) then -- left
     player.vx = -move_speed
@@ -417,9 +430,10 @@ function update_play()
         player.vy = 0
         player.jumping = false
         on_platform = true
-        -- play landing sound when jumping onto platform
+        -- play landing sound + visual feedback
         if was_jumping then
           sfx(4)
+          apply_shake(1, 4)  -- light shake on landing
           _log("action:land")
         end
         -- player rides on moving platform
@@ -438,6 +452,10 @@ function update_play()
       lives -= 1
       _log("action:hit_enemy")
       sfx(2)
+      sfx(6)  -- impact sound effect
+      apply_shake(2, 6)  -- medium shake on enemy hit
+      spawn_particles(player.x + 4, player.y + 4, 8, 8, 1.5)
+      set_flash(8, 3)  -- brief red flash
       if lives <= 0 then
         _log("gameover:lose")
         state = "gameover"
@@ -457,6 +475,9 @@ function update_play()
       coll.collected = true
       score += 10
       sfx(1)
+      sfx(7)  -- coin sparkle sound
+      spawn_particles(coll.x + 4, coll.y + 4, 6, 11, 1.2)
+      set_flash(11, 2)  -- yellow flash
       _log("action:collect")
     end
   end
@@ -495,6 +516,10 @@ function update_play()
   -- win condition: reach top
   if player.y < 5 then
     sfx(3)
+    sfx(9)  -- level complete chime
+    apply_shake(1, 8)
+    set_flash(11, 20)  -- longer flash on completion
+    spawn_particles(64, 32, 12, 11, 2)
     if level >= max_levels then
       game_won = true
       sfx(8)  -- play victory fanfare
@@ -546,6 +571,82 @@ function collide_rect(x1, y1, w1, h1, x2, y2, w2, h2)
          y1 < y2 + h2 and y1 + h1 > y2
 end
 
+-- particle system
+function spawn_particles(x, y, count, color, speed)
+  if #particles >= max_particles then return end
+  for i=1,count do
+    if #particles < max_particles then
+      local angle = rnd(1)
+      local vel = speed * (0.5 + rnd(0.5))
+      add(particles, {
+        x = x + rnd(4) - 2,
+        y = y + rnd(4) - 2,
+        vx = cos(angle) * vel,
+        vy = sin(angle) * vel,
+        life = 30,
+        max_life = 30,
+        color = color
+      })
+    end
+  end
+end
+
+function update_particles()
+  for p in all(particles) do
+    p.x += p.vx
+    p.y += p.vy
+    p.vy += 0.15  -- gravity
+    p.life -= 1
+    if p.life <= 0 then
+      del(particles, p)
+    end
+  end
+end
+
+function draw_particles()
+  for p in all(particles) do
+    local brightness = flr(p.life / p.max_life * 3)
+    if brightness > 0 then
+      pset(flr(p.x), flr(p.y), p.color)
+    end
+  end
+end
+
+-- screen shake
+function apply_shake(intensity, duration)
+  shake_intensity = max(shake_intensity, intensity)
+  shake_timer = max(shake_timer, duration)
+end
+
+function update_shake()
+  if shake_timer > 0 then
+    shake_timer -= 1
+  else
+    shake_intensity = 0
+  end
+end
+
+function set_flash(color, duration)
+  flash_color = color
+  flash_timer = duration
+end
+
+function update_flash()
+  if flash_timer > 0 then
+    flash_timer -= 1
+  else
+    flash_color = -1
+  end
+end
+
+function get_camera_offset()
+  if shake_intensity > 0 then
+    return rnd(shake_intensity * 2) - shake_intensity,
+           rnd(shake_intensity * 2) - shake_intensity
+  end
+  return 0, 0
+end
+
 function draw_menu()
   cls(1)
   print("platformer", 50, 40, 7)
@@ -557,6 +658,10 @@ end
 
 function draw_play()
   cls(1)
+
+  -- apply camera shake
+  local shake_x, shake_y = get_camera_offset()
+  camera(shake_x, shake_y)
 
   -- draw platforms
   for plat in all(platforms) do
@@ -581,7 +686,18 @@ function draw_play()
   -- draw player
   spr(0, player.x, player.y)
 
-  -- draw ui
+  -- draw particles
+  draw_particles()
+
+  -- reset camera
+  camera(0, 0)
+
+  -- draw flash overlay
+  if flash_timer > 0 then
+    rectfill(0, 0, 127, 127, flash_color)
+  end
+
+  -- draw ui (always on screen)
   print("score: "..score, 5, 5, 7)
   print("lives: "..lives, 5, 12, 7)
   print("lvl "..level, 110, 5, 7)
