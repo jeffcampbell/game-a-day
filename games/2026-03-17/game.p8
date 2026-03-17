@@ -62,6 +62,9 @@ ta_leaderboard = {}  -- leaderboard for current level display
 ta_selected_level = 1
 ta_menu_option = 1  -- 1=play, 2=view times
 
+-- secret levels
+secret_levels_unlocked = false
+
 -- player
 player = {
   x = 64,
@@ -178,7 +181,7 @@ end
 -- time-attack persistence (cartridge slots 30-77: 3 times per level * 8 levels)
 function load_time_attack_times()
   time_attack_times = {}
-  for lvl=1,8 do
+  for lvl=1,10 do
     time_attack_times[lvl] = {}
     for rank=1,3 do
       local slot = 30 + (lvl-1)*6 + (rank-1)*2
@@ -190,6 +193,8 @@ function load_time_attack_times()
       end
     end
   end
+  -- load secret unlock flag (slot 102)
+  secret_levels_unlocked = (dget(102) > 0)
   _log("time_attack:loaded")
 end
 
@@ -487,6 +492,28 @@ function create_level(lvl)
     add(collectibles, {x=45, y=66, w=8, h=8, collected=false, color=11})
     add(collectibles, {x=75, y=54, w=8, h=8, collected=false, color=11})
     add(collectibles, {x=28, y=32, w=8, h=8, collected=false, color=11})
+
+  -- secret level 1: fast bonus
+  elseif lvl == 9 then
+    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
+    add(platforms, {x=10, y=95, w=35, h=8, moving=false})
+    add(platforms, {x=70, y=70, w=35, h=8, moving=false})
+    add(platforms, {x=15, y=45, w=35, h=8, moving=false})
+    add(platforms, {x=65, y=20, w=40, h=8, moving=false})
+    add(enemies, {x=45, y=90, w=8, h=8, vx=3.0, xmin=35, xmax=65, type="patrol", color=8})
+    add(enemies, {x=80, y=65, w=8, h=8, vx=-3.0, xmin=65, xmax=95, type="patrol", color=8})
+    add(collectibles, {x=32, y=87, w=8, h=8, collected=false, color=11})
+
+  -- secret level 2: vertical bonus
+  elseif lvl == 10 then
+    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
+    add(platforms, {x=20, y=100, w=80, h=8, moving=false})
+    add(platforms, {x=30, y=75, w=70, h=8, moving=false})
+    add(platforms, {x=15, y=50, w=90, h=8, moving=false})
+    add(platforms, {x=35, y=25, w=60, h=8, moving=false})
+    add(enemies, {x=64, y=95, w=8, h=8, vy=-1.5, ymin=85, ymax=105, type="vertical", color=7})
+    add(enemies, {x=64, y=70, w=8, h=8, vy=1.5, ymin=60, ymax=80, type="vertical", color=7})
+    add(collectibles, {x=64, y=92, w=8, h=8, collected=false, color=11})
   end
 end
 
@@ -525,7 +552,7 @@ function start_level(lvl)
   elseif lvl == 4 or lvl == 5 then
     music_pat = 3
   elseif lvl >= 6 then
-    music_pat = 3  -- use same intense music for final levels
+    music_pat = 3  -- use same intense music for final/secret levels
   end
 
   music(music_pat)
@@ -588,11 +615,13 @@ end
 
 function update_ta_select()
   -- level selection for time-attack
+  local max_lvl = 8
+  if secret_levels_unlocked then max_lvl = 10 end
   if btnp(2) then  -- up
     ta_selected_level = max(1, ta_selected_level - 1)
   end
   if btnp(3) then  -- down
-    ta_selected_level = min(8, ta_selected_level + 1)
+    ta_selected_level = min(max_lvl, ta_selected_level + 1)
   end
 
   -- select or cancel
@@ -608,10 +637,12 @@ end
 
 function update_ta_leaderboard()
   -- navigate back to select
+  local max_lvl = 8
+  if secret_levels_unlocked then max_lvl = 10 end
   if btnp(2) then  -- up: prev level
     ta_selected_level = max(1, ta_selected_level - 1)
   elseif btnp(3) then  -- down: next level
-    ta_selected_level = min(8, ta_selected_level + 1)
+    ta_selected_level = min(max_lvl, ta_selected_level + 1)
   elseif btnp(4) or btnp(5) then  -- any button: back to select
     _log("state:ta_select")
     state = "ta_select"
@@ -869,8 +900,10 @@ function update_play()
 
     if level >= max_levels then
       game_won = true
-      sfx(8)  -- play victory fanfare
-      music(-1)  -- stop music
+      secret_levels_unlocked = true
+      dset(102, 1)  -- persist secret unlock
+      sfx(8)
+      music(-1)
       music_playing = -1
       _log("gameover:win")
       state = "gameover"
@@ -1214,12 +1247,18 @@ function draw_ta_select()
   print("time attack", 45, 20, 7)
   print("select level:", 35, 35, 3)
 
-  for i=1,8 do
+  local max_lvl = 8
+  if secret_levels_unlocked then max_lvl = 10 end
+
+  for i=1,max_lvl do
     local col = 3
     if i == ta_selected_level then col = 11 end
+    local label = "l"..i
+    if i == 9 then label = "s1" end
+    if i == 10 then label = "s2" end
     local x = 40 + ((i-1) % 4) * 20
     local y = 50 + flr((i-1) / 4) * 15
-    print("l"..i, x, y, col)
+    print(label, x, y, col)
   end
 
   print("z: play, x: times", 25, 110, 6)
