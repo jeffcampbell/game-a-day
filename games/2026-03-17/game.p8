@@ -34,6 +34,10 @@ game_won = false
 level_intro_timer = 0
 music_playing = -1  -- track which music pattern is playing
 
+-- combo system
+combo_count = 0  -- current combo multiplier (1x, 2x, 3x, etc.)
+combo_window = 0  -- frames remaining in combo window (5 seconds = 300 frames)
+
 -- visual effects
 particles = {}
 max_particles = 32
@@ -633,6 +637,13 @@ function update_play()
   update_shake()
   update_flash()
 
+  -- update combo window
+  if combo_window > 0 then
+    combo_window -= 1
+  else
+    combo_count = 0
+  end
+
   -- player movement
   if test_input(0) then -- left
     player.vx = -move_speed
@@ -711,6 +722,8 @@ function update_play()
     if collide_rect(player.x, player.y, player.w, player.h,
                     enemy.x, enemy.y, enemy.w, enemy.h) then
       lives -= 1
+      combo_count = 0  -- reset combo on damage
+      combo_window = 0
       _log("action:hit_enemy")
       sfx(2)
       sfx(6)  -- impact sound effect
@@ -743,10 +756,21 @@ function update_play()
     player.vy = -4
 
     if boss.health <= 0 then
-      _log("action:boss_defeated")
+      -- boss defeat: award points with combo multiplier
+      local base_points = 50
+      local combo_mult = min(combo_count + 1, 5)  -- cap at 5x
+      local boss_points = base_points * combo_mult
+      score += boss_points
+
+      -- update combo
+      combo_count += 1
+      combo_window = 300  -- 5 seconds at 60 fps
+
+      _log("action:boss_defeated:combo:"..combo_mult.."x")
       boss = nil
       sfx(3)
       sfx(9)
+      sfx(0)  -- combo achievement sound
       apply_shake(2, 12)  -- extended shake for victory
       set_flash(11, 25)  -- longer yellow flash
       spawn_particles(64, 50, 20, 9, 2.5)  -- boss explosion
@@ -1093,6 +1117,12 @@ function draw_play()
   end
   print("lives: "..lives, 5, 12, 7)
   print("lvl "..level, 110, 5, 7)
+
+  -- draw combo indicator
+  if combo_count > 1 then
+    local combo_col = 10  -- yellow/bright color for combo
+    print("combo: "..combo_count.."x", 55, 12, combo_col)
+  end
 end
 
 function draw_level_intro()
