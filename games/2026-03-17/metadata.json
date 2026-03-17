@@ -1,12 +1,12 @@
 {
   "title": "platformer: reach the top!",
-  "description": "Navigate platforms, avoid enemies, and reach the top of the level to win. Collect gold coins for bonus points. Simple but challenging platformer action.",
+  "description": "Navigate 8 challenging levels of platforming action. Jump across moving platforms, avoid enemies, and defeat the boss on level 8. Collect coins for bonus points. Progressive difficulty from gentle introduction to intense final challenges.",
   "genres": ["platformer"],
-  "difficulty": 2,
-  "playtime_minutes": 5,
-  "completion_status": "complete",
+  "difficulty": 3,
+  "playtime_minutes": 8,
+  "completion_status": "polished",
   "target_audience": "general",
-  "token_count": 1177,
-  "sprite_count": 0,
-  "sound_count": 4
+  "token_count": 6278,
+  "sprite_count": 4,
+  "sound_count": 10
 }
