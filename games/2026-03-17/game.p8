@@ -37,7 +37,7 @@ level_intro_timer = 0
 player = {
   x = 64,
   y = 100,
-  w = 6,
+  w = 8,
   h = 8,
   vx = 0,
   vy = 0,
@@ -65,103 +65,103 @@ function create_level(lvl)
   if lvl == 1 then
     -- create platforms
     add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=10, y=105, w=30, h=6, moving=false})
-    add(platforms, {x=50, y=90, w=30, h=6, moving=false})
-    add(platforms, {x=85, y=75, w=35, h=6, moving=false})
-    add(platforms, {x=20, y=60, w=35, h=6, moving=false})
-    add(platforms, {x=70, y=45, w=40, h=6, moving=false})
-    add(platforms, {x=15, y=30, w=40, h=6, moving=false})
-    add(platforms, {x=60, y=15, w=50, h=6, moving=false})
+    add(platforms, {x=10, y=105, w=30, h=8, moving=false})
+    add(platforms, {x=50, y=90, w=30, h=8, moving=false})
+    add(platforms, {x=85, y=75, w=35, h=8, moving=false})
+    add(platforms, {x=20, y=60, w=35, h=8, moving=false})
+    add(platforms, {x=70, y=45, w=40, h=8, moving=false})
+    add(platforms, {x=15, y=30, w=40, h=8, moving=false})
+    add(platforms, {x=60, y=15, w=50, h=8, moving=false})
 
     -- create enemies (3 slow enemies)
-    add(enemies, {x=50, y=85, w=6, h=6, vx=0.8, xmin=40, xmax=70, color=8})
-    add(enemies, {x=80, y=70, w=6, h=6, vx=-0.8, xmin=75, xmax=100, color=8})
-    add(enemies, {x=30, y=55, w=6, h=6, vx=0.8, xmin=20, xmax=50, color=8})
+    add(enemies, {x=50, y=85, w=8, h=8, vx=0.8, xmin=40, xmax=70, color=8})
+    add(enemies, {x=80, y=70, w=8, h=8, vx=-0.8, xmin=75, xmax=100, color=8})
+    add(enemies, {x=30, y=55, w=8, h=8, vx=0.8, xmin=20, xmax=50, color=8})
 
     -- create collectibles
-    add(collectibles, {x=35, y=95, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=75, y=40, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=40, y=20, w=4, h=4, collected=false, color=11})
+    add(collectibles, {x=35, y=95, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=75, y=40, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=40, y=20, w=8, h=8, collected=false, color=11})
 
   -- level 2: tighter spacing, more enemies
   elseif lvl == 2 then
     add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=5, y=108, w=25, h=6, moving=false})
-    add(platforms, {x=50, y=95, w=25, h=6, moving=false})
-    add(platforms, {x=90, y=82, w=30, h=6, moving=false})
-    add(platforms, {x=15, y=70, w=30, h=6, moving=false})
-    add(platforms, {x=70, y=57, w=35, h=6, moving=false})
-    add(platforms, {x=25, y=42, w=35, h=6, moving=false})
-    add(platforms, {x=75, y=28, w=40, h=6, moving=false})
-    add(platforms, {x=20, y=12, w=35, h=6, moving=false})
+    add(platforms, {x=5, y=108, w=25, h=8, moving=false})
+    add(platforms, {x=50, y=95, w=25, h=8, moving=false})
+    add(platforms, {x=90, y=82, w=30, h=8, moving=false})
+    add(platforms, {x=15, y=70, w=30, h=8, moving=false})
+    add(platforms, {x=70, y=57, w=35, h=8, moving=false})
+    add(platforms, {x=25, y=42, w=35, h=8, moving=false})
+    add(platforms, {x=75, y=28, w=40, h=8, moving=false})
+    add(platforms, {x=20, y=12, w=35, h=8, moving=false})
 
     -- 4 enemies, faster
-    add(enemies, {x=45, y=90, w=6, h=6, vx=1.2, xmin=35, xmax=60, color=8})
-    add(enemies, {x=85, y=77, w=6, h=6, vx=-1.2, xmin=70, xmax=100, color=8})
-    add(enemies, {x=25, y=65, w=6, h=6, vx=1.2, xmin=15, xmax=45, color=8})
-    add(enemies, {x=75, y=52, w=6, h=6, vx=-1.2, xmin=60, xmax=85, color=8})
+    add(enemies, {x=45, y=90, w=8, h=8, vx=1.2, xmin=35, xmax=60, color=8})
+    add(enemies, {x=85, y=77, w=8, h=8, vx=-1.2, xmin=70, xmax=100, color=8})
+    add(enemies, {x=25, y=65, w=8, h=8, vx=1.2, xmin=15, xmax=45, color=8})
+    add(enemies, {x=75, y=52, w=8, h=8, vx=-1.2, xmin=60, xmax=85, color=8})
 
     -- more collectibles
-    add(collectibles, {x=30, y=100, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=70, y=87, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=35, y=62, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=80, y=37, w=4, h=4, collected=false, color=11})
+    add(collectibles, {x=30, y=100, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=70, y=87, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=35, y=62, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=80, y=37, w=8, h=8, collected=false, color=11})
 
   -- level 3: complex layout, 5 enemies
   elseif lvl == 3 then
     add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=8, y=110, w=20, h=6, moving=false})
-    add(platforms, {x=45, y=100, w=20, h=6, moving=false})
-    add(platforms, {x=85, y=90, w=28, h=6, moving=false})
-    add(platforms, {x=10, y=78, w=25, h=6, moving=false})
-    add(platforms, {x=55, y=68, w=30, h=6, moving=false})
-    add(platforms, {x=25, y=55, w=25, h=6, moving=false})
-    add(platforms, {x=70, y=42, w=35, h=6, moving=false})
-    add(platforms, {x=15, y=28, w=30, h=6, moving=false})
-    add(platforms, {x=65, y=15, w=40, h=6, moving=false})
+    add(platforms, {x=8, y=110, w=20, h=8, moving=false})
+    add(platforms, {x=45, y=100, w=20, h=8, moving=false})
+    add(platforms, {x=85, y=90, w=28, h=8, moving=false})
+    add(platforms, {x=10, y=78, w=25, h=8, moving=false})
+    add(platforms, {x=55, y=68, w=30, h=8, moving=false})
+    add(platforms, {x=25, y=55, w=25, h=8, moving=false})
+    add(platforms, {x=70, y=42, w=35, h=8, moving=false})
+    add(platforms, {x=15, y=28, w=30, h=8, moving=false})
+    add(platforms, {x=65, y=15, w=40, h=8, moving=false})
 
     -- 5 faster enemies
-    add(enemies, {x=50, y=95, w=6, h=6, vx=1.5, xmin=40, xmax=65, color=8})
-    add(enemies, {x=85, y=85, w=6, h=6, vx=-1.5, xmin=70, xmax=100, color=8})
-    add(enemies, {x=20, y=73, w=6, h=6, vx=1.5, xmin=10, xmax=35, color=8})
-    add(enemies, {x=65, y=63, w=6, h=6, vx=-1.5, xmin=50, xmax=80, color=8})
-    add(enemies, {x=35, y=50, w=6, h=6, vx=1.5, xmin=25, xmax=45, color=8})
+    add(enemies, {x=50, y=95, w=8, h=8, vx=1.5, xmin=40, xmax=65, color=8})
+    add(enemies, {x=85, y=85, w=8, h=8, vx=-1.5, xmin=70, xmax=100, color=8})
+    add(enemies, {x=20, y=73, w=8, h=8, vx=1.5, xmin=10, xmax=35, color=8})
+    add(enemies, {x=65, y=63, w=8, h=8, vx=-1.5, xmin=50, xmax=80, color=8})
+    add(enemies, {x=35, y=50, w=8, h=8, vx=1.5, xmin=25, xmax=45, color=8})
 
     -- many collectibles
-    add(collectibles, {x=30, y=102, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=75, y=92, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=25, y=70, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=65, y=60, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=35, y=37, w=4, h=4, collected=false, color=11})
+    add(collectibles, {x=30, y=102, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=75, y=92, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=25, y=70, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=65, y=60, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=35, y=37, w=8, h=8, collected=false, color=11})
 
   -- level 4: final challenge - 6 fast enemies, tight jumps
   elseif lvl == 4 then
     add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=12, y=108, w=18, h=6, moving=false})
-    add(platforms, {x=50, y=98, w=18, h=6, moving=false})
-    add(platforms, {x=88, y=88, w=26, h=6, moving=false})
-    add(platforms, {x=8, y=76, w=22, h=6, moving=false})
-    add(platforms, {x=58, y=64, w=28, h=6, moving=false})
-    add(platforms, {x=28, y=50, w=20, h=6, moving=false})
-    add(platforms, {x=75, y=38, w=30, h=6, moving=false})
-    add(platforms, {x=18, y=24, w=25, h=6, moving=false})
-    add(platforms, {x=70, y=10, w=35, h=6, moving=false})
+    add(platforms, {x=12, y=108, w=18, h=8, moving=false})
+    add(platforms, {x=50, y=98, w=18, h=8, moving=false})
+    add(platforms, {x=88, y=88, w=26, h=8, moving=false})
+    add(platforms, {x=8, y=76, w=22, h=8, moving=false})
+    add(platforms, {x=58, y=64, w=28, h=8, moving=false})
+    add(platforms, {x=28, y=50, w=20, h=8, moving=false})
+    add(platforms, {x=75, y=38, w=30, h=8, moving=false})
+    add(platforms, {x=18, y=24, w=25, h=8, moving=false})
+    add(platforms, {x=70, y=10, w=35, h=8, moving=false})
 
     -- 6 very fast enemies
-    add(enemies, {x=48, y=93, w=6, h=6, vx=1.8, xmin=38, xmax=62, color=8})
-    add(enemies, {x=88, y=83, w=6, h=6, vx=-1.8, xmin=72, xmax=102, color=8})
-    add(enemies, {x=15, y=71, w=6, h=6, vx=1.8, xmin=5, xmax=35, color=8})
-    add(enemies, {x=70, y=59, w=6, h=6, vx=-1.8, xmin=55, xmax=85, color=8})
-    add(enemies, {x=35, y=45, w=6, h=6, vx=1.8, xmin=25, xmax=50, color=8})
-    add(enemies, {x=80, y=33, w=6, h=6, vx=-1.8, xmin=65, xmax=95, color=8})
+    add(enemies, {x=48, y=93, w=8, h=8, vx=1.8, xmin=38, xmax=62, color=8})
+    add(enemies, {x=88, y=83, w=8, h=8, vx=-1.8, xmin=72, xmax=102, color=8})
+    add(enemies, {x=15, y=71, w=8, h=8, vx=1.8, xmin=5, xmax=35, color=8})
+    add(enemies, {x=70, y=59, w=8, h=8, vx=-1.8, xmin=55, xmax=85, color=8})
+    add(enemies, {x=35, y=45, w=8, h=8, vx=1.8, xmin=25, xmax=50, color=8})
+    add(enemies, {x=80, y=33, w=8, h=8, vx=-1.8, xmin=65, xmax=95, color=8})
 
     -- many collectibles
-    add(collectibles, {x=32, y=100, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=72, y=90, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=20, y=68, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=65, y=56, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=40, y=42, w=4, h=4, collected=false, color=11})
-    add(collectibles, {x=28, y=16, w=4, h=4, collected=false, color=11})
+    add(collectibles, {x=32, y=100, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=72, y=90, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=20, y=68, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=65, y=56, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=40, y=42, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=28, y=16, w=8, h=8, collected=false, color=11})
   end
 end
 
@@ -344,25 +344,26 @@ function draw_play()
 
   -- draw platforms
   for plat in all(platforms) do
-    rectfill(plat.x, plat.y, plat.x + plat.w - 1, plat.y + plat.h - 1, 5)
+    -- draw platform sprite (sprite 2) tiled across platform
+    for px = plat.x, plat.x + plat.w - 1, 8 do
+      spr(2, px, plat.y)
+    end
   end
 
   -- draw collectibles
   for coll in all(collectibles) do
     if not coll.collected then
-      circfill(coll.x + 2, coll.y + 2, 2, coll.color)
+      spr(3, coll.x, coll.y)
     end
   end
 
   -- draw enemies
   for enemy in all(enemies) do
-    rectfill(enemy.x, enemy.y, enemy.x + enemy.w - 1,
-             enemy.y + enemy.h - 1, enemy.color)
+    spr(1, enemy.x, enemy.y)
   end
 
   -- draw player
-  rectfill(player.x, player.y, player.x + player.w - 1,
-           player.y + player.h - 1, player.color)
+  spr(0, player.x, player.y)
 
   -- draw ui
   print("score: "..score, 5, 5, 7)
@@ -409,14 +410,14 @@ function _draw()
 end
 
 __gfx__
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00033300088800005555555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+03333330088888805050505000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+03333330088888805555555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+03030330080808805050505000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+33033330880888855555555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+33333330888888805050505000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+03030330008888005555555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+03000330000000005050505000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
