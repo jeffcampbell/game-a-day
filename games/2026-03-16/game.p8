@@ -35,6 +35,17 @@ time_start = 0
 best_time = 0
 is_personal_record = false
 
+-- undo/hint system
+undo_stack = {}
+undo_moves = {}
+hints_used = 0
+max_hints = 2
+undos_used = 0
+max_undos = 2
+hint_tile_x = -1
+hint_tile_y = -1
+hint_flash = 0
+
 -- animation state
 anim_tile_x = 0
 anim_tile_y = 0
@@ -46,42 +57,60 @@ anim_active = false
 -- visual state
 win_flash = 0
 record_flash = 0
+menu_pulse = 0
+elapsed_time = 0
 
 -- high score storage (cartridge data addresses)
--- 3x3: 0-1 (best_moves, best_time)
--- 4x4: 2-3 (best_moves, best_time)
--- 5x5: 4-5 (best_moves, best_time)
+-- 3x3: 0-2 (best_moves, best_time, sessions)
+-- 4x4: 3-5 (best_moves, best_time, sessions)
+-- 5x5: 6-8 (best_moves, best_time, sessions)
 function get_hs_address(difficulty)
-  return (difficulty - 1) * 2
+  return (difficulty - 1) * 3
 end
 
 function load_best_score(difficulty)
   local addr = get_hs_address(difficulty)
   local best_moves = dget(addr)
   local best_time = dget(addr + 1)
+  local sessions = dget(addr + 2)
   if best_moves == 0 then best_moves = 999 end
   if best_time == 0 then best_time = 9999 end
-  return best_moves, best_time
+  return best_moves, best_time, sessions
 end
 
 function save_best_score(difficulty, best_moves, best_time)
   local addr = get_hs_address(difficulty)
+  local sessions = dget(addr + 2) or 0
+  sessions += 1
   dset(addr, best_moves)
   dset(addr + 1, best_time)
+  dset(addr + 2, sessions)
 end
 
 -- init
 function init_game()
   _log("state:play")
   grid = {}
+  undo_stack = {}
+  undo_moves = {}
+  hints_used = 0
+  undos_used = 0
+  hint_tile_x = -1
+  hint_tile_y = -1
 
-  -- set grid size based on difficulty
+  -- set grid size and limits based on difficulty
   if current_difficulty == 1 then
     grid_size = 3
+    max_hints = 3
+    max_undos = 3
   elseif current_difficulty == 2 then
     grid_size = 4
+    max_hints = 2
+    max_undos = 2
   elseif current_difficulty == 3 then
     grid_size = 5
+    max_hints = 1
+    max_undos = 1
   end
 
   -- create solved puzzle
@@ -92,7 +121,7 @@ function init_game()
       num += 1
     end
   end
-  grid[grid_size * grid_size] = 0 -- empty space at corner
+  grid[grid_size * grid_size] = 0 -- empty space
   empty_x, empty_y = grid_size, grid_size
   moves = 0
   is_personal_record = false
@@ -108,18 +137,39 @@ function init_game()
 
     local move = moves_list[1 + flr(rnd(#moves_list))]
     local nx, ny = empty_x + move[1], empty_y + move[2]
-    swap_tile(nx, ny)
+    shuffle_swap(nx, ny)
   end
 
   moves = 0
   time_start = t()
-  local _, current_best_time = load_best_score(current_difficulty)
+  local best_moves_score, current_best_time, _ = load_best_score(current_difficulty)
   best_time = current_best_time
   _log("game:init")
 end
 
+function shuffle_swap(x, y)
+  if x < 1 or x > grid_size or y < 1 or y > grid_size then return end
+  local i1 = y * grid_size + x
+  local i2 = empty_y * grid_size + empty_x
+  grid[i1], grid[i2] = grid[i2], grid[i1]
+  empty_x, empty_y = x, y
+end
+
 function swap_tile(x, y)
   if x < 1 or x > grid_size or y < 1 or y > grid_size then return end
+
+  -- save to undo stack
+  local grid_copy = {}
+  for i=1,#grid do grid_copy[i] = grid[i] end
+  add(undo_stack, grid_copy)
+  add(undo_moves, {x, y, empty_x, empty_y})
+
+  -- limit undo history to 20 moves
+  if #undo_stack > 20 then
+    deli(undo_stack, 1)
+    deli(undo_moves, 1)
+  end
+
   local i1 = y * grid_size + x
   local i2 = empty_y * grid_size + empty_x
   grid[i1], grid[i2] = grid[i2], grid[i1]
@@ -131,9 +181,59 @@ function swap_tile(x, y)
   anim_old_x = empty_x
   anim_old_y = empty_y
   anim_active = true
-  sfx(0)  -- tile swap sound
+
+  -- sound variation based on tile value
+  local sound_idx = 0
+  if grid[i1] > 0 then
+    sound_idx = flr(grid[i1] % 3)
+  end
+  sfx(sound_idx)  -- vary sound
 
   empty_x, empty_y = x, y
+  hint_tile_x = -1  -- clear hint
+end
+
+function undo_move()
+  if #undo_stack == 0 or undos_used >= max_undos then return end
+
+  grid = undo_stack[#undo_stack]
+  local move_info = undo_moves[#undo_moves]
+  empty_x, empty_y = move_info[3], move_info[4]
+
+  deli(undo_stack)
+  deli(undo_moves)
+
+  undos_used += 1
+  moves -= 1
+  if moves < 0 then moves = 0 end
+
+  sfx(0)
+  hint_tile_x = -1
+  _log("undo")
+end
+
+function get_hint()
+  if hints_used >= max_hints then return end
+
+  -- find a tile that should move toward solution
+  local best_move = nil
+  local moves_list = {}
+
+  if empty_x > 1 then add(moves_list, {empty_x - 1, empty_y}) end
+  if empty_x < grid_size then add(moves_list, {empty_x + 1, empty_y}) end
+  if empty_y > 1 then add(moves_list, {empty_x, empty_y - 1}) end
+  if empty_y < grid_size then add(moves_list, {empty_x, empty_y + 1}) end
+
+  -- pick a random valid move as hint
+  if #moves_list > 0 then
+    best_move = moves_list[1 + flr(rnd(#moves_list))]
+    hint_tile_x = best_move[1]
+    hint_tile_y = best_move[2]
+    hint_flash = 0
+    hints_used += 1
+    sfx(1)
+    _log("hint")
+  end
 end
 
 function is_solved()
@@ -164,9 +264,10 @@ end
 
 function _update()
   update_animation()
+  menu_pulse += 1
 
   if state == "menu" then
-    if test_input(2) > 0 then -- up
+    if test_input(4) > 0 then -- z (o button)
       state = "select_difficulty"
       _log("state:select_difficulty")
     end
@@ -190,6 +291,15 @@ function _update()
       _log("state:menu")
     end
   elseif state == "play" then
+    -- reset puzzle (o + x together)
+    if test_input(4) > 0 and test_input(5) > 0 then
+      init_game()
+      _log("reset")
+    elseif test_input(5) > 0 then
+      -- undo (x button alone)
+      undo_move()
+    end
+
     -- handle tile swaps
     if test_input(0) > 0 then -- left
       swap_tile(empty_x - 1, empty_y)
@@ -212,9 +322,18 @@ function _update()
       _log("move:"..moves)
     end
 
+    -- hint (with button combo)
+    if test_input(2) > 0 and test_input(4) > 0 then
+      get_hint()
+    end
+
+    if hint_tile_x >= 0 then
+      hint_flash += 1
+    end
+
     if is_solved() then
       _log("gameover:win")
-      local elapsed_time = t() - time_start
+      elapsed_time = t() - time_start
       local best_moves, old_best_time = load_best_score(current_difficulty)
 
       -- check for personal record
@@ -237,6 +356,10 @@ function _update()
     if test_input(4) > 0 then
       state = "select_difficulty"
       _log("state:select_difficulty")
+    end
+    if test_input(5) > 0 then
+      state = "menu"
+      _log("state:menu")
     end
   end
 end
@@ -262,46 +385,83 @@ function get_difficulty_name(d)
 end
 
 function draw_menu()
-  print("slide puzzle", 38, 15, 7)
-  print("", 0, 30, 0)
-  print("a puzzle game", 34, 40, 7)
-  print("", 0, 55, 0)
-  print("press up to start", 28, 75, 7)
+  -- pulsing title
+  local pulse = sin(menu_pulse / 60)
+  local title_color = 7 + flr(2 * pulse)
+  if title_color < 5 then title_color = 5 end
+  if title_color > 7 then title_color = 7 end
+
+  print("slide puzzle", 36, 8, title_color)
+  print("", 0, 20, 0)
+
+  -- show quick stats
+  local easy_best, _, easy_sess = load_best_score(1)
+  local med_best, _, med_sess = load_best_score(2)
+  local hard_best, _, hard_sess = load_best_score(3)
+
+  local total_sess = (easy_sess or 0) + (med_sess or 0) + (hard_sess or 0)
+  local has_plays = total_sess > 0
+
+  if has_plays then
+    print("personal best", 34, 30, 6)
+    print("3x3: "..flr(easy_best).." 4x4: "..flr(med_best), 10, 40, 5)
+    print("5x5: "..flr(hard_best).." games: "..flr(total_sess), 12, 48, 5)
+  else
+    print("solve puzzles", 36, 30, 6)
+    print("of varying", 38, 40, 5)
+    print("difficulty!", 38, 48, 5)
+  end
+
+  print("", 0, 70, 0)
+
+  -- pulsing start prompt
+  local prompt_pulse = flr((menu_pulse / 20) % 2)
+  local start_col = prompt_pulse == 0 and 7 or 6
+  print("press z to start", 30, 95, start_col)
 end
 
 function draw_select_difficulty()
-  print("select difficulty", 32, 8, 7)
-  print("", 0, 20, 0)
+  print("select difficulty", 28, 4, 7)
 
   local difficulties = {
-    {name = "easy 3x3", moves = 0, time = 0},
-    {name = "medium 4x4", moves = 0, time = 0},
-    {name = "hard 5x5", moves = 0, time = 0}
+    {name = "easy 3x3", moves = 0, time = 0, sessions = 0},
+    {name = "medium 4x4", moves = 0, time = 0, sessions = 0},
+    {name = "hard 5x5", moves = 0, time = 0, sessions = 0}
   }
 
   for i = 1, 3 do
-    local best_moves, best_time = load_best_score(i)
+    local best_moves, best_time, sessions = load_best_score(i)
     difficulties[i].moves = best_moves
     difficulties[i].time = best_time
+    difficulties[i].sessions = sessions
   end
 
-  local y_offset = 30
+  local y_offset = 18
   for i = 1, 3 do
     local selected = (i == current_difficulty)
     local color = selected and 7 or 5
     local marker = selected and ">" or " "
 
-    print(marker.." "..difficulties[i].name, 20, y_offset + (i-1)*16, color)
+    print(marker.." "..difficulties[i].name, 14, y_offset + (i-1)*18, color)
 
     if difficulties[i].moves < 999 then
-      print("best: "..difficulties[i].moves.." moves", 28, y_offset + 8 + (i-1)*16, color)
+      local best_str = difficulties[i].moves.."m/"..flr(difficulties[i].time).."s"
+      print(best_str, 26, y_offset + 8 + (i-1)*18, color)
     else
-      print("best: --", 28, y_offset + 8 + (i-1)*16, color)
+      print("no record", 26, y_offset + 8 + (i-1)*18, color)
     end
   end
 
-  print("", 0, 95, 0)
-  print("z:play x:back", 34, 110, 7)
+  print("", 0, 88, 0)
+  print("z:play  x:back", 32, 110, 7)
+end
+
+function get_tile_color(val)
+  -- vary tile color by value
+  if val == 0 then return 1 end
+  local col = 3 + flr(val % 6)
+  if col > 7 then col = 7 end
+  return col
 end
 
 function draw_play()
@@ -332,22 +492,38 @@ function draw_play()
         local dx = x_offset + (draw_x - 1) * tile_size
         local dy = y_offset + (draw_y - 1) * tile_size
 
-        rectfill(dx, dy, dx + tile_size - 2, dy + tile_size - 2, 3)
+        -- hint highlight
+        local tile_color = get_tile_color(val)
+        if x == hint_tile_x and y == hint_tile_y then
+          if flr((hint_flash / 8) % 2) == 0 then
+            tile_color = 11
+          end
+        end
+
+        rectfill(dx, dy, dx + tile_size - 2, dy + tile_size - 2, tile_color)
         rect(dx, dy, dx + tile_size - 2, dy + tile_size - 2, 7)
-        print(val, dx + tile_size/2 - 2, dy + tile_size/2 - 3, 0)
+        local text_col = 0
+        if tile_color >= 5 then text_col = 0 else text_col = 7 end
+        print(val, dx + tile_size/2 - 2, dy + tile_size/2 - 3, text_col)
       end
     end
   end
 
-  -- info and high score target
+  -- info and timer
   local difficulty_name = get_difficulty_name(current_difficulty)
-  print("moves: "..moves, 6, 108, 7)
+  local elapsed = flr(t() - time_start)
+  print("moves: "..moves, 4, 106, 7)
+  print("time: "..elapsed.."s", 50, 106, 6)
+
+  -- undo/hint status
+  print("u:"..max_undos - undos_used.." h:"..max_hints - hints_used, 4, 114, 5)
 
   if best_time < 9999 then
-    print("best: "..flr(best_time).."s", 50, 116, 7)
+    print("best: "..flr(best_time).."s", 50, 114, 7)
   end
 
-  print(difficulty_name, 90 - #difficulty_name*2, 124, 7)
+  -- help text
+  print("x:undo up+z:hint z+x:rst", 4, 122, 4)
 end
 
 function draw_gameover()
@@ -374,23 +550,31 @@ function draw_gameover()
     txt_col = 7 + pulse
   end
 
-  print("puzzle solved!", 32, 15, txt_col)
+  print("puzzle solved!", 30, 8, txt_col)
 
+  local best_moves, _ = load_best_score(current_difficulty)
   if is_personal_record then
-    print("personal record!", 28, 30, 10)
+    print("new record!", 38, 16, 10)
+  else
+    local pct = flr(100 * best_moves / moves)
+    print("(vs best: "..pct.."%)", 28, 16, 6)
   end
 
-  print("moves: "..moves, 44, 45, txt_col)
-  print("time: "..flr(elapsed_time).."s", 46, 55, txt_col)
+  print("moves: "..moves, 40, 26, txt_col)
+  print("time: "..flr(elapsed_time).."s", 42, 34, txt_col)
 
-  print("", 0, 70, 0)
-  print("press z to continue", 30, 85, txt_col)
+  local diff_name = get_difficulty_name(current_difficulty)
+  print(diff_name, 40 - #diff_name*2, 42, 5)
+
+  print("", 0, 60, 0)
+  print("z: next  x: menu", 32, 112, txt_col)
 end
 
 __sfx__
 000100000e3000e300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 003c00003e1403d1403e1203e1003d1403d1203d0003c1603c1403c1203c1003b1603b1403b1203b1002b1602b1402b1202b10000000000000000000000
 00010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00020000003050040300303000020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
