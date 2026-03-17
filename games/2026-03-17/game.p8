@@ -564,26 +564,10 @@ function start_level(lvl)
 end
 
 function update_menu()
-  -- load leaderboards on first menu visit
-  if #leaderboard_scores == 0 then
-    load_leaderboard()
-    load_time_attack_times()
-  end
-
-  -- start menu music if not playing
-  if music_playing ~= 0 then
-    music(0)
-    music_playing = 0
-    _log("music:menu")
-  end
-
-  -- menu navigation
-  if btnp(2) then  -- up
-    menu_option = max(1, menu_option - 1)
-  end
-  if btnp(3) then  -- down
-    menu_option = min(4, menu_option + 1)
-  end
+  if #leaderboard_scores == 0 then load_leaderboard() load_time_attack_times() end
+  if music_playing ~= 0 then music(0) music_playing = 0 _log("music:menu") end
+  if btnp(2) then menu_option = max(1, menu_option-1) end
+  if btnp(3) then menu_option = min(4, menu_option+1) end
 
   -- menu selection
   if btnp(4) or btnp(5) then
@@ -636,55 +620,26 @@ function update_ta_select()
 end
 
 function update_ta_leaderboard()
-  -- navigate back to select
-  local max_lvl = 8
-  if secret_levels_unlocked then max_lvl = 10 end
-  if btnp(2) then  -- up: prev level
-    ta_selected_level = max(1, ta_selected_level - 1)
-  elseif btnp(3) then  -- down: next level
-    ta_selected_level = min(max_lvl, ta_selected_level + 1)
-  elseif btnp(4) or btnp(5) then  -- any button: back to select
-    _log("state:ta_select")
-    state = "ta_select"
-  end
+  local m=8+(secret_levels_unlocked and 2 or 0)
+  if btnp(2) then ta_selected_level = max(1, ta_selected_level-1)
+  elseif btnp(3) then ta_selected_level = min(m, ta_selected_level+1)
+  elseif btnp(4) or btnp(5) then _log("state:ta_select") state = "ta_select" end
 end
 
 function update_level_intro()
   level_intro_timer -= 1
-  if level_intro_timer <= 0 then
-    _log("state:play")
-    state = "play"
-  end
+  if level_intro_timer <= 0 then _log("state:play") state = "play" end
 end
 
 function update_play()
-  -- track time in time-attack mode
-  if time_attack_mode then
-    level_timer += 1
-  end
-
-  -- update particles and effects
-  update_particles()
-  update_shake()
-  update_flash()
+  if time_attack_mode then level_timer += 1 end
+  update_particles() update_shake() update_flash()
 
   -- update combo window
-  if combo_window > 0 then
-    combo_window -= 1
-  else
-    combo_count = 0
-  end
-
-  -- player movement
-  if test_input(0) then -- left
-    player.vx = -move_speed
-  elseif test_input(1) then -- right
-    player.vx = move_speed
-  else
-    player.vx = 0
-  end
-
-  -- jumping
+  if combo_window > 0 then combo_window -= 1 else combo_count = 0 end
+  if test_input(0) then player.vx = -move_speed
+  elseif test_input(1) then player.vx = move_speed
+  else player.vx = 0 end
   if test_input(4) and not player.jumping then
     player.vy = -jump_power
     player.jumping = true
@@ -692,133 +647,66 @@ function update_play()
     _log("action:jump")
   end
 
-  -- apply gravity
-  player.vy = min(player.vy + gravity, max_fall)
+  player.vy = min(player.vy+gravity, max_fall)
+  player.x += player.vx player.y += player.vy
+  if player.x < 0 then player.x = 0 elseif player.x+player.w > 128 then player.x = 128-player.w end
 
-  -- update position
-  player.x += player.vx
-  player.y += player.vy
-
-  -- boundary check
-  if player.x < 0 then player.x = 0 end
-  if player.x + player.w > 128 then player.x = 128 - player.w end
-
-  -- update moving platforms
   for plat in all(platforms) do
     if plat.moving then
       if plat.vy then
-        -- vertical moving platform
         plat.y += plat.vy
-        if plat.y < plat.ymin or plat.y > plat.ymax then
-          plat.vy *= -1
-        end
+        if plat.y < plat.ymin or plat.y > plat.ymax then plat.vy *= -1 end
       elseif plat.vx then
-        -- horizontal moving platform
         plat.x += plat.vx
-        if plat.x < plat.xmin or plat.x > plat.xmax then
-          plat.vx *= -1
-        end
+        if plat.x < plat.xmin or plat.x > plat.xmax then plat.vx *= -1 end
       end
     end
   end
 
-  -- platform collision
-  local on_platform = false
-  local was_jumping = player.jumping
+  local w=player.jumping
   for plat in all(platforms) do
-    if collide_rect(player.x, player.y + player.h, player.w, 1,
-                    plat.x, plat.y, plat.w, plat.h) then
-      if player.vy >= 0 then
-        player.y = plat.y - player.h
-        player.vy = 0
-        player.jumping = false
-        on_platform = true
-        -- play landing sound + visual feedback
-        if was_jumping then
-          sfx(4)
-          apply_shake(1, 4)  -- light shake on landing
-          _log("action:land")
-        end
-        -- player rides on moving platform
-        if plat.moving then
-          if plat.vy then player.y += plat.vy end
-          if plat.vx then player.x += plat.vx end
-        end
+    if collide_rect(player.x, player.y+player.h, player.w, 1,
+                    plat.x, plat.y, plat.w, plat.h) and player.vy >= 0 then
+      player.y = plat.y - player.h
+      player.vy = 0
+      player.jumping = false
+      if w then sfx(4) apply_shake(1, 4) _log("action:land") end
+      if plat.moving then
+        if plat.vy then player.y += plat.vy end
+        if plat.vx then player.x += plat.vx end
       end
     end
   end
 
-  -- enemy collision
   for enemy in all(enemies) do
     if collide_rect(player.x, player.y, player.w, player.h,
                     enemy.x, enemy.y, enemy.w, enemy.h) then
-      lives -= 1
-      combo_count = 0  -- reset combo on damage
-      combo_window = 0
+      lives -= 1 combo_count = 0 combo_window = 0
       _log("action:hit_enemy")
-      sfx(2)
-      sfx(6)  -- impact sound effect
-      apply_shake(2, 6)  -- medium shake on enemy hit
-      spawn_particles(player.x + 4, player.y + 4, 8, 8, 1.5)
-      set_flash(8, 3)  -- brief red flash
-      if lives <= 0 then
-        _log("gameover:lose")
-        state = "gameover"
-      else
-        player.x = 64
-        player.y = 100
-        player.vy = 0
-      end
+      sfx(2) sfx(6) apply_shake(2, 6) spawn_particles(player.x+4, player.y+4, 8, 8, 1.5) set_flash(8, 3)
+      if lives <= 0 then _log("gameover:lose") state = "gameover"
+      else player.x = 64 player.y = 100 player.vy = 0 end
     end
   end
 
-  -- boss collision (damage boss on hit)
   if boss and collide_rect(player.x, player.y, player.w, player.h,
                            boss.x, boss.y, boss.w, boss.h) then
-    boss.health -= 1
-    _log("action:hit_boss:"..boss.health)
-    sfx(2)
-    sfx(6)
-    apply_shake(3, 8)  -- stronger shake for boss hit
-    spawn_particles(boss.x + 4, boss.y + 4, 10, 9, 1.8)
-    set_flash(9, 4)  -- magenta flash
-    -- knock player back
-    player.x -= 3
-    player.vy = -4
-
+    boss.health -= 1 _log("action:hit_boss:"..boss.health)
+    sfx(2) sfx(6) apply_shake(3, 8) spawn_particles(boss.x+4, boss.y+4, 10, 9, 1.8) set_flash(9, 4)
+    player.x -= 3 player.vy = -4
     if boss.health <= 0 then
-      -- boss defeat: award points with combo multiplier
-      local base_points = 50
-      local combo_mult = min(combo_count + 1, 5)  -- cap at 5x
-      local boss_points = base_points * combo_mult
-      score += boss_points
-
-      -- update combo
-      combo_count += 1
-      combo_window = 300  -- 5 seconds at 60 fps
-
-      _log("action:boss_defeated:combo:"..combo_mult.."x")
-      boss = nil
-      sfx(3)
-      sfx(9)
-      sfx(0)  -- combo achievement sound
-      apply_shake(2, 12)  -- extended shake for victory
-      set_flash(11, 25)  -- longer yellow flash
-      spawn_particles(64, 50, 20, 9, 2.5)  -- boss explosion
+      local m=min(combo_count+1, 5)
+      score += 50*m combo_count = m combo_window = 300
+      _log("action:boss_defeated:combo:"..m.."x")
+      boss = nil sfx(3) sfx(9) sfx(0) apply_shake(2, 12) set_flash(11, 25) spawn_particles(64, 50, 20, 9, 2.5)
     end
   end
 
-  -- collectible collision
   for coll in all(collectibles) do
-    if not coll.collected and
-       collide_rect(player.x, player.y, player.w, player.h,
+    if not coll.collected and collide_rect(player.x, player.y, player.w, player.h,
                     coll.x, coll.y, coll.w, coll.h) then
-      coll.collected = true
-      score += 10
-      sfx(1)
-      sfx(7)  -- coin sparkle sound
-      spawn_particles(coll.x + 4, coll.y + 4, 6, 11, 1.2)
-      set_flash(11, 2)  -- yellow flash
+      coll.collected = true score += 10
+      sfx(1) sfx(7) spawn_particles(coll.x+4, coll.y+4, 12, 11, 1.5) set_flash(11, 3)
       _log("action:collect")
     end
   end
@@ -854,113 +742,52 @@ function update_play()
     end
   end
 
-  -- update boss (multi-phase behavior)
   if boss then
     boss.wave_time += 1
-    local phase_threshold = boss.max_health * 0.5
-
-    if boss.health <= phase_threshold then
-      -- phase 2: aggressive bouncing
+    if boss.health <= boss.max_health * 0.5 then
       boss.phase = 2
-      local speed = 2.2
-      boss.x += cos(boss.wave_time / 25) * speed
-      boss.y += sin(boss.wave_time / 20) * 1.5
-
-      -- keep in bounds
-      boss.x = max(20, min(boss.x, 100))
-      boss.y = max(20, min(boss.y, 80))
+      boss.x += cos(boss.wave_time/25)*2.2 boss.y += sin(boss.wave_time/20)*1.5
+      boss.x = max(20, min(boss.x, 100)) boss.y = max(20, min(boss.y, 80))
     else
-      -- phase 1: slow sine wave
       boss.phase = 1
-      boss.x = 40 + sin(boss.wave_time / 40) * 25
-      boss.y = 45 + cos(boss.wave_time / 50) * 10
+      boss.x = 40 + sin(boss.wave_time/40)*25 boss.y = 45 + cos(boss.wave_time/50)*10
     end
   end
 
-  -- win condition: reach top OR defeat boss on level 8
-  local should_complete_level = false
-  if player.y < 5 then
-    should_complete_level = true
-  elseif level == 8 and not boss then
-    -- boss defeated, level 8 is complete
-    should_complete_level = true
-  end
-
-  if should_complete_level then
-    sfx(3)
-    sfx(9)  -- level complete chime
-    apply_shake(1, 8)
-    set_flash(11, 20)  -- longer flash on completion
-    spawn_particles(64, 32, 12, 11, 2)
-
-    -- save time if in time-attack mode
-    if time_attack_mode then
-      save_time_attack(level, level_timer)
-    end
-
+  if player.y < 5 or (level == 8 and not boss) then
+    sfx(3) sfx(9) apply_shake(1, 8) set_flash(11, 20) spawn_particles(64, 32, 12, 11, 2)
+    if time_attack_mode then save_time_attack(level, level_timer) end
     if level >= max_levels then
-      game_won = true
-      secret_levels_unlocked = true
-      dset(102, 1)  -- persist secret unlock
-      sfx(8)
-      music(-1)
-      music_playing = -1
-      _log("gameover:win")
-      state = "gameover"
+      game_won = true secret_levels_unlocked = true dset(102, 1)
+      sfx(8) music(-1) music_playing = -1 _log("gameover:win") state = "gameover"
     else
       if not time_attack_mode then
-        level += 1
-        _log("action:level_complete")
-        start_level(level)
+        level += 1 _log("action:level_complete") start_level(level)
       else
-        -- time-attack: back to menu after single level
-        _log("ta:level_complete:"..level_timer)
-        state = "gameover"
+        _log("ta:level_complete:"..level_timer) state = "gameover"
       end
     end
   end
 
   -- fall off bottom
   if player.y > 128 then
-    lives -= 1
-    _log("action:fell_off")
-    if lives <= 0 then
-      _log("gameover:lose")
-      state = "gameover"
-    else
-      player.x = 64
-      player.y = 100
-      player.vy = 0
-    end
+    lives -= 1 _log("action:fell_off")
+    if lives <= 0 then _log("gameover:lose") state = "gameover"
+    else player.x = 64 player.y = 100 player.vy = 0 end
   end
 end
 
 function update_gameover()
-  -- save score on first frame of gameover
   if lb_anim_timer == 0 then
-    lb_anim_timer = 60  -- 1 second animation
-    if not time_attack_mode then
-      save_score(score, level)
-    end
+    lb_anim_timer = 60
+    if not time_attack_mode then save_score(score, level) end
   end
-
   lb_anim_timer -= 1
-
   if btnp(4) or btnp(5) then
-    _log("state:menu")
-    music(0)  -- go back to menu music
-    music_playing = 0
-
-    if time_attack_mode then
-      -- return to time-attack level select
-      state = "ta_select"
-    else
-      state = "menu"
-      menu_option = 1
-    end
-
-    high_score_rank = -1
-    lb_anim_timer = 0  -- reset animation timer for next game
+    _log("state:menu") music(0) music_playing = 0
+    state = (time_attack_mode and "ta_select" or "menu")
+    if not time_attack_mode then menu_option = 1 end
+    high_score_rank = -1 lb_anim_timer = 0
   end
 end
 
@@ -1060,21 +887,12 @@ function draw_menu()
   cls(1)
   print("platformer", 50, 40, 7)
   print("8 challenging levels!", 30, 50, 3)
-
-  -- menu options
-  local opt1_col = 3
-  local opt2_col = 3
-  local opt3_col = 3
-  local opt4_col = 3
-  if menu_option == 1 then opt1_col = 11 end
-  if menu_option == 2 then opt2_col = 11 end
-  if menu_option == 3 then opt3_col = 11 end
-  if menu_option == 4 then opt4_col = 11 end
-
-  print("start game", 40, 65, opt1_col)
-  print("leaderboard", 38, 75, opt2_col)
-  print("clear scores", 38, 85, opt3_col)
-  print("time attack", 40, 95, opt4_col)
+  local o={40,38,38,40}
+  local t={"start game","leaderboard","clear scores","time attack"}
+  for i=1,4 do
+    local c=(menu_option==i and 11 or 3)
+    print(t[i], o[i], 55+i*10, c)
+  end
   print("up/down to select, z to pick", 10, 110, 6)
 end
 
@@ -1138,89 +956,49 @@ function draw_play()
     rectfill(0, 0, 127, 127, flash_color)
   end
 
-  -- draw ui (always on screen)
   if time_attack_mode then
-    -- show timer in time-attack mode
-    local secs = flr(level_timer / 60)
-    local mins = flr(secs / 60)
-    local sec_display = secs % 60
-    print(mins..":"..string.format("%02d", sec_display), 5, 5, 7)
+    print(fmt(level_timer), 5, 5, 7)
   else
     print("score: "..score, 5, 5, 7)
   end
-  print("lives: "..lives, 5, 12, 7)
-  print("lvl "..level, 110, 5, 7)
-
-  -- draw combo indicator
+  print("lives: "..lives, 5, 12, 7) print("lvl "..level, 110, 5, 7)
   if combo_count > 1 then
-    local combo_col = 10  -- yellow/bright color for combo
-    print("combo: "..combo_count.."x", 55, 12, combo_col)
+    local c=(combo_count >= 3 and (flr(t()*4)%2==0 and 11 or 10) or 10)
+    print("combo: "..combo_count.."x", 55, 12, c)
   end
 end
 
 function draw_level_intro()
   cls(1)
   print("level "..level, 45, 50, 3)
-  if level == 1 then
-    print("master the basics!", 30, 70, 7)
-  elseif level == 2 then
-    print("things get tighter!", 30, 70, 7)
-  elseif level == 3 then
-    print("stay sharp!", 45, 70, 7)
-  elseif level == 4 then
-    print("final challenge!", 35, 70, 7)
-  elseif level == 5 then
-    print("narrow escapes!", 35, 70, 7)
-  elseif level == 6 then
-    print("precision mode!", 35, 70, 7)
-  elseif level == 7 then
-    print("swarm of enemies!", 30, 70, 7)
-  elseif level == 8 then
-    print("ultimate test!", 38, 70, 7)
-  end
+  local m={"master the basics!","things get tighter!","stay sharp!","final challenge!","narrow escapes!","precision mode!","swarm of enemies!","ultimate test!"}
+  local x={30,30,45,35,35,35,30,38}
+  print(m[level], x[level], 70, 7)
 end
 
 function draw_gameover()
   cls(1)
-  if state == "gameover" then
-    if time_attack_mode then
-      print("time attack complete!", 25, 40, 11)
-      print("level "..level, 50, 55, 3)
-      print("time: "..format_time(level_timer), 40, 70, 7)
-    elseif game_won then
-      print("you win!", 50, 40, 11)
-      print("all 8 levels complete!", 25, 55, 3)
-    else
-      print("game over", 45, 40, 8)
-      print("reached level "..level, 35, 55, 7)
-    end
-
-    if not time_attack_mode then
-      -- show score with flash animation for high scores
-      local score_col = 7
-      if high_score_rank > 0 and lb_anim_timer > 0 then
-        -- flash effect when entering top 5
-        if flr(lb_anim_timer / 8) % 2 == 0 then
-          score_col = 11
-        end
-      end
-      print("score: "..score, 50, 70, score_col)
-
-      -- show high score rank
-      if high_score_rank > 0 then
-        print("#"..high_score_rank.." high score!", 30, 80, 11)
-      end
-    end
-
-    print("press z to menu", 35, 95, 6)
+  if time_attack_mode then
+    print("time attack complete!", 25, 40, 11) print("level "..level, 50, 55, 3) print("time: "..fmt(level_timer), 40, 70, 7)
+  elseif game_won then
+    print("you win!", 50, 40, 11) print("all 8 levels complete!", 25, 55, 3)
+  else
+    print("game over", 45, 40, 8) print("reached level "..level, 35, 55, 7)
   end
+  if not time_attack_mode then
+    local c=7
+    if high_score_rank > 0 and lb_anim_timer > 0 and flr(lb_anim_timer/8)%2==0 then c=11 end
+    print("score: "..score, 50, 70, c)
+    if high_score_rank > 0 then print("#"..high_score_rank.." high score!", 30, 80, 11) end
+  end
+  print("press z to menu", 35, 95, 6)
 end
 
-function format_time(frames)
-  local secs = flr(frames / 60)
-  local mins = flr(secs / 60)
-  local sec_display = secs % 60
-  return mins..":"..string.format("%02d", sec_display)
+function fmt(f)
+  local s=flr(f/60)
+  local m=flr(s/60)
+  s=s%60
+  return m..":"..((s<10 and "0" or "")..s)
 end
 
 function draw_leaderboard()
@@ -1246,21 +1024,12 @@ function draw_ta_select()
   cls(1)
   print("time attack", 45, 20, 7)
   print("select level:", 35, 35, 3)
-
-  local max_lvl = 8
-  if secret_levels_unlocked then max_lvl = 10 end
-
-  for i=1,max_lvl do
-    local col = 3
-    if i == ta_selected_level then col = 11 end
-    local label = "l"..i
-    if i == 9 then label = "s1" end
-    if i == 10 then label = "s2" end
-    local x = 40 + ((i-1) % 4) * 20
-    local y = 50 + flr((i-1) / 4) * 15
-    print(label, x, y, col)
+  local m=8+(secret_levels_unlocked and 2 or 0)
+  for i=1,m do
+    local c=(i==ta_selected_level and 11 or 3)
+    local l=(i<9 and "l"..i or (i==9 and "s1" or "s2"))
+    print(l, 40+((i-1)%4)*20, 50+flr((i-1)/4)*15, c)
   end
-
   print("z: play, x: times", 25, 110, 6)
 end
 
@@ -1276,7 +1045,7 @@ function draw_ta_leaderboard()
     for i=1,#times do
       local y = 35 + (i-1) * 15
       print("#"..i, 20, y, 3)
-      print(format_time(times[i]), 50, y, 7)
+      print(fmt(times[i]), 50, y, 7)
     end
   end
 
@@ -1359,8 +1128,8 @@ __sfx__
 01040000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __music__
-00 00000000
-01 00000000
-02 00000000
-03 00000000
+00 01010101
+01 02030203
+02 03040304
+03 05060506
 

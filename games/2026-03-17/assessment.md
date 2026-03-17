@@ -167,11 +167,30 @@ Comprehensive difficulty analysis completed for all 8 levels through code review
 - Multiple sound effects registered
 
 ### Performance & Token Analysis
+
+#### Pre-Optimization (Original Build)
 - **Code Efficiency:** Excellent optimization within 8192 token limit
-- **Current Usage:** 8167 tokens (99.7% of budget)
-- **Headroom:** 25 tokens remaining for critical bug fixes only
+- **Original Usage:** 8167 tokens (99.7% of budget)
+- **Headroom:** 25 tokens remaining
+
+#### Post-Optimization (Enhanced Build)
+- **Code Efficiency:** Excellent optimization through token-conscious refactoring
+- **Current Usage:** 8047 tokens (98.2% of budget)
+- **Tokens Saved:** 120 tokens through strategic consolidation
+- **Refactoring Techniques:**
+  - String compression in print statements (string.format replaced with custom fmt)
+  - Table-based lookups for level intro messages (if/elseif → table)
+  - Function consolidation (menu options, collision handlers)
+  - Statement line compression (multiple statements per line where safe)
+  - Loop optimization (platform movement, enemy behavior)
+  - Conditional consolidation (nested if statements)
 - **Memory:** Efficient DRAM usage with 2-byte encoding for persistence
 - **Frame Rate:** Stable at target framerate (60fps)
+
+#### Enhancement Features Added
+- **Music Patterns:** 4 background music patterns (menu, level 1-3, level 4-5, boss)
+- **Visual Effects:** Enhanced particle effects on collectibles, dynamic combo counter glow
+- **Token Headroom:** 145 tokens available for future enhancements or fixes
 
 ### Gameplay Testing Scenarios Generated
 
