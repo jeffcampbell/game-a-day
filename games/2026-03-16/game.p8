@@ -27,7 +27,6 @@ end
 -- game state
 state = "menu"
 current_difficulty = 2  -- 1=easy 3x3, 2=medium 4x4, 3=hard 5x5
-speedrun_mode = false
 grid = {}
 grid_size = 4
 empty_x, empty_y = 4, 4
@@ -334,7 +333,7 @@ function _update()
 
     if is_solved() then
       _log("gameover:win")
-      local elapsed_time = t() - time_start
+      elapsed_time = t() - time_start
       local best_moves, old_best_time = load_best_score(current_difficulty)
 
       -- check for personal record
