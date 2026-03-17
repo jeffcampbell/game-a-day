@@ -694,10 +694,7 @@ function draw_play()
 
   -- draw flash overlay
   if flash_timer > 0 then
-    local alpha = flr(flash_timer / 4)
-    if alpha > 0 then
-      rectfill(0, 0, 127, 127, flash_color)
-    end
+    rectfill(0, 0, 127, 127, flash_color)
   end
 
   -- draw ui (always on screen)
