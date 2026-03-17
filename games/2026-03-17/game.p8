@@ -64,11 +64,13 @@ move_speed = 1.5
 platforms = {}
 enemies = {}
 collectibles = {}
+boss = nil  -- boss enemy for level 8
 
 function create_level(lvl)
   platforms = {}
   enemies = {}
   collectibles = {}
+  boss = nil
 
   -- level 1: intro layout - basic platforming + 1 moving platform
   if lvl == 1 then
@@ -269,7 +271,7 @@ function create_level(lvl)
     add(collectibles, {x=50, y=44, w=8, h=8, collected=false, color=11})
     add(collectibles, {x=30, y=22, w=8, h=8, collected=false, color=11})
 
-  -- level 8: ultimate challenge - everything maxed
+  -- level 8: ultimate challenge - boss encounter!
   elseif lvl == 8 then
     add(platforms, {x=0, y=120, w=128, h=8, moving=false})
     add(platforms, {x=8, y=108, w=14, h=8, moving=true, vx=1.2, xmin=4, xmax=24})
@@ -283,7 +285,7 @@ function create_level(lvl)
     add(platforms, {x=55, y=14, w=14, h=8, moving=true, vy=-1.1, ymin=4, ymax=22})
     add(platforms, {x=32, y=6, w=10, h=8, moving=false})
 
-    -- 10 enemies: maximum difficulty - all types, all very fast
+    -- 9 regular enemies + 1 boss
     add(enemies, {x=50, y=93, w=8, h=8, vx=3.8, xmin=40, xmax=65, type="patrol", color=8})
     add(enemies, {x=85, y=81, w=8, h=8, vx=-3.8, xmin=70, xmax=100, type="patrol", color=8})
     add(enemies, {x=28, y=69, w=8, h=8, vx=3.2, xmin=18, xmax=42, type="jumping", jump_freq=28, ground_y=69, color=10})
@@ -293,7 +295,18 @@ function create_level(lvl)
     add(enemies, {x=35, y=57, w=8, h=8, vx=3.2, xmin=25, xmax=50, type="jumping", jump_freq=26, ground_y=57, color=10})
     add(enemies, {x=62, y=21, w=8, h=8, vx=-3.5, xmin=47, xmax=77, type="patrol", color=8})
     add(enemies, {x=48, y=73, w=8, h=8, vx=3.0, xmin=38, xmax=63, type="patrol", color=8})
-    add(enemies, {x=55, y=45, w=8, h=8, vy=-1.4, ymin=35, ymax=55, type="vertical", color=7})
+
+    -- spawn boss enemy (replaces one of the 10)
+    boss = {
+      x=60, y=40, w=8, h=8,
+      health=3, max_health=3,
+      phase=1, phase_timer=0,
+      wave_time=0,
+      bounce_vy=0,
+      color=9,
+      type="boss"
+    }
+    _log("boss:spawned")
 
     -- very few collectibles - high risk/reward
     add(collectibles, {x=26, y=100, w=8, h=8, collected=false, color=11})
@@ -467,6 +480,31 @@ function update_play()
     end
   end
 
+  -- boss collision (damage boss on hit)
+  if boss and collide_rect(player.x, player.y, player.w, player.h,
+                           boss.x, boss.y, boss.w, boss.h) then
+    boss.health -= 1
+    _log("action:hit_boss:"..boss.health)
+    sfx(2)
+    sfx(6)
+    apply_shake(3, 8)  -- stronger shake for boss hit
+    spawn_particles(boss.x + 4, boss.y + 4, 10, 9, 1.8)
+    set_flash(9, 4)  -- magenta flash
+    -- knock player back
+    player.x -= 3
+    player.vy = -4
+
+    if boss.health <= 0 then
+      _log("action:boss_defeated")
+      boss = nil
+      sfx(3)
+      sfx(9)
+      apply_shake(2, 12)  -- extended shake for victory
+      set_flash(11, 25)  -- longer yellow flash
+      spawn_particles(64, 50, 20, 9, 2.5)  -- boss explosion
+    end
+  end
+
   -- collectible collision
   for coll in all(collectibles) do
     if not coll.collected and
@@ -513,8 +551,39 @@ function update_play()
     end
   end
 
-  -- win condition: reach top
+  -- update boss (multi-phase behavior)
+  if boss then
+    boss.wave_time += 1
+    local phase_threshold = boss.max_health * 0.5
+
+    if boss.health <= phase_threshold then
+      -- phase 2: aggressive bouncing
+      boss.phase = 2
+      local speed = 2.2
+      boss.x += cos(boss.wave_time / 25) * speed
+      boss.y += sin(boss.wave_time / 20) * 1.5
+
+      -- keep in bounds
+      boss.x = max(20, min(boss.x, 100))
+      boss.y = max(20, min(boss.y, 80))
+    else
+      -- phase 1: slow sine wave
+      boss.phase = 1
+      boss.x = 40 + sin(boss.wave_time / 40) * 25
+      boss.y = 45 + cos(boss.wave_time / 50) * 10
+    end
+  end
+
+  -- win condition: reach top OR defeat boss on level 8
+  local should_complete_level = false
   if player.y < 5 then
+    should_complete_level = true
+  elseif level == 8 and not boss then
+    -- boss defeated, level 8 is complete
+    should_complete_level = true
+  end
+
+  if should_complete_level then
     sfx(3)
     sfx(9)  -- level complete chime
     apply_shake(1, 8)
@@ -681,6 +750,25 @@ function draw_play()
   -- draw enemies
   for enemy in all(enemies) do
     spr(1, enemy.x, enemy.y)
+  end
+
+  -- draw boss
+  if boss then
+    -- draw boss with visual effect (brighter/distinct)
+    -- use sprite 1 but with distinct color
+    local boss_col = boss.color
+    if boss.phase == 2 then
+      -- flash in phase 2 to show aggression
+      if flr(boss.wave_time / 3) % 2 == 0 then
+        boss_col = 15  -- white flash effect
+      end
+    end
+    -- draw boss as 8x8 enemy sprite with color indication
+    pset(boss.x, boss.y, boss_col)
+    pset(boss.x + 7, boss.y, boss_col)
+    pset(boss.x, boss.y + 7, boss_col)
+    pset(boss.x + 7, boss.y + 7, boss_col)
+    spr(1, boss.x, boss.y)
   end
 
   -- draw player
