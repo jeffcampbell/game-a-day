@@ -42,6 +42,13 @@ shake_timer = 0
 flash_color = -1
 flash_timer = 0
 
+-- leaderboard (top 5 scores)
+leaderboard_scores = {}
+leaderboard_levels = {}
+high_score_rank = -1  -- rank if score is in top 5 (-1 if not)
+lb_anim_timer = 0
+menu_option = 1  -- 1=start, 2=leaderboard, 3=clear
+
 -- player
 player = {
   x = 64,
@@ -65,6 +72,76 @@ platforms = {}
 enemies = {}
 collectibles = {}
 boss = nil  -- boss enemy for level 8
+
+-- leaderboard management functions
+function load_leaderboard()
+  leaderboard_scores = {}
+  leaderboard_levels = {}
+  for i=0,4 do
+    local s = dget(i)
+    local l = dget(i+5)
+    if s > 0 then
+      add(leaderboard_scores, s)
+      add(leaderboard_levels, l)
+    end
+  end
+  _log("leaderboard:loaded")
+end
+
+function save_score(sc, lvl)
+  -- check if score is in top 5
+  for i=1,#leaderboard_scores do
+    if sc > leaderboard_scores[i] then
+      high_score_rank = i
+      -- insert at position
+      if #leaderboard_scores < 5 then
+        add(leaderboard_scores, 0)
+        add(leaderboard_levels, 0)
+      end
+      -- shift scores down
+      for j=#leaderboard_scores,i+1,-1 do
+        leaderboard_scores[j] = leaderboard_scores[j-1]
+        leaderboard_levels[j] = leaderboard_levels[j-1]
+      end
+      leaderboard_scores[i] = sc
+      leaderboard_levels[i] = lvl
+      -- keep only top 5
+      if #leaderboard_scores > 5 then
+        del(leaderboard_scores, leaderboard_scores[6])
+        del(leaderboard_levels, leaderboard_levels[6])
+      end
+      break
+    end
+  end
+
+  if #leaderboard_scores < 5 and high_score_rank == -1 then
+    add(leaderboard_scores, sc)
+    add(leaderboard_levels, lvl)
+    high_score_rank = #leaderboard_scores
+  end
+
+  -- persist to cartridge
+  for i=0,4 do
+    if i < #leaderboard_scores then
+      dset(i, leaderboard_scores[i+1])
+      dset(i+5, leaderboard_levels[i+1])
+    else
+      dset(i, 0)
+      dset(i+5, 0)
+    end
+  end
+  _log("score:saved:"..sc)
+end
+
+function clear_leaderboard()
+  leaderboard_scores = {}
+  leaderboard_levels = {}
+  high_score_rank = -1
+  for i=0,9 do
+    dset(i, 0)
+  end
+  _log("leaderboard:cleared")
+end
 
 function create_level(lvl)
   platforms = {}
@@ -355,6 +432,11 @@ function start_level(lvl)
 end
 
 function update_menu()
+  -- load leaderboard on first menu visit
+  if #leaderboard_scores == 0 then
+    load_leaderboard()
+  end
+
   -- start menu music if not playing
   if music_playing ~= 0 then
     music(0)
@@ -362,9 +444,35 @@ function update_menu()
     _log("music:menu")
   end
 
+  -- menu navigation
+  if btnp(2) then  -- up
+    menu_option = max(1, menu_option - 1)
+  end
+  if btnp(3) then  -- down
+    menu_option = min(3, menu_option + 1)
+  end
+
+  -- menu selection
   if btnp(4) or btnp(5) then
-    _log("action:start_game")
-    init_game()
+    if menu_option == 1 then
+      _log("action:start_game")
+      init_game()
+    elseif menu_option == 2 then
+      _log("action:view_leaderboard")
+      state = "leaderboard"
+    elseif menu_option == 3 then
+      _log("action:clear_leaderboard")
+      clear_leaderboard()
+      menu_option = 1
+    end
+  end
+end
+
+function update_leaderboard()
+  if btnp(4) or btnp(5) then
+    _log("state:menu")
+    menu_option = 1
+    state = "menu"
   end
 end
 
@@ -616,16 +724,27 @@ function update_play()
 end
 
 function update_gameover()
+  -- save score on first frame of gameover
+  if lb_anim_timer == 0 then
+    lb_anim_timer = 60  -- 1 second animation
+    save_score(score, level)
+  end
+
+  lb_anim_timer -= 1
+
   if btnp(4) or btnp(5) then
     _log("state:menu")
     music(0)  -- go back to menu music
     music_playing = 0
     state = "menu"
+    high_score_rank = -1
+    menu_option = 1
   end
 end
 
 function _update()
   if state == "menu" then update_menu()
+  elseif state == "leaderboard" then update_leaderboard()
   elseif state == "level_intro" then update_level_intro()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
@@ -717,9 +836,19 @@ function draw_menu()
   cls(1)
   print("platformer", 50, 40, 7)
   print("8 challenging levels!", 30, 50, 3)
-  print("arrow keys: move", 30, 70, 6)
-  print("z/c: jump", 40, 80, 6)
-  print("press z to start", 35, 100, 3)
+
+  -- menu options
+  local opt1_col = 3
+  local opt2_col = 3
+  local opt3_col = 3
+  if menu_option == 1 then opt1_col = 11 end
+  if menu_option == 2 then opt2_col = 11 end
+  if menu_option == 3 then opt3_col = 11 end
+
+  print("start game", 40, 70, opt1_col)
+  print("leaderboard", 38, 80, opt2_col)
+  print("clear scores", 38, 90, opt3_col)
+  print("up/down to select, z to pick", 10, 110, 6)
 end
 
 function draw_play()
@@ -816,18 +945,52 @@ function draw_gameover()
     if game_won then
       print("you win!", 50, 40, 11)
       print("all 8 levels complete!", 25, 55, 3)
-      print("score: "..score, 50, 70, 7)
     else
       print("game over", 45, 40, 8)
       print("reached level "..level, 35, 55, 7)
-      print("score: "..score, 50, 70, 7)
     end
-    print("press z to menu", 35, 85, 6)
+
+    -- show score with flash animation for high scores
+    local score_col = 7
+    if high_score_rank > 0 and lb_anim_timer > 0 then
+      -- flash effect when entering top 5
+      if flr(lb_anim_timer / 8) % 2 == 0 then
+        score_col = 11
+      end
+    end
+    print("score: "..score, 50, 70, score_col)
+
+    -- show high score rank
+    if high_score_rank > 0 then
+      print("#"..high_score_rank.." high score!", 30, 80, 11)
+    end
+
+    print("press z to menu", 35, 95, 6)
   end
+end
+
+function draw_leaderboard()
+  cls(1)
+  print("leaderboard", 45, 10, 7)
+  print("top 5 scores", 40, 20, 3)
+
+  if #leaderboard_scores == 0 then
+    print("no scores yet!", 35, 50, 8)
+  else
+    for i=1,#leaderboard_scores do
+      local y = 35 + (i-1) * 10
+      print("#"..i, 20, y, 3)
+      print(leaderboard_scores[i], 45, y, 7)
+      print("l"..leaderboard_levels[i], 70, y, 6)
+    end
+  end
+
+  print("press z to menu", 35, 110, 6)
 end
 
 function _draw()
   if state == "menu" then draw_menu()
+  elseif state == "leaderboard" then draw_leaderboard()
   elseif state == "level_intro" then draw_level_intro()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
