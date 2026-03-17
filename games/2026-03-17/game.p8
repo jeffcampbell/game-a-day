@@ -773,9 +773,12 @@ function update_play()
       sfx(8) music(-1) music_playing = -1 _log("gameover:win") state = "gameover"
     else
       if not time_attack_mode then
-        level += 1 _log("action:level_complete") start_level(level)
+        level += 1
+        _log("action:level_complete")
+        start_level(level)
       else
-        _log("ta:level_complete:"..level_timer) state = "gameover"
+        _log("ta:level_complete:"..level_timer)
+        state = "gameover"
       end
     end
   end
@@ -783,19 +786,35 @@ function update_play()
   -- score milestones
   if score >= 5000 and not milestone_5000 then
     milestone_5000 = true
-    sfx(3) sfx(9) apply_shake(1, 6) set_flash(11, 12) spawn_particles(64, 64, 15, 11, 1.2)
+    sfx(3)
+    sfx(9)
+    apply_shake(1, 6)
+    set_flash(11, 12)
+    spawn_particles(64, 64, 15, 11, 1.2)
     _log("milestone:5000")
-  elseif score >= 1000 and not milestone_1000 then
+  end
+
+  if score >= 1000 and not milestone_1000 then
     milestone_1000 = true
-    sfx(3) apply_shake(1, 4) set_flash(10, 8) spawn_particles(64, 64, 10, 10, 1)
+    sfx(3)
+    apply_shake(1, 4)
+    set_flash(10, 8)
+    spawn_particles(64, 64, 10, 10, 1)
     _log("milestone:1000")
   end
 
   -- fall off bottom
   if player.y > 128 then
-    lives -= 1 _log("action:fell_off")
-    if lives <= 0 then _log("gameover:lose") state = "gameover"
-    else player.x = 64 player.y = 100 player.vy = 0 end
+    lives -= 1
+    _log("action:fell_off")
+    if lives <= 0 then
+      _log("gameover:lose")
+      state = "gameover"
+    else
+      player.x = 64
+      player.y = 100
+      player.vy = 0
+    end
   end
 end
 
