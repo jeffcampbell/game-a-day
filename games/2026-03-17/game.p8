@@ -963,7 +963,7 @@ function draw_play()
   end
   print("lives: "..lives, 5, 12, 7) print("lvl "..level, 110, 5, 7)
   if combo_count > 1 then
-    local c=(combo_count >= 3 and (flr(t()*4)%2==0 and 11 or 10) or 10)
+    local c=(combo_count >= 3 and (flr(time()*4)%2==0 and 11 or 10) or 10)
     print("combo: "..combo_count.."x", 55, 12, c)
   end
 end
