@@ -32,6 +32,7 @@ level = 1
 max_levels = 4
 game_won = false
 level_intro_timer = 0
+music_playing = -1  -- track which music pattern is playing
 
 -- player
 player = {
@@ -183,9 +184,33 @@ function start_level(lvl)
   _log("level:"..lvl)
   level_intro_timer = 120  -- 2 seconds at 60fps
   state = "level_intro"
+
+  -- play level-specific music
+  local music_pat = 1  -- default to level 1 music
+  if lvl == 1 then
+    music_pat = 1
+  elseif lvl == 2 or lvl == 3 then
+    music_pat = 2
+  elseif lvl == 4 then
+    music_pat = 3
+  end
+
+  music(music_pat)
+  music_playing = music_pat
+  _log("music:level"..lvl)
+
+  -- play level intro sound
+  sfx(5)
 end
 
 function update_menu()
+  -- start menu music if not playing
+  if music_playing ~= 0 then
+    music(0)
+    music_playing = 0
+    _log("music:menu")
+  end
+
   if btnp(4) or btnp(5) then
     _log("action:start_game")
     init_game()
@@ -250,6 +275,7 @@ function update_play()
 
   -- platform collision
   local on_platform = false
+  local was_jumping = player.jumping
   for plat in all(platforms) do
     if collide_rect(player.x, player.y + player.h, player.w, 1,
                     plat.x, plat.y, plat.w, plat.h) then
@@ -258,6 +284,11 @@ function update_play()
         player.vy = 0
         player.jumping = false
         on_platform = true
+        -- play landing sound when jumping onto platform
+        if was_jumping then
+          sfx(4)
+          _log("action:land")
+        end
         -- player rides on moving platform
         if plat.moving then
           if plat.vy then player.y += plat.vy end
@@ -333,6 +364,9 @@ function update_play()
     sfx(3)
     if level >= max_levels then
       game_won = true
+      sfx(8)  -- play victory fanfare
+      music(-1)  -- stop music
+      music_playing = -1
       _log("gameover:win")
       state = "gameover"
     else
@@ -360,6 +394,8 @@ end
 function update_gameover()
   if btnp(4) or btnp(5) then
     _log("state:menu")
+    music(0)  -- go back to menu music
+    music_playing = 0
     state = "menu"
   end
 end
@@ -513,7 +549,16 @@ __sfx__
 010a00003654300034503000400000003650365036500340034003000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 010a00001c4320432204322043220432114322043200432000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 010a000050050505300505053004050505300505053005050505300505053004050505300505053005050505300505053004050505300505053005050505300505053004050505300505053005050505300505053
+010800004505350505505305a053505a0500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010a0000365436543654365436543654300030003000300030003000300030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01080000175017501750175017500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010800004305430543054305430000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010c00006a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a646a64
+01040000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __music__
 00 00000000
+01 00000000
+02 00000000
+03 00000000
 
