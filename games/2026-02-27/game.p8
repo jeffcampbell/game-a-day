@@ -144,7 +144,7 @@ mc5 = 1
 mc6 = false
 
 mc1 = 1
-mc2 = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "variant_leaderboards", "ad2", "statistics", "settings", "progress", "arcade_1life"}
+mc2 = {"play", "practice", "tutorial", "bossrush", "variant_leaderboards", "ad2", "statistics", "settings", "progress", "arcade_1life"}
 
 ct1 = 90
 ct2 = false
@@ -849,7 +849,7 @@ function update_menu()
     end
 
     if input & 8 > 0 then
-      mc1 = min(12, mc1 + 1)
+      mc1 = min(10, mc1 + 1)
       play_sfx(1)
       _log("menu_nav:down:"..mc1)
       _log("sfx_menu_nav")

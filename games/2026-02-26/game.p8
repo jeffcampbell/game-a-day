@@ -14,9 +14,6 @@ function _log(msg)
   if testmode then add(test_log, msg) end
 end
 
-function _capture()
-  if testmode then add(test_log, "SCREEN:"..tostr(stat(0))) end
-end
 
 function test_input()
   if testmode and test_input_idx < #test_inputs then
@@ -536,24 +533,8 @@ function spawn_meteor()
     else mtype = 2 end
   end
 
- 
-  local size, speed_mult, crad
-  if mtype == 1 then
-   
-    size = 3
-    speed_mult = 1.5
-    crad = 5
-  elseif mtype == 2 then
-   
-    size = 6
-    speed_mult = 0.5
-    crad = 8
-  else
-   
-    size = 4
-    speed_mult = 1
-    crad = 6
-  end
+  local m={[1]={3,1.5,5},[2]={6,0.5,8},[3]={4,1,6}} local mt=m[mtype]
+  local size,speed_mult,crad=mt[1],mt[2],mt[3]
 
  
   if difficulty_preset == 3 then
@@ -637,9 +618,7 @@ function spawn_powerup()
     type = ptype
   })
 
-  local pname = "shield"
-  if ptype == 2 then pname = "slowtime"
-  elseif ptype == 3 then pname = "invincibility" end
+  local pn={"shield","slowtime","invincibility"} local pname=pn[ptype] or "shield"
   _log("powerup_spawn:"..pname)
 end
 
