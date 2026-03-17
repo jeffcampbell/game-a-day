@@ -38,6 +38,10 @@ music_playing = -1  -- track which music pattern is playing
 combo_count = 0  -- current combo multiplier (1x, 2x, 3x, etc.)
 combo_window = 0  -- frames remaining in combo window (5 seconds = 300 frames)
 
+-- milestone tracking for score celebrations
+milestone_1000 = false
+milestone_5000 = false
+
 -- visual effects
 particles = {}
 max_particles = 32
@@ -649,7 +653,7 @@ function update_play()
     player.vy = -jump_power
     player.jumping = true
     player.coyote_frames = 0
-    sfx(0)
+    if combo_count > 1 then sfx(0, -1, 1) else sfx(0) end
     _log("action:jump")
   end
 
@@ -774,6 +778,17 @@ function update_play()
         _log("ta:level_complete:"..level_timer) state = "gameover"
       end
     end
+  end
+
+  -- score milestones
+  if score >= 5000 and not milestone_5000 then
+    milestone_5000 = true
+    sfx(3) sfx(9) apply_shake(1, 6) set_flash(11, 12) spawn_particles(64, 64, 15, 11, 1.2)
+    _log("milestone:5000")
+  elseif score >= 1000 and not milestone_1000 then
+    milestone_1000 = true
+    sfx(3) apply_shake(1, 4) set_flash(10, 8) spawn_particles(64, 64, 10, 10, 1)
+    _log("milestone:1000")
   end
 
   -- fall off bottom
