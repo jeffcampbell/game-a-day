@@ -144,7 +144,7 @@ mc5 = 1
 mc6 = false
 
 mc1 = 1
-mc2 = {"play", "challenge", "practice", "gauntlet", "tutorial", "bossrush", "variant_leaderboards", "ad2", "statistics", "settings", "progress", "arcade_1life"}
+mc2 = {"play", "practice", "tutorial", "bossrush", "variant_leaderboards", "ad2", "statistics", "settings", "progress", "arcade_1life"}
 
 ct1 = 90
 ct2 = false

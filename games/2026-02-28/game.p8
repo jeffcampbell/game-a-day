@@ -246,14 +246,11 @@ function una(id)
   sas[id] = true
   _log("achievement:"..id)
 
-
   sva()
-
 
   sfx(6)
   shf = 2
   shi = 0.5
-
 
   add(mts, {
     text = "achievement!",
@@ -321,11 +318,9 @@ function inm()
   state = "menu"
   _log("state:menu")
 
-
   local last_diff = dget(9) or 2
   dfc = last_diff
   df = ({"easy","normal","hard"})[dfc]
-
 
   local diff_slot = 5 + dfc -- 6=easy, 7=normal, 8=hard
   hsc = dget(diff_slot) or 0
@@ -351,7 +346,6 @@ function drm()
 
   print("neon-slinger", 32, 40, 11)
   print("press o to start", 24, 60, 7)
-
 
   local diff_col = df == "easy" and 12 or (df == "hard" and 8 or 10)
   print("high: "..hsc.." ("..df..")", 20, 80, diff_col)
@@ -451,7 +445,6 @@ function dds()
 
     -- df name
     print(diff_name, 30, y, col)
-
 
     if i == 1 then -- easy
       print("fewer es, slower", 8, y+8, 6)
@@ -564,7 +557,6 @@ function init_play()
   smt = 0
   tas = 0  -- time attack spawn timer
 
-
   p = {
     x = 64,
     y = 64,
@@ -592,7 +584,6 @@ function upp()
 
   local input = test_input()
 
-
   tsv = flr(time() - st)
 
   if gm == "time_attack" then
@@ -607,7 +598,6 @@ function upp()
     end
   end
 
-
   if shf > 0 then
     shf -= 1
   else
@@ -615,11 +605,9 @@ function upp()
     shi = bsh()
   end
 
-
   if rft > 0 then rft -= 1 end
   if bst > 0 then bst -= 1 end
   if smt > 0 then smt -= 1 end
-
 
   update_spawn_queue()
 
@@ -660,16 +648,13 @@ function upp()
     dap()
   end
 
-
   for e in all(es) do
     upe(e)
   end
 
-
   for p in all(ps) do
     upr(p)
   end
-
 
   for pu in all(pups) do
     pu.y += 0.3
@@ -682,7 +667,6 @@ function upp()
     end
   end
 
-
   for pt in all(pts) do
     pt.x += pt.vx
     pt.y += pt.vy
@@ -691,7 +675,6 @@ function upp()
       del(pts, pt)
     end
   end
-
 
   if flt > 0 then
     flt -= 1
@@ -705,7 +688,6 @@ function upp()
     end
   end
 
-
   if #es == 0 and ekl > 0 and gm != "time_attack" then
     asc(100)
     _log("wave_complete:"..wave)
@@ -714,9 +696,7 @@ function upp()
     spw()
   end
 
-
   cka()
-
 
   if p.lives <= 0 then
     igo()
@@ -750,10 +730,8 @@ function dap()
   p.x += dir[1] * 15
   p.y += dir[2] * 15
 
-
   p.x = mid(8, p.x, 120)
   p.y = mid(8, p.y, 120)
-
 
   for e in all(es) do
     if dist(p.x, p.y, e.x, e.y) < 12 then
@@ -771,10 +749,8 @@ function upe(e)
   e.vx *= 0.85
   e.vy *= 0.85
 
-
   e.x = mid(4, e.x, 124)
   e.y = mid(4, e.y, 124)
-
 
   if e.type == "heavy" then
     uba(e)
@@ -783,7 +759,6 @@ function upe(e)
   elseif e.type == "summoner" then
     update_summoner_attacks(e)
   end
-
 
   if e.dashing then
     e.dash_timer -= 1
@@ -829,7 +804,6 @@ function upe(e)
         e.burst_pending = true
       end
     end
-
 
     if e.burst_pending and e.shoot_timer == 5 then
       enemy_shoot(e)
@@ -943,7 +917,6 @@ function uba(e)
     e.burst_used = false
   end
 
-
   if e.burst_cd > 0 then e.burst_cd -= 1 end
   if e.dash_cd > 0 then e.dash_cd -= 1 end
   if e.flt and e.flt > 0 then e.flt -= 1 end
@@ -959,12 +932,10 @@ function uba(e)
   end
   if e.spawn_timer and e.spawn_timer > 0 then e.spawn_timer -= 1 end
 
-
   if e.pulse_timer and e.pulse_timer > 0 then
     e.pulse_timer -= 1
     e.pulse_radius = (20 - e.pulse_timer) * 0.7
   end
-
 
   if e.dash_warn and e.dash_warn > 0 then
     e.dash_warn -= 1
@@ -983,7 +954,6 @@ function uba(e)
     end
   end
 
-
   if e.aim_warn and e.aim_warn > 0 then
     e.aim_warn -= 1
 
@@ -992,15 +962,12 @@ function uba(e)
   local elapsed = time() - e.spawn_time
   local hp_pct = e.hp / e.max_hp
 
-
   -- df-based cooldowns: easy (slower), normal (baseline), hard (faster)
   local burst_base = df == "easy" and 180 or (df == "hard" and 90 or 120)
   local dash_base = df == "easy" and 270 or (df == "hard" and 135 or 180)
 
-
   local burst_cooldown = e.phase3 and flr(burst_base / 3) or (e.phase2 and flr(burst_base * 0.6) or burst_base)
   local dash_cooldown = e.phase3 and flr(dash_base / 3) or (e.phase2 and flr(dash_base * 0.53) or dash_base)
-
 
   if (not e.burst_used and (hp_pct <= 0.5 or elapsed >= 5) and e.burst_cd == 0) or (e.phase2 and e.burst_cd == 0) then
     bba(e)
@@ -1133,7 +1100,6 @@ function boss_aimed_burst_attack(e)
   e.aim_target_y = p.y
   shf = 1
   shi = 1.0  -- light shake
-
 
   local dx = p.x - e.x
   local dy = p.y - e.y
@@ -1294,7 +1260,6 @@ function dme(e, dmg, proj)
     if d > 0 then
       local force = 2.5
 
-
       if e.type == "heavy" or e.type == "seeker" or e.type == "summoner" then
         force = force / 3
         _log("knockback:boss:"..e.type)
@@ -1306,7 +1271,6 @@ function dme(e, dmg, proj)
       e.vy = (dy / d) * force
     end
   end
-
 
   local ib=e.type=="heavy" or e.type=="seeker" or e.type=="summoner"
   if ib and not e.phase2 and e.hp<=2 then
@@ -1334,7 +1298,6 @@ end
 function kill_enemy(e)
   _log("enemy_kill:"..e.type)
 
-
   if e.type=="heavy" then
     sfx(10)
     _log("sfx:boss_death:heavy")
@@ -1361,7 +1324,6 @@ function kill_enemy(e)
   ekl += 1
   _log("combo:"..combo)
 
-
   local is_milestone = (combo == 10 or combo == 20 or combo == 30 or
                         (combo >= 50 and combo % 25 == 0)) and combo > lms
 
@@ -1381,13 +1343,10 @@ function kill_enemy(e)
       tier_col, tier_particles, tier_shake, tier_sfx_offset = 10, 8, 3, 4
     end
 
-
     flt = 3
-
 
     shf = tier_shake
     shi = tier_shake * 0.5
-
 
     add(mts, {
       text = "combo x"..combo.."!",
@@ -1414,7 +1373,6 @@ function kill_enemy(e)
     -- distinct fanfare sfx for each tier
     sfx(6, -1, tier_sfx_offset)
   end
-
 
   if e.type == "heavy" or e.type == "seeker" or e.type == "summoner" then
     bks += 1
@@ -1502,12 +1460,10 @@ function hit_player(dmg)
   p.lives -= dmg
   p.invuln = 60
 
-
   if combo > 0 then
     p.flash_red = 6  -- red flash effect
     sfx(18)  -- low-pitched buzz/error sound
     _log("combo_reset_feedback")
-
 
     add(mts, {
       text = "combo lost!",
@@ -1536,7 +1492,6 @@ function hit_player(dmg)
   _log("hit:lives="..p.lives..",dmg="..dmg)
   _log("combo_reset")
 
-
   shf = 3 + dmg
   shi = 2 + dmg * 0.5
 
@@ -1557,7 +1512,6 @@ function queue_spawn(typ, delay)
 
   local base_delay = delay or (60 + flr(rnd(30)))
   local spawn_delay = flr(base_delay * sdf())
-
 
   local x, y = 0, 0
   local side = flr(rnd(4))
@@ -1620,7 +1574,6 @@ function spw()
   local count_mult = df == "easy" and 0.7 or (df == "hard" and 1.3 or 1.0)
   local shooter_wave = df == "easy" and 5 or (df == "hard" and 2 or 3)
   local speedy_wave = df == "easy" and 8 or (df == "hard" and 3 or 5)
-
 
   local boss_interval = df == "easy" and 6 or (df == "hard" and 4 or 5)
 
@@ -1794,7 +1747,6 @@ function spe(typ, spawn_x, spawn_y)
   add(es, e)
   _log("spawn:"..typ)
 
-
   if typ == "heavy" or typ == "seeker" or typ == "summoner" then
     sfx(6)
     _log("sfx:boss_alert:"..typ)
@@ -1825,7 +1777,6 @@ function update_spawn_queue()
       sq.sfx_played = true
       _log("telegraph_sfx:"..sq.type)
     end
-
 
     if sq.timer <= 0 then
       spe(sq.type, sq.x, sq.y)
@@ -1870,7 +1821,6 @@ function get_score_multiplier()
 
   -- time multiplier (0.5x per 30s, max 2.0x at 120s)
   base += min(flr(tsv / 30) * 0.5, 1.0)
-
 
   if smt > 0 then
     base *= 2
@@ -1937,7 +1887,6 @@ function draw_edge_indicators()
     end
   end
 
-
   for edge, types in pairs(nearest) do
     for typ, data in pairs(types) do
       local e = data.e
@@ -1972,7 +1921,6 @@ function draw_edge_indicators()
       elseif e.type == "summoner" and e.phase2 then
         col = 14 -- magenta for phase 2 summoner
       end
-
 
       if e.type == "heavy" or e.type == "seeker" or e.type == "summoner" then
         circfill(ix, iy, 2, col)
@@ -2018,7 +1966,6 @@ function drp()
     print(pu.type, pu.x - 4, pu.y - 8, 7)
   end
 
-
   for sq in all(sqe) do
     -- only show telegraph when timer <= 60 (1 second warning)
     if sq.timer <= 60 then
@@ -2058,7 +2005,6 @@ function drp()
       draw_r = r * scale
     end
 
-
     if e.pulse_timer and e.pulse_timer > 0 and e.pulse_radius then
       local alpha = e.pulse_timer / 20  -- fade out as pulse expands
       local pulse_col = (e.pulse_timer % 4 < 2) and 7 or 12/cyan alternate
@@ -2077,14 +2023,12 @@ function drp()
       if e.spawn_timer>40 then circ(e.x,e.y,br+p+1,gc) end
     end
 
-
     local col = e.col
     if e.spawn_flash and e.spawn_flash > 0 then
       col = (e.spawn_flash % 2 == 0) and 15 or 8
     elseif e.flt and e.flt > 0 then
       col = (e.flt % 4 < 2) and 7 or e.col
     end
-
 
     if e.type == "heavy" and e.phase3 then
       col = 8 -- bright red (phase 3 enrage)
@@ -2136,7 +2080,6 @@ function drp()
 
     circfill(e.x, e.y, draw_r, col)
 
-
     if (e.type == "heavy" or e.type == "seeker" or e.type == "summoner") and e.glow_t and not e.spawn_flash then
       local glow_col = (e.glow_t < 6) and 8 or 3
 
@@ -2159,7 +2102,6 @@ function drp()
       end
       circ(e.x, e.y, draw_r + 1, glow_col)
     end
-
 
     if e.spin_timer and e.spin_timer > 0 then
       local angle = (30 - e.spin_timer) * 0.1
@@ -2184,7 +2126,6 @@ function drp()
       local vy = sin(angle + 0.25) * len
       line(e.x - vx, e.y - vy, e.x + vx, e.y + vy, 7)
     end
-
 
     if e.dashing then
       circ(e.x, e.y, draw_r + 1, 10)
@@ -2276,7 +2217,6 @@ function drp()
   for i=1,p.lives do
     circfill(118 - i * 6, 120, 2, 8)
   end
-
 
   local py = 10
   if rft > 0 then
@@ -2375,13 +2315,11 @@ function igo()
   music(3) -- gameover theme
   _log("music:gameover")
 
-
   cka()
 
   -- track session best combo
   bcs = max(bcs, combo)
   _log("bcs:"..bcs)
-
 
   if bcs > bco then
     bco = bcs
@@ -2450,7 +2388,6 @@ function dgo()
   local mode_text = gm == "boss_rush" and "boss rush" or df
   local mode_y = (gm == "boss_rush" and 66 or 74) + (nr and 8 or 0)
   print("mode: "..mode_text, 30, mode_y, diff_col)
-
 
   local session_count = csa()
   local ach_y = 82 + (nr and 8 or 0)
@@ -2634,4 +2571,3 @@ __label__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-
