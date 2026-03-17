@@ -29,6 +29,7 @@ state = "menu"
 score = 0
 lives = 3
 level = 1
+game_won = false
 
 -- player
 player = {
@@ -87,6 +88,7 @@ function init_game()
   player.jumping = false
   score = 0
   lives = 3
+  game_won = false
   create_level()
   _log("state:play")
   _log("level:"..level)
@@ -102,17 +104,16 @@ end
 
 function update_play()
   -- player movement
-  local input = test_input(0)
-  if btn(0) then -- left
+  if test_input(0) then -- left
     player.vx = -move_speed
-  elseif btn(1) then -- right
+  elseif test_input(1) then -- right
     player.vx = move_speed
   else
     player.vx = 0
   end
 
   -- jumping
-  if btnp(4) and not player.jumping then
+  if test_input(4) and not player.jumping then
     player.vy = -jump_power
     player.jumping = true
     sfx(0)
@@ -184,6 +185,7 @@ function update_play()
 
   -- win condition: reach top
   if player.y < 5 then
+    game_won = true
     _log("gameover:win")
     state = "gameover"
     sfx(3)
@@ -266,12 +268,7 @@ end
 function draw_gameover()
   cls(1)
   if state == "gameover" then
-    local won = false
-    for msg in all(test_log) do
-      if msg == "gameover:win" then won = true end
-    end
-
-    if won then
+    if game_won then
       print("you win!", 50, 40, 11)
       print("score: "..score, 50, 55, 7)
     else
