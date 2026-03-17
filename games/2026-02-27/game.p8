@@ -849,7 +849,7 @@ function update_menu()
     end
 
     if input & 8 > 0 then
-      mc1 = min(12, mc1 + 1)
+      mc1 = min(10, mc1 + 1)
       play_sfx(1)
       _log("menu_nav:down:"..mc1)
       _log("sfx_menu_nav")
