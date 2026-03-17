@@ -29,7 +29,7 @@ state = "menu"
 score = 0
 lives = 3
 level = 1
-max_levels = 4
+max_levels = 8
 game_won = false
 level_intro_timer = 0
 music_playing = -1  -- track which music pattern is playing
@@ -163,6 +163,137 @@ function create_level(lvl)
     add(collectibles, {x=65, y=56, w=8, h=8, collected=false, color=11})
     add(collectibles, {x=40, y=42, w=8, h=8, collected=false, color=11})
     add(collectibles, {x=28, y=16, w=8, h=8, collected=false, color=11})
+
+  -- level 5: narrow chains, fast vertical enemies
+  elseif lvl == 5 then
+    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
+    add(platforms, {x=10, y=110, w=16, h=8, moving=false})
+    add(platforms, {x=42, y=100, w=18, h=8, moving=false})
+    add(platforms, {x=78, y=90, w=16, h=8, moving=true, vy=-0.8, ymin=80, ymax=98})
+    add(platforms, {x=15, y=78, w=18, h=8, moving=false})
+    add(platforms, {x=55, y=66, w=16, h=8, moving=false})
+    add(platforms, {x=88, y=54, w=20, h=8, moving=true, vx=-1.0, xmin=75, xmax=95})
+    add(platforms, {x=25, y=42, w=16, h=8, moving=false})
+    add(platforms, {x=68, y=30, w=18, h=8, moving=false})
+    add(platforms, {x=12, y=18, w=20, h=8, moving=true, vy=-0.9, ymin=8, ymax=25})
+
+    -- 7 enemies: fast + multiple vertical
+    add(enemies, {x=50, y=95, w=8, h=8, vx=3.0, xmin=40, xmax=65, type="patrol", color=8})
+    add(enemies, {x=85, y=85, w=8, h=8, vy=-1.0, ymin=75, ymax=95, type="vertical", color=7})
+    add(enemies, {x=25, y=73, w=8, h=8, vx=2.2, xmin=15, xmax=40, type="jumping", jump_freq=38, ground_y=73, color=10})
+    add(enemies, {x=70, y=61, w=8, h=8, vy=0.9, ymin=52, ymax=70, type="vertical", color=7})
+    add(enemies, {x=35, y=50, w=8, h=8, vx=-2.8, xmin=20, xmax=50, type="patrol", color=8})
+    add(enemies, {x=80, y=37, w=8, h=8, vy=-1.1, ymin=27, ymax=45, type="vertical", color=7})
+    add(enemies, {x=55, y=25, w=8, h=8, vx=2.5, xmin=45, xmax=70, type="patrol", color=8})
+
+    -- many collectibles on narrow platforms
+    add(collectibles, {x=28, y=102, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=60, y=92, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=92, y=82, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=32, y=70, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=70, y=58, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=40, y=44, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=75, y=32, w=8, h=8, collected=false, color=11})
+
+  -- level 6: tight navigation, synchronized moving platforms
+  elseif lvl == 6 then
+    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
+    add(platforms, {x=8, y=108, w=14, h=8, moving=true, vx=1.0, xmin=5, xmax=25})
+    add(platforms, {x=48, y=96, w=14, h=8, moving=false})
+    add(platforms, {x=80, y=84, w=14, h=8, moving=true, vx=-1.0, xmin=65, xmax=90})
+    add(platforms, {x=20, y=72, w=16, h=8, moving=false})
+    add(platforms, {x=65, y=60, w=14, h=8, moving=true, vy=-0.9, ymin=50, ymax=68})
+    add(platforms, {x=35, y=48, w=14, h=8, moving=false})
+    add(platforms, {x=75, y=36, w=16, h=8, moving=true, vx=1.1, xmin=60, xmax=85})
+    add(platforms, {x=15, y=24, w=14, h=8, moving=false})
+    add(platforms, {x=55, y=12, w=18, h=8, moving=true, vy=-1.0, ymin=2, ymax=20})
+
+    -- 8 very fast enemies mixed types
+    add(enemies, {x=45, y=91, w=8, h=8, vx=3.2, xmin=35, xmax=60, type="patrol", color=8})
+    add(enemies, {x=85, y=79, w=8, h=8, vx=-3.2, xmin=70, xmax=95, type="patrol", color=8})
+    add(enemies, {x=25, y=67, w=8, h=8, vx=2.5, xmin=15, xmax=40, type="jumping", jump_freq=36, ground_y=67, color=10})
+    add(enemies, {x=70, y=55, w=8, h=8, vy=-1.2, ymin=45, ymax=65, type="vertical", color=7})
+    add(enemies, {x=40, y=43, w=8, h=8, vx=-3.0, xmin=25, xmax=55, type="patrol", color=8})
+    add(enemies, {x=80, y=31, w=8, h=8, vy=1.2, ymin=21, ymax=40, type="vertical", color=7})
+    add(enemies, {x=30, y=37, w=8, h=8, vx=2.8, xmin=20, xmax=45, type="jumping", jump_freq=33, ground_y=37, color=10})
+    add(enemies, {x=60, y=19, w=8, h=8, vx=-2.8, xmin=45, xmax=75, type="patrol", color=8})
+
+    -- fewer collectibles on tight platforms
+    add(collectibles, {x=24, y=100, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=58, y=88, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=88, y=76, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=38, y=64, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=78, y=52, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=45, y=40, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=25, y=28, w=8, h=8, collected=false, color=11})
+
+  -- level 7: precision platforming, dense enemies
+  elseif lvl == 7 then
+    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
+    add(platforms, {x=5, y=110, w=18, h=8, moving=false})
+    add(platforms, {x=50, y=100, w=16, h=8, moving=true, vy=0.7, ymin=92, ymax=106})
+    add(platforms, {x=85, y=90, w=15, h=8, moving=false})
+    add(platforms, {x=20, y=78, w=16, h=8, moving=false})
+    add(platforms, {x=60, y=66, w=14, h=8, moving=true, vx=-1.2, xmin=45, xmax=68})
+    add(platforms, {x=35, y=54, w=18, h=8, moving=false})
+    add(platforms, {x=75, y=42, w=16, h=8, moving=true, vx=1.2, xmin=62, xmax=85})
+    add(platforms, {x=12, y=30, w=14, h=8, moving=false})
+    add(platforms, {x=55, y=18, w=16, h=8, moving=false})
+    add(platforms, {x=28, y=6, w=12, h=8, moving=false})
+
+    -- 9 enemies: high density, all fast
+    add(enemies, {x=48, y=95, w=8, h=8, vx=3.5, xmin=38, xmax=62, type="patrol", color=8})
+    add(enemies, {x=88, y=85, w=8, h=8, vx=-3.5, xmin=72, xmax=100, type="patrol", color=8})
+    add(enemies, {x=25, y=73, w=8, h=8, vx=3.0, xmin=15, xmax=40, type="jumping", jump_freq=32, ground_y=73, color=10})
+    add(enemies, {x=68, y=61, w=8, h=8, vy=-1.3, ymin=51, ymax=70, type="vertical", color=7})
+    add(enemies, {x=40, y=49, w=8, h=8, vx=-3.2, xmin=25, xmax=55, type="patrol", color=8})
+    add(enemies, {x=80, y=37, w=8, h=8, vy=1.3, ymin=27, ymax=47, type="vertical", color=7})
+    add(enemies, {x=32, y=47, w=8, h=8, vx=3.0, xmin=22, xmax=48, type="jumping", jump_freq=30, ground_y=47, color=10})
+    add(enemies, {x=62, y=25, w=8, h=8, vx=-3.2, xmin=47, xmax=77, type="patrol", color=8})
+    add(enemies, {x=50, y=65, w=8, h=8, vx=2.8, xmin=40, xmax=60, type="patrol", color=8})
+
+    -- limited collectibles for high challenge
+    add(collectibles, {x=28, y=102, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=62, y=92, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=92, y=82, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=40, y=70, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=75, y=58, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=50, y=44, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=30, y=22, w=8, h=8, collected=false, color=11})
+
+  -- level 8: ultimate challenge - everything maxed
+  elseif lvl == 8 then
+    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
+    add(platforms, {x=8, y=108, w=14, h=8, moving=true, vx=1.2, xmin=4, xmax=24})
+    add(platforms, {x=45, y=98, w=12, h=8, moving=false})
+    add(platforms, {x=82, y=86, w=14, h=8, moving=true, vx=-1.2, xmin=67, xmax=88})
+    add(platforms, {x=22, y=74, w=12, h=8, moving=false})
+    add(platforms, {x=62, y=62, w=12, h=8, moving=true, vy=-1.0, ymin=52, ymax=70})
+    add(platforms, {x=38, y=50, w=12, h=8, moving=false})
+    add(platforms, {x=75, y=38, w=12, h=8, moving=true, vx=1.3, xmin=60, xmax=85})
+    add(platforms, {x=18, y=26, w=12, h=8, moving=false})
+    add(platforms, {x=55, y=14, w=14, h=8, moving=true, vy=-1.1, ymin=4, ymax=22})
+    add(platforms, {x=32, y=6, w=10, h=8, moving=false})
+
+    -- 10 enemies: maximum difficulty - all types, all very fast
+    add(enemies, {x=50, y=93, w=8, h=8, vx=3.8, xmin=40, xmax=65, type="patrol", color=8})
+    add(enemies, {x=85, y=81, w=8, h=8, vx=-3.8, xmin=70, xmax=100, type="patrol", color=8})
+    add(enemies, {x=28, y=69, w=8, h=8, vx=3.2, xmin=18, xmax=42, type="jumping", jump_freq=28, ground_y=69, color=10})
+    add(enemies, {x=70, y=57, w=8, h=8, vy=-1.5, ymin=47, ymax=67, type="vertical", color=7})
+    add(enemies, {x=42, y=45, w=8, h=8, vx=-3.5, xmin=27, xmax=57, type="patrol", color=8})
+    add(enemies, {x=82, y=33, w=8, h=8, vy=1.5, ymin=23, ymax=43, type="vertical", color=7})
+    add(enemies, {x=35, y=57, w=8, h=8, vx=3.2, xmin=25, xmax=50, type="jumping", jump_freq=26, ground_y=57, color=10})
+    add(enemies, {x=62, y=21, w=8, h=8, vx=-3.5, xmin=47, xmax=77, type="patrol", color=8})
+    add(enemies, {x=48, y=73, w=8, h=8, vx=3.0, xmin=38, xmax=63, type="patrol", color=8})
+    add(enemies, {x=55, y=45, w=8, h=8, vy=-1.4, ymin=35, ymax=55, type="vertical", color=7})
+
+    -- very few collectibles - high risk/reward
+    add(collectibles, {x=26, y=100, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=60, y=90, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=88, y=78, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=45, y=66, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=75, y=54, w=8, h=8, collected=false, color=11})
+    add(collectibles, {x=28, y=32, w=8, h=8, collected=false, color=11})
   end
 end
 
@@ -191,8 +322,10 @@ function start_level(lvl)
     music_pat = 1
   elseif lvl == 2 or lvl == 3 then
     music_pat = 2
-  elseif lvl == 4 then
+  elseif lvl == 4 or lvl == 5 then
     music_pat = 3
+  elseif lvl >= 6 then
+    music_pat = 3  -- use same intense music for final levels
   end
 
   music(music_pat)
@@ -416,7 +549,7 @@ end
 function draw_menu()
   cls(1)
   print("platformer", 50, 40, 7)
-  print("4 challenging levels!", 30, 50, 3)
+  print("8 challenging levels!", 30, 50, 3)
   print("arrow keys: move", 30, 70, 6)
   print("z/c: jump", 40, 80, 6)
   print("press z to start", 35, 100, 3)
@@ -465,6 +598,14 @@ function draw_level_intro()
     print("stay sharp!", 45, 70, 7)
   elseif level == 4 then
     print("final challenge!", 35, 70, 7)
+  elseif level == 5 then
+    print("narrow escapes!", 35, 70, 7)
+  elseif level == 6 then
+    print("precision mode!", 35, 70, 7)
+  elseif level == 7 then
+    print("swarm of enemies!", 30, 70, 7)
+  elseif level == 8 then
+    print("ultimate test!", 38, 70, 7)
   end
 end
 
@@ -473,7 +614,7 @@ function draw_gameover()
   if state == "gameover" then
     if game_won then
       print("you win!", 50, 40, 11)
-      print("all 4 levels complete!", 25, 55, 3)
+      print("all 8 levels complete!", 25, 55, 3)
       print("score: "..score, 50, 70, 7)
     else
       print("game over", 45, 40, 8)
