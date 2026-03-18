@@ -111,7 +111,9 @@ end
 bricks = {}
 function get_brick_type(lvl, rand_val)
   -- determine brick type based on level and random value
-  if lvl == 1 then
+  if lvl == 6 then
+    return "normal"  -- boss level should never call this
+  elseif lvl == 1 then
     return "normal"
   elseif lvl == 2 then
     if rand_val < 0.75 then return "normal"
@@ -155,8 +157,7 @@ function init_boss()
     max_health = 15,
     phase = 1,
     move_timer = 0,
-    shoot_timer = 0,
-    entrance_time = 30
+    shoot_timer = 0
   }
   boss_projectiles = {}
   boss_entrance_time = 30
@@ -245,6 +246,13 @@ end
 
 function update_boss()
   if not boss then return end
+
+  -- handle boss entrance animation
+  if boss_entrance_time > 0 then
+    boss_entrance_time -= 1
+    -- don't shoot or move during entrance
+    return
+  end
 
   boss.move_timer += 1
   boss.shoot_timer += 1
@@ -483,6 +491,30 @@ function update_play()
       end
     end
 
+    -- boss collision (on boss level)
+    if is_boss_level and boss and boss_entrance_time <= 0 then
+      if ball.x > boss.x and
+         ball.x < boss.x + boss.w and
+         ball.y > boss.y and
+         ball.y < boss.y + boss.h then
+        -- hit the boss!
+        boss.health -= 1
+        _log("boss:hit:health"..boss.health)
+        score += 50
+        add_particles(boss.x + 6, boss.y + 4, 9, 6)
+        trigger_shake(3)
+        trigger_flash()
+        flash_color = 9
+        sfx(3)
+
+        -- bounce ball away from boss
+        local dx = abs(ball.x - (boss.x + boss.w/2))
+        local dy = abs(ball.y - (boss.y + boss.h/2))
+        if dx > dy then ball.vx *= -1
+        else ball.vy *= -1 end
+      end
+    end
+
     -- brick collisions
     for brick in all(bricks) do
       if brick.active then
@@ -638,13 +670,19 @@ function update_play()
     end
   end
 
-  if bricks_left == 0 then
+  if bricks_left == 0 and not is_boss_level then
     if level < max_level then
       -- advance to next level
       _log("level_complete:"..level)
       level += 1
       _log("level:"..level)
-      init_bricks(level)
+
+      -- check if this is the boss level
+      if level == 6 then
+        init_boss()
+      else
+        init_bricks(level)
+      end
 
       -- reset power-ups on level transition
       active_power_ups = {}
@@ -739,6 +777,18 @@ function draw_play()
     end
   end
 
+  -- draw boss
+  if is_boss_level and boss then
+    local boss_color = 10  -- yellow by default
+    if boss.health <= 5 then boss_color = 8  -- red if low health
+    elseif boss.health <= 10 then boss_color = 14 end  -- orange if medium
+    rectfill(boss.x - boss.w/2, boss.y, boss.x + boss.w/2, boss.y + boss.h, boss_color)
+    -- boss health bar above it
+    local health_pct = boss.health / boss.max_health
+    rectfill(boss.x - 8, boss.y - 4, boss.x + 8, boss.y - 2, 0)
+    rectfill(boss.x - 8, boss.y - 4, boss.x - 8 + health_pct * 16, boss.y - 2, 11)
+  end
+
   -- draw paddle using sprites
   spr(0, paddle_x, paddle_y, 2, 1)
 
@@ -746,6 +796,11 @@ function draw_play()
   if shield_active then
     local shield_y = paddle_y - 4
     circfill(paddle_x + paddle_w/2, shield_y, 6, 3)
+  end
+
+  -- draw boss projectiles
+  for proj in all(boss_projectiles) do
+    circfill(proj.x, proj.y, 1, 8)  -- red projectiles
   end
 
   -- draw lasers
@@ -786,6 +841,11 @@ function draw_play()
   print("score:"..score, 2, 2, 7)
   print("level:"..level, 50, 2, 7)
   print("lives:"..lives, 100, 2, 7)
+
+  -- show boss health if on boss level
+  if is_boss_level and boss then
+    print("boss:"..boss.health.."/"..boss.max_health, 35, 2, 10)
+  end
 
   -- show active power-ups
   local pup_str = ""
