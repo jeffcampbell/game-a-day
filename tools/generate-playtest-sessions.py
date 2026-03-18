@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def generate_aggressive_playtest():
+def generate_aggressive_playtest(game_date):
     """
     Fast, aggressive playstyle: spam buttons, try to win quickly.
     Likely to lose balls early and fail.
@@ -45,7 +45,7 @@ def generate_aggressive_playtest():
     buttons = buttons[:180]
 
     return {
-        "date": "2026-03-18",
+        "date": game_date,
         "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
         "duration_frames": len(buttons),
         "button_sequence": buttons,
@@ -63,7 +63,7 @@ def generate_aggressive_playtest():
     }
 
 
-def generate_careful_playtest():
+def generate_careful_playtest(game_date):
     """
     Careful, methodical playstyle: moves slowly, tries to keep ball in play.
     More likely to survive longer and win.
@@ -100,7 +100,7 @@ def generate_careful_playtest():
     buttons = buttons[:300]  # Longer session
 
     return {
-        "date": "2026-03-18",
+        "date": game_date,
         "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
         "duration_frames": len(buttons),
         "button_sequence": buttons,
@@ -131,7 +131,7 @@ def generate_careful_playtest():
     }
 
 
-def generate_boss_attempter():
+def generate_boss_attempter(game_date):
     """
     Player who makes it to boss level and attempts it.
     May succeed or fail depending on luck.
@@ -163,7 +163,7 @@ def generate_boss_attempter():
     buttons = buttons[:420]  # Long session
 
     return {
-        "date": "2026-03-18",
+        "date": game_date,
         "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
         "duration_frames": len(buttons),
         "button_sequence": buttons,
@@ -199,7 +199,7 @@ def generate_boss_attempter():
     }
 
 
-def generate_quitter():
+def generate_quitter(game_date):
     """
     Player who quits early - tries for a bit then gives up.
     Represents player frustration point.
@@ -222,7 +222,7 @@ def generate_quitter():
     buttons = buttons[:80]
 
     return {
-        "date": "2026-03-18",
+        "date": game_date,
         "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
         "duration_frames": len(buttons),
         "button_sequence": buttons,
@@ -241,7 +241,7 @@ def generate_quitter():
     }
 
 
-def generate_casual_player():
+def generate_casual_player(game_date):
     """
     Casual player - moderate pace, some success.
     Completes a couple levels.
@@ -265,7 +265,7 @@ def generate_casual_player():
     buttons = buttons[:250]
 
     return {
-        "date": "2026-03-18",
+        "date": game_date,
         "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
         "duration_frames": len(buttons),
         "button_sequence": buttons,
@@ -324,11 +324,11 @@ def main():
 
     # Generate diverse playstyles
     sessions = [
-        ("aggressive", generate_aggressive_playtest()),
-        ("careful", generate_careful_playtest()),
-        ("boss_attempter", generate_boss_attempter()),
-        ("quitter", generate_quitter()),
-        ("casual", generate_casual_player()),
+        ("aggressive", generate_aggressive_playtest(game_date)),
+        ("careful", generate_careful_playtest(game_date)),
+        ("boss_attempter", generate_boss_attempter(game_date)),
+        ("quitter", generate_quitter(game_date)),
+        ("casual", generate_casual_player(game_date)),
     ]
 
     saved_files = []
