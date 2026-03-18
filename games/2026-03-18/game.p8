@@ -55,6 +55,7 @@ flash_color = 7
 -- power-ups
 power_ups = {}
 active_power_ups = {}  -- table of active power-ups
+expand_count = 0  -- track number of active expand power-ups
 shield_active = false
 shield_timer = 0
 lasers = {}  -- laser projectiles
@@ -164,12 +165,17 @@ end
 
 -- game functions
 function init_ball(x, y, vx, vy)
-  return {x = x, y = y, vx = vx, vy = vy}
+  return {
+    x = x, y = y, vx = vx, vy = vy,
+    base_vx = vx, base_vy = vy,  -- store base velocity for slow power-up restoration
+    slow_count = 0  -- track active slow power-ups
+  }
 end
 
 function reset_balls()
   balls = {init_ball(64, 110, 1.5, -2)}
   active_power_ups = {}
+  expand_count = 0
   shield_active = false
   shield_timer = 0
   lasers = {}
@@ -251,7 +257,17 @@ function update_play()
       del(active_power_ups, pup)
       -- restore paddle to normal size when expand expires
       if pup.type == "expand" then
-        paddle_w = max(8, 16 - level * 2)
+        expand_count = max(0, expand_count - 1)
+        paddle_w = max(8, 16 - level * 2 + expand_count * 8)
+      -- restore ball velocity when slow expires
+      elseif pup.type == "slow" then
+        for ball in all(balls) do
+          ball.slow_count = max(0, ball.slow_count - 1)
+          -- recalculate velocity based on remaining slow count
+          local slow_factor = 0.75 ^ ball.slow_count
+          ball.vx = ball.base_vx * slow_factor
+          ball.vy = ball.base_vy * slow_factor
+        end
       end
     end
   end
@@ -270,16 +286,30 @@ function update_play()
       add(active_power_ups, {type = p.type, timer = 300})
 
       if p.type == "expand" then
-        paddle_w = min(28, paddle_w + 8)
+        expand_count += 1
+        paddle_w = max(8, 16 - level * 2 + expand_count * 8)
       elseif p.type == "slow" then
         for ball in all(balls) do
-          ball.vx *= 0.75
-          ball.vy *= 0.75
+          ball.slow_count += 1
+          -- recalculate velocity based on slow count
+          local slow_factor = 0.75 ^ ball.slow_count
+          ball.vx = ball.base_vx * slow_factor
+          ball.vy = ball.base_vy * slow_factor
         end
       elseif p.type == "multi_ball" then
         for ball in all(balls) do
-          add(balls, {x=ball.x+2, y=ball.y, vx=ball.vx+0.5, vy=ball.vy})
-          add(balls, {x=ball.x-2, y=ball.y, vx=ball.vx-0.5, vy=ball.vy})
+          local new_vx1 = ball.vx + 0.5
+          local new_vy1 = ball.vy
+          add(balls, {
+            x=ball.x+2, y=ball.y, vx=new_vx1, vy=new_vy1,
+            base_vx=new_vx1, base_vy=new_vy1, slow_count=ball.slow_count
+          })
+          local new_vx2 = ball.vx - 0.5
+          local new_vy2 = ball.vy
+          add(balls, {
+            x=ball.x-2, y=ball.y, vx=new_vx2, vy=new_vy2,
+            base_vx=new_vx2, base_vy=new_vy2, slow_count=ball.slow_count
+          })
         end
       elseif p.type == "shield" then
         shield_active = true
@@ -492,6 +522,7 @@ function update_play()
 
       -- reset power-ups on level transition
       active_power_ups = {}
+      expand_count = 0
       shield_active = false
       lasers = {}
 
@@ -502,11 +533,18 @@ function update_play()
       local base_vx = 1.5 + level * 0.4
       local base_vy = -2 - level * 0.3
       for ball in all(balls) do
+        ball.base_vx = base_vx
+        ball.base_vy = base_vy
+        ball.slow_count = 0  -- reset slow count on level transition
         ball.vx = base_vx
         ball.vy = base_vy
       end
 
       -- reset position
+      for ball in all(balls) do
+        ball.x = 64
+        ball.y = 110
+      end
       level_start_time = t()
       sfx(5)
     else
