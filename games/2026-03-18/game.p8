@@ -357,10 +357,10 @@ function get_power_up_type(rand_val)
     elseif rand_val < 0.65 then return "slow"
     else return "shield" end
   elseif level == 2 then
-    -- level 2: mix of defensive and utility
-    if rand_val < 0.3 then return "expand"
-    elseif rand_val < 0.6 then return "slow"
-    elseif rand_val < 0.8 then return "shield"
+    -- level 2: more defensive to help with difficulty adjustment
+    if rand_val < 0.35 then return "expand"
+    elseif rand_val < 0.65 then return "slow"
+    elseif rand_val < 0.9 then return "shield"
     else return "multi_ball" end
   else
     -- levels 3+: balanced mix
@@ -780,8 +780,8 @@ function update_play()
           trigger_flash()
           trigger_shake(1)
 
-          -- spawn power-up based on brick type (more generous on level 1)
-          local spawn_chance = level == 1 and 0.15 or 0.1
+          -- spawn power-up based on brick type (more generous on early levels)
+          local spawn_chance = (level == 1 or level == 2) and 0.15 or 0.1
           if brick.type == "ice" then spawn_chance = 0.05
           elseif brick.type == "explosive" then spawn_chance = 0.08
           elseif brick.type == "multi_hit" then spawn_chance = 0.12 end
@@ -894,12 +894,12 @@ function update_play()
       lasers = {}
 
       -- difficulty scaling (resets to base width)
-      local base_w = 32 - (level - 1) * 4  -- level 1: 32, level 2: 28, etc
+      local base_w = 32 - (level - 1) * 2  -- level 1: 32, level 2: 30, level 3: 28, etc (slower shrinkage)
       paddle_w = max(16, base_w)
 
-      -- increase ball speed
-      local base_vx = 1.5 + level * 0.4
-      local base_vy = -2 - level * 0.3
+      -- increase ball speed more gradually to avoid difficulty spikes
+      local base_vx = 0.9 + level * 0.2
+      local base_vy = -1.3 - level * 0.15
       for ball in all(balls) do
         ball.base_vx = base_vx
         ball.base_vy = base_vy
