@@ -1,63 +1,25 @@
 #!/usr/bin/env python3
 """
-Generate realistic playtest sessions for PICO-8 games.
+Generate synthetic playtest sessions for PICO-8 games.
 
-This tool creates session files with predefined button sequences representing
+This tool creates SYNTHETIC session files with predefined button sequences representing
 different playstyles: aggressive, careful, strategic, casual, and methodical.
 Each represents a realistic way a human player would approach the game.
+
+IMPORTANT: These are SYNTHETIC sessions with simulated logs, not recordings from
+actual game execution. They are marked with is_synthetic: true to prevent artificial
+data from contaminating production analytics. Use run-interactive-test.py to record
+REAL playtest sessions.
 """
 
 import json
 import os
 import sys
-import subprocess
-import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
-def run_game_test(game_dir, button_sequence):
-    """
-    Run a game with a predefined button sequence and capture logs.
 
-    Returns: (duration_frames, logs, exit_state)
-    """
-    game_path = os.path.join(game_dir, "game.p8")
-
-    if not os.path.exists(game_path):
-        return None, [], "error"
-
-    # Use a temporary test Python script to run the game
-    test_script = f"""
-import subprocess
-import json
-
-game_dir = "{game_dir}"
-buttons = {button_sequence}
-
-# Create a test harness that will run the game
-result = subprocess.run(
-    ["python3", "tools/run-game-tests.py", os.path.basename(game_dir)],
-    cwd="/home/pi/Development/game-a-day/.worktrees/regular-0",
-    capture_output=True,
-    text=True,
-    timeout=30
-)
-
-# For now, just simulate a reasonable playtime
-import time
-print(json.dumps({{"duration": len(buttons), "logs": ["test"], "exit": "completed"}}))
-"""
-
-    # For now, return a simulated result
-    # In a production system with browser automation, we'd actually run the game
-    duration = len(button_sequence)
-    logs = []
-    exit_state = "completed"
-
-    return duration, logs, exit_state
-
-
-def generate_aggressive_playtest(game_dir):
+def generate_aggressive_playtest():
     """
     Fast, aggressive playstyle: spam buttons, try to win quickly.
     Likely to lose balls early and fail.
@@ -84,7 +46,7 @@ def generate_aggressive_playtest(game_dir):
 
     return {
         "date": "2026-03-18",
-        "timestamp": datetime.now().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
         "duration_frames": len(buttons),
         "button_sequence": buttons,
         "logs": [
@@ -96,11 +58,12 @@ def generate_aggressive_playtest(game_dir):
             "ball_loss",
             "gameover:lose"
         ],
-        "exit_state": "completed"
+        "exit_state": "completed",
+        "is_synthetic": True
     }
 
 
-def generate_careful_playtest(game_dir):
+def generate_careful_playtest():
     """
     Careful, methodical playstyle: moves slowly, tries to keep ball in play.
     More likely to survive longer and win.
@@ -138,7 +101,7 @@ def generate_careful_playtest(game_dir):
 
     return {
         "date": "2026-03-18",
-        "timestamp": datetime.now().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
         "duration_frames": len(buttons),
         "button_sequence": buttons,
         "logs": [
@@ -163,7 +126,8 @@ def generate_careful_playtest(game_dir):
             "score:4000",
             "gameover:win"
         ],
-        "exit_state": "completed"
+        "exit_state": "completed",
+        "is_synthetic": True
     }
 
 
@@ -200,7 +164,7 @@ def generate_boss_attempter():
 
     return {
         "date": "2026-03-18",
-        "timestamp": datetime.now().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
         "duration_frames": len(buttons),
         "button_sequence": buttons,
         "logs": [
@@ -230,7 +194,8 @@ def generate_boss_attempter():
             "score:6500",
             "gameover:win"
         ],
-        "exit_state": "completed"
+        "exit_state": "completed",
+        "is_synthetic": True
     }
 
 
@@ -258,7 +223,7 @@ def generate_quitter():
 
     return {
         "date": "2026-03-18",
-        "timestamp": datetime.now().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
         "duration_frames": len(buttons),
         "button_sequence": buttons,
         "logs": [
@@ -271,7 +236,8 @@ def generate_quitter():
             "ball_loss",
             "gameover:lose"
         ],
-        "exit_state": "completed"
+        "exit_state": "completed",
+        "is_synthetic": True
     }
 
 
@@ -300,7 +266,7 @@ def generate_casual_player():
 
     return {
         "date": "2026-03-18",
-        "timestamp": datetime.now().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
         "duration_frames": len(buttons),
         "button_sequence": buttons,
         "logs": [
@@ -321,7 +287,8 @@ def generate_casual_player():
             "score:2200",
             "gameover:lose"
         ],
-        "exit_state": "completed"
+        "exit_state": "completed",
+        "is_synthetic": True
     }
 
 
@@ -330,8 +297,6 @@ def save_session(game_dir, session_data, index=0):
     os.makedirs(game_dir, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Add index to ensure unique filenames
-    base_time = int(datetime.now().timestamp() * 1000)
     session_file = os.path.join(game_dir, f"session_{timestamp}_{1000 + index}.json")
 
     with open(session_file, 'w') as f:
@@ -354,12 +319,13 @@ def main():
         print(f"Error: Game not found at {game_dir}")
         sys.exit(1)
 
-    print(f"Generating playtest sessions for {game_date}...")
+    print(f"Generating synthetic playtest sessions for {game_date}...")
+    print("  (These are synthetic sessions with simulated logs, marked as is_synthetic: true)")
 
     # Generate diverse playstyles
     sessions = [
-        ("aggressive", generate_aggressive_playtest(game_dir)),
-        ("careful", generate_careful_playtest(game_dir)),
+        ("aggressive", generate_aggressive_playtest()),
+        ("careful", generate_careful_playtest()),
         ("boss_attempter", generate_boss_attempter()),
         ("quitter", generate_quitter()),
         ("casual", generate_casual_player()),
