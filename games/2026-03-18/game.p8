@@ -146,6 +146,14 @@ function get_brick_type(lvl, rand_val)
   end
 end
 
+function get_brick_sprite(typ)
+  if typ == "ice" then return 3
+  elseif typ == "explosive" then return 4
+  elseif typ == "multi_hit" then return 5
+  elseif typ == "unbreakable" then return 6
+  else return 7 end  -- normal
+end
+
 function get_brick_color(typ)
   if typ == "ice" then return 11
   elseif typ == "explosive" then return 8
@@ -154,11 +162,25 @@ function get_brick_color(typ)
   else return 9 end  -- normal
 end
 
+function get_boss_sprite(phase)
+  if phase == 1 then return 8
+  elseif phase == 2 then return 9
+  else return 10 end
+end
+
+function get_powerup_sprite(typ)
+  if typ == "expand" then return 11
+  elseif typ == "slow" then return 12
+  elseif typ == "multi_ball" then return 13
+  elseif typ == "laser" then return 14
+  else return 15 end  -- shield
+end
+
 function init_boss()
   boss = {
     x = 64,
     y = 10,
-    w = 12,
+    w = 16,
     h = 8,
     health = 18,  -- increased from 15 for better challenge
     max_health = 18,
@@ -780,34 +802,18 @@ function draw_play()
 
   camera(shake_x, 0)
 
-  -- draw bricks with type-specific visuals
+  -- draw bricks using sprites
   for brick in all(bricks) do
     if brick.active then
-      local c = brick.color
-      rectfill(brick.x, brick.y, brick.x + brick.w - 1,
-               brick.y + brick.h - 1, c)
-
-      -- visual indicators
-      if brick.type == "multi_hit" and brick.health > 1 then
-        -- diagonal crack line
-        line(brick.x, brick.y + brick.h - 1,
-             brick.x + brick.w - 1, brick.y, 1)
-      elseif brick.type == "unbreakable" then
-        -- hatching pattern
-        for i = 0, 3 do
-          line(brick.x + i * 2, brick.y,
-               brick.x + i * 2, brick.y + brick.h - 1, 1)
-        end
-      end
+      local sprite_idx = get_brick_sprite(brick.type)
+      spr(sprite_idx, brick.x, brick.y, 1, 1)
     end
   end
 
-  -- draw boss
+  -- draw boss using sprite with phase variation
   if is_boss_level and boss then
-    local boss_color = 10  -- yellow by default
-    if boss.health <= 5 then boss_color = 8  -- red if low health
-    elseif boss.health <= 10 then boss_color = 14 end  -- orange if medium
-    rectfill(boss.x - boss.w/2, boss.y, boss.x + boss.w/2, boss.y + boss.h, boss_color)
+    local sprite_idx = get_boss_sprite(boss.phase)
+    spr(sprite_idx, boss.x - 8, boss.y, 2, 1)
     -- boss health bar above it
     local health_pct = boss.health / boss.max_health
     rectfill(boss.x - 8, boss.y - 4, boss.x + 8, boss.y - 2, 0)
@@ -823,9 +829,9 @@ function draw_play()
     circfill(paddle_x + paddle_w/2, shield_y, 6, 3)
   end
 
-  -- draw boss projectiles
+  -- draw boss projectiles as sprites
   for proj in all(boss_projectiles) do
-    circfill(proj.x, proj.y, 1, 8)  -- red projectiles
+    spr(16, proj.x - 2, proj.y - 2, 1, 1)
   end
 
   -- draw lasers
@@ -842,13 +848,11 @@ function draw_play()
     spr(2, ball_sprite_x, ball_sprite_y, 1, 1)
   end
 
-  -- draw power-ups with animation
+  -- draw power-ups using sprites with animation
   for p in all(power_ups) do
-    local bob = sin(t() * 4) * 1
-    local py = p.y + bob
-    circfill(p.x + 2, py + 1, 2, p.color)
-    -- add outer ring
-    circ(p.x + 2, py + 1, 3, 7)
+    local bob = sin(t() * 4) * 2
+    local sprite_idx = get_powerup_sprite(p.type)
+    spr(sprite_idx, p.x - 4, p.y - 2 + bob, 1, 1)
   end
 
   -- draw particles
@@ -916,11 +920,11 @@ end
 
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0ddddd0000ddddd0000aa00008888880099999900aaaaa000bbbbb000ccccc000ddddd000eeeee000000000000000000000000000000000000000000000000000000000
-0ddddd0000ddddd000aaaa00008888880099999900aaaaa000bbbbb000ccccc000ddddd000eeeee000000000000000000000000000000000000000000000000000000000
-0ddddd0000ddddd000aaaa00008888880099999900aaaaa000bbbbb000ccccc000ddddd000eeeee000000000000000000000000000000000000000000000000000000000
-0ddddd0000ddddd0000aa00008888880099999900aaaaa000bbbbb000ccccc000ddddd000eeeee000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0ddddd0000ddddd0000aa00009999900ccccc00aaaaa00555555088888800aaaaaa00aaaaaa00dd00dd0088880088770000888880000000000000000000000000000
+0ddddd0000ddddd000aaaa00098889009ccccc0aaaa000555555088888800aaaaaa00aaaaaa00dd00dd0088880088888000888880000000000000000000000000000
+0ddddd0000ddddd000aaaa00098889009cc1cc0aaaa0005155150888a8800a1aa1a00a0aaa00dd00dd008aa8a088888000888880000000000000000000000000000
+0ddddd0000ddddd0000aa00098889009ccccc0aaaa0005155150888a8800a0aaa0a0aa1a1aa00dd00dd008aa8a088888000888880000000000000000000000000000
+00000000000000000000000009999900ccccc00aaaaa00555555088888800aaaaaa00aaaaaa00dd00dd0088880088770000888880000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
