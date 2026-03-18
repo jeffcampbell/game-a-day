@@ -71,6 +71,10 @@ lasers = {}  -- laser projectiles
 boss = nil
 boss_projectiles = {}
 boss_entrance_time = 0
+shield_break_active = false  -- disables boss attacks
+shield_break_timer = 0
+rapid_fire_active = false  -- paddle shoots on paddle hit
+rapid_fire_timer = 0
 
 -- hint system
 hint_text = ""
@@ -274,11 +278,12 @@ function init_boss()
     y = 10,
     w = 16,
     h = 8,
-    health = 18,  -- increased from 15 for better challenge
-    max_health = 18,
+    health = 60,  -- 60 hits for climactic boss battle
+    max_health = 60,
     phase = 1,
     move_timer = 0,
-    shoot_timer = 0
+    shoot_timer = 0,
+    stun_timer = 0  -- for shield break power-up
   }
   boss_projectiles = {}
   boss_entrance_time = 30
@@ -347,6 +352,10 @@ function reset_balls()
   expand_count = 0
   shield_active = false
   shield_timer = 0
+  shield_break_active = false
+  shield_break_timer = 0
+  rapid_fire_active = false
+  rapid_fire_timer = 0
   lasers = {}
   boss_projectiles = {}
   ball_ready_to_launch = true
@@ -374,8 +383,14 @@ function update_menu()
 end
 
 function get_power_up_type(rand_val)
-  -- adjust power-up distribution based on level for better progression
-  if level == 1 then
+  -- boss level has exclusive power-ups
+  if level == 6 then
+    -- boss: defensive power-ups only
+    if rand_val < 0.4 then return "shield_break"
+    elseif rand_val < 0.6 then return "multi_ball"
+    elseif rand_val < 0.85 then return "shield"
+    else return "rapid_fire" end
+  elseif level == 1 then
     -- level 1: favor defensive power-ups
     if rand_val < 0.25 then return "expand"
     elseif rand_val < 0.65 then return "slow"
@@ -397,7 +412,7 @@ function get_power_up_type(rand_val)
 end
 
 function spawn_power_up(x, y, typ)
-  local colors = {expand=12, slow=11, multi_ball=9, laser=11, shield=3}
+  local colors = {expand=12, slow=11, multi_ball=9, laser=11, shield=3, shield_break=2, rapid_fire=14}
   add(power_ups, {
     x = x, y = y, w = 4, h = 2,
     color = colors[typ] or 12,
@@ -422,6 +437,15 @@ function update_boss()
     return
   end
 
+  -- update shield break stun timer
+  if shield_break_active then
+    shield_break_timer -= 1
+    if shield_break_timer <= 0 then
+      shield_break_active = false
+      _log("boss:attacks:resume")
+    end
+  end
+
   boss.move_timer += 1
   boss.shoot_timer += 1
 
@@ -432,8 +456,9 @@ function update_boss()
   boss.x = base_x + sin(boss.move_timer / move_speed) * amplitude
 
   local old_phase = boss.phase
-  if boss.health > 12 then boss.phase = 1
-  elseif boss.health > 6 then boss.phase = 2
+  -- adjusted phase thresholds for new 60 health
+  if boss.health > 40 then boss.phase = 1
+  elseif boss.health > 20 then boss.phase = 2
   else boss.phase = 3 end
 
   if boss.phase > old_phase then
@@ -441,6 +466,11 @@ function update_boss()
     trigger_shake(6)
     burst_particles(boss.x + 6, boss.y + 4, 2, 12, 2.5)  -- intense phase transition particles
     trigger_flash()
+  end
+
+  -- shooting disabled by shield break
+  if shield_break_active then
+    return
   end
 
   -- more aggressive shooting in later phases
@@ -600,6 +630,15 @@ function update_play()
     end
   end
 
+  -- update rapid fire timer
+  if rapid_fire_active then
+    rapid_fire_timer -= 1
+    if rapid_fire_timer <= 0 then
+      rapid_fire_active = false
+      _log("rapid_fire:expired")
+    end
+  end
+
   -- update power-ups (fall down, check paddle collision)
   for p in all(power_ups) do
     p.y += 1
@@ -662,6 +701,20 @@ function update_play()
       elseif p.type == "laser" then
         sfx(6)
         powerup_hint_type = "laser"
+        powerup_hint_timer = 90
+      elseif p.type == "shield_break" then
+        shield_break_active = true
+        shield_break_timer = 360  -- 6 seconds of disabled boss attacks
+        _log("shield_break:active")
+        sfx(6)
+        powerup_hint_type = "shield_break"
+        powerup_hint_timer = 90
+      elseif p.type == "rapid_fire" then
+        rapid_fire_active = true
+        rapid_fire_timer = 300  -- 5 seconds of paddle shots
+        _log("rapid_fire:active")
+        sfx(6)
+        powerup_hint_type = "rapid_fire"
         powerup_hint_timer = 90
       else
         sfx(6)
@@ -731,6 +784,12 @@ function update_play()
           add(lasers, {x=paddle_x + 4, y=paddle_y})
           add(lasers, {x=paddle_x + paddle_w - 4, y=paddle_y})
         end
+      end
+
+      -- rapid fire effect: paddle shoots on hit
+      if rapid_fire_active then
+        add(lasers, {x=paddle_x + 4, y=paddle_y})
+        add(lasers, {x=paddle_x + paddle_w - 4, y=paddle_y})
       end
     end
 
@@ -839,8 +898,8 @@ function update_play()
           trigger_flash()
           trigger_shake(1)
 
-          -- spawn power-up based on brick type (more generous on early levels and boss prep)
-          local spawn_chance = (level == 1 or level == 2) and 0.15 or (level == 5 and 0.15 or 0.12)
+          -- spawn power-up based on brick type (higher on boss for defensive tools)
+          local spawn_chance = (level == 1 or level == 2) and 0.15 or (level == 5 and 0.15 or (level == 6 and 0.20 or 0.12))
           if brick.type == "ice" then spawn_chance = 0.05
           elseif brick.type == "explosive" then spawn_chance = 0.08
           elseif brick.type == "multi_hit" then spawn_chance = 0.12 end
@@ -1082,11 +1141,12 @@ function draw_play()
     circfill(paddle_x + paddle_w/2, shield_y, 6, 3)
   end
 
-  -- draw boss projectiles as sprites with visual effects
+  -- draw boss projectiles as red fireballs with visual effects
   for proj in all(boss_projectiles) do
     spr(16, proj.x - 2, proj.y - 2, 1, 1)
-    -- add trailing effect for projectiles
+    -- add trailing effect for projectiles (red glow)
     circfill(proj.x, proj.y - 4, 2, 8)
+    circfill(proj.x, proj.y, 1, 2)  -- red core for visual distinction
   end
 
   -- draw lasers
@@ -1178,6 +1238,16 @@ function draw_play()
 
   if shield_active then
     print("shield", 85, 120, 3)
+  end
+
+  -- show shield break effect
+  if shield_break_active then
+    print("boss:stunned", 35, 12, 2)
+  end
+
+  -- show rapid fire effect
+  if rapid_fire_active then
+    print("rapid fire!", 45, 22, 14)
   end
 
   -- show ready/launch indicator if ball waiting
