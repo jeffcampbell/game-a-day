@@ -52,6 +52,9 @@ flash_timer = 0
 shake_timer = 0
 shake_x = 0
 flash_color = 7
+ball_trails = {}  -- store recent ball positions for trail effect
+trail_update_counter = 0
+paddle_hit_timer = 0  -- paddle hit animation
 
 -- power-ups
 power_ups = {}
@@ -98,6 +101,49 @@ function draw_particles()
   end
 end
 
+-- ball trail system
+function update_paddle_hit()
+  if paddle_hit_timer > 0 then
+    paddle_hit_timer -= 1
+  end
+end
+
+function update_ball_trails()
+  trail_update_counter += 1
+  -- capture trail every 2 frames
+  if trail_update_counter >= 2 then
+    trail_update_counter = 0
+    for ball in all(balls) do
+      add(ball_trails, {
+        x = ball.x,
+        y = ball.y,
+        life = 15,
+        max_life = 15
+      })
+    end
+  end
+
+  -- decay trails
+  for trail in all(ball_trails) do
+    trail.life -= 1
+    if trail.life <= 0 then
+      del(ball_trails, trail)
+    end
+  end
+end
+
+function draw_ball_trails()
+  for trail in all(ball_trails) do
+    local fade = trail.life / trail.max_life
+    local trail_color = 5 + flr(fade * 2)  -- fade between color 5-7
+    if fade > 0.3 then
+      pset(trail.x, trail.y, trail_color)
+      pset(trail.x - 1, trail.y, trail_color)
+      pset(trail.x + 1, trail.y, trail_color)
+    end
+  end
+end
+
 function trigger_flash()
   flash_timer = 5
 end
@@ -105,6 +151,22 @@ end
 function trigger_shake(frames)
   shake_timer = frames
   shake_x = 0
+end
+
+-- enhanced visual effect: better destruction particles on brick hits
+function burst_particles(x, y, color, count, spread)
+  spread = spread or 2
+  for i = 1, count do
+    local angle = (i / count) * 6.28  -- spread around circle
+    local speed = spread * (0.5 + rnd(0.5))
+    add(particles, {
+      x = x, y = y,
+      vx = cos(angle / 6.28) * speed,
+      vy = sin(angle / 6.28) * speed,
+      life = 15 + rnd(8),
+      color = color
+    })
+  end
 end
 
 -- bricks with type support
@@ -332,7 +394,8 @@ function update_boss()
   if boss.phase > old_phase then
     _log("boss:phase"..boss.phase)
     trigger_shake(6)
-    add_particles(boss.x + 6, boss.y + 4, 9, 8)  -- phase transition particles
+    burst_particles(boss.x + 6, boss.y + 4, 2, 12, 2.5)  -- intense phase transition particles
+    trigger_flash()
   end
 
   -- more aggressive shooting in later phases
@@ -391,6 +454,8 @@ end
 
 function update_play()
   update_particles()
+  update_ball_trails()
+  update_paddle_hit()
 
   -- boss level handling
   if is_boss_level then
@@ -554,6 +619,7 @@ function update_play()
       flash_color = 7
       -- add paddle impact particles
       add_particles(ball.x, ball.y, 7, 3)
+      paddle_hit_timer = 4  -- visual feedback on paddle hit
       sfx(0)
 
       -- laser paddle effect
@@ -575,7 +641,7 @@ function update_play()
         boss.health -= 1
         _log("boss:hit:health"..boss.health)
         score += 50
-        add_particles(boss.x + 6, boss.y + 4, 9, 6)
+        burst_particles(boss.x + 6, boss.y + 4, 9, 8, 1.8)
         trigger_shake(3)
         trigger_flash()
         flash_color = 9
@@ -615,7 +681,7 @@ function update_play()
               brick.active = false
               score += 20
               _log("brick_destroyed:score"..score)
-              add_particles(brick.x + 4, brick.y + 4, brick.color, 4)
+              burst_particles(brick.x + 4, brick.y + 4, brick.color, 8, 1.5)
             else
               -- show damage (no point added yet)
               add_particles(brick.x + 4, brick.y + 4, 1, 2)
@@ -641,11 +707,11 @@ function update_play()
             brick.active = false
             score += 10
             _log("brick_destroyed:score"..score)
-            add_particles(brick.x + 4, brick.y + 4, brick.color, 4)
+            burst_particles(brick.x + 4, brick.y + 4, brick.color, 6, 1.5)
 
             -- handle explosive brick chain reaction
             if brick.type == "explosive" then
-              add_particles(brick.x + 4, brick.y + 4, 8, 8)
+              burst_particles(brick.x + 4, brick.y + 4, 8, 10, 2)
               trigger_shake(3)
               -- destroy adjacent bricks in 3x3
               for adj in all(bricks) do
@@ -735,8 +801,9 @@ function update_play()
     _log("gameover:win")
     state = "gameover"
     score *= 2  -- 2x multiplier for boss victory
-    -- explosion effect on boss defeat
-    add_particles(boss.x + 6, boss.y + 4, 9, 12)
+    -- massive explosion effect on boss defeat
+    burst_particles(boss.x + 6, boss.y + 4, 9, 16, 3)
+    burst_particles(boss.x + 2, boss.y - 2, 8, 12, 2.5)
     trigger_shake(10)
     trigger_flash()
     flash_color = 9
@@ -762,7 +829,7 @@ function update_play()
       trigger_shake(8)
       trigger_flash()
       flash_color = 11
-      add_particles(64, 64, 11, 10)
+      burst_particles(64, 64, 11, 12, 2)
 
       -- check if this is the boss level
       if level == 6 then
@@ -841,7 +908,9 @@ function draw_play()
     shake_x = 0
   end
 
-  camera(shake_x, 0)
+  -- apply camera shake with some vertical variation for dynamics
+  local shake_y = flr(rnd(2)) - 0.5
+  camera(shake_x, shake_y)
 
   -- draw bricks using sprites
   for brick in all(bricks) do
@@ -869,8 +938,13 @@ function draw_play()
     rectfill(boss.x - 8, boss.y - 4, boss.x - 8 + health_pct * 16, boss.y - 2, bar_color)
   end
 
-  -- draw paddle using sprites
+  -- draw paddle using sprites with hit animation
   spr(0, paddle_x, paddle_y, 2, 1)
+  -- visual highlight when paddle hits ball
+  if paddle_hit_timer > 0 then
+    local highlight_color = 11 + (paddle_hit_timer % 2)
+    line(paddle_x, paddle_y - 1, paddle_x + paddle_w, paddle_y - 1, highlight_color)
+  end
 
   -- draw shield if active
   if shield_active then
@@ -878,9 +952,11 @@ function draw_play()
     circfill(paddle_x + paddle_w/2, shield_y, 6, 3)
   end
 
-  -- draw boss projectiles as sprites
+  -- draw boss projectiles as sprites with visual effects
   for proj in all(boss_projectiles) do
     spr(16, proj.x - 2, proj.y - 2, 1, 1)
+    -- add trailing effect for projectiles
+    circfill(proj.x, proj.y - 4, 2, 8)
   end
 
   -- draw lasers
@@ -890,11 +966,20 @@ function draw_play()
     line(laser.x + 1, laser.y + 1, laser.x + 1, laser.y + 3, 11)
   end
 
-  -- draw balls
+  -- draw ball trail (before balls so it appears behind)
+  draw_ball_trails()
+
+  -- draw balls with direction-based animation
   for ball in all(balls) do
     local ball_sprite_x = ball.x - 4
     local ball_sprite_y = ball.y - 4
+    -- sprite 2 is the ball, add slight visual emphasis based on speed
+    local is_fast = abs(ball.vx) > 2 or abs(ball.vy) > 2
     spr(2, ball_sprite_x, ball_sprite_y, 1, 1)
+    -- add glow effect if ball is moving fast
+    if is_fast and flash_timer == 0 then
+      circfill(ball.x, ball.y, 3, 11 + flr(sin(t() * 4) * 2))
+    end
   end
 
   -- draw power-ups using sprites with animation
@@ -986,12 +1071,12 @@ end
 
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0ddddd0000ddddd0000aa00009999900ccccc00aaaaa00555555088888800aaaaaa00aaaaaa00dd00dd0088880088770000888880000000000000000000000000000
-0ddddd0000ddddd000aaaa00098889009ccccc0aaaa000555555088888800aaaaaa00aaaaaa00dd00dd0088880088888000888880000000000000000000000000000
-0ddddd0000ddddd000aaaa00098889009cc1cc0aaaa0005155150888a8800a1aa1a00a0aaa00dd00dd008aa8a088888000888880000000000000000000000000000
-0ddddd0000ddddd0000aa00098889009ccccc0aaaa0005155150888a8800a0aaa0a0aa1a1aa00dd00dd008aa8a088888000888880000000000000000000000000000
-00000000000000000000000009999900ccccc00aaaaa00555555088888800aaaaaa00aaaaaa00dd00dd0088880088770000888880000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+07777770077777700099990009a99a0a0bbbbb0008888008aaaaaa00c2222c000d5d5d0008880800966660099999900c0000c000c00c000a0a0a000f00f000f0
+077777700777777000999900099900a0b0bb000088888008aaaa00000c2c20000d5d5000088888008666600099999000c0000c000c00c000a00a00f00f0f00f0f
+077777700777777009aa9a00099aa0a0b0bb000088888008aaaa00000c2c200000d005000088888008660600099999000c0000c000c00c000a00a00f00f0f00f0f
+077777700777777009aa9a00099aa0a0b0bb000088888008aaaa00000d2d000000d5d000088888008606000099999000c0000c000c00c000a0a0a00f00f0f00f0f
+077777700777777009999900099900a0bbbbb0008888008aaaaaa000d5d5d00000d05000088880008966600099999000c0000c000c00c000a00a00f00f0f00f0f
+07777770077777700099990009a99a0a0bbbbb0008888008aaaaaaa00c2222c000d5d5d0008880800966660099999900c0000c000c00c000a0a0a000f00f000f0
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
