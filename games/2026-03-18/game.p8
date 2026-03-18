@@ -111,30 +111,37 @@ end
 bricks = {}
 function get_brick_type(lvl, rand_val)
   -- determine brick type based on level and random value
+  -- progression: easy -> moderate -> hard -> very hard -> nightmare
   if lvl == 6 then
     return "normal"  -- boss level should never call this
   elseif lvl == 1 then
-    return "normal"
+    -- level 1: mostly normal, some ice to introduce mechanics
+    if rand_val < 0.85 then return "normal"
+    else return "ice" end
   elseif lvl == 2 then
-    if rand_val < 0.75 then return "normal"
-    elseif rand_val < 0.875 then return "ice"
+    -- level 2: more ice and basic multi-hit
+    if rand_val < 0.65 then return "normal"
+    elseif rand_val < 0.85 then return "ice"
     else return "multi_hit" end
   elseif lvl == 3 then
-    if rand_val < 0.6 then return "normal"
-    elseif rand_val < 0.8 then return "ice"
-    elseif rand_val < 0.9 then return "explosive"
+    -- level 3: introduce explosive bricks
+    if rand_val < 0.5 then return "normal"
+    elseif rand_val < 0.7 then return "ice"
+    elseif rand_val < 0.88 then return "explosive"
     else return "multi_hit" end
   elseif lvl == 4 then
-    if rand_val < 0.5 then return "normal"
-    elseif rand_val < 0.65 then return "ice"
-    elseif rand_val < 0.8 then return "explosive"
-    elseif rand_val < 0.9 then return "multi_hit"
+    -- level 4: balanced mix with unbreakables
+    if rand_val < 0.35 then return "normal"
+    elseif rand_val < 0.52 then return "ice"
+    elseif rand_val < 0.72 then return "explosive"
+    elseif rand_val < 0.88 then return "multi_hit"
     else return "unbreakable" end
   else  -- level 5
-    if rand_val < 0.4 then return "normal"
-    elseif rand_val < 0.55 then return "ice"
-    elseif rand_val < 0.7 then return "explosive"
-    elseif rand_val < 0.85 then return "multi_hit"
+    -- level 5: challenge with many special bricks
+    if rand_val < 0.25 then return "normal"
+    elseif rand_val < 0.4 then return "ice"
+    elseif rand_val < 0.62 then return "explosive"
+    elseif rand_val < 0.82 then return "multi_hit"
     else return "unbreakable" end
   end
 end
@@ -153,8 +160,8 @@ function init_boss()
     y = 10,
     w = 12,
     h = 8,
-    health = 15,
-    max_health = 15,
+    health = 18,  -- increased from 15 for better challenge
+    max_health = 18,
     phase = 1,
     move_timer = 0,
     shoot_timer = 0
@@ -210,7 +217,8 @@ end
 
 function update_menu()
   if not music_playing then
-    music(0, 0, 1)
+    -- loop background music pattern
+    music(1, 0, 3)
     music_playing = true
   end
   if btnp(4) then
@@ -258,20 +266,24 @@ function update_boss()
   boss.shoot_timer += 1
 
   local base_x = 64
-  local amplitude = 20 - boss.phase * 3
-  boss.x = base_x + sin(boss.move_timer / 30) * amplitude
+  -- more aggressive movement pattern in later phases
+  local amplitude = 24 - boss.phase * 4
+  local move_speed = 25 - boss.phase * 3  -- faster movement in later phases
+  boss.x = base_x + sin(boss.move_timer / move_speed) * amplitude
 
   local old_phase = boss.phase
-  if boss.health > 10 then boss.phase = 1
-  elseif boss.health > 5 then boss.phase = 2
+  if boss.health > 12 then boss.phase = 1
+  elseif boss.health > 6 then boss.phase = 2
   else boss.phase = 3 end
 
   if boss.phase > old_phase then
     _log("boss:phase"..boss.phase)
-    trigger_shake(5)
+    trigger_shake(6)
+    add_particles(boss.x + 6, boss.y + 4, 9, 8)  -- phase transition particles
   end
 
-  local shoot_freq = 80 - boss.phase * 15
+  -- more aggressive shooting in later phases
+  local shoot_freq = 85 - boss.phase * 20
   if boss.shoot_timer > shoot_freq then
     boss.shoot_timer = 0
     local proj_count = 5 + boss.phase
@@ -280,8 +292,8 @@ function update_boss()
       add(boss_projectiles, {
         x = boss.x + 6 + offset_x,
         y = boss.y + 8,
-        vx = (rnd() - 0.5) * 1.5,
-        vy = 2 + boss.phase * 0.5,
+        vx = (rnd() - 0.5) * (1.5 + boss.phase * 0.3),
+        vy = 2 + boss.phase * 0.7,
         w = 2,
         h = 2
       })
@@ -478,8 +490,10 @@ function update_play()
       local hit_pos = (ball.x - paddle_x) / paddle_w
       ball.vx = (hit_pos - 0.5) * 3
       trigger_flash()
-      trigger_shake(2)
+      trigger_shake(3)
       flash_color = 7
+      -- add paddle impact particles
+      add_particles(ball.x, ball.y, 7, 3)
       sfx(0)
 
       -- laser paddle effect
@@ -659,6 +673,11 @@ function update_play()
     _log("gameover:win")
     state = "gameover"
     score *= 2  -- 2x multiplier for boss victory
+    -- explosion effect on boss defeat
+    add_particles(boss.x + 6, boss.y + 4, 9, 12)
+    trigger_shake(10)
+    trigger_flash()
+    flash_color = 9
     sfx(5)
   end
 
@@ -676,6 +695,12 @@ function update_play()
       _log("level_complete:"..level)
       level += 1
       _log("level:"..level)
+
+      -- visual feedback for level complete
+      trigger_shake(8)
+      trigger_flash()
+      flash_color = 11
+      add_particles(64, 64, 11, 10)
 
       -- check if this is the boss level
       if level == 6 then
@@ -819,9 +844,11 @@ function draw_play()
 
   -- draw power-ups with animation
   for p in all(power_ups) do
-    local bob = sin(t() * 3) * 0.5
+    local bob = sin(t() * 4) * 1
     local py = p.y + bob
     circfill(p.x + 2, py + 1, 2, p.color)
+    -- add outer ring
+    circ(p.x + 2, py + 1, 3, 7)
   end
 
   -- draw particles
