@@ -237,8 +237,8 @@ function update_play()
   else
    ball_x=64
    ball_y=100
-   ball_vx=1.5
-   ball_vy=-2
+   ball_vx=1.5*ball_speed_mul
+   ball_vy=-2*ball_speed_mul
   end
   return
  end
