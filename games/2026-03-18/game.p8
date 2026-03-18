@@ -339,10 +339,9 @@ function init_ball(x, y, vx, vy)
 end
 
 function reset_balls()
-  -- reduce ball speed on level 1, gradually increase through levels
-  local level_scale = (level - 1) * 0.15  -- 0, 0.15, 0.3, 0.45, 0.6, 0.75 (slower progression)
-  local base_vx = 0.7 + level_scale * 0.6  -- level 1: 0.7, level 2: 0.79, level 3: 0.88
-  local base_vy = -1.0 - level_scale * 0.7  -- level 1: -1.0, level 2: -1.105, level 3: -1.21
+  -- use consistent smooth ball speed progression across all resets
+  local base_vx = 0.9 + level * 0.2  -- level 1: 1.1, level 2: 1.3, level 3: 1.5
+  local base_vy = -1.3 - level * 0.15  -- level 1: -1.45, level 2: -1.6, level 3: -1.75
   balls = {init_ball(64, 110, base_vx, base_vy)}
   active_power_ups = {}
   expand_count = 0
