@@ -42,10 +42,7 @@ paddle_h = 8
 paddle_y = 123
 
 -- ball
-ball_x = 64
-ball_y = 110
-ball_vx = 1.5
-ball_vy = -2
+balls = {}  -- table of active balls
 ball_r = 4
 
 -- visual effects
@@ -53,11 +50,15 @@ particles = {}
 flash_timer = 0
 shake_timer = 0
 shake_x = 0
+flash_color = 7
 
 -- power-ups
 power_ups = {}
-active_power_up = nil
-power_up_timer = 0
+active_power_ups = {}  -- table of active power-ups
+expand_count = 0  -- track number of active expand power-ups
+shield_active = false
+shield_timer = 0
+lasers = {}  -- laser projectiles
 
 -- particle system
 function add_particles(x, y, color, count)
@@ -100,32 +101,86 @@ function trigger_shake(frames)
   shake_x = 0
 end
 
--- bricks
+-- bricks with type support
 bricks = {}
+function get_brick_type(lvl, rand_val)
+  -- determine brick type based on level and random value
+  if lvl == 1 then
+    return "normal"
+  elseif lvl == 2 then
+    if rand_val < 0.75 then return "normal"
+    elseif rand_val < 0.875 then return "ice"
+    else return "multi_hit" end
+  elseif lvl == 3 then
+    if rand_val < 0.6 then return "normal"
+    elseif rand_val < 0.8 then return "ice"
+    elseif rand_val < 0.9 then return "explosive"
+    else return "multi_hit" end
+  elseif lvl == 4 then
+    if rand_val < 0.5 then return "normal"
+    elseif rand_val < 0.65 then return "ice"
+    elseif rand_val < 0.8 then return "explosive"
+    elseif rand_val < 0.9 then return "multi_hit"
+    else return "unbreakable" end
+  else  -- level 5
+    if rand_val < 0.4 then return "normal"
+    elseif rand_val < 0.55 then return "ice"
+    elseif rand_val < 0.7 then return "explosive"
+    elseif rand_val < 0.85 then return "multi_hit"
+    else return "unbreakable" end
+  end
+end
+
+function get_brick_color(typ)
+  if typ == "ice" then return 11
+  elseif typ == "explosive" then return 8
+  elseif typ == "multi_hit" then return 10
+  elseif typ == "unbreakable" then return 5
+  else return 9 end  -- normal
+end
+
 function init_bricks(lvl)
   bricks = {}
   local brick_w, brick_h = 8, 8
   local start_x, start_y = 8, 8
-
-  -- level progression: more rows per level
   local cols = 16
   local rows = 2 + lvl
 
   for row = 0, rows - 1 do
     for col = 0, cols - 1 do
+      local typ = get_brick_type(lvl, rnd())
       add(bricks, {
         x = start_x + col * brick_w,
         y = start_y + row * brick_h,
         w = brick_w,
         h = brick_h,
         active = true,
-        color = 8 + row
+        type = typ,
+        color = get_brick_color(typ),
+        health = (typ == "multi_hit") and 2 or 1
       })
     end
   end
 end
 
 -- game functions
+function init_ball(x, y, vx, vy)
+  return {
+    x = x, y = y, vx = vx, vy = vy,
+    base_vx = vx, base_vy = vy,  -- store base velocity for slow power-up restoration
+    slow_count = 0  -- track active slow power-ups
+  }
+end
+
+function reset_balls()
+  balls = {init_ball(64, 110, 1.5, -2)}
+  active_power_ups = {}
+  expand_count = 0
+  shield_active = false
+  shield_timer = 0
+  lasers = {}
+end
+
 function update_menu()
   if not music_playing then
     music(0, 0, 1)
@@ -139,26 +194,81 @@ function update_menu()
     level = 1
     _log("level:"..level)
     init_bricks(level)
-    ball_x = 64
-    ball_y = 110
-    ball_vx = 1.5
-    ball_vy = -2
+    reset_balls()
     level_start_time = t()
-    active_power_up = nil
-    power_up_timer = 0
   end
+end
+
+function get_power_up_type(rand_val)
+  if rand_val < 0.3 then return "expand"
+  elseif rand_val < 0.55 then return "slow"
+  elseif rand_val < 0.75 then return "multi_ball"
+  elseif rand_val < 0.9 then return "laser"
+  else return "shield" end
+end
+
+function spawn_power_up(x, y, typ)
+  local colors = {expand=12, slow=11, multi_ball=9, laser=11, shield=3}
+  add(power_ups, {
+    x = x, y = y, w = 4, h = 2,
+    color = colors[typ] or 12,
+    type = typ
+  })
 end
 
 function update_play()
   update_particles()
 
-  -- update power-up
-  if active_power_up then
-    power_up_timer -= 1
-    if power_up_timer <= 0 then
-      active_power_up = nil
-      -- restore paddle to normal size
-      paddle_w = max(8, 16 - level * 2)
+  -- update lasers and laser-brick collision
+  for laser in all(lasers) do
+    laser.y -= 3
+    if laser.y < 0 then
+      del(lasers, laser)
+    else
+      -- laser-brick collision
+      for brick in all(bricks) do
+        if brick.active and laser.x > brick.x and
+           laser.x < brick.x + brick.w and
+           laser.y > brick.y and
+           laser.y < brick.y + brick.h then
+          -- destroy brick with laser
+          brick.active = false
+          score += (brick.type == "multi_hit" and 25 or 15)
+          add_particles(brick.x + 4, brick.y + 4, brick.color, 3)
+          del(lasers, laser)
+          break
+        end
+      end
+    end
+  end
+
+  -- update shield timer
+  if shield_active then
+    shield_timer -= 1
+    if shield_timer <= 0 then
+      shield_active = false
+    end
+  end
+
+  -- update active power-ups
+  for pup in all(active_power_ups) do
+    pup.timer -= 1
+    if pup.timer <= 0 then
+      del(active_power_ups, pup)
+      -- restore paddle to normal size when expand expires
+      if pup.type == "expand" then
+        expand_count = max(0, expand_count - 1)
+        paddle_w = max(8, 16 - level * 2 + expand_count * 8)
+      -- restore ball velocity when slow expires
+      elseif pup.type == "slow" then
+        for ball in all(balls) do
+          ball.slow_count = max(0, ball.slow_count - 1)
+          -- recalculate velocity based on remaining slow count
+          local slow_factor = 0.75 ^ ball.slow_count
+          ball.vx = ball.base_vx * slow_factor
+          ball.vy = ball.base_vy * slow_factor
+        end
+      end
     end
   end
 
@@ -173,9 +283,38 @@ function update_play()
            p.x < paddle_x + paddle_w then
       -- collect power-up
       del(power_ups, p)
-      active_power_up = "expand"
-      power_up_timer = 300  -- 5 seconds at 60 fps
-      paddle_w = min(28, paddle_w + 8)  -- expand paddle
+      add(active_power_ups, {type = p.type, timer = 300})
+
+      if p.type == "expand" then
+        expand_count += 1
+        paddle_w = max(8, 16 - level * 2 + expand_count * 8)
+      elseif p.type == "slow" then
+        for ball in all(balls) do
+          ball.slow_count += 1
+          -- recalculate velocity based on slow count
+          local slow_factor = 0.75 ^ ball.slow_count
+          ball.vx = ball.base_vx * slow_factor
+          ball.vy = ball.base_vy * slow_factor
+        end
+      elseif p.type == "multi_ball" then
+        for ball in all(balls) do
+          local new_vx1 = ball.vx + 0.5
+          local new_vy1 = ball.vy
+          add(balls, {
+            x=ball.x+2, y=ball.y, vx=new_vx1, vy=new_vy1,
+            base_vx=ball.base_vx + 0.5, base_vy=ball.base_vy, slow_count=ball.slow_count
+          })
+          local new_vx2 = ball.vx - 0.5
+          local new_vy2 = ball.vy
+          add(balls, {
+            x=ball.x-2, y=ball.y, vx=new_vx2, vy=new_vy2,
+            base_vx=ball.base_vx - 0.5, base_vy=ball.base_vy, slow_count=ball.slow_count
+          })
+        end
+      elseif p.type == "shield" then
+        shield_active = true
+        shield_timer = 900  -- 15 seconds
+      end
       sfx(0)
     end
   end
@@ -188,87 +327,171 @@ function update_play()
     paddle_x = min(128 - paddle_w, paddle_x + 2)
   end
 
-  -- ball movement
-  ball_x += ball_vx
-  ball_y += ball_vy
+  -- ball movement and collision detection for all balls
+  for ball in all(balls) do
+    local orig_vx, orig_vy = ball.vx, ball.vy
+    ball.x += ball.vx
+    ball.y += ball.vy
 
-  -- wall collisions
-  if ball_x - ball_r < 0 or ball_x + ball_r > 128 then
-    ball_vx *= -1
-    ball_x = mid(ball_r, ball_x, 128 - ball_r)
-    trigger_flash()
-    trigger_shake(3)
-    sfx(1)
-  end
+    -- wall collisions
+    if ball.x - ball_r < 0 or ball.x + ball_r > 128 then
+      ball.vx *= -1
+      ball.x = mid(ball_r, ball.x, 128 - ball_r)
+      trigger_flash()
+      trigger_shake(3)
+      flash_color = 7
+      sfx(1)
+    end
 
-  if ball_y - ball_r < 0 then
-    ball_vy *= -1
-    ball_y = ball_r
-    trigger_flash()
-    trigger_shake(2)
-    sfx(1)
-  end
+    if ball.y - ball_r < 0 then
+      ball.vy *= -1
+      ball.y = ball_r
+      trigger_flash()
+      trigger_shake(2)
+      flash_color = 7
+      sfx(1)
+    end
 
-  -- paddle collision
-  if ball_vy > 0 and
-     ball_y + ball_r > paddle_y and
-     ball_y < paddle_y + paddle_h and
-     ball_x > paddle_x and
-     ball_x < paddle_x + paddle_w then
-    ball_vy = -abs(ball_vy)
-    ball_y = paddle_y - ball_r
-    local hit_pos = (ball_x - paddle_x) / paddle_w
-    ball_vx = (hit_pos - 0.5) * 3
-    trigger_flash()
-    trigger_shake(2)
-    sfx(0)
-  end
+    -- paddle collision
+    if ball.vy > 0 and
+       ball.y + ball_r > paddle_y and
+       ball.y < paddle_y + paddle_h and
+       ball.x > paddle_x and
+       ball.x < paddle_x + paddle_w then
+      ball.vy = -abs(ball.vy)
+      ball.y = paddle_y - ball_r
+      local hit_pos = (ball.x - paddle_x) / paddle_w
+      ball.vx = (hit_pos - 0.5) * 3
+      trigger_flash()
+      trigger_shake(2)
+      flash_color = 7
+      sfx(0)
 
-  -- brick collisions
-  for brick in all(bricks) do
-    if brick.active then
-      if ball_x > brick.x and
-         ball_x < brick.x + brick.w and
-         ball_y > brick.y and
-         ball_y < brick.y + brick.h then
-        brick.active = false
-        score += 10
-        _log("brick_destroyed:score"..score)
-
-        -- particle burst on destruction
-        add_particles(brick.x + 4, brick.y + 4, brick.color, 4)
-        trigger_flash()
-        trigger_shake(1)
-
-        -- 10% chance to spawn power-up
-        if rnd() < 0.1 then
-          add(power_ups, {
-            x = brick.x + 4,
-            y = brick.y + 4,
-            w = 4,
-            h = 2,
-            color = 12,
-            type = "expand"
-          })
+      -- laser paddle effect
+      for pup in all(active_power_ups) do
+        if pup.type == "laser" then
+          add(lasers, {x=paddle_x + 4, y=paddle_y})
+          add(lasers, {x=paddle_x + paddle_w - 4, y=paddle_y})
         end
+      end
+    end
 
-        -- determine bounce direction
-        local dx = abs((ball_x) - (brick.x + brick.w/2))
-        local dy = abs((ball_y) - (brick.y + brick.h/2))
+    -- brick collisions
+    for brick in all(bricks) do
+      if brick.active then
+        if ball.x > brick.x and
+           ball.x < brick.x + brick.w and
+           ball.y > brick.y and
+           ball.y < brick.y + brick.h then
 
-        if dx > dy then
-          ball_vx *= -1
-        else
-          ball_vy *= -1
+          -- handle ice brick (slow ball)
+          if brick.type == "ice" then
+            ball.vx *= 0.7
+            ball.vy *= 0.7
+            flash_color = 11
+          elseif brick.type == "explosive" then
+            flash_color = 8
+          end
+
+          -- multi-hit brick logic
+          if brick.type == "multi_hit" then
+            brick.health -= 1
+            if brick.health <= 0 then
+              brick.active = false
+              score += 20
+              _log("brick_destroyed:score"..score)
+              add_particles(brick.x + 4, brick.y + 4, brick.color, 4)
+            else
+              -- show damage (no point added yet)
+              add_particles(brick.x + 4, brick.y + 4, 1, 2)
+              trigger_flash()
+              sfx(2)
+              -- bounce
+              local dx = abs(ball.x - (brick.x + brick.w/2))
+              local dy = abs(ball.y - (brick.y + brick.h/2))
+              if dx > dy then ball.vx *= -1
+              else ball.vy *= -1 end
+              break
+            end
+          elseif brick.type == "unbreakable" then
+            -- just bounce, don't destroy
+            local dx = abs(ball.x - (brick.x + brick.w/2))
+            local dy = abs(ball.y - (brick.y + brick.h/2))
+            if dx > dy then ball.vx *= -1
+            else ball.vy *= -1 end
+            trigger_flash()
+            sfx(2)
+            break
+          elseif brick.type ~= "multi_hit" then
+            brick.active = false
+            score += 10
+            _log("brick_destroyed:score"..score)
+            add_particles(brick.x + 4, brick.y + 4, brick.color, 4)
+
+            -- handle explosive brick chain reaction
+            if brick.type == "explosive" then
+              add_particles(brick.x + 4, brick.y + 4, 8, 8)
+              trigger_shake(3)
+              -- destroy adjacent bricks in 3x3
+              for adj in all(bricks) do
+                if adj.active and abs(adj.x - brick.x) <= 8 and
+                   abs(adj.y - brick.y) <= 8 then
+                  if adj != brick then
+                    adj.active = false
+                    score += (adj.type == "multi_hit" and 20 or 10)
+                    add_particles(adj.x + 4, adj.y + 4, adj.color, 4)
+                    -- chain reaction for explosives
+                    if adj.type == "explosive" then
+                      add_particles(adj.x + 4, adj.y + 4, 8, 8)
+                    end
+                  end
+                end
+              end
+            end
+          end
+
+          trigger_flash()
+          trigger_shake(1)
+
+          -- spawn power-up based on brick type
+          local spawn_chance = 0.1
+          if brick.type == "ice" then spawn_chance = 0.05
+          elseif brick.type == "explosive" then spawn_chance = 0.08
+          elseif brick.type == "multi_hit" then spawn_chance = 0.12 end
+
+          if rnd() < spawn_chance then
+            spawn_power_up(brick.x + 4, brick.y + 4, get_power_up_type(rnd()))
+          end
+
+          -- bounce direction
+          if brick.type ~= "unbreakable" or brick.active then
+            local dx = abs(ball.x - (brick.x + brick.w/2))
+            local dy = abs(ball.y - (brick.y + brick.h/2))
+            if dx > dy then ball.vx *= -1
+            else ball.vy *= -1 end
+          end
+
+          sfx(2)
+          break
         end
-        sfx(2)
-        break
+      end
+    end
+
+    -- lose life if ball falls off bottom
+    if ball.y > 128 then
+      if shield_active then
+        shield_active = false
+        ball.y = paddle_y - ball_r
+        ball.vy = -abs(ball.vy)
+        sfx(0)
+      else
+        del(balls, ball)
       end
     end
   end
 
-  -- lose life if ball falls off bottom
-  if ball_y > 128 then
+  -- check if all balls are lost
+  if #balls == 0 then
     _log("life_lost:lives"..max(0, lives - 1))
     lives -= 1
     if lives <= 0 then
@@ -276,13 +499,16 @@ function update_play()
       state = "gameover"
       sfx(4)
     else
-      ball_x = 64
-      ball_y = 110
-      -- more aggressive speed increase
-      local base_vx = 1.5 + level * 0.3
-      local base_vy = -2 - level * 0.2
-      ball_vx = base_vx
-      ball_vy = base_vy
+      reset_balls()
+      -- scale ball velocity by current level to maintain difficulty
+      local base_vx = 1.5 + level * 0.4
+      local base_vy = -2 - level * 0.3
+      for ball in all(balls) do
+        ball.base_vx = base_vx
+        ball.base_vy = base_vy
+        ball.vx = base_vx
+        ball.vy = base_vy
+      end
       sfx(3)
     end
   end
@@ -290,7 +516,9 @@ function update_play()
   -- level complete condition
   local bricks_left = 0
   for brick in all(bricks) do
-    if brick.active then bricks_left += 1 end
+    if brick.active and brick.type ~= "unbreakable" then
+      bricks_left += 1
+    end
   end
 
   if bricks_left == 0 then
@@ -301,21 +529,32 @@ function update_play()
       _log("level:"..level)
       init_bricks(level)
 
-      -- more aggressive difficulty scaling
-      paddle_w = max(8, 16 - level * 2)  -- shrink paddle each level
+      -- reset power-ups on level transition
+      active_power_ups = {}
+      expand_count = 0
+      shield_active = false
+      lasers = {}
 
-      -- increase ball speed more aggressively
+      -- difficulty scaling (resets to base width)
+      paddle_w = max(8, 16 - level * 2)
+
+      -- increase ball speed
       local base_vx = 1.5 + level * 0.4
       local base_vy = -2 - level * 0.3
-      ball_vx = base_vx
-      ball_vy = base_vy
+      for ball in all(balls) do
+        ball.base_vx = base_vx
+        ball.base_vy = base_vy
+        ball.slow_count = 0  -- reset slow count on level transition
+        ball.vx = base_vx
+        ball.vy = base_vy
+      end
 
       -- reset position
-      ball_x = 64
-      ball_y = 110
+      for ball in all(balls) do
+        ball.x = 64
+        ball.y = 110
+      end
       level_start_time = t()
-      active_power_up = nil
-      power_up_timer = 0
       sfx(5)
     else
       -- all levels complete - win!
@@ -361,16 +600,24 @@ function draw_play()
 
   camera(shake_x, 0)
 
-  -- draw bricks using sprites
+  -- draw bricks with type-specific visuals
   for brick in all(bricks) do
     if brick.active then
-      local sprite_idx = 3 + (brick.color - 8)
-      if sprite_idx >= 3 and sprite_idx <= 9 then
-        spr(sprite_idx, brick.x, brick.y, 1, 1)
-      else
-        fillp()
-        rectfill(brick.x, brick.y, brick.x + brick.w - 1,
-                 brick.y + brick.h - 1, brick.color)
+      local c = brick.color
+      rectfill(brick.x, brick.y, brick.x + brick.w - 1,
+               brick.y + brick.h - 1, c)
+
+      -- visual indicators
+      if brick.type == "multi_hit" and brick.health > 1 then
+        -- diagonal crack line
+        line(brick.x, brick.y + brick.h - 1,
+             brick.x + brick.w - 1, brick.y, 1)
+      elseif brick.type == "unbreakable" then
+        -- hatching pattern
+        for i = 0, 3 do
+          line(brick.x + i * 2, brick.y,
+               brick.x + i * 2, brick.y + brick.h - 1, 1)
+        end
       end
     end
   end
@@ -378,36 +625,65 @@ function draw_play()
   -- draw paddle using sprites
   spr(0, paddle_x, paddle_y, 2, 1)
 
-  -- draw ball sprite
-  local ball_sprite_x = ball_x - 4
-  local ball_sprite_y = ball_y - 4
-  spr(2, ball_sprite_x, ball_sprite_y, 1, 1)
+  -- draw shield if active
+  if shield_active then
+    local shield_y = paddle_y - 4
+    circfill(paddle_x + paddle_w/2, shield_y, 6, 3)
+  end
 
-  -- draw power-ups
+  -- draw lasers
+  for laser in all(lasers) do
+    line(laser.x, laser.y, laser.x, laser.y + 4, 11)
+    line(laser.x - 1, laser.y + 1, laser.x - 1, laser.y + 3, 11)
+    line(laser.x + 1, laser.y + 1, laser.x + 1, laser.y + 3, 11)
+  end
+
+  -- draw balls
+  for ball in all(balls) do
+    local ball_sprite_x = ball.x - 4
+    local ball_sprite_y = ball.y - 4
+    spr(2, ball_sprite_x, ball_sprite_y, 1, 1)
+  end
+
+  -- draw power-ups with animation
   for p in all(power_ups) do
-    rectfill(p.x, p.y, p.x + p.w, p.y + p.h, p.color)
-    print("+", p.x, p.y, 7)
+    local bob = sin(t() * 3) * 0.5
+    local py = p.y + bob
+    circfill(p.x + 2, py + 1, 2, p.color)
   end
 
   -- draw particles
   draw_particles()
 
-  -- flash effect on collision
+  -- flash effect with color
   if flash_timer > 0 then
     fillp(0x5a5a)
-    rectfill(0, 0, 128, 128, 7)
+    rectfill(0, 0, 128, 128, flash_color)
     fillp()
     flash_timer -= 1
   end
 
   camera()
 
-  -- hud (drawn outside shake/flash)
+  -- hud
   print("score:"..score, 2, 2, 7)
   print("level:"..level, 50, 2, 7)
   print("lives:"..lives, 100, 2, 7)
-  if active_power_up then
-    print("pow+", 60, 120, 10)
+
+  -- show active power-ups
+  local pup_str = ""
+  for pup in all(active_power_ups) do
+    if pup.type == "expand" then pup_str = "exp "..pup_str
+    elseif pup.type == "slow" then pup_str = "slo "..pup_str
+    elseif pup.type == "laser" then pup_str = "las "..pup_str end
+  end
+  if pup_str ~= "" then
+    print(pup_str, 55, 120, 10)
+  end
+
+  -- show laser on active power-ups count
+  if #lasers > 0 then
+    print("laser:"..#lasers, 80, 120, 11)
   end
 end
 
