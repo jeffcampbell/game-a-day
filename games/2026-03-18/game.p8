@@ -334,22 +334,7 @@ function update_menu()
     music(0, 0, 3)
     music_playing = true
   end
-  if btnp(4) then
-    _log("state:play")
-    state = "play"
-    score = 0
-    lives = 3
-    level = 1
-    _log("level:"..level)
-    init_bricks(level)
-    reset_balls()
-    level_start_time = t()
-    is_boss_level = false
-    music(1, 0, 3)  -- gameplay music
-  end
-
-  -- support z/c for start
-  if btnp(5) then
+  if btnp(4) or btnp(5) then  -- z or c to start
     _log("state:play")
     state = "play"
     score = 0
