@@ -56,6 +56,8 @@ flash_color = 7
 ball_trails = {}  -- store recent ball positions for trail effect
 trail_update_counter = 0
 paddle_hit_timer = 0  -- paddle hit animation
+powerup_pickup_timer = 0  -- powerup pickup animation scale
+lives_warning_timer = 0  -- warning flash when lives low
 
 -- power-ups
 power_ups = {}
@@ -152,6 +154,14 @@ end
 function trigger_shake(frames)
   shake_timer = frames
   shake_x = 0
+end
+
+function trigger_powerup_pickup()
+  powerup_pickup_timer = 15
+end
+
+function trigger_lives_warning()
+  lives_warning_timer = 8
 end
 
 -- enhanced visual effect: better destruction particles on brick hits
@@ -570,13 +580,15 @@ function update_play()
       del(power_ups, p)
       add(active_power_ups, {type = p.type, timer = 300})
       score += 5  -- bonus points for collecting power-up
-      add_particles(p.x, p.y, 10, 5)  -- visual feedback
+      burst_particles(p.x, p.y, 10, 8, 1.2)  -- enhanced visual feedback
+      trigger_powerup_pickup()  -- visual animation
+      trigger_shake(2)
 
       if p.type == "expand" then
         expand_count += 1
         local base_w = 32 - (level - 1) * 2
         paddle_w = min(48, max(8, base_w + expand_count * 8))  -- expand adds width but caps at 48
-        sfx(5)  -- level up sound for expand
+        sfx(6)  -- power-up sound for expand (new sfx 6)
       elseif p.type == "slow" then
         for ball in all(balls) do
           ball.slow_count += 1
@@ -585,7 +597,7 @@ function update_play()
           ball.vx = ball.base_vx * slow_factor
           ball.vy = ball.base_vy * slow_factor
         end
-        sfx(3)  -- different pitch for slow
+        sfx(6)  -- power-up sound for slow (new sfx 6)
       elseif p.type == "multi_ball" then
         for ball in all(balls) do
           local new_vx1 = ball.vx + 0.5
@@ -601,13 +613,13 @@ function update_play()
             base_vx=ball.base_vx - 0.5, base_vy=ball.base_vy, slow_count=ball.slow_count
           })
         end
-        sfx(5)  -- celebratory sound for multi-ball
+        sfx(6)  -- power-up sound for multi-ball (new sfx 6)
       elseif p.type == "shield" then
         shield_active = true
         shield_timer = 900  -- 15 seconds
-        sfx(0)  -- positive sound for shield
+        sfx(6)  -- power-up sound for shield (new sfx 6)
       else
-        sfx(0)
+        sfx(6)
       end
     end
   end
@@ -827,7 +839,10 @@ function update_play()
       _log("state:gameover")
       state = "gameover"
       sfx(4)
+      burst_particles(64, 64, 8, 20, 2.5)  -- explosion on game over
+      trigger_shake(15)
     else
+      trigger_lives_warning()  -- visual warning
       reset_balls()
       -- scale ball velocity by current level to maintain difficulty
       local base_vx = 1.5 + level * 0.4
@@ -838,7 +853,7 @@ function update_play()
         ball.vx = base_vx
         ball.vy = base_vy
       end
-      sfx(3)
+      sfx(7)  -- lives lost warning sound (new sfx 7)
     end
   end
 
@@ -874,10 +889,12 @@ function update_play()
       _log("level:"..level)
 
       -- visual feedback for level complete
-      trigger_shake(8)
+      trigger_shake(12)
       trigger_flash()
       flash_color = 11
-      burst_particles(64, 64, 11, 12, 2)
+      burst_particles(64, 64, 11, 16, 2.5)  -- enhanced explosion
+      burst_particles(32, 64, 3, 8, 1.5)  -- extra particles
+      burst_particles(96, 64, 10, 8, 1.5)  -- side particles
 
       -- check if this is the boss level
       if level == 6 then
@@ -914,7 +931,7 @@ function update_play()
         ball.y = 110
       end
       level_start_time = t()
-      sfx(5)
+      sfx(8)  -- level complete sound (new sfx 8)
     else
       -- all levels complete - win!
       _log("state:gameover")
@@ -1057,6 +1074,14 @@ function draw_play()
 
   -- draw particles
   draw_particles()
+
+  -- lives warning flash (red when lives low)
+  if lives_warning_timer > 0 then
+    fillp(0x5a5a)
+    rectfill(0, 0, 128, 128, 8)  -- red flash
+    fillp()
+    lives_warning_timer -= 1
+  end
 
   -- flash effect with color
   if flash_timer > 0 then
@@ -1215,6 +1240,9 @@ __sfx__
 0010000003000030000300003000030000300003000030000300003000030000300003000000000000000000000000000000000000000000000000000000000
 00010000005001050010500105001050010500105000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00010000055001550015500155001550015500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0010000016540154001f4402740024440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000740074007400740074007400744000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00100000175001750165002650026500165001750165000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __music__
 00 00000000
