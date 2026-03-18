@@ -30,7 +30,9 @@ end
 state = "menu"
 score = 0
 lives = 3
-level = 0
+level = 1
+max_level = 5
+level_start_time = 0
 
 -- paddle
 paddle_x = 60
@@ -47,11 +49,14 @@ ball_r = 1.5
 
 -- bricks
 bricks = {}
-function init_bricks()
+function init_bricks(lvl)
   bricks = {}
   local brick_w, brick_h = 8, 4
   local start_x, start_y = 8, 8
-  local cols, rows = 16, 3
+
+  -- level progression: more rows per level
+  local cols = 16
+  local rows = 2 + lvl
 
   for row = 0, rows - 1 do
     for col = 0, cols - 1 do
@@ -74,12 +79,14 @@ function update_menu()
     state = "play"
     score = 0
     lives = 3
-    level = 0
-    init_bricks()
+    level = 1
+    _log("level:"..level)
+    init_bricks(level)
     ball_x = 64
     ball_y = 110
     ball_vx = 1.5
     ball_vy = -2
+    level_start_time = t()
   end
 end
 
@@ -165,17 +172,35 @@ function update_play()
     end
   end
 
-  -- win condition
+  -- level complete condition
   local bricks_left = 0
   for brick in all(bricks) do
     if brick.active then bricks_left += 1 end
   end
 
   if bricks_left == 0 then
-    _log("state:gameover")
-    _log("gameover:win")
-    state = "gameover"
-    sfx(5)
+    if level < max_level then
+      -- advance to next level
+      _log("level_complete:"..level)
+      level += 1
+      _log("level:"..level)
+      init_bricks(level)
+      -- increase ball speed
+      local speed_mult = 1.05
+      ball_vx *= speed_mult
+      ball_vy *= speed_mult
+      -- reset position
+      ball_x = 64
+      ball_y = 110
+      level_start_time = t()
+      sfx(5)
+    else
+      -- all levels complete - win!
+      _log("state:gameover")
+      _log("gameover:win")
+      state = "gameover"
+      sfx(5)
+    end
   end
 end
 
@@ -223,6 +248,7 @@ function draw_play()
 
   -- hud
   print("score:"..score, 2, 2, 7)
+  print("level:"..level, 50, 2, 7)
   print("lives:"..lives, 100, 2, 7)
 end
 
@@ -231,12 +257,15 @@ function draw_gameover()
 
   if lives <= 0 then
     print("game over", 48, 40, 8)
-  else
+  elseif level >= max_level then
     print("you win!", 50, 40, 11)
+  else
+    print("game over", 48, 40, 8)
   end
 
   print("score:"..score, 55, 60, 7)
-  print("press z", 52, 80, 7)
+  print("level:"..level, 50, 75, 7)
+  print("press z", 52, 90, 7)
 end
 
 function _draw()
