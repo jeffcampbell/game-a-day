@@ -844,15 +844,6 @@ function update_play()
     else
       trigger_lives_warning()  -- visual warning
       reset_balls()
-      -- scale ball velocity by current level to maintain difficulty
-      local base_vx = 1.5 + level * 0.4
-      local base_vy = -2 - level * 0.3
-      for ball in all(balls) do
-        ball.base_vx = base_vx
-        ball.base_vy = base_vy
-        ball.vx = base_vx
-        ball.vy = base_vy
-      end
       sfx(7)  -- lives lost warning sound (new sfx 7)
     end
   end
