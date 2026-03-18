@@ -1,3 +1,2 @@
-// Stub file - full HTML export requires X11 display server
-// Game is fully functional in game.p8
-// Test with: python3 tools/run-interactive-test.py 2026-03-18
+// Placeholder - Generated in headless environment without X11 display
+console.log("Full game export available when run on system with display server");

@@ -72,6 +72,16 @@ boss = nil
 boss_projectiles = {}
 boss_entrance_time = 0
 
+-- hint system
+hint_text = ""
+hint_timer = 0
+first_ball_lost = false
+level_hint_shown = false
+ball_launch_time = 0
+ball_hit_this_launch = false
+powerup_hint_type = ""
+powerup_hint_timer = 0
+
 -- particle system
 function add_particles(x, y, color, count)
   for i = 1, count do
@@ -162,6 +172,11 @@ end
 
 function trigger_lives_warning()
   lives_warning_timer = 8
+end
+
+function set_hint(text, duration)
+  hint_text = text
+  hint_timer = duration
 end
 
 -- enhanced visual effect: better destruction particles on brick hits
@@ -494,6 +509,25 @@ function update_play()
     update_boss_projectiles()
   end
 
+  -- track ball launch for hint system
+  for ball in all(balls) do
+    if not ball.waiting_on_paddle and ball_launch_time == 0 then
+      ball_launch_time = t()
+      ball_hit_this_launch = false
+    elseif ball.waiting_on_paddle then
+      ball_launch_time = 0
+      ball_hit_this_launch = false
+    end
+  end
+
+  -- hint: no brick hit after 5 seconds of play
+  if ball_launch_time > 0 and not ball_hit_this_launch then
+    local time_since_launch = t() - ball_launch_time
+    if time_since_launch > 5 and hint_timer == 0 then
+      set_hint("hit bricks by\ncontrolling angle!", 120)
+    end
+  end
+
   -- handle ball launch from paddle (waiting for player input)
   if ball_ready_to_launch then
     for ball in all(balls) do
@@ -589,6 +623,8 @@ function update_play()
         local base_w = 32 - (level - 1) * 2
         paddle_w = min(48, max(8, base_w + expand_count * 8))  -- expand adds width but caps at 48
         sfx(6)  -- power-up sound for expand (new sfx 6)
+        powerup_hint_type = "expand"
+        powerup_hint_timer = 90
       elseif p.type == "slow" then
         for ball in all(balls) do
           ball.slow_count += 1
@@ -598,6 +634,8 @@ function update_play()
           ball.vy = ball.base_vy * slow_factor
         end
         sfx(6)  -- power-up sound for slow (new sfx 6)
+        powerup_hint_type = "slow"
+        powerup_hint_timer = 90
       elseif p.type == "multi_ball" then
         for ball in all(balls) do
           local new_vx1 = ball.vx + 0.5
@@ -614,21 +652,29 @@ function update_play()
           })
         end
         sfx(6)  -- power-up sound for multi-ball (new sfx 6)
+        powerup_hint_type = "multi"
+        powerup_hint_timer = 90
       elseif p.type == "shield" then
         shield_active = true
         shield_timer = 900  -- 15 seconds
         sfx(6)  -- power-up sound for shield (new sfx 6)
+        powerup_hint_type = "shield"
+        powerup_hint_timer = 90
+      elseif p.type == "laser" then
+        sfx(6)
+        powerup_hint_type = "laser"
+        powerup_hint_timer = 90
       else
         sfx(6)
       end
     end
   end
 
-  -- paddle movement
-  if test_input(0) > 0 then
+  -- paddle movement (arrow keys or WASD alternatives)
+  if test_input(0) > 0 or test_input(2) > 0 then  -- left or up
     paddle_x = max(0, paddle_x - 2)
   end
-  if test_input(1) > 0 then
+  if test_input(1) > 0 or test_input(5) > 0 then  -- right or x button
     paddle_x = min(128 - paddle_w, paddle_x + 2)
   end
 
@@ -720,6 +766,8 @@ function update_play()
            ball.x < brick.x + brick.w and
            ball.y > brick.y and
            ball.y < brick.y + brick.h then
+
+          ball_hit_this_launch = true  -- track hit for hint system
 
           -- handle ice brick (slow ball)
           if brick.type == "ice" then
@@ -845,6 +893,11 @@ function update_play()
       trigger_lives_warning()  -- visual warning
       reset_balls()
       sfx(7)  -- lives lost warning sound (new sfx 7)
+      -- hint: first ball lost - remind player to move paddle
+      if not first_ball_lost then
+        first_ball_lost = true
+        set_hint("move paddle with\narrow keys!", 180)
+      end
     end
   end
 
@@ -922,6 +975,16 @@ function update_play()
         ball.y = 110
       end
       level_start_time = t()
+
+      -- level transition hint
+      if level == 2 then
+        set_hint("paddle smaller!\nball faster!", 200)
+      elseif level == 3 then
+        set_hint("new brick types\nappear!", 200)
+      elseif level == 6 then
+        set_hint("boss time!\nstay focused!", 200)
+      end
+
       sfx(8)  -- level complete sound (new sfx 8)
     else
       -- all levels complete - win!
@@ -958,9 +1021,9 @@ function draw_menu()
   print("z / c to launch", 25, 45, 11)
   print("and play", 50, 45, 7)
 
-  -- level preview
-  print("6 levels to master", 28, 60, 10)
-  print("including boss battle", 18, 70, 10)
+  -- objective clarity
+  print("clear all bricks", 28, 62, 10)
+  print("to advance level", 32, 72, 10)
 
   print("press z/c to start", 28, 95, 11)
 end
@@ -1086,7 +1149,7 @@ function draw_play()
 
   -- hud
   print("score:"..score, 2, 2, 7)
-  print("lv:"..level, 50, 2, (is_boss_level and 8 or 7))
+  print("lv "..level.."/6", 48, 2, (is_boss_level and 8 or 7))
   print("lives:"..lives, 100, 2, 7)
 
   -- show boss health if on boss level
@@ -1121,6 +1184,22 @@ function draw_play()
   -- show ready/launch indicator if ball waiting
   if ball_ready_to_launch then
     print("ready!", 60, 60, 11)
+  end
+
+  -- display hints
+  if hint_timer > 0 then
+    hint_timer -= 1
+    local hint_color = 11
+    if hint_timer < 30 then hint_color = 7 end
+    print(hint_text, 20, 50, hint_color)
+  end
+
+  -- display power-up hint
+  if powerup_hint_timer > 0 then
+    powerup_hint_timer -= 1
+    local color = 10
+    if powerup_hint_timer < 20 then color = 6 end
+    print(powerup_hint_type.." power!", 38, 40, color)
   end
 
   -- level progress indicator (bottom right)
