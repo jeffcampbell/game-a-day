@@ -315,9 +315,9 @@ end
 
 function reset_balls()
   -- reduce ball speed on level 1, gradually increase through levels
-  local level_scale = (level - 1) * 0.2  -- 0, 0.2, 0.4, 0.6, 0.8, 1.0
-  local base_vx = 0.8 + level_scale * 0.7
-  local base_vy = -1.2 - level_scale * 0.8
+  local level_scale = (level - 1) * 0.15  -- 0, 0.15, 0.3, 0.45, 0.6, 0.75 (slower progression)
+  local base_vx = 0.7 + level_scale * 0.6  -- level 1: 0.7, level 2: 0.79, level 3: 0.88
+  local base_vy = -1.0 - level_scale * 0.7  -- level 1: -1.0, level 2: -1.105, level 3: -1.21
   balls = {init_ball(64, 110, base_vx, base_vy)}
   active_power_ups = {}
   expand_count = 0
@@ -542,7 +542,7 @@ function update_play()
       -- restore paddle to normal size when expand expires
       if pup.type == "expand" then
         expand_count = max(0, expand_count - 1)
-        local base_w = 32 - (level - 1) * 4
+        local base_w = 32 - (level - 1) * 2
         paddle_w = min(48, max(8, base_w + expand_count * 8))
       -- restore ball velocity when slow expires
       elseif pup.type == "slow" then
@@ -574,7 +574,7 @@ function update_play()
 
       if p.type == "expand" then
         expand_count += 1
-        local base_w = 32 - (level - 1) * 4
+        local base_w = 32 - (level - 1) * 2
         paddle_w = min(48, max(8, base_w + expand_count * 8))  -- expand adds width but caps at 48
         sfx(5)  -- level up sound for expand
       elseif p.type == "slow" then
