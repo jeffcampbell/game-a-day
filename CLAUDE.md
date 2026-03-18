@@ -24,7 +24,9 @@ Check `date +%Y-%m-%d` to get today's date, then look for `games/YYYY-MM-DD/`.
   better sprites, sound effects, difficulty tuning, smoother animations, more levels.
 - **Never create games for future dates.** Only work on today's game (`date +%Y-%m-%d`).
   A new game starts at midnight, not before.
-- **Never modify previous days' games** unless explicitly asked.
+- **Never modify previous days' games** unless explicitly asked. **Exception:** Token limit
+  violations (games exceeding 8192 tokens) and other functionality-blocking bugs are justified
+  exceptions. These make a game non-shippable and should be fixed immediately.
 - **Never propose tooling, infrastructure, library systems, or meta-features.**
   The game comes first — always. If you run out of ideas, polish the game more.
 
