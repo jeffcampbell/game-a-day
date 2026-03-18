@@ -3,7 +3,7 @@
 Generate synthetic playtest sessions for PICO-8 games.
 
 This tool creates SYNTHETIC session files with predefined button sequences representing
-different playstyles: aggressive, careful, strategic, casual, and methodical.
+different playstyles: aggressive, careful, boss_attempter, quitter, and casual.
 Each represents a realistic way a human player would approach the game.
 
 IMPORTANT: These are SYNTHETIC sessions with simulated logs, not recordings from
