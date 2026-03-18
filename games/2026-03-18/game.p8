@@ -302,13 +302,13 @@ function update_play()
           local new_vy1 = ball.vy
           add(balls, {
             x=ball.x+2, y=ball.y, vx=new_vx1, vy=new_vy1,
-            base_vx=new_vx1, base_vy=new_vy1, slow_count=ball.slow_count
+            base_vx=ball.base_vx + 0.5, base_vy=ball.base_vy, slow_count=ball.slow_count
           })
           local new_vx2 = ball.vx - 0.5
           local new_vy2 = ball.vy
           add(balls, {
             x=ball.x-2, y=ball.y, vx=new_vx2, vy=new_vy2,
-            base_vx=new_vx2, base_vy=new_vy2, slow_count=ball.slow_count
+            base_vx=ball.base_vx - 0.5, base_vy=ball.base_vy, slow_count=ball.slow_count
           })
         end
       elseif p.type == "shield" then
@@ -500,6 +500,15 @@ function update_play()
       sfx(4)
     else
       reset_balls()
+      -- scale ball velocity by current level to maintain difficulty
+      local base_vx = 1.5 + level * 0.4
+      local base_vy = -2 - level * 0.3
+      for ball in all(balls) do
+        ball.base_vx = base_vx
+        ball.base_vy = base_vy
+        ball.vx = base_vx
+        ball.vy = base_vy
+      end
       sfx(3)
     end
   end
