@@ -1,0 +1,12 @@
+{
+  "title": "Breakout Brick Breaker",
+  "description": "A classic arcade-style brick breaker game. Control your paddle to bounce the ball and destroy all the bricks. Don't let the ball fall off the bottom—you have 3 lives to clear all 48 bricks across 3 rows.",
+  "genres": ["arcade"],
+  "difficulty": 2,
+  "playtime_minutes": 4,
+  "completion_status": "in-progress",
+  "target_audience": "general",
+  "token_count": 737,
+  "sprite_count": 0,
+  "sound_count": 6
+}
