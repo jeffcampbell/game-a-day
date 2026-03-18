@@ -291,7 +291,7 @@ function init_bricks(lvl)
   local brick_w, brick_h = 8, 8
   local start_x, start_y = 8, 8
   local cols = 16
-  local rows = lvl == 1 and 2 or (2 + lvl)  -- level 1: only 2 rows; others scale up
+  local rows = lvl == 1 and 2 or (1 + lvl)  -- level 1: 2 rows; levels 2-5: faster progression
 
   -- distinct level layouts for visual variety
   local layout_pattern = lvl % 3  -- cycle through 3 patterns
@@ -839,8 +839,8 @@ function update_play()
           trigger_flash()
           trigger_shake(1)
 
-          -- spawn power-up based on brick type (more generous on early levels)
-          local spawn_chance = (level == 1 or level == 2) and 0.15 or 0.1
+          -- spawn power-up based on brick type (more generous on early levels and boss prep)
+          local spawn_chance = (level == 1 or level == 2) and 0.15 or (level == 5 and 0.15 or 0.12)
           if brick.type == "ice" then spawn_chance = 0.05
           elseif brick.type == "explosive" then spawn_chance = 0.08
           elseif brick.type == "multi_hit" then spawn_chance = 0.12 end
