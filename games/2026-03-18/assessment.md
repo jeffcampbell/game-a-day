@@ -159,8 +159,79 @@ With faster progression and maintained challenge:
 - **Compatibility**: All changes maintain existing game mechanics and visual style
 - **Testing approach**: Manual calculation of expected playtime confirms 2-3 minute boss reach
 
+### Phase 4: Boss Special Mechanics & Climactic Battle (2026-03-18)
+
+With the boss now reachable through faster level progression, this phase implements exclusive boss mechanics that make the encounter feel special and rewarding, converting the level 6 boss from a "big regular level" into a true climax battle.
+
+**11. Boss-Specific Power-Ups (HIGH IMPACT)**
+- **Shield Break** (exclusive to boss): Temporarily disables boss projectile attacks for 6 seconds, giving player brief respite
+  - Spawn rate: 40% during boss level (most common)
+  - Visual feedback: On-screen text "boss:stunned" displayed at top of screen
+  - Effect: Boss stops shooting for duration, allowing aggressive offensive play
+
+- **Rapid Fire** (exclusive to boss): Paddle automatically shoots projectiles when hitting ball for 5 seconds
+  - Spawn rate: 15% during boss level
+  - Visual feedback: On-screen text "rapid fire!" displayed
+  - Effect: Each paddle hit launches 2 lasers, dramatically increasing damage output
+
+- **Enhanced Multi-Ball**: During boss fight, multi-ball power-up spawns additional balls
+  - Spawn rate: 20% during boss level
+  - Effect: Cumulative ball damage increases exponentially with multiple balls on screen
+  - Visual feedback: Existing multi-ball particle effects apply
+
+- **Standard Defensive Power-ups** (shield, slow): 25% spawn rate during boss
+  - Shield: Blocks one projectile, same behavior as regular levels
+  - Slow: Reduces ball speed for careful positioning
+
+**12. Increased Boss Health (HIGH IMPACT)**
+- **Changed**: Boss health from 18 hits to 60 hits
+- **Effect**: Boss now requires ~5-8 minutes to defeat, making victory feel earned
+- **Phase thresholds updated**:
+  - Phase 1 (health 40-60): Single projectile stream, slow movement
+  - Phase 2 (health 20-40): Dual projectile streams, medium speed
+  - Phase 3 (health 0-20): Triple projectile streams, erratic movement
+- **Rationale**: Higher health prevents boss from being trivial despite power-up availability
+
+**13. Enhanced Power-Up Spawn Rate (MEDIUM IMPACT)**
+- **Changed**: Boss-level power-up spawn rate from 12% to 20%
+- **Effect**: Average of 2-3 power-ups appear during boss fight (vs 1 during regular levels)
+- **Rationale**: Defensive power-ups are critical for boss strategy; higher spawn encourages collection
+
+**14. Visual Distinction for Boss Projectiles (LOW IMPACT)**
+- **Changed**: Boss projectiles now render with red core indicator (color 2) in addition to trailing effects
+- **Effect**: Visually distinct from regular ball; easier to track incoming threats
+- **No gameplay change**: Purely visual enhancement for clarity
+
+**15. Clear Boss Status Display (MEDIUM IMPACT)**
+- **Shield Break indicator**: "boss:stunned" text shows when boss attacks disabled
+- **Rapid Fire indicator**: "rapid fire!" text displays when paddle shooting active
+- **Existing**: Boss health bar already displays at top with phase-based coloring
+
+### Expected Outcomes - Phase 4
+
+With boss-specific power-ups and enhanced difficulty:
+- **Boss feels climactic**: Exclusive mechanics (Shield Break, Rapid Fire) create sense of special encounter
+- **Victory is rewarding**: 60-hit health + 5-8 minute fight = earned victory feeling
+- **Strategic depth**: Power-ups enable different playstyles (defensive shield break vs offensive rapid fire)
+- **Overall game satisfaction**: Boss represents fitting end to 6-level progression
+
+### Technical Implementation
+
+- **Token Count**: 4823/8192 (added 210 tokens from Phase 3, ~2.6% of budget)
+- **New variables**: shield_break_active/timer, rapid_fire_active/timer
+- **New power-up types**: "shield_break", "rapid_fire"
+- **Compatibility**: All changes preserve existing game mechanics for levels 1-5
+- **Balance**: Boss difficulty is challenging but winnable with smart power-up usage
+
+### Design Philosophy
+
+The boss enhancement follows a "climactic payoff" design:
+1. **Progression payoff**: After 5 regular levels, players earn a special boss fight with unique mechanics
+2. **Power-up agency**: Boss-specific power-ups create meaningful decisions (use shield break now or save for later?)
+3. **Visual clarity**: On-screen text + projectile distinction help players understand what's happening
+4. **Difficulty scaling**: Higher health + increased projectile count = real challenge, but power-up availability keeps it winnable
+
 ### Remaining Items (Not Fixed)
 
-1. **Boss difficulty feedback**: Once boss is reliably reachable, can be playtested to validate challenge level.
-
-2. **Future polish**: Could add boss-specific power-ups or attack patterns after validating reachability.
+1. **Playtesting validation**: Need 3+ recorded sessions defeating boss to validate difficulty and power-up balance
+2. **Fine-tuning**: May adjust phase health thresholds based on playtester feedback
