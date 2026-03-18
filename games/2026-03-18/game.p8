@@ -493,8 +493,8 @@ function update_play()
 
     -- boss collision (on boss level)
     if is_boss_level and boss and boss_entrance_time <= 0 then
-      if ball.x > boss.x and
-         ball.x < boss.x + boss.w and
+      if ball.x > boss.x - boss.w/2 and
+         ball.x < boss.x + boss.w/2 and
          ball.y > boss.y and
          ball.y < boss.y + boss.h then
         -- hit the boss!
