@@ -508,7 +508,7 @@ function update_play()
         sfx(3)
 
         -- bounce ball away from boss
-        local dx = abs(ball.x - (boss.x + boss.w/2))
+        local dx = abs(ball.x - boss.x)
         local dy = abs(ball.y - (boss.y + boss.h/2))
         if dx > dy then ball.vx *= -1
         else ball.vy *= -1 end
