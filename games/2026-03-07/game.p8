@@ -39,6 +39,10 @@ tutorial_step=0
 hint_shown=false
 hint_timer=0
 menu_sel=0
+difficulty=1
+difficulty_sel=0
+paddle_width=16
+ball_speed_mul=1
 
 function _init()
  _log("state:init")
@@ -46,13 +50,25 @@ function _init()
 end
 
 function init_game()
- lives=3
+ if difficulty==0 then
+  lives=5
+  paddle_width=18
+  ball_speed_mul=0.85
+ elseif difficulty==1 then
+  lives=3
+  paddle_width=16
+  ball_speed_mul=1
+ else
+  lives=2
+  paddle_width=14
+  ball_speed_mul=1.2
+ end
  score=0
  paddle_x=56
  ball_x=64
  ball_y=100
- ball_vx=1.5
- ball_vy=-2
+ ball_vx=1.5*ball_speed_mul
+ ball_vy=-2*ball_speed_mul
  hint_timer=120
  hint_shown=false
 
@@ -68,6 +84,7 @@ end
 
 function _update()
  if state=="menu" then update_menu()
+ elseif state=="difficulty_select" then update_difficulty_select()
  elseif state=="tutorial" then update_tutorial()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
@@ -77,6 +94,7 @@ end
 function _draw()
  cls(0)
  if state=="menu" then draw_menu()
+ elseif state=="difficulty_select" then draw_difficulty_select()
  elseif state=="tutorial" then draw_tutorial()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
@@ -93,10 +111,9 @@ function update_menu()
 
  if z then
   if menu_sel==0 then
-   _log("state:play")
-   state="play"
-   hint_shown=false
-   init_game()
+   _log("state:difficulty_select")
+   state="difficulty_select"
+   difficulty_sel=0
   elseif menu_sel==1 then
    _log("state:tutorial")
    state="tutorial"
@@ -110,6 +127,40 @@ function draw_menu()
  print("play",55,50,menu_sel==0 and 11 or 7)
  print("tutorial",48,65,menu_sel==1 and 11 or 7)
  print("high: "..high_score,40,110,7)
+end
+
+function update_difficulty_select()
+ local up=test_input(2)~=0
+ local dn=test_input(3)~=0
+ local z=test_input(4)~=0
+
+ if up then difficulty_sel=max(0,difficulty_sel-1) end
+ if dn then difficulty_sel=min(2,difficulty_sel+1) end
+
+ if z then
+  difficulty=difficulty_sel
+  _log("difficulty:"..difficulty)
+  _log("state:play")
+  state="play"
+  hint_shown=false
+  init_game()
+ end
+end
+
+function draw_difficulty_select()
+ print("select difficulty",32,15,7)
+ print("easy",54,40,difficulty_sel==0 and 11 or 7)
+ print("normal",48,55,difficulty_sel==1 and 11 or 7)
+ print("hard",52,70,difficulty_sel==2 and 11 or 7)
+ if difficulty_sel==0 then
+  print("wider paddle",38,90,8)
+  print("slower ball",40,100,8)
+ elseif difficulty_sel==1 then
+  print("balanced game",36,90,8)
+ else
+  print("harder game",40,90,8)
+  print("narrow paddle",37,100,8)
+ end
 end
 
 function update_tutorial()
@@ -161,7 +212,7 @@ function update_play()
  local r=test_input(1)~=0
 
  if l then paddle_x=max(0,paddle_x-2) end
- if r then paddle_x=min(112,paddle_x+2) end
+ if r then paddle_x=min(128-paddle_width,paddle_x+2) end
 
  ball_x+=ball_vx
  ball_y+=ball_vy
@@ -186,15 +237,15 @@ function update_play()
   else
    ball_x=64
    ball_y=100
-   ball_vx=1.5
-   ball_vy=-2
+   ball_vx=1.5*ball_speed_mul
+   ball_vy=-2*ball_speed_mul
   end
   return
  end
 
- local px=paddle_x+8
+ local px=paddle_x+paddle_width/2
  if ball_y>110 and ball_y<120 and
-    ball_x>px-8 and ball_x<px+16 then
+    ball_x>px-paddle_width/2 and ball_x<px+paddle_width/2 then
   ball_vy=-ball_vy
   sfx(0)
   ball_y=110
@@ -233,7 +284,7 @@ function draw_play()
   end
  end
 
- rectfill(paddle_x,112,paddle_x+16,120,3)
+ rectfill(paddle_x,112,paddle_x+paddle_width,120,3)
 
  pset(ball_x,ball_y,7)
  pset(ball_x+1,ball_y,7)
@@ -241,7 +292,11 @@ function draw_play()
  pset(ball_x+1,ball_y+1,7)
 
  print("score:"..score,2,2,7)
- print("lives:"..lives,90,2,7)
+ print("lives:"..lives,80,2,7)
+ local diff_name="normal"
+ if difficulty==0 then diff_name="easy"
+ elseif difficulty==2 then diff_name="hard" end
+ print(diff_name,2,120,7)
 
  if hint_timer>0 then
   rectfill(5,45,123,72,0)
