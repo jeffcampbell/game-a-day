@@ -35,6 +35,10 @@ ball_vx=0
 ball_vy=0
 paddle_x=0
 blocks={}
+tutorial_step=0
+hint_shown=false
+hint_timer=0
+menu_sel=0
 
 function _init()
  _log("state:init")
@@ -49,6 +53,8 @@ function init_game()
  ball_y=100
  ball_vx=1.5
  ball_vy=-2
+ hint_timer=120
+ hint_shown=false
 
  blocks={}
  for row=0,3 do
@@ -62,6 +68,7 @@ end
 
 function _update()
  if state=="menu" then update_menu()
+ elseif state=="tutorial" then update_tutorial()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
  end
@@ -70,23 +77,84 @@ end
 function _draw()
  cls(0)
  if state=="menu" then draw_menu()
+ elseif state=="tutorial" then draw_tutorial()
  elseif state=="play" then draw_play()
  elseif state=="gameover" then draw_gameover()
  end
 end
 
 function update_menu()
- if test_input(4)~=0 then
-  _log("state:play")
-  state="play"
-  init_game()
+ local up=test_input(2)~=0
+ local dn=test_input(3)~=0
+ local z=test_input(4)~=0
+
+ if up then menu_sel=max(0,menu_sel-1) end
+ if dn then menu_sel=min(2,menu_sel+1) end
+
+ if z then
+  if menu_sel==0 then
+   _log("state:play")
+   state="play"
+   hint_shown=false
+   init_game()
+  elseif menu_sel==1 then
+   _log("state:tutorial")
+   state="tutorial"
+   tutorial_step=0
+  end
  end
 end
 
 function draw_menu()
- print("block breaker",40,30,7)
- print("press z to start",30,50,7)
- print("high: "..high_score,40,80,7)
+ print("block breaker",40,20,7)
+ print("play",55,50,menu_sel==0 and 11 or 7)
+ print("tutorial",48,65,menu_sel==1 and 11 or 7)
+ print("quit",55,80,menu_sel==2 and 11 or 7)
+ print("high: "..high_score,40,110,7)
+end
+
+function update_tutorial()
+ if test_input(4)~=0 then
+  tutorial_step+=1
+  if tutorial_step>=4 then
+   _log("state:menu")
+   state="menu"
+   menu_sel=0
+  end
+ end
+end
+
+function draw_tutorial()
+ if tutorial_step==0 then
+  print("== movement ==",35,30,7)
+  print("use arrow keys",32,50,7)
+  print("left/right to move",26,60,7)
+  print("paddle",48,75,7)
+  rectfill(50,85,66,93,3)
+  print("z to continue",38,110,11)
+ elseif tutorial_step==1 then
+  print("== ball physics ==",30,20,7)
+  print("watch the ball",32,40,7)
+  print("it bounces off",32,50,7)
+  print("walls and paddle",30,60,7)
+  pset(64,35,7)
+  pset(65,35,7)
+  pset(64,36,7)
+  pset(65,36,7)
+  print("z to continue",38,110,11)
+ elseif tutorial_step==2 then
+  print("== breaking bricks ==",24,20,7)
+  print("use paddle to bounce",22,40,7)
+  print("ball at bricks",36,50,7)
+  print("break them all!",32,60,7)
+  rectfill(40,72,88,80,8)
+  print("z to continue",38,110,11)
+ elseif tutorial_step==3 then
+  print("== victory ==",38,30,7)
+  print("break all bricks",30,50,7)
+  print("to advance and win!",24,60,7)
+  print("ready? z starts",32,85,7)
+ end
 end
 
 function update_play()
@@ -175,6 +243,18 @@ function draw_play()
 
  print("score:"..score,2,2,7)
  print("lives:"..lives,90,2,7)
+
+ if hint_timer>0 then
+  rectfill(5,45,123,72,0)
+  rect(5,45,123,72,7)
+  print("use arrow keys",28,50,7)
+  print("to move.",44,58,7)
+  print("break all bricks!",24,65,7)
+  hint_timer-=1
+ elseif not hint_shown then
+  hint_shown=true
+  _log("hint:shown")
+ end
 end
 
 function update_gameover()
