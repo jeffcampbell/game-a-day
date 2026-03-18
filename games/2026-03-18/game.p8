@@ -35,10 +35,11 @@ max_level = 6  -- 5 regular levels + 1 boss
 level_start_time = 0
 music_playing = false
 is_boss_level = false
+ball_ready_to_launch = true  -- ball waits on paddle before first launch
 
 -- paddle
 paddle_x = 60
-paddle_w = 16
+paddle_w = 32  -- start wider for better control
 paddle_h = 8
 paddle_y = 123
 
@@ -177,33 +178,29 @@ function get_brick_type(lvl, rand_val)
   if lvl == 6 then
     return "normal"  -- boss level should never call this
   elseif lvl == 1 then
-    -- level 1: mostly normal, some ice to introduce mechanics
-    if rand_val < 0.85 then return "normal"
-    else return "ice" end
+    -- level 1: ONLY normal bricks - learn basic mechanics
+    return "normal"
   elseif lvl == 2 then
-    -- level 2: more ice and basic multi-hit
-    if rand_val < 0.65 then return "normal"
-    elseif rand_val < 0.85 then return "ice"
-    else return "multi_hit" end
+    -- level 2: introduce ice (slow ball)
+    if rand_val < 0.8 then return "normal"
+    else return "ice" end
   elseif lvl == 3 then
-    -- level 3: introduce explosive bricks
-    if rand_val < 0.5 then return "normal"
-    elseif rand_val < 0.7 then return "ice"
-    elseif rand_val < 0.88 then return "explosive"
+    -- level 3: add multi-hit bricks
+    if rand_val < 0.6 then return "normal"
+    elseif rand_val < 0.8 then return "ice"
     else return "multi_hit" end
   elseif lvl == 4 then
-    -- level 4: balanced mix with unbreakables
-    if rand_val < 0.35 then return "normal"
-    elseif rand_val < 0.52 then return "ice"
-    elseif rand_val < 0.72 then return "explosive"
-    elseif rand_val < 0.88 then return "multi_hit"
-    else return "unbreakable" end
-  else  -- level 5
-    -- level 5: challenge with many special bricks
-    if rand_val < 0.25 then return "normal"
-    elseif rand_val < 0.4 then return "ice"
-    elseif rand_val < 0.62 then return "explosive"
-    elseif rand_val < 0.82 then return "multi_hit"
+    -- level 4: introduce explosives
+    if rand_val < 0.4 then return "normal"
+    elseif rand_val < 0.6 then return "ice"
+    elseif rand_val < 0.8 then return "multi_hit"
+    else return "explosive" end
+  elseif lvl == 5 then
+    -- level 5: challenge with unbreakables
+    if rand_val < 0.3 then return "normal"
+    elseif rand_val < 0.5 then return "ice"
+    elseif rand_val < 0.7 then return "multi_hit"
+    elseif rand_val < 0.85 then return "explosive"
     else return "unbreakable" end
   end
 end
@@ -269,7 +266,7 @@ function init_bricks(lvl)
   local brick_w, brick_h = 8, 8
   local start_x, start_y = 8, 8
   local cols = 16
-  local rows = 2 + lvl
+  local rows = lvl == 1 and 2 or (2 + lvl)  -- level 1: only 2 rows; others scale up
 
   -- distinct level layouts for visual variety
   local layout_pattern = lvl % 3  -- cycle through 3 patterns
@@ -278,12 +275,15 @@ function init_bricks(lvl)
     for col = 0, cols - 1 do
       local skip = false
 
-      -- layout pattern 1: diagonal gaps
-      if layout_pattern == 1 and (col + row) % 5 == 0 then
-        skip = true
-      -- layout pattern 2: checkerboard middle
-      elseif layout_pattern == 2 and row > rows / 2 and (col + row) % 2 == 0 then
-        skip = true
+      -- level 1: full grid (no skips) - simplest layout
+      if lvl > 1 then
+        -- layout pattern 1: diagonal gaps
+        if layout_pattern == 1 and (col + row) % 5 == 0 then
+          skip = true
+        -- layout pattern 2: checkerboard middle
+        elseif layout_pattern == 2 and row > rows / 2 and (col + row) % 2 == 0 then
+          skip = true
+        end
       end
 
       if not skip then
@@ -308,18 +308,24 @@ function init_ball(x, y, vx, vy)
   return {
     x = x, y = y, vx = vx, vy = vy,
     base_vx = vx, base_vy = vy,  -- store base velocity for slow power-up restoration
-    slow_count = 0  -- track active slow power-ups
+    slow_count = 0,  -- track active slow power-ups
+    waiting_on_paddle = true  -- ball starts on paddle
   }
 end
 
 function reset_balls()
-  balls = {init_ball(64, 110, 1.5, -2)}
+  -- reduce ball speed on level 1, gradually increase through levels
+  local level_scale = (level - 1) * 0.2  -- 0, 0.2, 0.4, 0.6, 0.8, 1.0
+  local base_vx = 0.8 + level_scale * 0.7
+  local base_vy = -1.2 - level_scale * 0.8
+  balls = {init_ball(64, 110, base_vx, base_vy)}
   active_power_ups = {}
   expand_count = 0
   shield_active = false
   shield_timer = 0
   lasers = {}
   boss_projectiles = {}
+  ball_ready_to_launch = true
 end
 
 function update_menu()
@@ -341,14 +347,44 @@ function update_menu()
     is_boss_level = false
     music(1, 0, 3)  -- gameplay music
   end
+
+  -- support z/c for start
+  if btnp(5) then
+    _log("state:play")
+    state = "play"
+    score = 0
+    lives = 3
+    level = 1
+    _log("level:"..level)
+    init_bricks(level)
+    reset_balls()
+    level_start_time = t()
+    is_boss_level = false
+    music(1, 0, 3)  -- gameplay music
+  end
 end
 
 function get_power_up_type(rand_val)
-  if rand_val < 0.3 then return "expand"
-  elseif rand_val < 0.55 then return "slow"
-  elseif rand_val < 0.75 then return "multi_ball"
-  elseif rand_val < 0.9 then return "laser"
-  else return "shield" end
+  -- adjust power-up distribution based on level for better progression
+  if level == 1 then
+    -- level 1: favor defensive power-ups
+    if rand_val < 0.25 then return "expand"
+    elseif rand_val < 0.65 then return "slow"
+    else return "shield" end
+  elseif level == 2 then
+    -- level 2: mix of defensive and utility
+    if rand_val < 0.3 then return "expand"
+    elseif rand_val < 0.6 then return "slow"
+    elseif rand_val < 0.8 then return "shield"
+    else return "multi_ball" end
+  else
+    -- levels 3+: balanced mix
+    if rand_val < 0.2 then return "expand"
+    elseif rand_val < 0.4 then return "slow"
+    elseif rand_val < 0.6 then return "multi_ball"
+    elseif rand_val < 0.8 then return "laser"
+    else return "shield" end
+  end
 end
 
 function spawn_power_up(x, y, typ)
@@ -463,6 +499,24 @@ function update_play()
     update_boss_projectiles()
   end
 
+  -- handle ball launch from paddle (waiting for player input)
+  if ball_ready_to_launch then
+    for ball in all(balls) do
+      if ball.waiting_on_paddle then
+        -- keep ball centered on paddle
+        ball.x = paddle_x + paddle_w / 2
+        ball.y = paddle_y - ball_r - 2
+
+        -- launch on any directional input or button press
+        if btnp(0) or btnp(1) or btnp(2) or btnp(3) or btnp(4) or btnp(5) then
+          ball.waiting_on_paddle = false
+          ball_ready_to_launch = false
+          _log("ball:launch")
+          sfx(0)
+        end
+      end
+    end
+  end
 
   -- update lasers and laser-brick collision
   for laser in all(lasers) do
@@ -503,7 +557,8 @@ function update_play()
       -- restore paddle to normal size when expand expires
       if pup.type == "expand" then
         expand_count = max(0, expand_count - 1)
-        paddle_w = max(8, 16 - level * 2 + expand_count * 8)
+        local base_w = 32 - (level - 1) * 4
+        paddle_w = min(48, max(8, base_w + expand_count * 8))
       -- restore ball velocity when slow expires
       elseif pup.type == "slow" then
         for ball in all(balls) do
@@ -534,7 +589,8 @@ function update_play()
 
       if p.type == "expand" then
         expand_count += 1
-        paddle_w = max(8, 16 - level * 2 + expand_count * 8)
+        local base_w = 32 - (level - 1) * 4
+        paddle_w = min(48, max(8, base_w + expand_count * 8))  -- expand adds width but caps at 48
         sfx(5)  -- level up sound for expand
       elseif p.type == "slow" then
         for ball in all(balls) do
@@ -581,6 +637,11 @@ function update_play()
 
   -- ball movement and collision detection for all balls
   for ball in all(balls) do
+    -- skip physics if ball is waiting on paddle
+    if ball.waiting_on_paddle then
+      goto ball_update_skip
+    end
+
     local orig_vx, orig_vy = ball.vx, ball.vy
     ball.x += ball.vx
     ball.y += ball.vy
@@ -734,8 +795,8 @@ function update_play()
           trigger_flash()
           trigger_shake(1)
 
-          -- spawn power-up based on brick type
-          local spawn_chance = 0.1
+          -- spawn power-up based on brick type (more generous on level 1)
+          local spawn_chance = level == 1 and 0.15 or 0.1
           if brick.type == "ice" then spawn_chance = 0.05
           elseif brick.type == "explosive" then spawn_chance = 0.08
           elseif brick.type == "multi_hit" then spawn_chance = 0.12 end
@@ -769,6 +830,8 @@ function update_play()
         del(balls, ball)
       end
     end
+
+    ::ball_update_skip::
   end
 
   -- check if all balls are lost
@@ -846,7 +909,8 @@ function update_play()
       lasers = {}
 
       -- difficulty scaling (resets to base width)
-      paddle_w = max(8, 16 - level * 2)
+      local base_w = 32 - (level - 1) * 4  -- level 1: 32, level 2: 28, etc
+      paddle_w = max(16, base_w)
 
       -- increase ball speed
       local base_vx = 1.5 + level * 0.4
@@ -892,9 +956,20 @@ end
 
 function draw_menu()
   cls(0)
-  print("breakout", 50, 30, 7)
-  print("brick breaker", 45, 45, 7)
-  print("press z to start", 38, 70, 11)
+  print("breakout", 50, 10, 7)
+  print("brick breaker", 45, 20, 7)
+
+  -- instructions
+  print("arrow keys:", 20, 35, 11)
+  print("move paddle", 35, 35, 7)
+  print("z / c to launch", 25, 45, 11)
+  print("and play", 50, 45, 7)
+
+  -- level preview
+  print("6 levels to master", 28, 60, 10)
+  print("including boss battle", 18, 70, 10)
+
+  print("press z/c to start", 28, 95, 11)
 end
 
 function draw_play()
@@ -976,8 +1051,14 @@ function draw_play()
     -- sprite 2 is the ball, add slight visual emphasis based on speed
     local is_fast = abs(ball.vx) > 2 or abs(ball.vy) > 2
     spr(2, ball_sprite_x, ball_sprite_y, 1, 1)
-    -- add glow effect if ball is moving fast
-    if is_fast and flash_timer == 0 then
+
+    -- draw waiting indicator if ball on paddle
+    if ball.waiting_on_paddle then
+      circfill(ball.x, ball.y, 5, 11)  -- outer circle
+      circfill(ball.x, ball.y, 3, 7)   -- inner highlight
+      circfill(ball.x, ball.y, 2, 11)  -- pulsing effect
+    elseif is_fast and flash_timer == 0 then
+      -- add glow effect if ball is moving fast
       circfill(ball.x, ball.y, 3, 11 + flr(sin(t() * 4) * 2))
     end
   end
@@ -1034,6 +1115,11 @@ function draw_play()
 
   if shield_active then
     print("shield", 85, 120, 3)
+  end
+
+  -- show ready/launch indicator if ball waiting
+  if ball_ready_to_launch then
+    print("ready!", 60, 60, 11)
   end
 
   -- level progress indicator (bottom right)
