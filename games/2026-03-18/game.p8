@@ -154,18 +154,26 @@ function get_brick_sprite(typ)
   else return 7 end  -- normal
 end
 
-function get_brick_color(typ)
-  if typ == "ice" then return 11
-  elseif typ == "explosive" then return 8
-  elseif typ == "multi_hit" then return 10
-  elseif typ == "unbreakable" then return 5
-  else return 9 end  -- normal
+function get_brick_color(typ, lvl)
+  lvl = lvl or 1
+  -- vary colors slightly based on level for visual progression
+  if typ == "ice" then return (lvl > 3 and 12 or 11)
+  elseif typ == "explosive" then return (lvl > 4 and 2 or 8)
+  elseif typ == "multi_hit" then return (lvl > 3 and 13 or 10)
+  elseif typ == "unbreakable" then return (lvl > 2 and 6 or 5)
+  else return (lvl > 2 and 3 or 9) end  -- normal: level 1-2 yellow, then cyan
 end
 
 function get_boss_sprite(phase)
   if phase == 1 then return 8
   elseif phase == 2 then return 9
   else return 10 end
+end
+
+function get_boss_color(phase)
+  if phase == 1 then return 7  -- white
+  elseif phase == 2 then return 8  -- orange/red
+  else return 2 end  -- red intense
 end
 
 function get_powerup_sprite(typ)
@@ -201,19 +209,34 @@ function init_bricks(lvl)
   local cols = 16
   local rows = 2 + lvl
 
+  -- distinct level layouts for visual variety
+  local layout_pattern = lvl % 3  -- cycle through 3 patterns
+
   for row = 0, rows - 1 do
     for col = 0, cols - 1 do
-      local typ = get_brick_type(lvl, rnd())
-      add(bricks, {
-        x = start_x + col * brick_w,
-        y = start_y + row * brick_h,
-        w = brick_w,
-        h = brick_h,
-        active = true,
-        type = typ,
-        color = get_brick_color(typ),
-        health = (typ == "multi_hit") and 2 or 1
-      })
+      local skip = false
+
+      -- layout pattern 1: diagonal gaps
+      if layout_pattern == 1 and (col + row) % 5 == 0 then
+        skip = true
+      -- layout pattern 2: checkerboard middle
+      elseif layout_pattern == 2 and row > rows / 2 and (col + row) % 2 == 0 then
+        skip = true
+      end
+
+      if not skip then
+        local typ = get_brick_type(lvl, rnd())
+        add(bricks, {
+          x = start_x + col * brick_w,
+          y = start_y + row * brick_h,
+          w = brick_w,
+          h = brick_h,
+          active = true,
+          type = typ,
+          color = get_brick_color(typ, lvl),
+          health = (typ == "multi_hit") and 2 or 1
+        })
+      end
     end
   end
 end
@@ -239,8 +262,8 @@ end
 
 function update_menu()
   if not music_playing then
-    -- loop background music pattern
-    music(1, 0, 3)
+    -- loop menu music pattern
+    music(0, 0, 3)
     music_playing = true
   end
   if btnp(4) then
@@ -254,6 +277,7 @@ function update_menu()
     reset_balls()
     level_start_time = t()
     is_boss_level = false
+    music(1, 0, 3)  -- gameplay music
   end
 end
 
@@ -280,7 +304,14 @@ function update_boss()
   -- handle boss entrance animation
   if boss_entrance_time > 0 then
     boss_entrance_time -= 1
-    -- don't shoot or move during entrance
+    -- dramatic entrance effect with shaking
+    if boss_entrance_time > 20 then
+      trigger_shake(2)
+      add_particles(boss.x + 6, boss.y + 4, 8, 2)
+    elseif boss_entrance_time == 20 then
+      _log("boss:ready")
+      sfx(5)  -- boss entrance sound
+    end
     return
   end
 
@@ -433,10 +464,13 @@ function update_play()
       -- collect power-up
       del(power_ups, p)
       add(active_power_ups, {type = p.type, timer = 300})
+      score += 5  -- bonus points for collecting power-up
+      add_particles(p.x, p.y, 10, 5)  -- visual feedback
 
       if p.type == "expand" then
         expand_count += 1
         paddle_w = max(8, 16 - level * 2 + expand_count * 8)
+        sfx(5)  -- level up sound for expand
       elseif p.type == "slow" then
         for ball in all(balls) do
           ball.slow_count += 1
@@ -445,6 +479,7 @@ function update_play()
           ball.vx = ball.base_vx * slow_factor
           ball.vy = ball.base_vy * slow_factor
         end
+        sfx(3)  -- different pitch for slow
       elseif p.type == "multi_ball" then
         for ball in all(balls) do
           local new_vx1 = ball.vx + 0.5
@@ -460,11 +495,14 @@ function update_play()
             base_vx=ball.base_vx - 0.5, base_vy=ball.base_vy, slow_count=ball.slow_count
           })
         end
+        sfx(5)  -- celebratory sound for multi-ball
       elseif p.type == "shield" then
         shield_active = true
         shield_timer = 900  -- 15 seconds
+        sfx(0)  -- positive sound for shield
+      else
+        sfx(0)
       end
-      sfx(0)
     end
   end
 
@@ -564,8 +602,10 @@ function update_play()
             ball.vx *= 0.7
             ball.vy *= 0.7
             flash_color = 11
+            add_particles(brick.x + 4, brick.y + 4, 12, 3)  -- extra ice particles
           elseif brick.type == "explosive" then
             flash_color = 8
+            add_particles(brick.x + 4, brick.y + 4, 8, 2)  -- pre-explosion particles
           end
 
           -- multi-hit brick logic
@@ -727,6 +767,7 @@ function update_play()
       -- check if this is the boss level
       if level == 6 then
         init_boss()
+        music(2, 0, 3)  -- boss battle music
       else
         init_bricks(level)
       end
@@ -813,11 +854,19 @@ function draw_play()
   -- draw boss using sprite with phase variation
   if is_boss_level and boss then
     local sprite_idx = get_boss_sprite(boss.phase)
+    local boss_col = get_boss_color(boss.phase)
     spr(sprite_idx, boss.x - 8, boss.y, 2, 1)
+
+    -- phase indicator aura
+    if boss.phase > 1 then
+      circfill(boss.x, boss.y + 4, 10, boss_col)
+    end
+
     -- boss health bar above it
     local health_pct = boss.health / boss.max_health
     rectfill(boss.x - 8, boss.y - 4, boss.x + 8, boss.y - 2, 0)
-    rectfill(boss.x - 8, boss.y - 4, boss.x - 8 + health_pct * 16, boss.y - 2, 11)
+    local bar_color = (boss.phase == 3 and 2) or (boss.phase == 2 and 8) or 11
+    rectfill(boss.x - 8, boss.y - 4, boss.x - 8 + health_pct * 16, boss.y - 2, bar_color)
   end
 
   -- draw paddle using sprites
@@ -870,45 +919,62 @@ function draw_play()
 
   -- hud
   print("score:"..score, 2, 2, 7)
-  print("level:"..level, 50, 2, 7)
+  print("lv:"..level, 50, 2, (is_boss_level and 8 or 7))
   print("lives:"..lives, 100, 2, 7)
 
   -- show boss health if on boss level
   if is_boss_level and boss then
-    print("boss:"..boss.health.."/"..boss.max_health, 35, 2, 10)
+    print("boss:"..boss.health.."/"..boss.max_health, 30, 12, get_boss_color(boss.phase))
   end
 
-  -- show active power-ups
-  local pup_str = ""
+  -- show active power-ups with count
+  local pup_display = ""
+  local exp_count = 0
+  local has_slow = false
+  local has_laser = false
+
   for pup in all(active_power_ups) do
-    if pup.type == "expand" then pup_str = "exp "..pup_str
-    elseif pup.type == "slow" then pup_str = "slo "..pup_str
-    elseif pup.type == "laser" then pup_str = "las "..pup_str end
-  end
-  if pup_str ~= "" then
-    print(pup_str, 55, 120, 10)
+    if pup.type == "expand" then exp_count += 1
+    elseif pup.type == "slow" then has_slow = true
+    elseif pup.type == "laser" then has_laser = true end
   end
 
-  -- show laser on active power-ups count
-  if #lasers > 0 then
-    print("laser:"..#lasers, 80, 120, 11)
+  if exp_count > 0 then pup_display = "exp:"..exp_count.." " end
+  if has_slow then pup_display = pup_display.."slow " end
+  if has_laser then pup_display = pup_display.."las:"..#lasers end
+
+  if pup_display ~= "" then
+    print(pup_display, 2, 120, 10)
+  end
+
+  if shield_active then
+    print("shield", 85, 120, 3)
+  end
+
+  -- level progress indicator (bottom right)
+  local level_pct = (level - 1) / max_level
+  rectfill(90, 122, 126, 126, 0)
+  if level_pct > 0 then
+    rectfill(90, 122, 90 + level_pct * 36, 126, (is_boss_level and 8 or 11))
   end
 end
 
 function draw_gameover()
   cls(0)
 
-  if lives <= 0 then
-    print("game over", 48, 40, 8)
-  elseif level >= max_level then
-    print("you win!", 50, 40, 11)
+  local is_win = (level >= max_level and is_boss_level and boss and boss.health <= 0)
+
+  if is_win then
+    print("you win!", 50, 30, 11)
+    print("boss defeated!", 40, 45, 8)
   else
-    print("game over", 48, 40, 8)
+    print("game over", 48, 30, 8)
+    print("level "..level, 55, 45, 7)
   end
 
-  print("score:"..score, 55, 60, 7)
-  print("level:"..level, 50, 75, 7)
-  print("press z", 52, 90, 7)
+  print("score:"..score, 50, 65, 7)
+  print("lives lost:"..max(0, 3 - lives), 40, 80, 8)
+  print("press z to retry", 35, 100, 11)
 end
 
 function _draw()
@@ -988,12 +1054,14 @@ ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 __sfx__
 010100000a5000a5000a5000a5000a500050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000f5400f5400f5400f5400f5400f5400f5400f5400f5400f5400f5400f5400f5400f5400f5400f5400000000000000000000000000000000000000
+001000000c2400c2400c2400c2400c2400c2400c2400c2400000000000000000000000000000000000000000000000000000000000000000000000000000000
+0010000003000030000300003000030000300003000030000300003000030000300003000000000000000000000000000000000000000000000000000000000
 00010000005001050010500105001050010500105000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00010000055001550015500155001550015500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __music__
 00 00000000
 01 01010101
+02 02020202
+03 03030303
