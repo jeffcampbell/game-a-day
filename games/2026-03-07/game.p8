@@ -89,7 +89,7 @@ function update_menu()
  local z=test_input(4)~=0
 
  if up then menu_sel=max(0,menu_sel-1) end
- if dn then menu_sel=min(2,menu_sel+1) end
+ if dn then menu_sel=min(1,menu_sel+1) end
 
  if z then
   if menu_sel==0 then
@@ -109,7 +109,6 @@ function draw_menu()
  print("block breaker",40,20,7)
  print("play",55,50,menu_sel==0 and 11 or 7)
  print("tutorial",48,65,menu_sel==1 and 11 or 7)
- print("quit",55,80,menu_sel==2 and 11 or 7)
  print("high: "..high_score,40,110,7)
 end
 
