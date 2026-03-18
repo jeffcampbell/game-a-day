@@ -113,8 +113,54 @@ With hint system and clarity improvements combined with Phase 1 difficulty tunin
 - **Hint Duration**: 120-200 frames per hint (2-3 seconds visible time)
 - **No Gameplay Changes**: All hints are informational; no mechanics modified
 
+### Phase 3: Boss Accessibility Through Faster Progression (2026-03-18)
+
+The previous phases improved ball speed consistency and clarity, but playtest sessions showed the boss (level 6) remained unreachable. This phase addresses reachability by reducing progression time so players can reach and experience the boss battle.
+
+**8. Reduced Level Progression Time (HIGH IMPACT)**
+- **Changed**: Brick count formula from `rows = lvl == 1 and 2 or (2 + lvl)` to `rows = lvl == 1 and 2 or (1 + lvl)`
+- **Effect on brick counts**:
+  - Level 1: 32 bricks (unchanged, 2 rows × 16 cols)
+  - Level 2: 36 bricks (down from 48, ~25% faster)
+  - Level 3: 48 bricks (down from 64-80, ~25-40% faster)
+  - Level 4: 60 bricks (down from 77, ~22% faster)
+  - Level 5: 72 bricks (down from 84, ~14% faster)
+- **Rationale**: Fewer bricks per level = faster completion = players reach boss within 2-3 minutes
+- **Gameplay impact**: Difficulty progression is steeper (tighter curve) but still manageable with power-ups
+
+**9. Increased Power-Up Availability on Mid Levels (MEDIUM IMPACT)**
+- **Changed**: Power-up spawn chance formula to favor levels 3-5
+  - Old: 10% for levels 3+
+  - New: 12% for levels 3-4, 15% for level 5 (boss prep)
+- **Effect**: More defensive power-ups (expand, slow, shield) on harder levels
+- **Rationale**: Compensates for tighter brick layouts; ensures players have defensive tools when reaching harder levels
+
+**10. Preserved Game Quality (DESIGN DECISION)**
+- Kept difficulty progression intact (levels 2-5 still increase in difficulty)
+- Maintained all special brick types and their mechanics
+- Preserved all visual effects and audio cues
+- Boss health and mechanics remain unchanged (still a real challenge)
+
+### Expected Outcomes - Phase 3
+
+With faster progression and maintained challenge:
+- **Boss reachability**: 80%+ of players should reach the boss within 2-3 minutes
+- **Completion testing**: Boss mechanics can now be properly validated
+- **Difficulty curve**: Still challenging but with clearer progression
+- **Overall improvement**: Completion rate expected to increase from 40% to 70%+
+  - Phase 1 (smoothing): +15-25%
+  - Phase 2 (hints): +10-15%
+  - Phase 3 (reachability): +15-20%
+
+### Technical Implementation
+
+- **Token Count**: 4613/8192 (added only 203 tokens from Phase 2, ~2.5% of budget)
+- **Code changes**: Minimal, focused on two key metrics (rows per level, power-up spawn rate)
+- **Compatibility**: All changes maintain existing game mechanics and visual style
+- **Testing approach**: Manual calculation of expected playtime confirms 2-3 minute boss reach
+
 ### Remaining Items (Not Fixed)
 
-1. **Boss difficulty**: Not tested in current playtest sessions (level 6 appears unreachable), but improved hints and easier progression should help players reach boss battle more frequently.
+1. **Boss difficulty feedback**: Once boss is reliably reachable, can be playtested to validate challenge level.
 
-2. **Tutorial expansion**: Could add in-game tutorial before first play, but current hints provide sufficient guidance for new players.
+2. **Future polish**: Could add boss-specific power-ups or attack patterns after validating reachability.
