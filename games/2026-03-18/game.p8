@@ -86,6 +86,10 @@ ball_hit_this_launch = false
 powerup_hint_type = ""
 powerup_hint_timer = 0
 
+-- victory screen
+victory_timer = 0
+victory_sfx_played = false
+
 -- particle system
 function add_particles(x, y, color, count)
   for i = 1, count do
@@ -1055,9 +1059,28 @@ function update_play()
 end
 
 function update_gameover()
-  if btnp(4) then
-    _log("state:menu")
-    state = "menu"
+  -- update particles for animation effects on victory screen
+  update_particles()
+
+  local is_win = (level >= max_level and is_boss_level and boss and boss.health <= 0)
+
+  if is_win then
+    -- victory screen: timer controls when player can return to menu
+    victory_timer += 1
+    if victory_timer > 180 then  -- 3 seconds at 60fps
+      if btnp(4) then
+        _log("state:menu")
+        state = "menu"
+        victory_timer = 0
+        victory_sfx_played = false
+      end
+    end
+  else
+    -- loss screen: immediate return to menu
+    if btnp(4) then
+      _log("state:menu")
+      state = "menu"
+    end
   end
 end
 
@@ -1285,16 +1308,58 @@ function draw_gameover()
   local is_win = (level >= max_level and is_boss_level and boss and boss.health <= 0)
 
   if is_win then
-    print("you win!", 50, 30, 11)
-    print("boss defeated!", 40, 45, 8)
+    -- play victory sfx once when entering victory screen
+    if not victory_sfx_played then
+      sfx(7)  -- victory fanfare sound
+      victory_sfx_played = true
+      -- spawn celebratory particles
+      for i = 1, 8 do
+        add_particles(64, 30, 11, 2)
+      end
+    end
+
+    -- celebratory animations based on timer
+    local pulse = sin(victory_timer / 60) * 2  -- smooth pulsing
+    local flicker_color = 11
+    if flr(victory_timer / 30) % 2 == 0 then
+      flicker_color = 10
+    end
+
+    -- animated celebratory title with color cycling
+    print("you win!", 48 + pulse, 15, flicker_color)
+    print("boss defeated!", 35, 30, 9)
+
+    -- level progression display (6/6)
+    print("levels: 6/6", 45, 45, 11)
+
+    -- score display with multiplier visualization
+    -- score is already 2x multiplied by boss defeat code
+    local base_score = flr(score / 2)
+    print("base score:", 40, 60, 7)
+    print(base_score, 100, 60, 11)
+    print("boss bonus x2:", 35, 70, 8)
+    print(score, 95, 70, 10)
+
+    -- celebration particles during countdown
+    if victory_timer % 8 == 0 then
+      add_particles(64, 64, flicker_color, 3)
+    end
+
+    -- show menu prompt after 3 seconds
+    if victory_timer > 180 then
+      print("press z for menu", 32, 105, 11)
+    end
+
   else
     print("game over", 48, 30, 8)
     print("level "..level, 55, 45, 7)
+    print("score:"..score, 50, 65, 7)
+    print("lives lost:"..max(0, 3 - lives), 40, 80, 8)
+    print("press z to retry", 35, 100, 11)
   end
 
-  print("score:"..score, 50, 65, 7)
-  print("lives lost:"..max(0, 3 - lives), 40, 80, 8)
-  print("press z to retry", 35, 100, 11)
+  -- draw particles on top
+  draw_particles()
 end
 
 function _draw()
