@@ -72,7 +72,7 @@ function init_level(lv)
 
   if difficulty == 1 then
     -- easy: fewer enemies and hazards, slower enemies, more treasures
-    treasure_count = max(ldef.treasures, 1)
+    treasure_count = flr(ldef.treasures * 1.3) + 1
     enemy_count = max(flr(ldef.enemies * 0.5), 1)
     hazard_count = max(flr(ldef.hazards * 0.6), 1)
     enemy_speed = 0.3
