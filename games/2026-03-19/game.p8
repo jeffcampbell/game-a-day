@@ -49,25 +49,31 @@ player_dir = 1  -- 1=right, -1=left
 
 -- enemies
 enemies = {}
+-- boss
+boss = nil
 -- treasure items
 treasures = {}
 -- hazards
 hazards = {}
+-- boss state
+boss_charge_timer = 0
 
 -- level definitions
 levels = {
-  {treasures=3, enemies=2, hazards=3},
-  {treasures=4, enemies=3, hazards=4},
-  {treasures=4, enemies=4, hazards=5},
-  {treasures=5, enemies=3, hazards=6}
+  {treasures=3, enemies=2, hazards=3, boss=false},
+  {treasures=4, enemies=3, hazards=4, boss=false},
+  {treasures=4, enemies=4, hazards=5, boss=false},
+  {treasures=5, enemies=3, hazards=6, boss=true}
 }
 
 function init_level(lv)
   treasures = {}
   enemies = {}
+  boss = nil
   hazards = {}
   player = {x=10, y=10, w=6, h=6, vx=0, vy=0, speed=1.5}
   player_dir = 1
+  boss_charge_timer = 0
 
   local ldef = levels[lv]
 
@@ -102,9 +108,20 @@ function init_level(lv)
     add(treasures, {x=20+rnd(100), y=20+rnd(90), collected=false})
   end
 
-  -- spawn enemies
-  for i=1,enemy_count do
-    add(enemies, {x=40+rnd(60), y=30+rnd(70), w=5, h=5, vx=enemy_speed, vy=0, dir=1})
+  -- spawn boss for level 4, or regular enemies
+  if ldef.boss then
+    local boss_speed = 0.3
+    if difficulty == 1 then
+      boss_speed = 0.2
+    elseif difficulty == 3 then
+      boss_speed = 0.5
+    end
+    boss = {x=64, y=40, w=8, h=8, vx=boss_speed, vy=0, dir=1, health=3}
+    _log("boss_spawn:health_3")
+  else
+    for i=1,enemy_count do
+      add(enemies, {x=40+rnd(60), y=30+rnd(70), w=5, h=5, vx=enemy_speed, vy=0, dir=1})
+    end
   end
 
   -- spawn hazards
@@ -126,6 +143,8 @@ function _update()
     update_difficulty()
   elseif state == "play" then
     update_play()
+  elseif state == "boss_defeated" then
+    update_boss_defeated()
   elseif state == "level_complete" then
     update_level_complete()
   elseif state == "gameover" then
@@ -192,36 +211,81 @@ function update_play()
       sfx(2)  -- treasure chime
       flash_timer = 8
       flash_type = "treasure"
+      -- trigger boss charge if boss exists
+      if boss then
+        boss_charge_timer = 60
+        _log("boss_charge")
+      end
       _log("treasure_collected:"..treasures_collected)
     end
   end
 
-  -- update enemies
-  for e in all(enemies) do
-    -- simple AI: patrol back and forth, chase if player is nearby
-    e.x += e.vx * e.dir
+  -- update boss
+  if boss then
+    -- boss patrol AI
+    boss.x += boss.vx * boss.dir
+    if boss.x < 0 or boss.x > 120 then
+      boss.dir *= -1
+    end
 
-    -- bounce at edges
-    if e.x < 0 or e.x > 120 then
-      e.dir *= -1
+    -- boss charge behavior
+    if boss_charge_timer > 0 then
+      boss_charge_timer -= 1
+      -- chase player: move towards player
+      if player.x < boss.x then
+        boss.dir = -1
+      else
+        boss.dir = 1
+      end
+      boss.x += boss.vx * 1.5 * boss.dir
     end
 
     -- check collision with player
-    if collide(player, e) then
-      lives -= 1
+    if collide(player, boss) then
+      boss.health -= 1
       sfx(1)  -- hit sound
       shake_timer = 6
       shake_intensity = 2
       flash_timer = 6
       flash_type = "hit"
-      _log("hit_enemy:"..lives)
-      if lives <= 0 then
-        state = "gameover"
-        sfx(4)  -- game over loss
-        _log("gameover:lose")
+      _log("boss_hit:"..boss.health)
+      if boss.health <= 0 then
+        state = "boss_defeated"
+        sfx(3)  -- victory fanfare
+        _log("boss_defeated")
       else
-        -- reset player position
+        -- move player back
         player = {x=10, y=10, w=6, h=6, vx=0, vy=0, speed=1.5}
+      end
+    end
+  else
+    -- update regular enemies
+    for e in all(enemies) do
+      -- simple AI: patrol back and forth
+      e.x += e.vx * e.dir
+
+      -- bounce at edges
+      if e.x < 0 or e.x > 120 then
+        e.dir *= -1
+      end
+
+      -- check collision with player
+      if collide(player, e) then
+        lives -= 1
+        sfx(1)  -- hit sound
+        shake_timer = 6
+        shake_intensity = 2
+        flash_timer = 6
+        flash_type = "hit"
+        _log("hit_enemy:"..lives)
+        if lives <= 0 then
+          state = "gameover"
+          sfx(4)  -- game over loss
+          _log("gameover:lose")
+        else
+          -- reset player position
+          player = {x=10, y=10, w=6, h=6, vx=0, vy=0, speed=1.5}
+        end
       end
     end
   end
@@ -246,8 +310,8 @@ function update_play()
     end
   end
 
-  -- check level completion
-  if treasures_collected >= treasures_total then
+  -- check level completion (skip if on boss level, handled by boss defeat)
+  if treasures_collected >= treasures_total and not boss then
     if level >= 4 then
       state = "gameover"
       sfx(3)  -- victory fanfare
@@ -259,6 +323,13 @@ function update_play()
       _log("level_complete:"..level)
       state = "level_complete"
     end
+  end
+end
+
+function update_boss_defeated()
+  if btnp(4) or btnp(5) then
+    state = "gameover"
+    _log("state:gameover")
   end
 end
 
@@ -310,6 +381,8 @@ function _draw()
     draw_difficulty()
   elseif state == "play" then
     draw_play()
+  elseif state == "boss_defeated" then
+    draw_boss_defeated()
   elseif state == "level_complete" then
     draw_level_complete()
   elseif state == "gameover" then
@@ -369,9 +442,13 @@ function draw_play()
     end
   end
 
-  -- draw enemies
-  for e in all(enemies) do
-    spr(2, e.x, e.y)
+  -- draw boss or enemies
+  if boss then
+    spr(2, boss.x, boss.y, 2, 2)  -- larger sprite for boss
+  else
+    for e in all(enemies) do
+      spr(2, e.x, e.y)
+    end
   end
 
   -- draw hazards
@@ -385,7 +462,23 @@ function draw_play()
   -- draw UI
   print("lvl:"..level, 2, 2, 7)
   print("gold:"..treasures_collected.."/"..treasures_total, 40, 2, 7)
-  print("lives:"..lives, 100, 2, 7)
+  if boss then
+    print("boss hp:"..boss.health, 85, 2, 8)
+  else
+    print("lives:"..lives, 100, 2, 7)
+  end
+end
+
+function draw_boss_defeated()
+  -- show victory screen with boss defeated message
+  pal(0, 5)
+  rectfill(0, 0, 128, 128, 15)
+  pal()
+
+  print("boss defeated!", 35, 30, 11)
+  print("treasures:", 40, 50, 7)
+  print(treasures_collected.."/"..treasures_total, 55, 60, 10)
+  print("press z to finish", 25, 80, 7)
 end
 
 function draw_level_complete()
