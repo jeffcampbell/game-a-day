@@ -28,6 +28,9 @@ end
 
 -- game state
 state = "menu"
+difficulty = 2  -- 1=easy, 2=normal, 3=hard
+difficulty_names = {"easy", "normal", "hard"}
+difficulty_selected = 2
 level = 1
 lives = 3
 treasures_collected = 0
@@ -60,21 +63,45 @@ function init_level(lv)
   player_dir = 1
 
   local ldef = levels[lv]
-  treasures_total = ldef.treasures
+
+  -- scale counts based on difficulty
+  local treasure_count = ldef.treasures
+  local enemy_count = ldef.enemies
+  local hazard_count = ldef.hazards
+  local enemy_speed = 0.5
+
+  if difficulty == 1 then
+    -- easy: fewer enemies and hazards, slower enemies, more treasures
+    treasure_count = flr(ldef.treasures * 1.3) + 1
+    enemy_count = max(flr(ldef.enemies * 0.5), 1)
+    hazard_count = max(flr(ldef.hazards * 0.6), 1)
+    enemy_speed = 0.3
+  elseif difficulty == 3 then
+    -- hard: more enemies and hazards, faster enemies
+    treasure_count = ldef.treasures
+    enemy_count = flr(ldef.enemies * 1.5) + 1
+    hazard_count = flr(ldef.hazards * 1.3) + 1
+    enemy_speed = 0.8
+  else
+    -- normal: as defined
+    enemy_speed = 0.5
+  end
+
+  treasures_total = treasure_count
   treasures_collected = 0
 
   -- spawn treasures at random positions
-  for i=1,ldef.treasures do
+  for i=1,treasure_count do
     add(treasures, {x=20+rnd(100), y=20+rnd(90), collected=false})
   end
 
   -- spawn enemies
-  for i=1,ldef.enemies do
-    add(enemies, {x=40+rnd(60), y=30+rnd(70), w=5, h=5, vx=0.5, vy=0, dir=1})
+  for i=1,enemy_count do
+    add(enemies, {x=40+rnd(60), y=30+rnd(70), w=5, h=5, vx=enemy_speed, vy=0, dir=1})
   end
 
   -- spawn hazards
-  for i=1,ldef.hazards do
+  for i=1,hazard_count do
     add(hazards, {x=rnd(128), y=50+rnd(40), w=8, h=4})
   end
 
@@ -84,6 +111,8 @@ end
 function _update()
   if state == "menu" then
     update_menu()
+  elseif state == "difficulty" then
+    update_difficulty()
   elseif state == "play" then
     update_play()
   elseif state == "gameover" then
@@ -93,11 +122,32 @@ end
 
 function update_menu()
   if btnp(4) or btnp(5) then
+    state = "difficulty"
+    difficulty_selected = 2
+    _log("state:difficulty")
+  end
+end
+
+function update_difficulty()
+  -- left/right to select difficulty
+  if btnp(0) then  -- left
+    difficulty_selected = max(1, difficulty_selected - 1)
+    sfx(0)
+  end
+  if btnp(1) then  -- right
+    difficulty_selected = min(3, difficulty_selected + 1)
+    sfx(0)
+  end
+
+  -- z/c to confirm difficulty
+  if btnp(4) or btnp(5) then
+    difficulty = difficulty_selected
     state = "play"
     level = 1
     lives = 3
     treasures_collected = 0
     init_level(level)
+    _log("difficulty:"..difficulty_names[difficulty])
     _log("state:play")
   end
 end
@@ -205,6 +255,8 @@ function _draw()
 
   if state == "menu" then
     draw_menu()
+  elseif state == "difficulty" then
+    draw_difficulty()
   elseif state == "play" then
     draw_play()
   elseif state == "gameover" then
@@ -218,6 +270,25 @@ function draw_menu()
   print("avoid enemies & spikes", 16, 50, 5)
   print("3 lives to complete", 22, 60, 5)
   print("press z to start", 30, 80, 11)
+end
+
+function draw_difficulty()
+  print("select difficulty", 32, 15, 7)
+
+  -- easy
+  local easy_color = (difficulty_selected == 1 and 11 or 5)
+  print("< easy >", 45, 40, easy_color)
+
+  -- normal
+  local normal_color = (difficulty_selected == 2 and 11 or 5)
+  print("< normal >", 42, 55, normal_color)
+
+  -- hard
+  local hard_color = (difficulty_selected == 3 and 11 or 5)
+  print("< hard >", 45, 70, hard_color)
+
+  print("arrows to select", 28, 90, 7)
+  print("press z to confirm", 25, 100, 7)
 end
 
 function draw_play()
