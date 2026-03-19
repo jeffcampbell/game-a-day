@@ -103,16 +103,14 @@ function update_menu()
 end
 
 function update_play()
-  local input = test_input(btn())
-
   -- player movement
   local move_x = 0
-  if btn(0) then move_x = -player.speed
-  elseif btn(1) then move_x = player.speed end
+  if test_input(0) then move_x = -player.speed
+  elseif test_input(1) then move_x = player.speed end
 
   local move_y = 0
-  if btn(2) then move_y = -player.speed
-  elseif btn(3) then move_y = player.speed end
+  if test_input(2) then move_y = -player.speed
+  elseif test_input(3) then move_y = player.speed end
 
   if move_x ~= 0 then player_dir = move_x > 0 and 1 or -1 end
 
@@ -194,9 +192,11 @@ function update_gameover()
 end
 
 function collide(a, b)
-  return a.x < b.x + 8 and
+  local bw = b.w or 8
+  local bh = b.h or 8
+  return a.x < b.x + bw and
          a.x + a.w > b.x and
-         a.y < b.y + 8 and
+         a.y < b.y + bh and
          a.y + a.h > b.y
 end
 
