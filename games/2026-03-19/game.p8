@@ -36,6 +36,13 @@ lives = 3
 treasures_collected = 0
 treasures_total = 0
 
+-- visual effects
+shake_timer = 0
+shake_intensity = 0
+flash_timer = 0
+flash_type = nil  -- "treasure", "hit"
+level_complete_timer = 0
+
 -- player
 player = {x=10, y=10, w=6, h=6, vx=0, vy=0, speed=1.5}
 player_dir = 1  -- 1=right, -1=left
@@ -109,12 +116,18 @@ function init_level(lv)
 end
 
 function _update()
+  -- update visual effects
+  if shake_timer > 0 then shake_timer -= 1 end
+  if flash_timer > 0 then flash_timer -= 1 end
+
   if state == "menu" then
     update_menu()
   elseif state == "difficulty" then
     update_difficulty()
   elseif state == "play" then
     update_play()
+  elseif state == "level_complete" then
+    update_level_complete()
   elseif state == "gameover" then
     update_gameover()
   end
@@ -176,7 +189,9 @@ function update_play()
     if not t.collected and collide(player, t) then
       t.collected = true
       treasures_collected += 1
-      sfx(0)
+      sfx(2)  -- treasure chime
+      flash_timer = 8
+      flash_type = "treasure"
       _log("treasure_collected:"..treasures_collected)
     end
   end
@@ -194,10 +209,15 @@ function update_play()
     -- check collision with player
     if collide(player, e) then
       lives -= 1
-      sfx(1)
+      sfx(1)  -- hit sound
+      shake_timer = 6
+      shake_intensity = 2
+      flash_timer = 6
+      flash_type = "hit"
       _log("hit_enemy:"..lives)
       if lives <= 0 then
         state = "gameover"
+        sfx(4)  -- game over loss
         _log("gameover:lose")
       else
         -- reset player position
@@ -210,10 +230,15 @@ function update_play()
   for h in all(hazards) do
     if collide(player, h) then
       lives -= 1
-      sfx(1)
+      sfx(1)  -- hit sound
+      shake_timer = 6
+      shake_intensity = 2
+      flash_timer = 6
+      flash_type = "hit"
       _log("hit_hazard:"..lives)
       if lives <= 0 then
         state = "gameover"
+        sfx(4)  -- game over loss
         _log("gameover:lose")
       else
         player = {x=10, y=10, w=6, h=6, vx=0, vy=0, speed=1.5}
@@ -225,12 +250,29 @@ function update_play()
   if treasures_collected >= treasures_total then
     if level >= 4 then
       state = "gameover"
+      sfx(3)  -- victory fanfare
       _log("gameover:win")
     else
       level += 1
-      _log("level:"..level)
-      init_level(level)
+      sfx(3)  -- level complete fanfare
+      level_complete_timer = 90
+      _log("level_complete:"..level)
+      state = "level_complete"
     end
+  end
+end
+
+function update_level_complete()
+  level_complete_timer -= 1
+  if level_complete_timer <= 0 then
+    state = "play"
+    init_level(level)
+    _log("state:play")
+  end
+  if btnp(4) or btnp(5) then
+    state = "play"
+    init_level(level)
+    _log("state:play")
   end
 end
 
@@ -253,14 +295,42 @@ end
 function _draw()
   cls(0)
 
+  -- apply screen shake
+  local shake_x = 0
+  local shake_y = 0
+  if shake_timer > 0 then
+    shake_x = rnd(shake_intensity*2) - shake_intensity
+    shake_y = rnd(shake_intensity*2) - shake_intensity
+    camera(shake_x, shake_y)
+  end
+
   if state == "menu" then
     draw_menu()
   elseif state == "difficulty" then
     draw_difficulty()
   elseif state == "play" then
     draw_play()
+  elseif state == "level_complete" then
+    draw_level_complete()
   elseif state == "gameover" then
     draw_gameover()
+  end
+
+  camera(0, 0)
+
+  -- screen flash overlay
+  if flash_timer > 0 then
+    if flash_type == "treasure" then
+      -- yellow flash for treasure
+      pal(0, 10)
+    elseif flash_type == "hit" then
+      -- red flash for hit
+      pal(0, 8)
+    end
+    if flash_timer % 2 == 0 then
+      rectfill(0, 0, 128, 128, 15)
+    end
+    pal()  -- reset palette
   end
 end
 
@@ -318,6 +388,21 @@ function draw_play()
   print("lives:"..lives, 100, 2, 7)
 end
 
+function draw_level_complete()
+  -- animated celebration screen
+  local pulse = flr(sin(level_complete_timer / 15) * 2)
+  local color = 11 + pulse
+
+  -- semi-transparent overlay
+  pal(0, 5)
+  rectfill(0, 0, 128, 128, 15)
+  pal()
+
+  print("level "..level.." complete!", 12, 35, color)
+  print("treasures: "..treasures_collected, 25, 50, 7)
+  print("press z to continue", 20, 65, 7)
+end
+
 function draw_gameover()
   if state == "gameover" then
     local won = treasures_collected >= treasures_total and level >= 4
@@ -369,3 +454,6 @@ __label__
 __sfx__
 000a00001e25023250272502d2502e2503025023250262502f2502d25000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000500003835000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000e3701e3703c3004c3005c3106e3107e3108e310ae320ce320ee31000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000900003e350402052030e2030e2020e2010e2000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000005f2504250032500c2500c2500c2500c2500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
