@@ -1,0 +1,12 @@
+{
+  "title": "Treasure Cave",
+  "description": "An action-exploration game where you navigate a cavern, collect treasures, and avoid enemies and hazards.",
+  "genres": ["action", "adventure"],
+  "difficulty": 3,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general",
+  "token_count": 932,
+  "sprite_count": 4,
+  "sound_count": 2
+}
