@@ -74,6 +74,8 @@ fire_cooldown = 0
 -- boss
 boss = nil
 boss_phase_timer = 0
+boss_projectiles = {}
+boss_attack_timer = 0
 
 -- power-ups
 powerups = {}
@@ -104,6 +106,7 @@ function _init()
   flash_timer = 0
   boss = nil
   boss_health = 0
+  boss_attack_timer = 0
   score_multiplier = 1
   shield_count = 0
   rapid_fire_timer = 0
@@ -116,6 +119,7 @@ function init_wave(wv)
   enemies = {}
   boss = nil
   projectiles = {}
+  boss_projectiles = {}
   powerups = {}
   particles = {}  -- clear particles for clean wave start
   enemy_spawn_timer = 30
@@ -145,7 +149,7 @@ function init_wave(wv)
     boss = {
       x = 64, y = 30, w = 6, h = 6,
       health = boss_health, dir = 1, speed = boss_spd,
-      charge_timer = 0
+      charge_timer = 0, attack_timer = 0, last_pattern = 0
     }
     _log("boss:spawn")
   else
@@ -333,10 +337,69 @@ function update_play()
   -- boss encounter
   if boss then
     -- boss patrol and attack
-    boss.x += boss.speed * boss.dir
+    local phase = get_boss_phase()
+    if phase > 1 and boss_phase_timer <= 0 then
+      _log("boss_phase:"..phase)
+      boss_phase_timer = 15
+    end
+
+    -- charge attack: accelerate toward player
+    if boss.charge_timer > 0 then
+      boss.charge_timer -= 1
+      boss.x += boss.speed * boss.dir
+    else
+      -- normal patrol
+      boss.speed = boss.health >= boss_health * 0.75 and 1 or 1.5
+      if difficulty == 1 then boss.speed *= 0.8 elseif difficulty == 3 then boss.speed *= 1.3 end
+      boss.x += boss.speed * boss.dir
+    end
+
     if boss.x < 10 or boss.x > 118 then
       boss.dir *= -1
     end
+
+    -- update boss attack timer based on phase
+    local attack_interval = 90
+    if phase == 1 then
+      attack_interval = difficulty == 1 and 120 or (difficulty == 2 and 90 or 60)
+    elseif phase == 2 then
+      attack_interval = difficulty == 1 and 90 or (difficulty == 2 and 60 or 45)
+    else
+      attack_interval = difficulty == 1 and 60 or (difficulty == 2 and 40 or 30)
+    end
+
+    boss.attack_timer -= 1
+    if boss.attack_timer <= 0 then
+      local pattern = 1
+      if phase >= 2 then
+        pattern = boss.last_pattern == 1 and 2 or 1
+      end
+      if phase >= 3 then
+        pattern = (boss.last_pattern % 3) + 1
+      end
+
+      if pattern == 1 then
+        boss_fire_volley()
+      elseif pattern == 2 then
+        boss_charge()
+      else
+        boss_spiral()
+      end
+
+      boss.last_pattern = pattern
+      boss.attack_timer = attack_interval
+    end
+
+    -- update boss projectiles
+    for bp in all(boss_projectiles) do
+      bp.x += bp.vx
+      bp.y += bp.vy
+      bp.age += 1
+      if bp.y > 128 or bp.x < 0 or bp.x > 128 then
+        bp.alive = false
+      end
+    end
+    del_boss_projectiles()
 
     -- projectile-boss collision
     for p in all(projectiles) do
@@ -357,10 +420,43 @@ function update_play()
           sfx(3)
           create_explosion(boss.x, boss.y, 12, 3, 11)
           wave_complete_timer = 120
+          boss_projectiles = {}
         end
       end
     end
     del_projectiles()
+
+    -- player-boss projectile collision
+    for bp in all(boss_projectiles) do
+      if collision(player.x, player.y, 4, 4, bp.x, bp.y, 2, 2) then
+        bp.alive = false
+        if shield_count > 0 then
+          shield_count -= 1
+          create_explosion(player.x, player.y, 6, 1, 11)
+          trigger_shake(1)
+          trigger_flash(11)
+          sfx(0)
+          _log("shield:blocked_boss")
+        else
+          lives -= 1
+          create_explosion(player.x, player.y, 8, 1, 10)
+          trigger_shake(3)
+          trigger_flash(10)
+          sfx(1)
+          _log("collision:boss_projectile")
+
+          if lives <= 0 then
+            music(-1)
+            state = "gameover"
+            _log("state:gameover:lose")
+            sfx(3)
+          else
+            player = {x=64, y=110, w=4, h=4}
+          end
+        end
+      end
+    end
+    del_boss_projectiles()
 
     -- player-boss collision
     if collision(player.x, player.y, 4, 4, boss.x, boss.y, 6, 6) then
@@ -368,19 +464,19 @@ function update_play()
       create_explosion(player.x, player.y, 8, 1, 10)
       trigger_shake(3)
       trigger_flash(10)
-      sfx(4)  -- boss attack threatening sound
+      sfx(4)
       _log("collision:boss")
 
       if lives <= 0 then
-        music(-1)  -- stop music when player dies
+        music(-1)
         state = "gameover"
         _log("state:gameover:lose")
         sfx(3)
       else
-        -- reset player position
         player = {x=64, y=110, w=4, h=4}
       end
     end
+
   else
     -- regular wave: spawn enemies
     enemy_spawn_timer -= 1
@@ -583,6 +679,64 @@ function apply_powerup(pu_type)
   end
 end
 
+-- boss attack system
+function get_boss_phase()
+  if not boss then return 1 end
+  local health_percent = boss.health / boss_health
+  if health_percent > 0.75 then return 1
+  elseif health_percent > 0.4 then return 2
+  else return 3 end
+end
+
+function boss_fire_volley()
+  if not boss then return end
+  local count = 3
+  if difficulty == 2 then count = 4 end
+  if difficulty == 3 then count = 5 end
+
+  for i=0,count-1 do
+    local offset = (i - flr(count/2)) * 8
+    add(boss_projectiles, {
+      x = boss.x + offset, y = boss.y + 4,
+      vx = 0, vy = 2, alive = true, age = 0
+    })
+  end
+  sfx(4)
+end
+
+function boss_charge()
+  if not boss then return end
+  local dx = player.x - boss.x
+  local accel = difficulty == 1 and 0.5 or (difficulty == 2 and 0.8 or 1.2)
+  if dx > 0 then boss.dir = 1 else boss.dir = -1 end
+  boss.speed = 2 * accel
+  boss.charge_timer = 30 + difficulty * 10
+  sfx(4)
+end
+
+function boss_spiral()
+  if not boss then return end
+  local count = difficulty == 1 and 3 or (difficulty == 2 and 4 or 5)
+  for i=0,count-1 do
+    local angle = (i / count) + (boss.dir > 0 and 0 or 0.5)
+    local vx = sin(angle) * 1.5
+    local vy = 2 + cos(angle) * 0.5
+    add(boss_projectiles, {
+      x = boss.x, y = boss.y + 4,
+      vx = vx, vy = vy, alive = true, age = 0
+    })
+  end
+  sfx(4)
+end
+
+function del_boss_projectiles()
+  for i=#boss_projectiles,1,-1 do
+    if not boss_projectiles[i].alive then
+      del(boss_projectiles, boss_projectiles[i])
+    end
+  end
+end
+
 function _update()
   if state == "menu" then
     update_menu()
@@ -724,6 +878,17 @@ function draw_play()
       else spr(6, flr(pu.x)-4, flr(pu.y)-4) end
     elseif pu.type == 3 then
       spr(7, flr(pu.x)-4, flr(pu.y)-4)  -- health
+    end
+  end
+
+
+  -- draw boss projectiles
+  for bp in all(boss_projectiles) do
+    pset(flr(bp.x), flr(bp.y), 8)
+    pset(flr(bp.x)-1, flr(bp.y), 8)
+    pset(flr(bp.x)+1, flr(bp.y), 8)
+    if bp.age % 2 == 0 then
+      pset(flr(bp.x), flr(bp.y)-1, 13)
     end
   end
 
