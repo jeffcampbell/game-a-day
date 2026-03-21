@@ -62,6 +62,14 @@ fire_cooldown = 0
 boss = nil
 boss_phase_timer = 0
 
+-- power-ups
+powerups = {}
+shield_count = 0
+rapid_fire_timer = 0
+spread_shot_timer = 0
+score_mult_timer = 0
+active_score_mult = 1
+
 -- difficulty
 enemies_killed = 0
 difficulty_level = 1
@@ -77,6 +85,8 @@ function _init()
   enemies = {}
   projectiles = {}
   particles = {}
+  powerups = {}
+  active_powerups = {}
   enemy_spawn_timer = 30
   enemies_killed = 0
   difficulty_level = 1
@@ -86,6 +96,11 @@ function _init()
   boss = nil
   boss_health = 0
   score_multiplier = 1
+  shield_count = 0
+  rapid_fire_timer = 0
+  spread_shot_timer = 0
+  score_mult_timer = 0
+  active_score_mult = 1
   _log("init")
 end
 
@@ -94,6 +109,7 @@ function init_wave(wv)
   enemies = {}
   boss = nil
   projectiles = {}
+  powerups = {}
   enemy_spawn_timer = 30
   enemies_killed = 0
   difficulty_level = wv
@@ -201,6 +217,7 @@ function update_difficulty()
     enemies = {}
     projectiles = {}
     particles = {}
+    powerups = {}
     score = 0
     lives = 3
     wave_count = 1
@@ -208,6 +225,11 @@ function update_difficulty()
     boss = nil
     boss_health = 0
     player = {x=64, y=110, w=4, h=4}
+    shield_count = 0
+    rapid_fire_timer = 0
+    spread_shot_timer = 0
+    score_mult_timer = 0
+    active_score_mult = 1
 
     _log("difficulty:"..difficulty_names[difficulty])
     init_wave(1)
@@ -223,6 +245,15 @@ function update_play()
   if boss_phase_timer > 0 then boss_phase_timer -= 1 end
   update_particles()
 
+  -- update active power-up timers
+  if rapid_fire_timer > 0 then rapid_fire_timer -= 1 end
+  if spread_shot_timer > 0 then spread_shot_timer -= 1 end
+  if score_mult_timer > 0 then
+    score_mult_timer -= 1
+  else
+    active_score_mult = 1
+  end
+
   -- player movement
   if test_input(0) == 1 then
     player.x = max(4, player.x - 2)
@@ -233,9 +264,18 @@ function update_play()
 
   -- shooting
   if test_input(4) == 1 or test_input(5) == 1 then
+    -- rapid fire halves cooldown
+    local cooldown = rapid_fire_timer > 0 and 3 or 5
     if fire_cooldown <= 0 then
-      add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true, age=0})
-      fire_cooldown = 5
+      -- spread shot fires 3 projectiles
+      if spread_shot_timer > 0 then
+        add(projectiles, {x=player.x-3, y=player.y-4, w=1, h=3, alive=true, age=0})
+        add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true, age=0})
+        add(projectiles, {x=player.x+3, y=player.y-4, w=1, h=3, alive=true, age=0})
+      else
+        add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true, age=0})
+      end
+      fire_cooldown = cooldown
       sfx(0)
       _log("shoot")
     end
@@ -244,6 +284,28 @@ function update_play()
   if fire_cooldown > 0 then
     fire_cooldown -= 1
   end
+
+  -- update power-ups
+  for pu in all(powerups) do
+    pu.y += 0.5  -- fall slowly
+    pu.age += 1
+    if pu.age >= 300 then
+      pu.alive = false  -- disappear after 300 frames
+    end
+  end
+  del_powerups()
+
+  -- player-powerup collision
+  for pu in all(powerups) do
+    if collision(player.x, player.y, 4, 4, pu.x, pu.y, 3, 3) then
+      pu.alive = false
+      apply_powerup(pu.type)
+      trigger_flash(pu.type == 1 and 3 or 11)  -- cyan flash for shield
+      create_explosion(pu.x, pu.y, 5, 1, 12)
+      sfx(2)
+    end
+  end
+  del_powerups()
 
   -- update projectiles (with trail generation)
   for p in all(projectiles) do
@@ -345,15 +407,19 @@ function update_play()
           p.alive = false
           e.alive = false
 
-          -- visual feedback on kill with multiplier
+          -- visual feedback on kill with multiplier and powerup bonus
           local points = e.type == 1 and 1 or 3
-          score += flr(points * score_multiplier)
+          local total_mult = score_multiplier * active_score_mult
+          score += flr(points * total_mult)
 
           if e.type == 1 then
             create_explosion(e.x, e.y, 4, 1.5, 8)  -- cyan explosion
           else
             create_explosion(e.x, e.y, 6, 2, 9)    -- magenta explosion
           end
+
+          -- spawn power-up from destroyed enemy
+          spawn_powerup(e.x, e.y)
 
           trigger_shake(2)
           trigger_flash(11)
@@ -377,19 +443,28 @@ function update_play()
     for e in all(enemies) do
       if collision(player.x, player.y, 4, 4, e.x, e.y, 4, 4) then
         e.alive = false
-        lives -= 1
 
-        -- strong visual feedback for damage taken
-        create_explosion(player.x, player.y, 8, 1, 10)  -- red flash
-        trigger_shake(3)
-        trigger_flash(10)
-        sfx(1)
-        _log("collision:enemy")
+        -- check if shield absorbs hit
+        if shield_count > 0 then
+          shield_count -= 1
+          create_explosion(player.x, player.y, 6, 1, 11)  -- yellow flash
+          trigger_shake(1)
+          trigger_flash(11)
+          sfx(0)
+          _log("shield:blocked")
+        else
+          lives -= 1
+          create_explosion(player.x, player.y, 8, 1, 10)  -- red flash
+          trigger_shake(3)
+          trigger_flash(10)
+          sfx(1)
+          _log("collision:enemy")
 
-        if lives <= 0 then
-          state = "gameover"
-          _log("state:gameover:lose")
-          sfx(3)
+          if lives <= 0 then
+            state = "gameover"
+            _log("state:gameover:lose")
+            sfx(3)
+          end
         end
       end
     end
@@ -443,9 +518,51 @@ function del_enemies()
   end
 end
 
+function del_powerups()
+  for i=#powerups,1,-1 do
+    if not powerups[i].alive then
+      del(powerups, powerups[i])
+    end
+  end
+end
+
 function collision(x1, y1, w1, h1, x2, y2, w2, h2)
   return x1 < x2 + w2 and x1 + w1 > x2 and
          y1 < y2 + h2 and y1 + h1 > y2
+end
+
+function spawn_powerup(x, y)
+  -- drop chance: 8% on easy, 5% on normal, 3% on hard
+  local drop_chance = 0.08
+  if difficulty == 2 then drop_chance = 0.05
+  elseif difficulty == 3 then drop_chance = 0.03 end
+
+  if rnd(1) < drop_chance then
+    local pu_type = flr(rnd(4)) + 1  -- types: 1=shield, 2=rapid, 3=spread, 4=score
+    add(powerups, {x=x, y=y, type=pu_type, age=0})
+    _log("powerup:spawn:"..pu_type)
+  end
+end
+
+function apply_powerup(pu_type)
+  if pu_type == 1 then
+    -- shield
+    shield_count += 1
+    _log("shield:+"..shield_count)
+  elseif pu_type == 2 then
+    -- rapid fire (2x rate, 5 sec)
+    rapid_fire_timer = 300
+    _log("rapidfire:+5s")
+  elseif pu_type == 3 then
+    -- spread shot (3 proj, 4 sec)
+    spread_shot_timer = 240
+    _log("spreadshot:+4s")
+  elseif pu_type == 4 then
+    -- score multiplier (2x, 6 sec)
+    score_mult_timer = 360
+    active_score_mult = 2
+    _log("scoremult:+6s")
+  end
 end
 
 function _update()
@@ -564,6 +681,39 @@ function draw_play()
     end
   end
 
+  -- draw power-ups
+  for pu in all(powerups) do
+    local col = 3  -- shield cyan
+    if pu.type == 2 then col = 10  -- rapid yellow
+    elseif pu.type == 3 then col = 2  -- spread magenta
+    elseif pu.type == 4 then col = 9 end  -- score orange
+    -- draw rotating box (shield), star, triangle, or diamond
+    if pu.type == 1 then
+      -- shield: rotating box
+      local rot = (pu.age % 16) / 16
+      rect(flr(pu.x)-2, flr(pu.y)-2, flr(pu.x)+2, flr(pu.y)+2, col)
+    elseif pu.type == 2 then
+      -- rapid: star shape
+      pset(flr(pu.x), flr(pu.y)-2, col)
+      pset(flr(pu.x)-2, flr(pu.y), col)
+      pset(flr(pu.x)+2, flr(pu.y), col)
+      pset(flr(pu.x), flr(pu.y)+2, col)
+      pset(flr(pu.x), flr(pu.y), col)
+    elseif pu.type == 3 then
+      -- spread: triangle (pointing up)
+      pset(flr(pu.x), flr(pu.y)-2, col)
+      pset(flr(pu.x)-2, flr(pu.y)+1, col)
+      pset(flr(pu.x)+2, flr(pu.y)+1, col)
+      pset(flr(pu.x), flr(pu.y), col)
+    elseif pu.type == 4 then
+      -- score: diamond
+      pset(flr(pu.x), flr(pu.y)-2, col)
+      pset(flr(pu.x)-2, flr(pu.y), col)
+      pset(flr(pu.x)+2, flr(pu.y), col)
+      pset(flr(pu.x), flr(pu.y)+2, col)
+    end
+  end
+
   -- draw boss or enemies
   if boss then
     -- draw boss with phase color
@@ -617,6 +767,27 @@ function draw_play()
   print("score: "..score, 5, 5, 7)
   print("lives: "..lives, 5, 12, 7)
   print("wave: "..wave_count, 5, 19, 7)
+
+  -- draw active power-ups
+  local pu_y = 26
+  if shield_count > 0 then
+    print("shield:"..shield_count, 5, pu_y, 3)
+    pu_y += 7
+  end
+  if rapid_fire_timer > 0 then
+    local sec = flr(rapid_fire_timer / 60) + 1
+    print("rapid "..sec.."s", 5, pu_y, 10)
+    pu_y += 7
+  end
+  if spread_shot_timer > 0 then
+    local sec = flr(spread_shot_timer / 60) + 1
+    print("spread "..sec.."s", 5, pu_y, 2)
+    pu_y += 7
+  end
+  if score_mult_timer > 0 then
+    local sec = flr(score_mult_timer / 60) + 1
+    print("2x scr "..sec.."s", 5, pu_y, 9)
+  end
 
   -- draw boss health if in boss wave
   if boss then
