@@ -37,6 +37,7 @@ difficulty_names = {"easy", "normal", "hard"}
 boss_health = 0
 wave_complete_timer = 0
 current_music = -1  -- track which music pattern is playing
+music_fade_timer = 0  -- for fade-out effect
 
 -- visual effects
 shake_timer = 0
@@ -124,6 +125,8 @@ function _init()
   score_popups = {}
   boss_intro_timer = 0
   init_starfield()
+  music(3)  -- start with menu theme
+  current_music = 3
   _log("init")
 end
 
@@ -244,6 +247,29 @@ function update_score_popups()
   end
 end
 
+-- update music based on game state
+function update_music_state()
+  local target_music = -1
+
+  if state == "menu" or state == "difficulty" then
+    target_music = 3  -- menu theme
+  elseif state == "play" then
+    if boss then
+      target_music = 5  -- boss battle theme
+    else
+      target_music = 4  -- gameplay theme
+    end
+  elseif state == "wave_complete" or state == "boss_defeated" or state == "gameover" then
+    target_music = -1  -- fade out music
+  end
+
+  -- only change music if target is different from current
+  if target_music ~= current_music then
+    music(target_music)
+    current_music = target_music
+  end
+end
+
 function update_menu()
   if btnp(4) or btnp(5) then
     state = "difficulty"
@@ -297,11 +323,6 @@ function update_difficulty()
     init_wave(1)
     _log("state:play")
     sfx(2)
-
-    -- start music based on difficulty
-    current_music = difficulty - 1  -- 0=easy, 1=normal, 2=hard
-    music(current_music)
-    _log("music:"..difficulty_names[difficulty])
   end
 end
 
@@ -918,6 +939,9 @@ function del_boss_projectiles()
 end
 
 function _update()
+  -- update music state based on current game state
+  update_music_state()
+
   if state == "menu" then
     update_menu()
   elseif state == "difficulty" then
@@ -1318,8 +1342,14 @@ __sfx__
 01050000084500845008450084500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 010300002c450344502c450344500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 010400005c5505a5505c5505a55050450504500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010200002454325432543200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010200001f441f441f441f441f441c441c441c440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010300000c4510450c4514450c450c451045100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
 00 00040404
 01 01050505
 02 02070707
+03 03080808
+04 04090909
+05 050a0a0a
 
