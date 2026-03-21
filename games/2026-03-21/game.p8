@@ -258,6 +258,34 @@ function update_difficulty()
   end
 end
 
+-- enemy type selection based on difficulty
+function spawn_enemy_type()
+  local r = rnd(100)
+  if difficulty == 1 then
+    -- easy: 70% standard, 20% fast, 10% tank
+    if r < 70 then return 1
+    elseif r < 90 then return 2
+    else return 3 end
+  elseif difficulty == 2 then
+    -- normal: 50% standard, 30% fast, 20% tank
+    if r < 50 then return 1
+    elseif r < 80 then return 2
+    else return 3 end
+  else
+    -- hard: 40% standard, 40% fast, 20% tank
+    if r < 40 then return 1
+    elseif r < 80 then return 2
+    else return 3 end
+  end
+end
+
+-- get base speed for enemy type
+function get_enemy_speed(etype)
+  if etype == 1 then return 1.0    -- standard
+  elseif etype == 2 then return 1.5  -- fast
+  else return 0.6 end                -- tank (slower)
+end
+
 function update_play()
   -- update visual effects
   if shake_timer > 0 then shake_timer -= 1 end
@@ -393,11 +421,16 @@ function update_play()
     end
 
     if enemy_spawn_timer <= 0 then
-      local etype = rnd(3) < 2 and 1 or 2
-      local spd = base_enemy_speed + (wave_count - 1) * 0.2
-      if difficulty == 1 then spd *= 0.7
-      elseif difficulty == 3 then spd *= 1.3 end
-      add(enemies, {x=rnd(120)+4, y=4, type=etype, speed=spd})
+      -- spawn enemy based on difficulty
+      local etype = spawn_enemy_type()
+      local spd = get_enemy_speed(etype)
+      -- scale speed by wave and difficulty
+      spd = spd * (1 + (wave_count - 1) * 0.1)
+      if difficulty == 1 then spd *= 0.8
+      elseif difficulty == 3 then spd *= 1.2 end
+      -- tank enemies have 2 health, others have 1
+      local health = etype == 3 and 2 or 1
+      add(enemies, {x=rnd(120)+4, y=4, type=etype, speed=spd, health=health})
       enemy_spawn_timer = spawn_rate
     end
 
@@ -415,26 +448,46 @@ function update_play()
       for e in all(enemies) do
         if collision(p.x, p.y, 1, 3, e.x, e.y, 4, 4) then
           p.alive = false
-          e.alive = false
 
-          -- visual feedback on kill
-          local points = e.type == 1 and 1 or 3
-          score += flr(points * score_multiplier)
+          -- handle enemy hit
+          e.health -= 1
 
-          if e.type == 1 then
-            create_explosion(e.x, e.y, 4, 1.5, 8)  -- cyan explosion
+          -- visual feedback on hit
+          local hit_colors = {8, 10, 14}  -- cyan, red, yellow
+          create_explosion(e.x, e.y, 2, 1, hit_colors[e.type])
+          trigger_flash(7)
+          sfx(0)
+
+          if e.health <= 0 then
+            -- enemy dies
+            e.alive = false
+
+            -- scoring based on type
+            local points = 0
+            if e.type == 1 then
+              points = 10
+            elseif e.type == 2 then
+              points = 20
+            else  -- tank
+              points = 15 + 5  -- 15 + 5 bonus
+            end
+            score += flr(points * score_multiplier)
+
+            -- visual feedback on kill
+            local kill_colors = {8, 10, 14}  -- cyan for standard, red for fast, yellow for tank
+            local kill_count = {4, 6, 8}
+            create_explosion(e.x, e.y, kill_count[e.type], 2, kill_colors[e.type])
+            trigger_shake(2)
+            trigger_flash(11)
+            enemies_killed += 1
+            sfx(1)
+            _log("kill:enemy:type"..e.type)
+
+            -- spawn power-up from destroyed enemy
+            spawn_powerup(e.x, e.y, e.type)
           else
-            create_explosion(e.x, e.y, 6, 2, 9)    -- magenta explosion
+            _log("hit:enemy:type"..e.type)
           end
-
-          -- spawn power-up from destroyed enemy (15% small, 25% large)
-          spawn_powerup(e.x, e.y, e.type)
-
-          trigger_shake(2)
-          trigger_flash(11)
-          enemies_killed += 1
-          sfx(1)
-          _log("kill:enemy")
 
           -- check if wave is complete
           local target_kills = 30 + (wave_count - 1) * 5
@@ -740,14 +793,31 @@ function draw_play()
       circ(boss.x, boss.y, 6, 12)
     end
   else
-    -- draw regular enemies using sprites with subtle bob animation
+    -- draw regular enemies with type-specific visuals
     for e in all(enemies) do
       local bob = sin(enemy_anim_frame / 30 + (e.x + e.y) / 20) * 0.5
       local draw_y = e.y - 4 + bob
+
       if e.type == 1 then
-        spr(1, e.x-4, draw_y)  -- small enemy with vertical bob
+        -- standard enemy: cyan colored
+        spr(1, e.x-4, draw_y)
+      elseif e.type == 2 then
+        -- fast enemy: red colored with larger sprite
+        spr(2, e.x-4, draw_y)
+        -- add speed indicator: small line to right
+        line(e.x+1, e.y-1, e.x+3, e.y-1, 10)
       else
-        spr(2, e.x-4, draw_y)  -- large enemy with vertical bob
+        -- tank enemy: yellow/gray colored with health indicator
+        spr(2, e.x-4, draw_y)
+        -- draw health indicator dots for tank
+        if e.health and e.health == 2 then
+          -- full health: two dots
+          pset(e.x-2, draw_y-2, 14)
+          pset(e.x+1, draw_y-2, 14)
+        else
+          -- damaged: one dot
+          pset(e.x-2, draw_y-2, 14)
+        end
       end
     end
   end
