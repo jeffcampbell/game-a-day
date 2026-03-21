@@ -48,6 +48,8 @@ sprite_flash_timer = 0
 sprite_flash_state = false
 enemy_anim_frame = 0
 starfield = {}  -- background stars
+score_popups = {}  -- floating score feedback
+boss_intro_timer = 0  -- for boss introduction fanfare
 
 -- initialize starfield
 function init_starfield()
@@ -119,6 +121,8 @@ function _init()
   combo_multiplier = 1.0
   multiplier_flash_timer = 0
   multiplier_last_value = 1.0
+  score_popups = {}
+  boss_intro_timer = 0
   init_starfield()
   _log("init")
 end
@@ -160,6 +164,7 @@ function init_wave(wv)
       health = boss_health, dir = 1, speed = boss_spd,
       charge_timer = 0, attack_timer = 0, last_pattern = 0
     }
+    boss_intro_timer = 60  -- 1 second intro fanfare
     _log("boss:spawn")
   else
     -- regular wave: difficulty scales up with waves
@@ -223,6 +228,20 @@ end
 function trigger_flash(color)
   flash_timer = 3
   flash_color = color
+end
+
+function create_score_popup(x, y, points)
+  add(score_popups, {x=x, y=y, points=points, age=0, lifetime=30})
+end
+
+function update_score_popups()
+  for sp in all(score_popups) do
+    sp.y -= 0.5  -- float upward
+    sp.age += 1
+    if sp.age >= sp.lifetime then
+      del(score_popups, sp)
+    end
+  end
 end
 
 function update_menu()
@@ -320,8 +339,10 @@ function update_play()
   if flash_timer > 0 then flash_timer -= 1 end
   if boss_phase_timer > 0 then boss_phase_timer -= 1 end
   if sprite_flash_timer > 0 then sprite_flash_timer -= 1 end
+  if boss_intro_timer > 0 then boss_intro_timer -= 1 end
   enemy_anim_frame = (enemy_anim_frame + 1) % 30  -- 30 frame animation cycle
   update_particles()
+  update_score_popups()
 
   -- update active power-up timers
   if rapid_fire_timer > 0 then rapid_fire_timer -= 1 end
@@ -367,7 +388,7 @@ function update_play()
       apply_powerup(pu.type)
       trigger_flash(pu.type == 1 and 3 or 11)  -- cyan flash for shield
       create_explosion(pu.x, pu.y, 5, 1, 12)
-      sfx(2)
+      -- sound handled in apply_powerup()
     end
   end
   del_powerups()
@@ -557,6 +578,11 @@ function update_play()
     -- regular wave: spawn enemies
     enemy_spawn_timer -= 1
 
+    -- play wave start sound on first spawn of new wave
+    if wave_count > 1 and enemies_killed == 0 and enemy_spawn_timer == 29 then
+      sfx(3)  -- wave start cue
+    end
+
     local spawn_rate = 30 - (wave_count - 1) * 2
     if difficulty == 1 then
       spawn_rate = 40 - wave_count
@@ -611,6 +637,10 @@ function update_play()
             local new_multiplier = calc_combo_multiplier()
             if new_multiplier > multiplier_last_value then
               multiplier_flash_timer = 10  -- flash on increase
+              -- play combo milestone sounds at thresholds
+              if combo == 5 or combo == 10 or combo == 15 or combo == 20 then
+                sfx(5)  -- combo milestone
+              end
             end
             multiplier_last_value = new_multiplier
             combo_multiplier = new_multiplier
@@ -635,6 +665,7 @@ function update_play()
             trigger_flash(11)
             enemies_killed += 1
             sfx(1)
+            create_score_popup(e.x, e.y, earned_points)  -- show score
             _log("kill:enemy:type"..e.type..",combo:"..combo.."x")
             _log("score:"..earned_points..",combo:"..combo.."x")
 
@@ -799,10 +830,12 @@ function apply_powerup(pu_type)
   local earned_points = flr(pu_points * score_multiplier * combo_multiplier)
   score += earned_points
 
+  -- play different sound for each powerup type
   if pu_type == 1 then
     -- shield: absorbs one collision (max 3)
     if shield_count < 3 then
       shield_count += 1
+      sfx(3)  -- shield pickup sound
       _log("shield_pickup:"..shield_count)
     else
       _log("shield_full")
@@ -810,12 +843,14 @@ function apply_powerup(pu_type)
   elseif pu_type == 2 then
     -- rapid fire: doubles fire rate for 5 seconds (300 frames)
     rapid_fire_timer = 300
+    sfx(4)  -- rapid fire sound
     _log("rapidfire_pickup:5s")
   elseif pu_type == 3 then
     -- health: restores one lost life (max 3)
     if lives < 3 then
       lives += 1
       create_explosion(player.x, player.y, 8, 1, 11)  -- green particle burst
+      sfx(5)  -- health pickup sound
       _log("health_pickup:"..lives)
     else
       _log("health_full")
@@ -907,8 +942,9 @@ function draw_menu()
   print("arrow keys: move", 20, 60, 7)
   print("z/x: shoot", 30, 70, 7)
 
-  print("destroy enemies", 25, 85, 6)
-  print("avoid collisions", 25, 95, 6)
+  print("tips:", 40, 80, 6)
+  print("combo for multiplier!", 15, 88, 11)
+  print("survive 5 waves for boss", 10, 96, 10)
 
   print("press z to start", 25, 110, 11)
 end
@@ -917,13 +953,16 @@ function draw_difficulty()
   cls(0)
   print("select difficulty", 30, 20, 7)
 
-  -- draw difficulty options
-  local y = 50
+  -- draw difficulty options with descriptions
+  local y = 45
+  local descriptions = {"few enemies", "normal pace", "hard mode"}
+  local desc_cols = {3, 7, 8}  -- green, white, red
   for i=1,3 do
     local col = difficulty_selected == i and 11 or 7
     local marker = difficulty_selected == i and "> " or "  "
     print(marker..difficulty_names[i], 40, y, col)
-    y += 15
+    print(descriptions[i], 35, y+8, desc_cols[i])
+    y += 18
   end
 
   print("left/right to change", 20, 100, 6)
@@ -932,9 +971,20 @@ end
 
 function draw_wave_complete()
   cls(0)
-  print("wave "..wave_count.." complete!", 25, 30, 11)
-  print("enemies killed: "..enemies_killed, 20, 50, 7)
-  print("wave bonus: +"..flr(enemies_killed * 5), 25, 70, 10)
+  print("wave "..wave_count.." complete!", 25, 20, 11)
+  print("enemies killed: "..enemies_killed, 20, 35, 7)
+
+  -- show difficulty scaling info
+  local mult_display = "x"..difficulty
+  if difficulty == 1 then mult_display = "x1.0"
+  elseif difficulty == 2 then mult_display = "x1.5"
+  else mult_display = "x2.0" end
+  print("difficulty: "..mult_display, 28, 45, 6)
+
+  print("wave bonus: +"..flr(enemies_killed * 5), 25, 60, 10)
+
+  local next_mult = "x"..flr(combo_multiplier * 10) / 10
+  print("combo: "..next_mult, 38, 70, 11)
 
   if wave_count < 5 then
     print("next: wave "..(wave_count+1), 30, 85, 7)
@@ -947,10 +997,15 @@ end
 
 function draw_boss_defeated()
   cls(0)
-  print("boss defeated!", 30, 30, 11)
-  print("victory!", 45, 45, 10)
-  print("final score: "..score, 30, 65, 7)
-  print("all waves cleared!", 20, 80, 6)
+  print("boss defeated!", 30, 10, 11)
+  print("victory!", 45, 22, 10)
+  print("final score: "..score, 28, 35, 7)
+  print("enemies: "..enemies_killed, 30, 43, 7)
+  print("waves: "..wave_count, 38, 51, 7)
+  local diff_text = difficulty_names[difficulty]
+  print("difficulty: "..diff_text, 25, 59, 6)
+  local max_mult = "x"..flr(combo_multiplier * 10) / 10
+  print("max combo: "..max_mult, 28, 67, 11)
 
   print("press z to finish", 25, 110, 11)
 end
@@ -1010,6 +1065,20 @@ function draw_play()
     end
   end
 
+  -- draw score popups (floating text)
+  for sp in all(score_popups) do
+    local alpha = 1 - (sp.age / sp.lifetime)
+    local col = 11  -- yellow text
+    if alpha > 0.7 then
+      print("+"..sp.points, flr(sp.x)-4, flr(sp.y), col)
+    elseif alpha > 0.3 then
+      -- fade out effect: only print every other frame
+      if flr(sp.age) % 2 == 0 then
+        print("+"..sp.points, flr(sp.x)-4, flr(sp.y), col)
+      end
+    end
+  end
+
   -- draw power-ups using sprites with rotation animation
   for pu in all(powerups) do
     local rotation = flr((pu.age + pu.type * 10) / 3) % 4
@@ -1039,6 +1108,14 @@ function draw_play()
 
   -- draw boss or enemies
   if boss then
+    -- boss introduction effect: dramatic flash and pulsing glow
+    if boss_intro_timer > 0 then
+      local flash_intensity = flr((boss_intro_timer / 60) * 16)
+      for i=1,flash_intensity do
+        circ(boss.x, boss.y, i+5, 8)
+      end
+    end
+
     -- draw boss sprite with flash effect when hit
     local boss_sprite = boss_phase_timer > 0 and 8 or 3
     spr(boss_sprite, boss.x-4, boss.y-4)
@@ -1100,10 +1177,24 @@ function draw_play()
     end
   end
 
-  -- draw ui (over flash)
-  print("score: "..score, 5, 5, 7)
-  print("lives: "..lives, 5, 12, 7)
-  print("wave: "..wave_count, 5, 19, 7)
+  -- draw ui (over flash) - color coded by difficulty
+  local hud_col = 7  -- default white
+  if difficulty == 1 then
+    hud_col = 3  -- green for easy
+  elseif difficulty == 2 then
+    hud_col = 7  -- white for normal
+  else
+    hud_col = 8  -- red for hard
+  end
+
+  -- boss intro text if boss just spawned
+  if boss_intro_timer > 30 then
+    print("boss wave!", 35, 40, 8)
+  end
+
+  print("score: "..score, 5, 5, hud_col)
+  print("lives: "..lives, 5, 12, hud_col)
+  print("wave: "..wave_count, 5, 19, hud_col)
 
   -- draw active power-ups
   local pu_y = 26
