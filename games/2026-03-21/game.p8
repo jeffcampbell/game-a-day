@@ -32,6 +32,13 @@ score = 0
 lives = 3
 wave_count = 0
 
+-- visual effects
+shake_timer = 0
+shake_intensity = 0
+flash_timer = 0
+flash_color = 0
+particles = {}
+
 -- player
 player = {x=64, y=110, w=4, h=4}
 
@@ -57,10 +64,47 @@ function _init()
   wave_count = 0
   enemies = {}
   projectiles = {}
+  particles = {}
   enemy_spawn_timer = 30
   enemies_killed = 0
   difficulty_level = 1
+  shake_timer = 0
+  shake_intensity = 0
+  flash_timer = 0
   _log("init")
+end
+
+-- particle system
+function create_explosion(x, y, count, speed, color)
+  for i=1,count do
+    local angle = rnd(1)  -- pico-8 uses turns 0-1
+    local px = cos(angle) * speed * (0.5 + rnd(0.5))
+    local py = sin(angle) * speed * (0.5 + rnd(0.5))
+    add(particles, {x=x, y=y, vx=px, vy=py, life=20, color=color, age=0})
+  end
+end
+
+function update_particles()
+  for p in all(particles) do
+    p.x += p.vx
+    p.y += p.vy
+    p.vy += 0.1  -- gravity
+    p.vx *= 0.97  -- drag
+    p.age += 1
+    if p.age >= p.life then
+      del(particles, p)
+    end
+  end
+end
+
+function trigger_shake(intensity)
+  shake_timer = intensity * 2
+  shake_intensity = intensity
+end
+
+function trigger_flash(color)
+  flash_timer = 3
+  flash_color = color
 end
 
 function update_menu()
@@ -80,6 +124,11 @@ function update_menu()
 end
 
 function update_play()
+  -- update visual effects
+  if shake_timer > 0 then shake_timer -= 1 end
+  if flash_timer > 0 then flash_timer -= 1 end
+  update_particles()
+
   -- player movement
   if test_input(0) == 1 then
     player.x = max(4, player.x - 2)
@@ -91,7 +140,7 @@ function update_play()
   -- shooting
   if test_input(4) == 1 or test_input(5) == 1 then
     if fire_cooldown <= 0 then
-      add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true})
+      add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true, age=0})
       fire_cooldown = 5
       sfx(0)
       _log("shoot")
@@ -102,9 +151,14 @@ function update_play()
     fire_cooldown -= 1
   end
 
-  -- update projectiles
+  -- update projectiles (with trail generation)
   for p in all(projectiles) do
     p.y -= 4
+    p.age += 1
+    -- create trail particles every 2 frames
+    if p.age % 2 == 0 then
+      add(particles, {x=p.x, y=p.y, vx=0, vy=0.5, life=8, color=11, age=0})
+    end
     if p.y < 0 then
       p.alive = false
     end
@@ -134,11 +188,18 @@ function update_play()
       if collision(p.x, p.y, 1, 3, e.x, e.y, 4, 4) then
         p.alive = false
         e.alive = false
+
+        -- visual feedback on kill
         if e.type == 1 then
           score += 1
+          create_explosion(e.x, e.y, 4, 1.5, 8)  -- cyan explosion
         else
           score += 3
+          create_explosion(e.x, e.y, 6, 2, 9)    -- bright magenta explosion
         end
+
+        trigger_shake(2)
+        trigger_flash(11)
         enemies_killed += 1
         sfx(1)
         _log("kill:enemy")
@@ -159,6 +220,11 @@ function update_play()
     if collision(player.x, player.y, 4, 4, e.x, e.y, 4, 4) then
       e.alive = false
       lives -= 1
+
+      -- strong visual feedback for damage taken
+      create_explosion(player.x, player.y, 8, 1, 10)  -- red flash
+      trigger_shake(3)
+      trigger_flash(10)
       sfx(1)
       _log("collision:enemy")
 
@@ -231,25 +297,82 @@ end
 function draw_play()
   cls(0)
 
-  -- draw player
-  rectfill(player.x-2, player.y-2, player.x+2, player.y+2, 10)
-  pset(player.x, player.y-3, 11)
+  -- apply screen shake
+  local shake_x = 0
+  local shake_y = 0
+  if shake_timer > 0 then
+    shake_x = rnd(shake_intensity * 2) - shake_intensity
+    shake_y = rnd(shake_intensity * 2) - shake_intensity
+  end
+  camera(shake_x, shake_y)
 
-  -- draw projectiles
+  -- draw player (improved sprite graphics)
+  -- main body
+  rectfill(player.x-2, player.y-2, player.x+2, player.y+2, 10)
+  -- nose/cockpit
+  pset(player.x-1, player.y-3, 11)
+  pset(player.x, player.y-3, 11)
+  pset(player.x+1, player.y-3, 11)
+  -- wing tips
+  pset(player.x-3, player.y-1, 10)
+  pset(player.x+3, player.y-1, 10)
+  -- thruster
+  pset(player.x, player.y+3, 9)
+
+  -- draw projectiles with better visuals
   for p in all(projectiles) do
+    -- projectile body
     rectfill(p.x-1, p.y, p.x, p.y+3, 11)
+    -- projectile tip (brighter)
+    pset(p.x, p.y-1, 12)
   end
 
-  -- draw enemies
-  for e in all(enemies) do
-    if e.type == 1 then
-      rectfill(e.x-2, e.y-2, e.x+2, e.y+2, 8)
-    else
-      rectfill(e.x-2, e.y-2, e.x+2, e.y+2, 9)
+  -- draw particles (explosions and trails)
+  for part in all(particles) do
+    local alpha = flr(part.life - part.age) / part.life
+    if alpha > 0.5 then
+      pset(flr(part.x), flr(part.y), part.color)
+    elseif alpha > 0 then
+      pset(flr(part.x), flr(part.y), 1)
     end
   end
 
-  -- draw ui
+  -- draw enemies with improved sprites
+  for e in all(enemies) do
+    if e.type == 1 then
+      -- small cyan enemy
+      rectfill(e.x-2, e.y-2, e.x+2, e.y+2, 8)
+      pset(e.x-1, e.y-1, 1)
+      pset(e.x+1, e.y-1, 1)
+      pset(e.x, e.y+1, 1)
+    else
+      -- large magenta enemy (boss type)
+      rectfill(e.x-2, e.y-2, e.x+2, e.y+2, 9)
+      -- add markings
+      pset(e.x-2, e.y-2, 12)
+      pset(e.x+2, e.y-2, 12)
+      pset(e.x-2, e.y+2, 12)
+      pset(e.x+2, e.y+2, 12)
+    end
+  end
+
+  -- reset camera
+  camera(0, 0)
+
+  -- flash overlay if recently hit
+  if flash_timer > 0 then
+    if flash_color == 10 then
+      -- red flash for player damage
+      clip(0, 0, 128, 128)
+      rectfill(0, 0, 128, 128, 10)
+    elseif flash_color == 11 then
+      -- yellow flash for enemy kill
+      rectfill(0, 0, 128, 128, 11)
+    end
+    clip()
+  end
+
+  -- draw ui (over flash)
   print("score: "..score, 5, 5, 7)
   print("lives: "..lives, 5, 12, 7)
   print("wave: "..difficulty_level, 5, 19, 7)
