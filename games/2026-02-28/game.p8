@@ -52,26 +52,18 @@ msc = 1
 bd = 0
 
 bks = 0
-bco = 0
-bcs = 0
-lms = 0
 mts = {}
 flt = 0
-sft = 0
-tas = 0  -- time attack spawn timer
 wfv=true
 as = {}
 sas = {}
 pcs = {}
 qkf = false
 
--- leaderboards (top 3 per mode/difficulty)
 lbs = {
   easy = {0,0,0},
   normal = {0,0,0},
-  hard = {0,0,0},
-  boss_rush = {0,0,0},
-  time_attack = {0,0,0}
+  hard = {0,0,0}
 }
 
 -- lifetime stats
@@ -80,28 +72,24 @@ gp_cnt = 0 -- games played
 nr = false -- new record flag
 
 ads = {
-  {id=1, name="first blood", desc="defeat first enemy", check=function() return ekl >= 1 end},
-  {id=2, name="slinger", desc="reach wave 5", check=function() return wave >= 5 end},
-  {id=3, name="wave veteran", desc="reach wave 10", check=function() return wave >= 10 end},
-  {id=4, name="endurance", desc="survive 60s", check=function() return tsv >= 60 end},
-  {id=5, name="sharpshooter", desc="kill 50 es", check=function() return ekl >= 50 end},
-  {id=6, name="demolition", desc="kill 100 es", check=function() return ekl >= 100 end},
-  {id=7, name="combo king", desc="25-hit combo", check=function() return combo >= 25 end},
-  {id=8, name="unstoppable", desc="50-hit combo", check=function() return combo >= 50 end},
-  {id=9, name="boss slayer", desc="defeat a boss", check=function() return bks >= 1 end},
-  {id=10, name="quick kill", desc="kill boss in phase 1", check=function() return qkf end},
-  {id=11, name="time master", desc="survive 180s", check=function() return tsv >= 180 end},
-  {id=12, name="arsenal master", desc="collect all 4 power-ups", check=function()
+  {id=1, name="first blood", check=function() return ekl >= 1 end},
+  {id=2, name="slinger", check=function() return wave >= 5 end},
+  {id=3, name="wave veteran", check=function() return wave >= 10 end},
+  {id=4, name="endurance", check=function() return tsv >= 60 end},
+  {id=5, name="sharpshooter", check=function() return ekl >= 50 end},
+  {id=6, name="demolition", check=function() return ekl >= 100 end},
+  {id=7, name="combo king", check=function() return combo >= 25 end},
+  {id=8, name="unstoppable", check=function() return combo >= 50 end},
+  {id=9, name="boss slayer", check=function() return bks >= 1 end},
+  {id=10, name="quick kill", check=function() return qkf end},
+  {id=11, name="time master", check=function() return tsv >= 180 end},
+  {id=12, name="arsenal master", check=function()
     return pcs["RR"] and pcs["BS"] and pcs["SH"] and pcs["2X"]
   end},
-  {id=13, name="boss extreme", desc="defeat 5 bosses in boss rush", check=function()
-    return gm == "boss_rush" and bd >= 5
-  end},
-  {id=14, name="speed demon", desc="reach 500+ in time attack", check=function()
-    return gm == "time_attack" and score >= 500
-  end},
-  {id=15, name="relentless", desc="reach wave 20", check=function() return wave >= 20 end},
-  {id=16, name="endless survivor", desc="reach wave 50", check=function() return wave >= 50 end}
+  {id=13, name="high score", check=function() return score >= 1000 end},
+  {id=14, name="veteran", check=function() return gp_cnt >= 10 end},
+  {id=15, name="relentless", check=function() return wave >= 20 end},
+  {id=16, name="endless survivor", check=function() return wave >= 50 end}
 }
 
 p = {}
@@ -179,9 +167,9 @@ function lda()
 end
 
 function ldlb()
-  local modes = {"easy","normal","hard","boss_rush","time_attack"}
-  local slots = {{6,10,11},{7,12,13},{8,14,15},{16,17,18},{21,22,23}}
-  for i=1,5 do
+  local modes = {"easy","normal","hard"}
+  local slots = {{6,10,11},{7,12,13},{8,14,15}}
+  for i=1,3 do
     lbs[modes[i]] = {dget(slots[i][1]) or 0, dget(slots[i][2]) or 0, dget(slots[i][3]) or 0}
   end
 end
@@ -198,9 +186,9 @@ function sva()
 end
 
 function svlb()
-  local modes = {"easy","normal","hard","boss_rush","time_attack"}
-  local slots = {{6,10,11},{7,12,13},{8,14,15},{16,17,18},{21,22,23}}
-  for i=1,5 do
+  local modes = {"easy","normal","hard"}
+  local slots = {{6,10,11},{7,12,13},{8,14,15}}
+  for i=1,3 do
     for j=1,3 do dset(slots[i][j], lbs[modes[i]][j]) end
   end
 end
@@ -233,25 +221,15 @@ function inslb(mode, score)
   return rank
 end
 
-function cka()
-  for _, def in pairs(ads) do
-    if not as[def.id] and def.check() then
-      una(def.id)
-    end
-  end
-end
-
+function cka() end
 function una(id)
   as[id] = true
   sas[id] = true
   _log("achievement:"..id)
-
   sva()
-
   sfx(6)
   shf = 2
   shi = 0.5
-
   add(mts, {
     text = "achievement!",
     y = 50,
@@ -260,22 +238,8 @@ function una(id)
     col = 12
   })
 end
-
-function cna()
-  local count = 0
-  for i=1,16 do
-    if as[i] then count += 1 end
-  end
-  return count
-end
-
-function csa()
-  local count = 0
-  for i=1,16 do
-    if sas[i] then count += 1 end
-  end
-  return count
-end
+function cna() local c=0 for i=1,16 do if as[i] then c+=1 end end return c end
+function csa() local c=0 for i=1,16 do if sas[i] then c+=1 end end return c end
 
 function _update()
   if state == "menu" then
@@ -361,42 +325,8 @@ function drm()
 end
 
 function ims()
-  state = "mode_select"
-  _log("state:mode_select")
-  music(-1)
-end
-
-function ums()
-  local input = test_input()
-  if test_inputp(2) and msc > 1 then
-    msc -= 1
-    _log("mode_cursor:"..msc)
-  end
-  if test_inputp(3) and msc < 3 then
-    msc += 1
-    _log("mode_cursor:"..msc)
-  end
-  if test_inputp(4) then
-    gm = ({"normal","boss_rush","time_attack"})[msc]
-    _log("gm:"..gm)
-    sfx(0)
-    ids()
-  end
-end
-
-function dms()
-  print("select mode", 28, 20, 11)
-  local y = 40
-  local names = {"normal","boss rush","time attack"}
-  local descs = {"classic waves","boss gauntlet","survive 60s"}
-  for i=1,3 do
-    if i == msc then print(">", 20, y, 7) end
-    print(names[i], 30, y, i == 1 and 10 or (i == 2 and 8 or 12))
-    print(descs[i], 8, y+8, 6)
-    y += 26
-  end
-  print("up/down: select", 24, 108, 6)
-  print("o: confirm", 32, 116, 6)
+  gm = "normal"
+  ids()
 end
 
 function ids()
@@ -586,18 +516,6 @@ function upp()
 
   tsv = flr(time() - st)
 
-  if gm == "time_attack" then
-    if tsv >= 60 then igo() return end
-    if (tas -= 1) <= 0 then
-      tas = df == "easy" and 90 or (df == "hard" and 45 or 60)
-      for i=1,flr(rnd(2))+2 do
-        queue_spawn(tsv>30 and rnd(100)<20 and "speedy" or (tsv>20 and rnd(100)<30 and "shooter" or "minion"))
-      end
-      -- swarmlings start at 30s, escalate 10%->20%->30% at 30s/60s/120s, groups of 3-5
-      if tsv>=30 and rnd(100)<(tsv>=120 and 30 or(tsv>=60 and 20 or 10))then for i=1,3+flr(rnd(3))do queue_spawn("swarmling")end _log("time_attack:swarmling")end
-    end
-  end
-
   if shf > 0 then
     shf -= 1
   else
@@ -688,7 +606,7 @@ function upp()
     end
   end
 
-  if #es == 0 and ekl > 0 and gm != "time_attack" then
+  if #es == 0 and ekl > 0 then
     asc(100)
     _log("wave_complete:"..wave)
     shf = 2
@@ -754,10 +672,6 @@ function upe(e)
 
   if e.type == "heavy" then
     uba(e)
-  elseif e.type == "seeker" then
-    update_seeker_attacks(e)
-  elseif e.type == "summoner" then
-    update_summoner_attacks(e)
   end
 
   if e.dashing then
@@ -816,7 +730,7 @@ function upe(e)
     -- extra damage during dash
     -- df scaling: hard mode increases dash damage
     local dmg = 1
-    if e.dashing and (e.type == "heavy" or e.type == "seeker" or e.type == "summoner") then
+    if e.dashing and e.type == "heavy" then
       if df == "hard" then
         dmg = e.phase2 and 4 or 3  -- hard: 3x (phase1), 4x (phase2/3)
       else
@@ -1138,63 +1052,6 @@ function bda(e, cooldown)
   e.dash_target_y = p.y
 end
 
-function update_seeker_attacks(e)
-  if not e.spawn_time then
-    e.spawn_time=time() e.charge_cd=0 e.minion_cd=0 e.charging=false e.charge_timer=0
-  end
-  if e.charge_cd>0 then e.charge_cd-=1 end
-  if e.minion_cd>0 then e.minion_cd-=1 end
-  update_boss_timers(e)
-
-  if e.charging then
-    e.charge_timer-=1
-    if e.charge_timer<=0 then
-      e.charging=false e.charge_cd=60 _log("seeker_pause")
-    else
-      local dx,dy=p.x-e.x,p.y-e.y
-      local d=sqrt(dx*dx+dy*dy)
-      if d>0 then
-        local s=e.phase3 and 3 or(e.phase2 and 2.5 or 2)
-        e.vx,e.vy=(dx/d)*s,(dy/d)*s
-      end
-    end
-  elseif e.charge_cd==0 then
-    e.charging=true e.charge_timer=90 sfx(10) _log("seeker_charge")
-  end
-
-  if e.phase2 and e.minion_cd==0 then
-    local c=e.phase3 and 3 or 2
-    for i=1,c do spm(e.x,e.y) end
-    e.minion_cd=e.phase3 and 120 or 180
-    sfx(11) _log("seeker_spawn_minions:"..c)
-  end
-end
-
-function update_summoner_attacks(e)
-  if not e.spawn_time then
-    e.spawn_time=time() e.burst_cd=0 e.minion_cd=150
-  end
-  if e.burst_cd>0 then e.burst_cd-=1 end
-  if e.minion_cd>0 then e.minion_cd-=1 end
-  update_boss_timers(e)
-
-  if e.burst_cd==0 then
-    _log("summoner_burst") sfx(6) e.flt=5
-    for i=0,7 do
-      local a=i/8
-      add(ps,{x=e.x,y=e.y,vx=cos(a)*1.5,vy=sin(a)*1.5,owner="enemy",size=1,dmg=1,col=14})
-    end
-    e.burst_cd=e.phase3 and 30 or(e.phase2 and 45 or 60)
-  end
-
-  if e.minion_cd==0 then
-    local c=e.phase3 and 3 or(e.phase2 and 2 or 1)
-    for i=1,c do spm(e.x,e.y) end
-    e.minion_cd=e.phase3 and 90 or(e.phase2 and 120 or 150)
-    sfx(11) _log("summoner_spawn_minions:"..c)
-  end
-end
-
 function update_boss_timers(e)
   if e.flt and e.flt>0 then e.flt-=1 end
   if e.spawn_flash and e.spawn_flash>0 then e.spawn_flash-=1 end
@@ -1206,20 +1063,6 @@ function update_boss_timers(e)
 end
 
 function upr(p)
-  -- seeking projectile behavior
-  if p.seeking then
-    local dx = p.x - p.x
-    local dy = p.y - p.y
-    local d = sqrt(dx*dx + dy*dy)
-    if d > 0 then
-      -- gradually turn toward p
-      local target_vx = (dx / d) * 1.2
-      local target_vy = (dy / d) * 1.2
-      p.vx = p.vx + (target_vx - p.vx) * p.turn_rate
-      p.vy = p.vy + (target_vy - p.vy) * p.turn_rate
-    end
-  end
-
   p.x += p.vx
   p.y += p.vy
 
@@ -1301,16 +1144,10 @@ function kill_enemy(e)
   if e.type=="heavy" then
     sfx(10)
     _log("sfx:boss_death:heavy")
-  elseif e.type=="seeker" then
-    sfx(11)
-    _log("sfx:boss_death:seeker")
-  elseif e.type=="summoner" then
-    sfx(10)
-    _log("sfx:boss_death:summoner")
   else
     sfx(2)
   end
-  if (e.type=="heavy" or e.type=="seeker" or e.type=="summoner") and not e.phase2 then
+  if e.type=="heavy" and not e.phase2 then
     qkf=true
     _log("quick_kill")
   end
@@ -1378,18 +1215,12 @@ function kill_enemy(e)
     bks += 1
     _log("boss_kill:"..e.type..":"..bks)
 
-    -- track boss rush progress
-    if gm == "boss_rush" then
-      bd += 1
-      _log("boss_rush_defeated:"..bd)
-    end
-
     shf = 4
     shi = 5
     flt = 12  -- extended flash for boss victory
 
-    local txt=e.type=="seeker" and "seeker down!" or(e.type=="summoner" and "summoner down!" or "boss down!")
-    local tcol=e.type=="seeker" and 12 or(e.type=="summoner" and 14 or 10)
+    local txt="boss down!"
+    local tcol=10
     add(mts,{text=txt,y=50,life=45,initial_life=45,col=tcol})
     _log("boss_fanfare:"..e.type)
     -- enhanced spiral particle burst (color matches boss type)
@@ -1581,18 +1412,7 @@ function spw()
   local boss_wave = wave % boss_interval == 0
 
   if boss_wave then
-
-    -- cycle index: (wave / 5 - 1) % 3
-    local boss_idx = flr(wave / 5 - 1) % 3
-    local boss_type = "heavy"  -- default SPINNER
-
-    if boss_idx == 1 then
-      boss_type = "seeker"  -- SEEKER
-    elseif boss_idx == 2 then
-      boss_type = "summoner"  -- SUMMONER
-    end
-
-    queue_spawn(boss_type, 90) -- longer telegraph for boss
+    queue_spawn("heavy", 90) -- longer telegraph for boss
     count = flr(4 * count_mult)
     music(2)
     _log("music:boss")
@@ -1612,7 +1432,7 @@ function spw()
     queue_spawn(et)
   end
 end
-function dwf()if wfv then local bi=gm=="boss_rush"and 1 or(df=="easy"and 6 or(df=="hard"and 4 or 5))for i=1,2 do local w=wave+i print("w"..w..(w%bi==0 and":b"or""),70,10+(i-1)*7,w%bi==0 and 8 or 6)end end end
+function dwf()if wfv then local bi=df=="easy"and 6 or(df=="hard"and 4 or 5)for i=1,2 do local w=wave+i print("w"..w..(w%bi==0 and":b"or""),70,10+(i-1)*7,w%bi==0 and 8 or 6)end end end
 function spe(typ, spawn_x, spawn_y)
   -- use provided position or generate random edge position
   local x, y = spawn_x, spawn_y
@@ -1692,77 +1512,25 @@ function spe(typ, spawn_x, spawn_y)
     e.spawn_timer = 60 -- entrance glow + scale animation
     e.phase2 = false
     e.phase3 = false
-  elseif typ == "seeker" then
-    -- seeker boss: aggressive charging + minion spawning
-    e.hp = 4
-    e.max_hp = 4
-    e.speed = 0.4 * wim()
-    e.score = 60
-    e.col = 12/light blue
-    e.glow_t = 0
-    e.spawn_flash = 3
-    e.pulse_radius = 0
-    e.pulse_timer = 20
-    e.spawn_timer = 60
-    e.charge_cd = 0 -- charge attack cooldown
-    e.charging = false -- is currently charging
-    e.charge_timer = 0 -- charge duration
-    e.minion_cd = 0 -- minion spawn cooldown
-    e.phase2 = false
-    e.phase3 = false
-  elseif typ == "summoner" then
-    -- summoner boss: ranged bombardment + minion army
-    e.hp = 3
-    e.max_hp = 3
-    e.speed = 0.3 * wim()
-    e.score = 60
-    e.col = 14 -- magenta/pink
-    e.glow_t = 0
-    e.spawn_flash = 3
-    e.pulse_radius = 0
-    e.pulse_timer = 20
-    e.spawn_timer = 60
-    e.burst_cd = 0 -- projectile burst cooldown
-    e.minion_cd = 0 -- minion spawn cooldown
-    e.phase2 = false
-    e.phase3 = false
   end
 
-  -- boss rush scaling
-  if gm == "boss_rush" and (typ == "heavy" or typ == "seeker" or typ == "summoner") then
-    local hp_mult = 1.0
-    if wave >= 5 then
-      hp_mult = 1.5
-      e.phase2 = true
-      e.phase3 = true
-      _log("boss_rush:enrage:wave"..wave)
-    elseif wave >= 3 then
-      hp_mult = 1.25
-    end
-    e.hp = flr(e.hp * hp_mult)
-    e.max_hp = e.hp
-    _log("boss_rush_scale:wave"..wave..":hp"..e.hp)
-  end
 
   add(es, e)
   _log("spawn:"..typ)
 
-  if typ == "heavy" or typ == "seeker" or typ == "summoner" then
+  if typ == "heavy" then
     sfx(6)
     _log("sfx:boss_alert:"..typ)
     shf = 3
     shi = 1
     flt = 15
 
-    local pc=typ=="seeker" and 12 or(typ=="summoner" and 14 or 8)
     for i=1,10 do
       local a=i/10
-      add(pts,{x=e.x,y=e.y,vx=cos(a)*1.5,vy=sin(a)*1.5,life=20,col=pc+flr(rnd(2))})
+      add(pts,{x=e.x,y=e.y,vx=cos(a)*1.5,vy=sin(a)*1.5,life=20,col=8})
     end
 
-    local nm=typ=="seeker" and "seeker!" or(typ=="summoner" and "summoner!" or "boss wave!")
-    local bc=typ=="seeker" and 12 or(typ=="summoner" and 14 or 7)
-    add(mts,{text=nm,y=32,life=60,initial_life=60,col=bc})
+    add(mts,{text="boss wave!",y=32,life=60,initial_life=60,col=7})
     _log("boss_announce:"..typ)
   end
 end
@@ -1853,93 +1621,6 @@ function dist(x1, y1, x2, y2)
 end
 
 function draw_edge_indicators()
-  -- track nearest enemy per edge for deduplication
-  local nearest = {top={}, bottom={}, left={}, right={}}
-
-  for e in all(es) do
-
-    if e.x < 0 or e.x > 128 or e.y < 0 or e.y > 128 then
-
-      local d_top = abs(e.y - 0)
-      local d_bottom = abs(e.y - 128)
-      local d_left = abs(e.x - 0)
-      local d_right = abs(e.x - 128)
-
-      -- find nearest edge
-      local min_d = min(d_top, d_bottom, d_left, d_right)
-      local edge = ""
-
-      if min_d == d_top then
-        edge = "top"
-      elseif min_d == d_bottom then
-        edge = "bottom"
-      elseif min_d == d_left then
-        edge = "left"
-      else
-        edge = "right"
-      end
-
-      -- track only nearest enemy per edge+type combo
-      local key = e.type
-      if not nearest[edge][key] or min_d < nearest[edge][key].dist then
-        nearest[edge][key] = {e=e, dist=min_d}
-      end
-    end
-  end
-
-  for edge, types in pairs(nearest) do
-    for typ, data in pairs(types) do
-      local e = data.e
-      local ix, iy = 0, 0
-
-      if edge == "top" then
-        ix = mid(8, e.x, 120)
-        iy = 2
-      elseif edge == "bottom" then
-        ix = mid(8, e.x, 120)
-        iy = 125
-      elseif edge == "left" then
-        ix = 2
-        iy = mid(8, e.y, 120)
-      else -- right
-        ix = 125
-        iy = mid(8, e.y, 120)
-      end
-
-      -- color matches enemy type
-      local col = e.col
-      if e.type == "heavy" and e.phase3 then
-        col = 8 -- bright red for phase 3 heavy boss
-      elseif e.type == "heavy" and e.phase2 then
-        col = 9 -- for phase 2 heavy boss
-      elseif e.type == "seeker" and e.phase3 then
-        col = 7 -- bright white for phase 3 seeker
-      elseif e.type == "seeker" and e.phase2 then
-        col = 12 -- for phase 2 seeker
-      elseif e.type == "summoner" and e.phase3 then
-        col = 13 -- bright magenta for phase 3 summoner
-      elseif e.type == "summoner" and e.phase2 then
-        col = 14 -- magenta for phase 2 summoner
-      end
-
-      if e.type == "heavy" or e.type == "seeker" or e.type == "summoner" then
-        circfill(ix, iy, 2, col)
-        circ(ix, iy, 3, 7) outline
-        -- small hp bar for boss
-        if e.max_hp > 1 then
-          local frac = e.hp / e.max_hp
-          local w = 6
-          rectfill(ix - w/2, iy - 5, ix - w/2 + w * frac, iy - 4, 11)
-        end
-      else
-        -- regular enemy: small triangle pointing inward
-        circfill(ix, iy, 1, col)
-        pset(ix, iy, 7) center
-      end
-
-      _log("indicator:"..edge..":"..e.type)
-    end
-  end
 end
 
 function drp()
@@ -2031,21 +1712,13 @@ function drp()
     end
 
     if e.type == "heavy" and e.phase3 then
-      col = 8 -- bright red (phase 3 enrage)
+      col = 8
     elseif e.type == "heavy" and e.phase2 then
-      col = 9 -- (aggression color)
-    elseif e.type == "seeker" and e.phase3 then
-      col = 7 -- bright white for phase 3 seeker
-    elseif e.type == "seeker" and e.phase2 then
-      col = 12 -- for phase 2 seeker
-    elseif e.type == "summoner" and e.phase3 then
-      col = 13 -- bright magenta for phase 3 summoner
-    elseif e.type == "summoner" and e.phase2 then
-      col = 14 -- magenta for phase 2 summoner
+      col = 9
     end
 
     -- wave intensity visual: shift non-boss es warmer at high waves
-    if e.type ~= "heavy" and e.type ~= "seeker" and e.type ~= "summoner" and wave >= 10 then
+    if e.type ~= "heavy" and wave >= 10 then
       if wave >= 20 then
         col = 8  -- red at wave 20+
       elseif wave >= 15 then
@@ -2142,12 +1815,6 @@ function drp()
   -- ps
   for p in all(ps) do
     local col = p.col or (p.owner == "p" and 10 or 8)
-    -- seeking ps get magenta color
-    if p.seeking then
-      col = 14
-      -- add trail effect
-      circ(p.x, p.y, 2, 13)
-    end
     circfill(p.x, p.y, p.size, col)
   end
 
@@ -2196,19 +1863,11 @@ function drp()
          p.y + dir[2] * 6, 7)
   end
 
-  -- edge indicators for off-screen es
-  draw_edge_indicators()
 
   -- ui
   print("score:"..score, 2, 2, 7)
 
-  if gm == "time_attack" then
-    local r = max(0, 60 - tsv)
-    local s = r % 60
-    print(flr(r/60)..":"..(s<10 and "0"..s or s), 48, 2, r < 10 and 8 or 10)
-  else
-    print("wave:"..wave, 48, 2, wave>=10 and 8 or 10)
-  end
+  print("wave:"..wave, 48, 2, wave>=10 and 8 or 10)
 
   print("time:"..tsv, 90, 2, 9)
   print("combo:"..combo, 2, 120, 14)
@@ -2337,8 +1996,7 @@ function igo()
   _log("lifetime_kills:"..ekl_tot)
 
   -- check leaderboard
-  local mode = gm == "boss_rush" and "boss_rush" or (gm == "time_attack" and "time_attack" or df)
-  local rank = inslb(mode, score)
+  local rank = inslb(df, score)
   if rank > 0 then
     nr = true
     _log("new_record:rank="..rank)
@@ -2373,43 +2031,13 @@ function dgo()
   end
 
   local base_y = nr and 58 or 50
-
-  if gm == "boss_rush" then
-    print("bosses: "..bd, 34, base_y, 8)
-    print("time: "..tsv.."s", 36, base_y+8, 7)
-  else
-    print("waves: "..wave, 38, base_y, 7)
-    print("kills: "..ekl, 38, base_y+8, 7)
-    print("time: "..tsv.."s", 36, base_y+16, 7)
-  end
+  print("waves: "..wave, 38, base_y, 7)
+  print("kills: "..ekl, 38, base_y+8, 7)
+  print("time: "..tsv.."s", 36, base_y+16, 7)
 
   -- df
   local diff_col = df == "easy" and 12 or (df == "hard" and 8 or 10)
-  local mode_text = gm == "boss_rush" and "boss rush" or df
-  local mode_y = (gm == "boss_rush" and 66 or 74) + (nr and 8 or 0)
-  print("mode: "..mode_text, 30, mode_y, diff_col)
-
-  local session_count = csa()
-  local ach_y = 82 + (nr and 8 or 0)
-  if session_count > 0 then
-    print("new as: "..session_count, 16, ach_y, 12)
-    -- show which ones
-    local y = ach_y + 8
-    for i=1,16 do
-      if sas[i] then
-        local def = ads[i]
-        print("\x97 "..def.name, 8, y, 10)
-        y += 6
-        if y > 106 + (nr and 8 or 0) then break end -- prevent overflow
-      end
-    end
-  else
-    print("no new as", 20, ach_y, 5)
-  end
-
-  -- total as
-  local total = cna()
-  print("total: "..total.."/16", 42, 112 + (nr and 8 or 0), 14)
+  print("mode: "..df, 30, 74 + (nr and 8 or 0), diff_col)
 
   print("o:retry x:menu", 28, 120, 6)
 end
