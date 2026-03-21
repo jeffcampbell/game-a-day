@@ -86,6 +86,12 @@ enemies_killed = 0
 difficulty_level = 1
 score_multiplier = 1
 
+-- combo system
+combo = 0
+combo_multiplier = 1.0
+multiplier_flash_timer = 0
+multiplier_last_value = 1.0
+
 function _init()
   state = "menu"
   score = 0
@@ -109,6 +115,10 @@ function _init()
   score_multiplier = 1
   shield_count = 0
   rapid_fire_timer = 0
+  combo = 0
+  combo_multiplier = 1.0
+  multiplier_flash_timer = 0
+  multiplier_last_value = 1.0
   init_starfield()
   _log("init")
 end
@@ -156,6 +166,21 @@ function init_wave(wv)
     local spawn_delay = max(10, 30 - wv * 3)
     enemy_spawn_timer = spawn_delay
     _log("wave:"..wv)
+  end
+end
+
+-- calculate combo multiplier based on combo count
+function calc_combo_multiplier()
+  if combo < 5 then
+    return 1.0
+  elseif combo < 10 then
+    return 1.5
+  elseif combo < 15 then
+    return 2.0
+  elseif combo < 20 then
+    return 3.0
+  else
+    return 5.0
   end
 end
 
@@ -464,6 +489,14 @@ function update_play()
           trigger_flash(11)
           sfx(0)
           _log("shield:blocked_boss")
+          -- break combo on shield use
+          if combo > 0 then
+            combo = 0
+            multiplier_last_value = 1.0
+            combo_multiplier = 1.0
+            multiplier_flash_timer = 10
+            _log("combo_broken")
+          end
         else
           lives -= 1
           create_explosion(player.x, player.y, 8, 1, 10)
@@ -471,6 +504,14 @@ function update_play()
           trigger_flash(10)
           sfx(1)
           _log("collision:boss_projectile")
+          -- break combo on damage
+          if combo > 0 then
+            combo = 0
+            multiplier_last_value = 1.0
+            combo_multiplier = 1.0
+            multiplier_flash_timer = 10
+            _log("combo_broken")
+          end
 
           if lives <= 0 then
             music(-1)
@@ -493,6 +534,14 @@ function update_play()
       trigger_flash(10)
       sfx(4)
       _log("collision:boss")
+      -- break combo on damage
+      if combo > 0 then
+        combo = 0
+        multiplier_last_value = 1.0
+        combo_multiplier = 1.0
+        multiplier_flash_timer = 10
+        _log("combo_broken")
+      end
 
       if lives <= 0 then
         music(-1)
@@ -557,6 +606,15 @@ function update_play()
             -- enemy dies
             e.alive = false
 
+            -- increment combo on kill
+            combo += 1
+            local new_multiplier = calc_combo_multiplier()
+            if new_multiplier > multiplier_last_value then
+              multiplier_flash_timer = 10  -- flash on increase
+            end
+            multiplier_last_value = new_multiplier
+            combo_multiplier = new_multiplier
+
             -- scoring based on type
             local points = 0
             if e.type == 1 then
@@ -566,7 +624,8 @@ function update_play()
             else  -- tank
               points = 15 + 5  -- 15 + 5 bonus
             end
-            score += flr(points * score_multiplier)
+            local earned_points = flr(points * score_multiplier * combo_multiplier)
+            score += earned_points
 
             -- visual feedback on kill
             local kill_colors = {8, 10, 14}  -- cyan for standard, red for fast, yellow for tank
@@ -576,7 +635,8 @@ function update_play()
             trigger_flash(11)
             enemies_killed += 1
             sfx(1)
-            _log("kill:enemy:type"..e.type)
+            _log("kill:enemy:type"..e.type..",combo:"..combo.."x")
+            _log("score:"..earned_points..",combo:"..combo.."x")
 
             -- spawn power-up from destroyed enemy
             spawn_powerup(e.x, e.y, e.type)
@@ -609,6 +669,14 @@ function update_play()
           trigger_flash(11)
           sfx(0)
           _log("shield:blocked")
+          -- break combo on shield use
+          if combo > 0 then
+            combo = 0
+            multiplier_last_value = 1.0
+            combo_multiplier = 1.0
+            multiplier_flash_timer = 10
+            _log("combo_broken")
+          end
         else
           lives -= 1
           create_explosion(player.x, player.y, 8, 1, 10)  -- red flash
@@ -616,6 +684,14 @@ function update_play()
           trigger_flash(10)
           sfx(1)
           _log("collision:enemy")
+          -- break combo on damage
+          if combo > 0 then
+            combo = 0
+            multiplier_last_value = 1.0
+            combo_multiplier = 1.0
+            multiplier_flash_timer = 10
+            _log("combo_broken")
+          end
 
           if lives <= 0 then
             state = "gameover"
@@ -634,6 +710,12 @@ end
 function update_wave_complete()
   wave_complete_timer -= 1
   if wave_complete_timer <= 0 or btnp(4) or btnp(5) then
+    -- add wave completion bonus with combo multiplier
+    local wave_bonus_base = enemies_killed * 5
+    local wave_bonus = flr(wave_bonus_base * score_multiplier * combo_multiplier)
+    score += wave_bonus
+    _log("wave_bonus:"..wave_bonus..",combo:"..combo.."x")
+
     sfx(5)  -- wave complete stinger
     wave_count += 1
     state = "play"
@@ -649,6 +731,12 @@ function update_boss_defeated()
     wave_complete_timer -= 1
   end
   if wave_complete_timer <= 0 and (btnp(4) or btnp(5)) then
+    -- add boss defeat bonus with combo multiplier
+    local boss_bonus_base = 500
+    local boss_bonus = flr(boss_bonus_base * score_multiplier * combo_multiplier)
+    score += boss_bonus
+    _log("boss_bonus:"..boss_bonus..",combo:"..combo.."x")
+
     music(-1)  -- stop music
     sfx(6)     -- victory stinger
     state = "gameover"
@@ -707,6 +795,10 @@ function spawn_powerup(x, y, enemy_type)
 end
 
 function apply_powerup(pu_type)
+  local pu_points = 100
+  local earned_points = flr(pu_points * score_multiplier * combo_multiplier)
+  score += earned_points
+
   if pu_type == 1 then
     -- shield: absorbs one collision (max 3)
     if shield_count < 3 then
@@ -729,6 +821,7 @@ function apply_powerup(pu_type)
       _log("health_full")
     end
   end
+  _log("powerup_score:"..earned_points..",combo:"..combo.."x")
 end
 
 -- boss attack system
@@ -1027,6 +1120,25 @@ function draw_play()
   if boss then
     print("boss hp: "..boss.health, 85, 5, 10)
   end
+
+  -- draw combo multiplier in bottom-right
+  local multiplier_text = "x"..flr(combo_multiplier * 10) / 10
+  local multiplier_color = 7  -- default white
+  if combo_multiplier >= 5.0 then
+    multiplier_color = 8  -- red for max bonus
+  elseif combo_multiplier >= 3.0 then
+    multiplier_color = 10  -- orange/red for high bonus
+  elseif combo_multiplier >= 2.0 then
+    multiplier_color = 11  -- yellow for good bonus
+  end
+
+  -- flash effect when multiplier increases
+  if multiplier_flash_timer > 0 then
+    multiplier_color = 7  -- yellow/white flash
+    multiplier_flash_timer -= 1
+  end
+
+  print(multiplier_text, 115, 120, multiplier_color)
 end
 
 function draw_gameover()
