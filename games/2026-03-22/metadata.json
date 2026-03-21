@@ -1,0 +1,27 @@
+{
+  "title": "Lane Racer",
+  "description": "A top-down racing game where you pilot a car down a narrow lane, dodging obstacles and other vehicles. Use arrow keys to steer left and right. Avoid collisions to maintain your 3 lives. Earn points for each obstacle you dodge successfully. Reach 500 points or survive 2 minutes to win. Difficulty levels affect obstacle spawn rates.",
+  "genres": [
+    "racing",
+    "sports"
+  ],
+  "difficulty": 2,
+  "playtime_minutes": 4,
+  "completion_status": "complete",
+  "target_audience": "general",
+  "token_count": 910,
+  "sprite_count": 1,
+  "sound_count": 0,
+  "visual_features": [
+    "lane_markers",
+    "score_display",
+    "lives_counter",
+    "timer_display"
+  ],
+  "game_mechanics": [
+    "steering",
+    "obstacle_avoidance",
+    "difficulty_progression",
+    "scoring"
+  ]
+}
