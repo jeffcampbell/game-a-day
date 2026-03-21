@@ -30,7 +30,12 @@ end
 state = "menu"
 score = 0
 lives = 3
-wave_count = 0
+wave_count = 1
+difficulty = 2  -- 1=easy, 2=normal, 3=hard
+difficulty_selected = 2
+difficulty_names = {"easy", "normal", "hard"}
+boss_health = 0
+wave_complete_timer = 0
 
 -- visual effects
 shake_timer = 0
@@ -53,15 +58,22 @@ base_enemy_speed = 1
 projectiles = {}
 fire_cooldown = 0
 
+-- boss
+boss = nil
+boss_phase_timer = 0
+
 -- difficulty
 enemies_killed = 0
 difficulty_level = 1
+score_multiplier = 1
 
 function _init()
   state = "menu"
   score = 0
   lives = 3
-  wave_count = 0
+  wave_count = 1
+  difficulty = 2
+  difficulty_selected = 2
   enemies = {}
   projectiles = {}
   particles = {}
@@ -71,7 +83,51 @@ function _init()
   shake_timer = 0
   shake_intensity = 0
   flash_timer = 0
+  boss = nil
+  boss_health = 0
+  score_multiplier = 1
   _log("init")
+end
+
+-- wave and boss initialization
+function init_wave(wv)
+  enemies = {}
+  boss = nil
+  projectiles = {}
+  enemy_spawn_timer = 30
+  enemies_killed = 0
+  difficulty_level = wv
+  wave_complete_timer = 0
+
+  -- determine if this is a boss wave
+  local is_boss_wave = wv >= 5
+
+  if is_boss_wave then
+    -- boss wave: create the boss
+    local boss_spd = 1
+    if difficulty == 1 then
+      boss_health = 3
+      boss_spd = 0.8
+    elseif difficulty == 2 then
+      boss_health = 4
+      boss_spd = 1.0
+    else
+      boss_health = 5
+      boss_spd = 1.3
+    end
+
+    boss = {
+      x = 64, y = 30, w = 6, h = 6,
+      health = boss_health, dir = 1, speed = boss_spd,
+      charge_timer = 0
+    }
+    _log("boss:spawn")
+  else
+    -- regular wave: difficulty scales up with waves
+    local spawn_delay = max(10, 30 - wv * 3)
+    enemy_spawn_timer = spawn_delay
+    _log("wave:"..wv)
+  end
 end
 
 -- particle system
@@ -109,15 +165,52 @@ end
 
 function update_menu()
   if btnp(4) or btnp(5) then
+    state = "difficulty"
+    difficulty_selected = 2
+    _log("state:difficulty")
+    sfx(2)
+  end
+end
+
+function update_difficulty()
+  -- left/right to select difficulty
+  if btnp(0) then  -- left
+    difficulty_selected = max(1, difficulty_selected - 1)
+    sfx(0)
+  end
+  if btnp(1) then  -- right
+    difficulty_selected = min(3, difficulty_selected + 1)
+    sfx(0)
+  end
+
+  -- z/c to confirm difficulty
+  if btnp(4) or btnp(5) then
+    difficulty = difficulty_selected
+
+    -- set score multiplier based on difficulty
+    if difficulty == 1 then
+      score_multiplier = 1
+    elseif difficulty == 2 then
+      score_multiplier = 1.5
+    else
+      score_multiplier = 2
+    end
+
+    -- initialize game state
     state = "play"
     enemies = {}
     projectiles = {}
+    particles = {}
     score = 0
     lives = 3
+    wave_count = 1
     enemies_killed = 0
-    difficulty_level = 1
-    enemy_speed = 1
-    enemy_spawn_timer = 30
+    boss = nil
+    boss_health = 0
+    player = {x=64, y=110, w=4, h=4}
+
+    _log("difficulty:"..difficulty_names[difficulty])
+    init_wave(1)
     _log("state:play")
     sfx(2)
   end
@@ -127,6 +220,7 @@ function update_play()
   -- update visual effects
   if shake_timer > 0 then shake_timer -= 1 end
   if flash_timer > 0 then flash_timer -= 1 end
+  if boss_phase_timer > 0 then boss_phase_timer -= 1 end
   update_particles()
 
   -- player movement
@@ -165,79 +259,164 @@ function update_play()
   end
   del_projectiles()
 
-  -- spawn enemies
-  enemy_spawn_timer -= 1
-  if enemy_spawn_timer <= 0 then
-    local etype = rnd(3) < 2 and 1 or 2
-    add(enemies, {x=rnd(120)+4, y=4, type=etype, speed=enemy_speed})
-    enemy_spawn_timer = max(15, 30 - difficulty_level * 2)
-  end
-
-  -- update enemies
-  for e in all(enemies) do
-    e.y += e.speed
-    if e.y > 128 then
-      e.alive = false
+  -- boss encounter
+  if boss then
+    -- boss patrol and attack
+    boss.x += boss.speed * boss.dir
+    if boss.x < 10 or boss.x > 118 then
+      boss.dir *= -1
     end
-  end
-  del_enemies()
 
-  -- collision: projectile-enemy
-  for p in all(projectiles) do
-    for e in all(enemies) do
-      if collision(p.x, p.y, 1, 3, e.x, e.y, 4, 4) then
+    -- projectile-boss collision
+    for p in all(projectiles) do
+      if collision(p.x, p.y, 1, 3, boss.x, boss.y, 6, 6) then
         p.alive = false
-        e.alive = false
-
-        -- visual feedback on kill
-        if e.type == 1 then
-          score += 1
-          create_explosion(e.x, e.y, 4, 1.5, 8)  -- cyan explosion
-        else
-          score += 3
-          create_explosion(e.x, e.y, 6, 2, 9)    -- bright magenta explosion
-        end
-
-        trigger_shake(2)
+        boss.health -= 1
+        trigger_shake(3)
         trigger_flash(11)
-        enemies_killed += 1
+        boss_phase_timer = 15
         sfx(1)
-        _log("kill:enemy")
+        _log("boss_hit:"..boss.health)
 
-        -- difficulty increase
-        if enemies_killed % 20 == 0 then
-          difficulty_level += 1
-          enemy_speed = base_enemy_speed + (difficulty_level - 1) * 0.5
-          _log("difficulty:"..difficulty_level)
+        create_explosion(boss.x, boss.y, 6, 2, 9)
+
+        if boss.health <= 0 then
+          state = "boss_defeated"
+          _log("state:boss_defeated")
+          sfx(3)
+          create_explosion(boss.x, boss.y, 12, 3, 11)
+          wave_complete_timer = 120
         end
       end
     end
-  end
-  del_projectiles()
+    del_projectiles()
 
-  -- collision: player-enemy
-  for e in all(enemies) do
-    if collision(player.x, player.y, 4, 4, e.x, e.y, 4, 4) then
-      e.alive = false
+    -- player-boss collision
+    if collision(player.x, player.y, 4, 4, boss.x, boss.y, 6, 6) then
       lives -= 1
-
-      -- strong visual feedback for damage taken
-      create_explosion(player.x, player.y, 8, 1, 10)  -- red flash
+      create_explosion(player.x, player.y, 8, 1, 10)
       trigger_shake(3)
       trigger_flash(10)
       sfx(1)
-      _log("collision:enemy")
+      _log("collision:boss")
 
       if lives <= 0 then
         state = "gameover"
-        _log("state:gameover")
+        _log("state:gameover:lose")
         sfx(3)
+      else
+        -- reset player position
+        player = {x=64, y=110, w=4, h=4}
       end
     end
+  else
+    -- regular wave: spawn enemies
+    enemy_spawn_timer -= 1
+
+    local spawn_rate = 30 - (wave_count - 1) * 2
+    if difficulty == 1 then
+      spawn_rate = 40 - wave_count
+    elseif difficulty == 3 then
+      spawn_rate = 20 - wave_count
+    end
+
+    if enemy_spawn_timer <= 0 then
+      local etype = rnd(3) < 2 and 1 or 2
+      local spd = base_enemy_speed + (wave_count - 1) * 0.2
+      if difficulty == 1 then spd *= 0.7
+      elseif difficulty == 3 then spd *= 1.3 end
+      add(enemies, {x=rnd(120)+4, y=4, type=etype, speed=spd})
+      enemy_spawn_timer = spawn_rate
+    end
+
+    -- update enemies
+    for e in all(enemies) do
+      e.y += e.speed
+      if e.y > 128 then
+        e.alive = false
+      end
+    end
+    del_enemies()
+
+    -- collision: projectile-enemy
+    for p in all(projectiles) do
+      for e in all(enemies) do
+        if collision(p.x, p.y, 1, 3, e.x, e.y, 4, 4) then
+          p.alive = false
+          e.alive = false
+
+          -- visual feedback on kill with multiplier
+          local points = e.type == 1 and 1 or 3
+          score += flr(points * score_multiplier)
+
+          if e.type == 1 then
+            create_explosion(e.x, e.y, 4, 1.5, 8)  -- cyan explosion
+          else
+            create_explosion(e.x, e.y, 6, 2, 9)    -- magenta explosion
+          end
+
+          trigger_shake(2)
+          trigger_flash(11)
+          enemies_killed += 1
+          sfx(1)
+          _log("kill:enemy")
+
+          -- check if wave is complete
+          local target_kills = 30 + (wave_count - 1) * 5
+          if enemies_killed >= target_kills then
+            state = "wave_complete"
+            wave_complete_timer = 90
+            _log("state:wave_complete")
+          end
+        end
+      end
+    end
+    del_projectiles()
+
+    -- collision: player-enemy
+    for e in all(enemies) do
+      if collision(player.x, player.y, 4, 4, e.x, e.y, 4, 4) then
+        e.alive = false
+        lives -= 1
+
+        -- strong visual feedback for damage taken
+        create_explosion(player.x, player.y, 8, 1, 10)  -- red flash
+        trigger_shake(3)
+        trigger_flash(10)
+        sfx(1)
+        _log("collision:enemy")
+
+        if lives <= 0 then
+          state = "gameover"
+          _log("state:gameover:lose")
+          sfx(3)
+        end
+      end
+    end
+    del_enemies()
   end
-  del_enemies()
 
   _capture()
+end
+
+function update_wave_complete()
+  wave_complete_timer -= 1
+  if wave_complete_timer <= 0 or btnp(4) or btnp(5) then
+    wave_count += 1
+    state = "play"
+    init_wave(wave_count)
+    _log("state:play")
+  end
+end
+
+function update_boss_defeated()
+  if wave_complete_timer > 0 then
+    wave_complete_timer -= 1
+  end
+  if wave_complete_timer <= 0 and (btnp(4) or btnp(5)) then
+    state = "gameover"
+    _log("state:gameover:win")
+  end
 end
 
 function update_gameover()
@@ -272,8 +451,14 @@ end
 function _update()
   if state == "menu" then
     update_menu()
+  elseif state == "difficulty" then
+    update_difficulty()
   elseif state == "play" then
     update_play()
+  elseif state == "wave_complete" then
+    update_wave_complete()
+  elseif state == "boss_defeated" then
+    update_boss_defeated()
   elseif state == "gameover" then
     update_gameover()
   end
@@ -292,6 +477,48 @@ function draw_menu()
   print("avoid collisions", 25, 95, 6)
 
   print("press z to start", 25, 110, 11)
+end
+
+function draw_difficulty()
+  cls(0)
+  print("select difficulty", 30, 20, 7)
+
+  -- draw difficulty options
+  local y = 50
+  for i=1,3 do
+    local col = difficulty_selected == i and 11 or 7
+    local marker = difficulty_selected == i and "> " or "  "
+    print(marker..difficulty_names[i], 40, y, col)
+    y += 15
+  end
+
+  print("left/right to change", 20, 100, 6)
+  print("z to confirm", 35, 110, 6)
+end
+
+function draw_wave_complete()
+  cls(0)
+  print("wave "..wave_count.." complete!", 25, 30, 11)
+  print("enemies killed: "..enemies_killed, 20, 50, 7)
+  print("wave bonus: +"..flr(enemies_killed * 5), 25, 70, 10)
+
+  if wave_count < 5 then
+    print("next: wave "..(wave_count+1), 30, 85, 7)
+  else
+    print("next: boss battle!", 30, 85, 9)
+  end
+
+  print("press z to continue", 20, 110, 11)
+end
+
+function draw_boss_defeated()
+  cls(0)
+  print("boss defeated!", 30, 30, 11)
+  print("victory!", 45, 45, 10)
+  print("final score: "..score, 30, 65, 7)
+  print("all waves cleared!", 20, 80, 6)
+
+  print("press z to finish", 25, 110, 11)
 end
 
 function draw_play()
@@ -337,22 +564,36 @@ function draw_play()
     end
   end
 
-  -- draw enemies with improved sprites
-  for e in all(enemies) do
-    if e.type == 1 then
-      -- small cyan enemy
-      rectfill(e.x-2, e.y-2, e.x+2, e.y+2, 8)
-      pset(e.x-1, e.y-1, 1)
-      pset(e.x+1, e.y-1, 1)
-      pset(e.x, e.y+1, 1)
-    else
-      -- large magenta enemy (boss type)
-      rectfill(e.x-2, e.y-2, e.x+2, e.y+2, 9)
-      -- add markings
-      pset(e.x-2, e.y-2, 12)
-      pset(e.x+2, e.y-2, 12)
-      pset(e.x-2, e.y+2, 12)
-      pset(e.x+2, e.y+2, 12)
+  -- draw boss or enemies
+  if boss then
+    -- draw boss with phase color
+    local boss_color = boss_phase_timer > 0 and 12 or 9
+    rectfill(boss.x-3, boss.y-3, boss.x+3, boss.y+3, boss_color)
+    -- boss markings
+    pset(boss.x-3, boss.y-3, 12)
+    pset(boss.x+3, boss.y-3, 12)
+    pset(boss.x-3, boss.y+3, 12)
+    pset(boss.x+3, boss.y+3, 12)
+    -- boss aura
+    circ(boss.x, boss.y, 4, 5)
+  else
+    -- draw regular enemies
+    for e in all(enemies) do
+      if e.type == 1 then
+        -- small cyan enemy
+        rectfill(e.x-2, e.y-2, e.x+2, e.y+2, 8)
+        pset(e.x-1, e.y-1, 1)
+        pset(e.x+1, e.y-1, 1)
+        pset(e.x, e.y+1, 1)
+      else
+        -- large magenta enemy
+        rectfill(e.x-2, e.y-2, e.x+2, e.y+2, 9)
+        -- add markings
+        pset(e.x-2, e.y-2, 12)
+        pset(e.x+2, e.y-2, 12)
+        pset(e.x-2, e.y+2, 12)
+        pset(e.x+2, e.y+2, 12)
+      end
     end
   end
 
@@ -366,7 +607,7 @@ function draw_play()
       clip(0, 0, 128, 128)
       rectfill(0, 0, 128, 128, 10)
     elseif flash_color == 11 then
-      -- yellow flash for enemy kill
+      -- yellow flash for kill
       rectfill(0, 0, 128, 128, 11)
     end
     clip()
@@ -375,24 +616,42 @@ function draw_play()
   -- draw ui (over flash)
   print("score: "..score, 5, 5, 7)
   print("lives: "..lives, 5, 12, 7)
-  print("wave: "..difficulty_level, 5, 19, 7)
+  print("wave: "..wave_count, 5, 19, 7)
+
+  -- draw boss health if in boss wave
+  if boss then
+    print("boss hp: "..boss.health, 85, 5, 10)
+  end
 end
 
 function draw_gameover()
   cls(0)
 
-  print("game over", 40, 40, 7)
-  print("final score: "..score, 30, 55, 11)
-  print("enemies killed: "..enemies_killed, 20, 65, 7)
+  if state == "gameover" then
+    -- check if this was a win or loss from log state
+    local msg = "game over"
+    local col = 7
+    print(msg, 40, 40, col)
+    print("final score: "..score, 30, 55, 11)
+    print("enemies killed: "..enemies_killed, 20, 65, 7)
+    print("wave reached: "..wave_count, 20, 75, 7)
+    print("difficulty: "..difficulty_names[difficulty], 20, 85, 6)
 
-  print("press z to restart", 20, 85, 10)
+    print("press z to restart", 20, 110, 10)
+  end
 end
 
 function _draw()
   if state == "menu" then
     draw_menu()
+  elseif state == "difficulty" then
+    draw_difficulty()
   elseif state == "play" then
     draw_play()
+  elseif state == "wave_complete" then
+    draw_wave_complete()
+  elseif state == "boss_defeated" then
+    draw_boss_defeated()
   elseif state == "gameover" then
     draw_gameover()
   end
