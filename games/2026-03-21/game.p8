@@ -51,6 +51,8 @@ enemy_anim_frame = 0
 starfield = {}  -- background stars
 score_popups = {}  -- floating score feedback
 boss_intro_timer = 0  -- for boss introduction fanfare
+boss_attack_warning = 0  -- wind-up effect before boss attacks
+combo_pulse_timer = 0  -- for combo counter pulsing
 
 -- initialize starfield
 function init_starfield()
@@ -124,6 +126,8 @@ function _init()
   multiplier_last_value = 1.0
   score_popups = {}
   boss_intro_timer = 0
+  boss_attack_warning = 0
+  combo_pulse_timer = 0
   init_starfield()
   music(3)  -- start with menu theme
   current_music = 3
@@ -621,12 +625,16 @@ function update_play()
       elseif difficulty == 3 then spd *= 1.2 end
       -- tank enemies have 2 health, others have 1
       local health = etype == 3 and 2 or 1
-      add(enemies, {x=rnd(120)+4, y=4, type=etype, speed=spd, health=health})
+      spawn_enemy_with_fade(rnd(120)+4, 4, etype, spd, health)
       enemy_spawn_timer = spawn_rate
     end
 
     -- update enemies
     for e in all(enemies) do
+      -- handle spawn fade-in
+      if e.fade_timer then
+        e.fade_timer -= 1
+      end
       e.y += e.speed
       if e.y > 128 then
         e.alive = false
@@ -658,9 +666,12 @@ function update_play()
             local new_multiplier = calc_combo_multiplier()
             if new_multiplier > multiplier_last_value then
               multiplier_flash_timer = 10  -- flash on increase
+              combo_pulse_timer = 15  -- pulse animation
               -- play combo milestone sounds at thresholds
               if combo == 5 or combo == 10 or combo == 15 or combo == 20 then
                 sfx(5)  -- combo milestone
+                trigger_shake(3)  -- intense shake on milestone
+                create_explosion(player.x, player.y, 8, 2, 11)  -- bonus feedback
               end
             end
             multiplier_last_value = new_multiplier
@@ -678,14 +689,16 @@ function update_play()
             local earned_points = flr(points * score_multiplier * combo_multiplier)
             score += earned_points
 
-            -- visual feedback on kill
-            local kill_colors = {8, 10, 14}  -- cyan for standard, red for fast, yellow for tank
+            -- visual feedback on kill with type-specific effects
+            local kill_colors = {8, 10, 14}  -- cyan for standard, red for fast, gray for tank
             local kill_count = {4, 6, 8}
             create_explosion(e.x, e.y, kill_count[e.type], 2, kill_colors[e.type])
             trigger_shake(2)
             trigger_flash(11)
             enemies_killed += 1
-            sfx(1)
+            -- type-specific death sounds
+            local death_sound = e.type == 2 and 0 or (e.type == 3 and 2 or 1)
+            sfx(death_sound)
             create_score_popup(e.x, e.y, earned_points)  -- show score
             _log("kill:enemy:type"..e.type..",combo:"..combo.."x")
             _log("score:"..earned_points..",combo:"..combo.."x")
@@ -769,6 +782,7 @@ function update_wave_complete()
     _log("wave_bonus:"..wave_bonus..",combo:"..combo.."x")
 
     sfx(5)  -- wave complete stinger
+    trigger_shake(2)  -- strong shake on wave complete
     wave_count += 1
     state = "play"
     init_wave(wave_count)
@@ -790,7 +804,8 @@ function update_boss_defeated()
     _log("boss_bonus:"..boss_bonus..",combo:"..combo.."x")
 
     music(-1)  -- stop music
-    sfx(6)     -- victory stinger
+    sfx(8)     -- victory stinger
+    trigger_shake(3)  -- intense victory shake
     state = "gameover"
     _log("state:gameover:win")
   end
@@ -832,6 +847,12 @@ end
 function collision(x1, y1, w1, h1, x2, y2, w2, h2)
   return x1 < x2 + w2 and x1 + w1 > x2 and
          y1 < y2 + h2 and y1 + h1 > y2
+end
+
+function spawn_enemy_with_fade(x, y, etype, spd, health)
+  -- spawn with fade-in animation
+  local e = {x=x, y=y, type=etype, speed=spd, health=health, fade_timer=10, fade_max=10, alive=true}
+  add(enemies, e)
 end
 
 function spawn_powerup(x, y, enemy_type)
@@ -903,6 +924,10 @@ function boss_fire_volley()
     })
   end
   sfx(4)
+  -- visual feedback: screen shake on volley
+  trigger_shake(1)
+  -- particles at boss
+  create_explosion(boss.x, boss.y, 3, 0.5, 8)
 end
 
 function boss_charge()
@@ -912,7 +937,12 @@ function boss_charge()
   if dx > 0 then boss.dir = 1 else boss.dir = -1 end
   boss.speed = 2 * accel
   boss.charge_timer = 30 + difficulty * 10
-  sfx(4)
+  sfx(6)  -- distinct charge sound
+  -- visual warning: intense shake
+  trigger_shake(2)
+  -- flash screen red
+  trigger_flash(8)
+  boss_attack_warning = 20  -- wind-up animation
 end
 
 function boss_spiral()
@@ -927,7 +957,11 @@ function boss_spiral()
       vx = vx, vy = vy, alive = true, age = 0
     })
   end
-  sfx(4)
+  sfx(7)  -- spiral attack sound
+  -- visual feedback
+  trigger_shake(1)
+  create_explosion(boss.x, boss.y, 4, 1, 13)  -- purple spiral particles
+  boss_attack_warning = 15
 end
 
 function del_boss_projectiles()
@@ -1143,9 +1177,21 @@ function draw_play()
     -- draw boss sprite with flash effect when hit
     local boss_sprite = boss_phase_timer > 0 and 8 or 3
     spr(boss_sprite, boss.x-4, boss.y-4)
+
     -- boss aura glow - pulsing
     local aura_size = 5 + flr(sin(boss_phase_timer / 15) * 2)
     circ(boss.x, boss.y, aura_size, 5)
+
+    -- attack wind-up warning: intense red aura
+    if boss_attack_warning > 0 then
+      local warn_size = 8 + (20 - boss_attack_warning) / 2
+      circ(boss.x, boss.y, warn_size, 8)  -- red warning ring
+      if boss_attack_warning % 2 == 0 then
+        circ(boss.x, boss.y, warn_size - 2, 2)  -- flash white center
+      end
+      boss_attack_warning -= 1
+    end
+
     -- additional hit flash
     if boss_phase_timer > 0 and boss_phase_timer % 2 == 0 then
       circ(boss.x, boss.y, 6, 12)
@@ -1155,6 +1201,17 @@ function draw_play()
     for e in all(enemies) do
       local bob = sin(enemy_anim_frame / 30 + (e.x + e.y) / 20) * 0.5
       local draw_y = e.y - 4 + bob
+
+      -- apply fade-in effect during spawn
+      local fade_alpha = 1
+      if e.fade_timer then
+        fade_alpha = 1 - (e.fade_timer / e.fade_max)
+      end
+
+      -- skip drawing if fading in but not visible yet
+      if fade_alpha < 0.1 then
+        goto skip_enemy_draw
+      end
 
       if e.type == 1 then
         -- standard enemy: cyan colored
@@ -1177,6 +1234,8 @@ function draw_play()
           pset(e.x-2, draw_y-2, 14)
         end
       end
+
+      ::skip_enemy_draw::
     end
   end
 
@@ -1236,7 +1295,7 @@ function draw_play()
     print("boss hp: "..boss.health, 85, 5, 10)
   end
 
-  -- draw combo multiplier in bottom-right
+  -- draw combo multiplier in bottom-right with pulsing effect
   local multiplier_text = "x"..flr(combo_multiplier * 10) / 10
   local multiplier_color = 7  -- default white
   if combo_multiplier >= 5.0 then
@@ -1253,7 +1312,21 @@ function draw_play()
     multiplier_flash_timer -= 1
   end
 
-  print(multiplier_text, 115, 120, multiplier_color)
+  -- pulsing effect for combo
+  local combo_scale = 1
+  if combo_pulse_timer > 0 then
+    combo_scale = 1 + sin(combo_pulse_timer / 5) * 0.15
+    combo_pulse_timer -= 1
+  end
+
+  -- draw combo text with scale effect
+  local x_off = flr((1 - combo_scale) * 4)
+  print(multiplier_text, 115 + x_off, 120, multiplier_color)
+
+  -- draw combo counter next to multiplier
+  if combo > 0 then
+    print("("..combo..")", 110, 112, 6)
+  end
 end
 
 function draw_gameover()
@@ -1345,6 +1418,9 @@ __sfx__
 010200002454325432543200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 010200001f441f441f441f441f441c441c441c440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 010300000c4510450c4514450c450c451045100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010400006c4507c4506c4507c4500c4500c45000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010400003c4503c4503c4503c4501c4501c4500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010200002844384432844384410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
 00 00040404
 01 01050505
