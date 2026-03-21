@@ -42,6 +42,9 @@ shake_intensity = 0
 flash_timer = 0
 flash_type = nil  -- "treasure", "hit"
 level_complete_timer = 0
+particles = {}
+pulsing_elements = {}  -- for UI pulsing
+boss_phase_timer = 0  -- for boss color changes
 
 -- player
 player = {x=10, y=10, w=6, h=6, vx=0, vy=0, speed=1.5}
@@ -136,6 +139,7 @@ function _update()
   -- update visual effects
   if shake_timer > 0 then shake_timer -= 1 end
   if flash_timer > 0 then flash_timer -= 1 end
+  update_particles()
 
   if state == "menu" then
     update_menu()
@@ -154,6 +158,7 @@ end
 
 function update_menu()
   if btnp(4) or btnp(5) then
+    sfx(5)  -- menu start sound
     state = "difficulty"
     difficulty_selected = 2
     _log("state:difficulty")
@@ -209,11 +214,15 @@ function update_play()
       t.collected = true
       treasures_collected += 1
       sfx(2)  -- treasure chime
+      emit_particles(t.x+4, t.y+4, "treasure", 8)
       flash_timer = 8
       flash_type = "treasure"
+      shake_timer = 4
+      shake_intensity = 1  -- slight shake for treasure
       -- trigger boss charge if boss exists
       if boss then
         boss_charge_timer = 60
+        sfx(6)  -- boss charge sound
         _log("boss_charge")
       end
       _log("treasure_collected:"..treasures_collected)
@@ -243,15 +252,18 @@ function update_play()
     -- check collision with player
     if collide(player, boss) then
       boss.health -= 1
-      sfx(1)  -- hit sound
-      shake_timer = 6
-      shake_intensity = 2
+      sfx(7)  -- boss hit sound
+      emit_particles(boss.x+4, boss.y+4, "hit", 10)
+      shake_timer = 8
+      shake_intensity = 3  -- strong shake for boss hit
       flash_timer = 6
       flash_type = "hit"
+      boss_phase_timer = 30  -- color change timer
       _log("boss_hit:"..boss.health)
       if boss.health <= 0 then
         state = "boss_defeated"
-        sfx(3)  -- victory fanfare
+        sfx(8)  -- victory fanfare
+        emit_particles(boss.x+4, boss.y+4, "treasure", 15)
         _log("boss_defeated")
       else
         -- move player back
@@ -273,6 +285,7 @@ function update_play()
       if collide(player, e) then
         lives -= 1
         sfx(1)  -- hit sound
+        emit_particles(player.x+3, player.y+3, "hit", 6)
         shake_timer = 6
         shake_intensity = 2
         flash_timer = 6
@@ -280,7 +293,7 @@ function update_play()
         _log("hit_enemy:"..lives)
         if lives <= 0 then
           state = "gameover"
-          sfx(4)  -- game over loss
+          sfx(9)  -- game over loss
           _log("gameover:lose")
         else
           -- reset player position
@@ -295,6 +308,7 @@ function update_play()
     if collide(player, h) then
       lives -= 1
       sfx(1)  -- hit sound
+      emit_particles(player.x+3, player.y+3, "hit", 8)
       shake_timer = 6
       shake_intensity = 2
       flash_timer = 6
@@ -302,7 +316,7 @@ function update_play()
       _log("hit_hazard:"..lives)
       if lives <= 0 then
         state = "gameover"
-        sfx(4)  -- game over loss
+        sfx(9)  -- game over loss
         _log("gameover:lose")
       else
         player = {x=10, y=10, w=6, h=6, vx=0, vy=0, speed=1.5}
@@ -361,6 +375,50 @@ function collide(a, b)
          a.x + a.w > b.x and
          a.y < b.y + bh and
          a.y + a.h > b.y
+end
+
+-- particle system for visual effects
+function emit_particles(x, y, type, count)
+  count = count or 6
+  for i=1,count do
+    local angle = rnd(1)  -- 0-1 in pico-8 trig
+    local speed = 1 + rnd(1.5)
+    local vx = cos(angle) * speed
+    local vy = sin(angle) * speed
+    add(particles, {
+      x=x, y=y, vx=vx, vy=vy,
+      age=0, life=15, type=type, color=10
+    })
+  end
+end
+
+function update_particles()
+  for p in all(particles) do
+    p.age += 1
+    p.x += p.vx
+    p.y += p.vy
+    p.vy += 0.1  -- gravity
+    if p.age >= p.life then
+      del(particles, p)
+    end
+  end
+end
+
+function draw_particles()
+  for p in all(particles) do
+    local fade = 1 - (p.age / p.life)
+    local color = p.color
+    if p.type == "treasure" then
+      color = 10 + flr(fade * 2)  -- yellow shimmer
+    elseif p.type == "hit" then
+      color = 8 + flr(fade * 2)  -- red sparkle
+    end
+    if fade > 0.5 then
+      pset(flr(p.x), flr(p.y), color)
+    elseif fade > 0.2 then
+      pset(flr(p.x), flr(p.y), 6)  -- fade to darker
+    end
+  end
 end
 
 function _draw()
@@ -435,37 +493,83 @@ function draw_difficulty()
 end
 
 function draw_play()
-  -- draw treasures
+  -- draw treasures with pulsing animation
   for t in all(treasures) do
     if not t.collected then
+      local pulse = sin(t()/20) * 0.5 + 0.5
+      local scale_x, scale_y = 1, 1
+      if pulse > 0.7 then
+        -- shimmer effect: small scale variations
+        scale_x = 1.2
+        scale_y = 1.2
+      end
       spr(1, t.x, t.y)
     end
   end
 
   -- draw boss or enemies
   if boss then
+    -- boss phase color: darker when low hp
+    local color_offset = 0
+    if boss.health == 2 then
+      color_offset = 1  -- mid-health color shift
+    elseif boss.health == 1 then
+      color_offset = 2  -- low-health color shift
+    end
+    if boss_phase_timer > 0 then
+      -- flash effect when hit
+      if boss_phase_timer % 4 < 2 then
+        pal(3, 8 + color_offset)  -- red tint
+      end
+    end
     spr(2, boss.x, boss.y, 2, 2)  -- larger sprite for boss
+    pal()  -- reset palette
   else
     for e in all(enemies) do
       spr(2, e.x, e.y)
     end
   end
 
-  -- draw hazards
+  -- draw particles
+  draw_particles()
+
+  -- draw hazards with pulsing animation
   for h in all(hazards) do
-    rectfill(h.x, h.y, h.x+h.w-1, h.y+h.h-1, 8)
+    local pulse = flr(sin(t()/10) * 1) + 1
+    local color = 8 + pulse  -- pulse between red shades
+    rectfill(h.x, h.y, h.x+h.w-1, h.y+h.h-1, color)
   end
 
   -- draw player
   spr(0, player.x, player.y)
 
-  -- draw UI
-  print("lvl:"..level, 2, 2, 7)
-  print("gold:"..treasures_collected.."/"..treasures_total, 40, 2, 7)
+  -- draw animated UI
+  -- level number with pulsing effect
+  local lvl_pulse = flr(sin(t()/15) * 0.5) + 1
+  print("lvl:"..level, 2, 2, 7 + lvl_pulse)
+
+  -- treasure counter with color
+  local treasure_color = 10
+  if treasures_collected >= treasures_total then
+    treasure_color = 11  -- bright yellow when complete
+  end
+  print("gold:"..treasures_collected.."/"..treasures_total, 40, 2, treasure_color)
+
   if boss then
-    print("boss hp:"..boss.health, 85, 2, 8)
+    -- animated boss HP bar
+    local hp_color = 8
+    if boss.health == 2 then hp_color = 9 elseif boss.health == 1 then hp_color = 3 end
+    print("boss hp:"..boss.health, 85, 2, hp_color)
+    -- simple HP bar
+    rectfill(85, 10, 85 + boss.health * 5, 12, hp_color)
+    rect(85, 10, 100, 12, 7)
   else
-    print("lives:"..lives, 100, 2, 7)
+    -- pulsing lives counter when low
+    local lives_color = 7
+    if lives == 1 then
+      lives_color = 8 + (flr(t()/5) % 2)  -- flash red when 1 life
+    end
+    print("lives:"..lives, 100, 2, lives_color)
   end
 end
 
@@ -475,10 +579,21 @@ function draw_boss_defeated()
   rectfill(0, 0, 128, 128, 15)
   pal()
 
-  print("boss defeated!", 35, 30, 11)
+  -- animated victory text
+  local pulse = flr(sin(t()/10) * 2) + 1
+  print("boss defeated!", 35, 30, 11 + pulse)
+
+  -- treasure count with emphasis
   print("treasures:", 40, 50, 7)
-  print(treasures_collected.."/"..treasures_total, 55, 60, 10)
-  print("press z to finish", 25, 80, 7)
+  local treasure_pulse = flr(sin(t()/15) * 1)
+  print(treasures_collected.."/"..treasures_total, 55, 60, 10 + treasure_pulse)
+
+  -- pulsing continue prompt
+  if flr(t()/20) % 2 == 0 then
+    print("press z to finish", 25, 80, 11)
+  else
+    print("press z to finish", 25, 80, 7)
+  end
 end
 
 function draw_level_complete()
@@ -491,9 +606,25 @@ function draw_level_complete()
   rectfill(0, 0, 128, 128, 15)
   pal()
 
-  print("level "..level.." complete!", 12, 35, color)
-  print("treasures: "..treasures_collected, 25, 50, 7)
-  print("press z to continue", 20, 65, 7)
+  -- celebrate with text bounce
+  local bounce = abs(sin(level_complete_timer / 8)) * 3
+  print("level "..level.." complete!", 12, 30 + flr(bounce), color)
+
+  -- treasure count with shine effect
+  local shine = abs(sin(level_complete_timer / 12))
+  local shine_color = 10 + flr(shine)
+  print("treasures: "..treasures_collected, 25, 50, shine_color)
+
+  -- auto-continue prompt or manual
+  if level_complete_timer > 30 then
+    if flr(level_complete_timer / 10) % 2 == 0 then
+      print("press z to continue", 20, 70, 11)
+    else
+      print("press z to continue", 20, 70, 7)
+    end
+  else
+    print("continuing...", 42, 70, 10)
+  end
 end
 
 function draw_gameover()
@@ -513,10 +644,10 @@ function draw_gameover()
 end
 
 __gfx__
-00000000077700000c5500001d1d1d0008080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000077770005555000001d1d100888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000077770055555500001d1d100888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000077700000055000001d1d1008880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000077700000a5a00002d2d2d00090a90000ab0b0a000f7f7f00000000000000000000000000000000000000000000000000000000000000000000000000
+00000000077770005a5a5a00a2d2d20a0a9a9a00ab0b0ba00f7f7f700000000000000000000000000000000000000000000000000000000000000000000000000
+00000000077770055a5a5500a2d2d2a00a9a9a00ababab00f7f7f7f0000000000000000000000000000000000000000000000000000000000000000000000000
+00000000077700000a5a0000a2d2d2a00a0a9a0000b0b000f7f7f00000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -550,3 +681,8 @@ __sfx__
 001000000e3701e3703c3004c3005c3106e3107e3108e310ae320ce320ee31000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000900003e350402052030e2030e2020e2010e2000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000005f2504250032500c2500c2500c2500c2500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000f0000346503665046650556505a65006650000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000b0000166501e6502465029650316500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00100000045603e5604c5603e5503c5505c5506c5606e5506d5700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001800006e6507d6608d65093650a0650a0650a0650a0650a0650a0650a0650a0650a0650a0650000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00080000206502060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
