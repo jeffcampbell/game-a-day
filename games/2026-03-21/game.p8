@@ -43,6 +43,18 @@ shake_intensity = 0
 flash_timer = 0
 flash_color = 0
 particles = {}
+sprite_flash_timer = 0
+sprite_flash_state = false
+enemy_anim_frame = 0
+starfield = {}  -- background stars
+
+-- initialize starfield
+function init_starfield()
+  starfield = {}
+  for i=1,20 do
+    add(starfield, {x=rnd(128), y=rnd(128), speed=0.2+rnd(0.3), color=5+flr(rnd(2))})
+  end
+end
 
 -- player
 player = {x=64, y=110, w=4, h=4}
@@ -94,6 +106,7 @@ function _init()
   score_multiplier = 1
   shield_count = 0
   rapid_fire_timer = 0
+  init_starfield()
   _log("init")
 end
 
@@ -103,6 +116,7 @@ function init_wave(wv)
   boss = nil
   projectiles = {}
   powerups = {}
+  particles = {}  -- clear particles for clean wave start
   enemy_spawn_timer = 30
   enemies_killed = 0
   difficulty_level = wv
@@ -141,13 +155,21 @@ function init_wave(wv)
   end
 end
 
--- particle system
+-- particle system with enhanced visuals
 function create_explosion(x, y, count, speed, color)
   for i=1,count do
     local angle = rnd(1)  -- pico-8 uses turns 0-1
     local px = cos(angle) * speed * (0.5 + rnd(0.5))
     local py = sin(angle) * speed * (0.5 + rnd(0.5))
-    add(particles, {x=x, y=y, vx=px, vy=py, life=20, color=color, age=0})
+    local lifetime = 15 + flr(rnd(10))
+    add(particles, {x=x, y=y, vx=px, vy=py, life=lifetime, color=color, age=0, size=1})
+  end
+  -- add bright flash particles at center
+  for i=1,flr(count/2) do
+    local angle = rnd(1)
+    local px = cos(angle) * speed * 0.3
+    local py = sin(angle) * speed * 0.3
+    add(particles, {x=x, y=y, vx=px, vy=py, life=8, color=12, age=0, size=2})
   end
 end
 
@@ -155,8 +177,8 @@ function update_particles()
   for p in all(particles) do
     p.x += p.vx
     p.y += p.vy
-    p.vy += 0.1  -- gravity
-    p.vx *= 0.97  -- drag
+    p.vy += 0.15  -- gravity
+    p.vx *= 0.96  -- drag
     p.age += 1
     if p.age >= p.life then
       del(particles, p)
@@ -235,6 +257,8 @@ function update_play()
   if shake_timer > 0 then shake_timer -= 1 end
   if flash_timer > 0 then flash_timer -= 1 end
   if boss_phase_timer > 0 then boss_phase_timer -= 1 end
+  if sprite_flash_timer > 0 then sprite_flash_timer -= 1 end
+  enemy_anim_frame = (enemy_anim_frame + 1) % 30  -- 30 frame animation cycle
   update_particles()
 
   -- update active power-up timers
@@ -622,6 +646,16 @@ end
 function draw_play()
   cls(0)
 
+  -- draw starfield background
+  for star in all(starfield) do
+    star.y += star.speed
+    if star.y > 128 then
+      star.y = -2
+      star.x = rnd(128)
+    end
+    pset(flr(star.x), flr(star.y), star.color)
+  end
+
   -- apply screen shake
   local shake_x = 0
   local shake_y = 0
@@ -631,92 +665,76 @@ function draw_play()
   end
   camera(shake_x, shake_y)
 
-  -- draw player (improved sprite graphics)
-  -- main body
-  rectfill(player.x-2, player.y-2, player.x+2, player.y+2, 10)
-  -- nose/cockpit
-  pset(player.x-1, player.y-3, 11)
-  pset(player.x, player.y-3, 11)
-  pset(player.x+1, player.y-3, 11)
-  -- wing tips
-  pset(player.x-3, player.y-1, 10)
-  pset(player.x+3, player.y-1, 10)
-  -- thruster
-  pset(player.x, player.y+3, 9)
+  -- draw player using sprite
+  spr(0, player.x-4, player.y-4)
 
-  -- draw projectiles with better visuals
+  -- draw projectiles using sprite with glow
   for p in all(projectiles) do
-    -- projectile body
-    rectfill(p.x-1, p.y, p.x, p.y+3, 11)
-    -- projectile tip (brighter)
-    pset(p.x, p.y-1, 12)
+    -- add projectile glow
+    if p.age % 2 == 0 then
+      pset(flr(p.x), flr(p.y)-3, 12)  -- bright glow
+    end
+    spr(4, p.x-2, p.y-2)
+    -- trail effect
+    if p.age % 3 == 0 then
+      add(particles, {x=p.x, y=p.y+2, vx=rnd(0.5)-0.25, vy=0.3, life=5, color=11, age=0, size=1})
+    end
   end
 
-  -- draw particles (explosions and trails)
+  -- draw particles (explosions and trails) with size variation
   for part in all(particles) do
     local alpha = flr(part.life - part.age) / part.life
     if alpha > 0.5 then
-      pset(flr(part.x), flr(part.y), part.color)
+      if part.size and part.size > 1 then
+        -- bright burst particles
+        for dx=-part.size,part.size do
+          pset(flr(part.x)+dx, flr(part.y), part.color)
+        end
+      else
+        pset(flr(part.x), flr(part.y), part.color)
+      end
     elseif alpha > 0 then
       pset(flr(part.x), flr(part.y), 1)
     end
   end
 
-  -- draw power-ups
+  -- draw power-ups using sprites with rotation animation
   for pu in all(powerups) do
-    local col = 3  -- shield cyan
-    if pu.type == 2 then col = 10  -- rapid yellow
-    elseif pu.type == 3 then col = 11 end  -- health green
-    -- draw: box (shield), star (rapid), or cross (health)
+    local rotation = flr((pu.age + pu.type * 10) / 3) % 4
+    local pulse = sin((pu.age + pu.type * 20) / 60) * 2
     if pu.type == 1 then
-      -- shield: rotating box
-      rect(flr(pu.x)-2, flr(pu.y)-2, flr(pu.x)+2, flr(pu.y)+2, col)
+      spr(5, flr(pu.x)-4, flr(pu.y)-4)  -- shield
     elseif pu.type == 2 then
-      -- rapid: star shape
-      pset(flr(pu.x), flr(pu.y)-2, col)
-      pset(flr(pu.x)-2, flr(pu.y), col)
-      pset(flr(pu.x)+2, flr(pu.y), col)
-      pset(flr(pu.x), flr(pu.y)+2, col)
-      pset(flr(pu.x), flr(pu.y), col)
+      -- rapid-fire rotates
+      if rotation == 0 then spr(6, flr(pu.x)-4, flr(pu.y)-4)
+      elseif rotation == 1 then spr(6, flr(pu.x)-4, flr(pu.y)-4, 1, 1, false, false)
+      else spr(6, flr(pu.x)-4, flr(pu.y)-4) end
     elseif pu.type == 3 then
-      -- health: cross/plus shape
-      pset(flr(pu.x), flr(pu.y)-2, col)
-      pset(flr(pu.x)-2, flr(pu.y), col)
-      pset(flr(pu.x)+2, flr(pu.y), col)
-      pset(flr(pu.x), flr(pu.y)+2, col)
-      pset(flr(pu.x), flr(pu.y), col)
+      spr(7, flr(pu.x)-4, flr(pu.y)-4)  -- health
     end
   end
 
   -- draw boss or enemies
   if boss then
-    -- draw boss with phase color
-    local boss_color = boss_phase_timer > 0 and 12 or 9
-    rectfill(boss.x-3, boss.y-3, boss.x+3, boss.y+3, boss_color)
-    -- boss markings
-    pset(boss.x-3, boss.y-3, 12)
-    pset(boss.x+3, boss.y-3, 12)
-    pset(boss.x-3, boss.y+3, 12)
-    pset(boss.x+3, boss.y+3, 12)
-    -- boss aura
-    circ(boss.x, boss.y, 4, 5)
+    -- draw boss sprite with flash effect when hit
+    local boss_sprite = boss_phase_timer > 0 and 8 or 3
+    spr(boss_sprite, boss.x-4, boss.y-4)
+    -- boss aura glow - pulsing
+    local aura_size = 5 + flr(sin(boss_phase_timer / 15) * 2)
+    circ(boss.x, boss.y, aura_size, 5)
+    -- additional hit flash
+    if boss_phase_timer > 0 and boss_phase_timer % 2 == 0 then
+      circ(boss.x, boss.y, 6, 12)
+    end
   else
-    -- draw regular enemies
+    -- draw regular enemies using sprites with subtle bob animation
     for e in all(enemies) do
+      local bob = sin(enemy_anim_frame / 30 + (e.x + e.y) / 20) * 0.5
+      local draw_y = e.y - 4 + bob
       if e.type == 1 then
-        -- small cyan enemy
-        rectfill(e.x-2, e.y-2, e.x+2, e.y+2, 8)
-        pset(e.x-1, e.y-1, 1)
-        pset(e.x+1, e.y-1, 1)
-        pset(e.x, e.y+1, 1)
+        spr(1, e.x-4, draw_y)  -- small enemy with vertical bob
       else
-        -- large magenta enemy
-        rectfill(e.x-2, e.y-2, e.x+2, e.y+2, 9)
-        -- add markings
-        pset(e.x-2, e.y-2, 12)
-        pset(e.x+2, e.y-2, 12)
-        pset(e.x-2, e.y+2, 12)
-        pset(e.x+2, e.y+2, 12)
+        spr(2, e.x-4, draw_y)  -- large enemy with vertical bob
       end
     end
   end
@@ -724,17 +742,22 @@ function draw_play()
   -- reset camera
   camera(0, 0)
 
-  -- flash overlay if recently hit
+  -- flash overlay if recently hit with intensity based on timer
   if flash_timer > 0 then
-    if flash_color == 10 then
-      -- red flash for player damage
-      clip(0, 0, 128, 128)
-      rectfill(0, 0, 128, 128, 10)
-    elseif flash_color == 11 then
-      -- yellow flash for kill
-      rectfill(0, 0, 128, 128, 11)
+    local flash_intensity = flr((flash_timer / 3) * 8)  -- fade intensity
+    local flash_col = flash_color
+    if flash_intensity > 0 then
+      for i=0,flash_intensity do
+        if flash_color == 10 then
+          -- red flash for player damage - striped
+          line(0, i*8, 128, i*8, 10)
+        elseif flash_color == 11 then
+          -- yellow flash for kill - full screen
+          rectfill(0, 0, 128, 128, 11)
+          break
+        end
+      end
     end
-    clip()
   end
 
   -- draw ui (over flash)
@@ -793,21 +816,13 @@ function _draw()
 end
 
 __gfx__
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+007070aa008080dd00a00099008080cc00b0b0ee00c0c0ff00800088000000000000000000000000000000000000000000000000000000000000000000000000
+07777aaa888888dd0aaaa0999999cc00b0b0ee00c0c0ff088888880000000000000000000000000000000000000000000000000000000000000000000000000000
+7888aaaa8888dddd0aaaa099999cc0b0b0eeff0c0c0ff088888880000000000000000000000000000000000000000000000000000000000000000000000000000
+7888aaaa8888dddd0aaaa099999cc0b0b0eeff0c0c0ff088888880000000000000000000000000000000000000000000000000000000000000000000000000000
+78aaaaa88888dddd0aaaa099999cc0b0b0eeff0c0c0ff0bbbbb000000000000000000000000000000000000000000000000000000000000000000000000000000
+7aaaaaa8888dddd000aaa9999cc000b0b0ee000c0c0ff00bbb0000000000000000000000000000000000000000000000000000000000000000000000000000000
+007070000080000000a00000000cc000b0b00000c0c00000b00000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __gfx__
