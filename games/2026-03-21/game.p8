@@ -53,7 +53,6 @@ score_popups = {}  -- floating score feedback
 boss_intro_timer = 0  -- for boss introduction fanfare
 boss_attack_warning = 0  -- wind-up effect before boss attacks
 combo_pulse_timer = 0  -- for combo counter pulsing
-enemy_spawn_fade = {}  -- spawning enemies with fade-in
 
 -- initialize starfield
 function init_starfield()
@@ -129,7 +128,6 @@ function _init()
   boss_intro_timer = 0
   boss_attack_warning = 0
   combo_pulse_timer = 0
-  enemy_spawn_fade = {}
   init_starfield()
   music(3)  -- start with menu theme
   current_music = 3
