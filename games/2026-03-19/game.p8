@@ -139,6 +139,7 @@ function _update()
   -- update visual effects
   if shake_timer > 0 then shake_timer -= 1 end
   if flash_timer > 0 then flash_timer -= 1 end
+  if boss_phase_timer > 0 then boss_phase_timer -= 1 end
   update_particles()
 
   if state == "menu" then
@@ -503,7 +504,7 @@ function draw_play()
         scale_x = 1.2
         scale_y = 1.2
       end
-      spr(1, t.x, t.y)
+      sspr(8, 0, 8, 8, t.x, t.y, scale_x*8, scale_y*8)
     end
   end
 
