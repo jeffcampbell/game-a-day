@@ -66,9 +66,6 @@ boss_phase_timer = 0
 powerups = {}
 shield_count = 0
 rapid_fire_timer = 0
-spread_shot_timer = 0
-score_mult_timer = 0
-active_score_mult = 1
 
 -- difficulty
 enemies_killed = 0
@@ -97,9 +94,6 @@ function _init()
   score_multiplier = 1
   shield_count = 0
   rapid_fire_timer = 0
-  spread_shot_timer = 0
-  score_mult_timer = 0
-  active_score_mult = 1
   _log("init")
 end
 
@@ -113,6 +107,8 @@ function init_wave(wv)
   enemies_killed = 0
   difficulty_level = wv
   wave_complete_timer = 0
+  shield_count = 0
+  rapid_fire_timer = 0
 
   -- determine if this is a boss wave
   local is_boss_wave = wv >= 5
@@ -226,9 +222,6 @@ function update_difficulty()
     player = {x=64, y=110, w=4, h=4}
     shield_count = 0
     rapid_fire_timer = 0
-    spread_shot_timer = 0
-    score_mult_timer = 0
-    active_score_mult = 1
 
     _log("difficulty:"..difficulty_names[difficulty])
     init_wave(1)
@@ -246,12 +239,6 @@ function update_play()
 
   -- update active power-up timers
   if rapid_fire_timer > 0 then rapid_fire_timer -= 1 end
-  if spread_shot_timer > 0 then spread_shot_timer -= 1 end
-  if score_mult_timer > 0 then
-    score_mult_timer -= 1
-  else
-    active_score_mult = 1
-  end
 
   -- player movement
   if test_input(0) == 1 then
@@ -263,17 +250,10 @@ function update_play()
 
   -- shooting
   if test_input(4) == 1 or test_input(5) == 1 then
-    -- rapid fire halves cooldown
-    local cooldown = rapid_fire_timer > 0 and 3 or 5
+    -- rapid fire doubles fire rate (cooldown halved from 5 to 2.5≈2)
+    local cooldown = rapid_fire_timer > 0 and 2 or 5
     if fire_cooldown <= 0 then
-      -- spread shot fires 3 projectiles
-      if spread_shot_timer > 0 then
-        add(projectiles, {x=player.x-3, y=player.y-4, w=1, h=3, alive=true, age=0})
-        add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true, age=0})
-        add(projectiles, {x=player.x+3, y=player.y-4, w=1, h=3, alive=true, age=0})
-      else
-        add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true, age=0})
-      end
+      add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true, age=0})
       fire_cooldown = cooldown
       sfx(0)
       _log("shoot")
@@ -406,10 +386,9 @@ function update_play()
           p.alive = false
           e.alive = false
 
-          -- visual feedback on kill with multiplier and powerup bonus
+          -- visual feedback on kill
           local points = e.type == 1 and 1 or 3
-          local total_mult = score_multiplier * active_score_mult
-          score += flr(points * total_mult)
+          score += flr(points * score_multiplier)
 
           if e.type == 1 then
             create_explosion(e.x, e.y, 4, 1.5, 8)  -- cyan explosion
@@ -417,8 +396,8 @@ function update_play()
             create_explosion(e.x, e.y, 6, 2, 9)    -- magenta explosion
           end
 
-          -- spawn power-up from destroyed enemy
-          spawn_powerup(e.x, e.y)
+          -- spawn power-up from destroyed enemy (15% small, 25% large)
+          spawn_powerup(e.x, e.y, e.type)
 
           trigger_shake(2)
           trigger_flash(11)
@@ -530,14 +509,13 @@ function collision(x1, y1, w1, h1, x2, y2, w2, h2)
          y1 < y2 + h2 and y1 + h1 > y2
 end
 
-function spawn_powerup(x, y)
-  -- drop chance: 8% on easy, 5% on normal, 3% on hard
-  local drop_chance = 0.08
-  if difficulty == 2 then drop_chance = 0.05
-  elseif difficulty == 3 then drop_chance = 0.03 end
+function spawn_powerup(x, y, enemy_type)
+  -- drop chance: 15% for small enemies, 25% for large enemies
+  local drop_chance = enemy_type == 1 and 0.15 or 0.25
 
   if rnd(1) < drop_chance then
-    local pu_type = flr(rnd(4)) + 1  -- types: 1=shield, 2=rapid, 3=spread, 4=score
+    -- pick random powerup: 1=shield, 2=rapid-fire, 3=health
+    local pu_type = flr(rnd(3)) + 1
     add(powerups, {x=x, y=y, type=pu_type, age=0, alive=true})
     _log("powerup:spawn:"..pu_type)
   end
@@ -545,22 +523,26 @@ end
 
 function apply_powerup(pu_type)
   if pu_type == 1 then
-    -- shield
-    shield_count += 1
-    _log("shield:+"..shield_count)
+    -- shield: absorbs one collision (max 3)
+    if shield_count < 3 then
+      shield_count += 1
+      _log("shield_pickup:"..shield_count)
+    else
+      _log("shield_full")
+    end
   elseif pu_type == 2 then
-    -- rapid fire (2x rate, 5 sec)
+    -- rapid fire: doubles fire rate for 5 seconds (300 frames)
     rapid_fire_timer = 300
-    _log("rapidfire:+5s")
+    _log("rapidfire_pickup:5s")
   elseif pu_type == 3 then
-    -- spread shot (3 proj, 4 sec)
-    spread_shot_timer = 240
-    _log("spreadshot:+4s")
-  elseif pu_type == 4 then
-    -- score multiplier (2x, 6 sec)
-    score_mult_timer = 360
-    active_score_mult = 2
-    _log("scoremult:+6s")
+    -- health: restores one lost life (max 3)
+    if lives < 3 then
+      lives += 1
+      create_explosion(player.x, player.y, 8, 1, 11)  -- green particle burst
+      _log("health_pickup:"..lives)
+    else
+      _log("health_full")
+    end
   end
 end
 
@@ -684,12 +666,10 @@ function draw_play()
   for pu in all(powerups) do
     local col = 3  -- shield cyan
     if pu.type == 2 then col = 10  -- rapid yellow
-    elseif pu.type == 3 then col = 2  -- spread magenta
-    elseif pu.type == 4 then col = 9 end  -- score orange
-    -- draw rotating box (shield), star, triangle, or diamond
+    elseif pu.type == 3 then col = 11 end  -- health green
+    -- draw: box (shield), star (rapid), or cross (health)
     if pu.type == 1 then
       -- shield: rotating box
-      local rot = (pu.age % 16) / 16
       rect(flr(pu.x)-2, flr(pu.y)-2, flr(pu.x)+2, flr(pu.y)+2, col)
     elseif pu.type == 2 then
       -- rapid: star shape
@@ -699,17 +679,12 @@ function draw_play()
       pset(flr(pu.x), flr(pu.y)+2, col)
       pset(flr(pu.x), flr(pu.y), col)
     elseif pu.type == 3 then
-      -- spread: triangle (pointing up)
-      pset(flr(pu.x), flr(pu.y)-2, col)
-      pset(flr(pu.x)-2, flr(pu.y)+1, col)
-      pset(flr(pu.x)+2, flr(pu.y)+1, col)
-      pset(flr(pu.x), flr(pu.y), col)
-    elseif pu.type == 4 then
-      -- score: diamond
+      -- health: cross/plus shape
       pset(flr(pu.x), flr(pu.y)-2, col)
       pset(flr(pu.x)-2, flr(pu.y), col)
       pset(flr(pu.x)+2, flr(pu.y), col)
       pset(flr(pu.x), flr(pu.y)+2, col)
+      pset(flr(pu.x), flr(pu.y), col)
     end
   end
 
@@ -776,16 +751,6 @@ function draw_play()
   if rapid_fire_timer > 0 then
     local sec = flr(rapid_fire_timer / 60) + 1
     print("rapid "..sec.."s", 5, pu_y, 10)
-    pu_y += 7
-  end
-  if spread_shot_timer > 0 then
-    local sec = flr(spread_shot_timer / 60) + 1
-    print("spread "..sec.."s", 5, pu_y, 2)
-    pu_y += 7
-  end
-  if score_mult_timer > 0 then
-    local sec = flr(score_mult_timer / 60) + 1
-    print("2x scr "..sec.."s", 5, pu_y, 9)
   end
 
   -- draw boss health if in boss wave
