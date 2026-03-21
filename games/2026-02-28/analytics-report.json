@@ -11,16 +11,15 @@
     "state_transitions": [
       "menu",
       "leaderboard_view",
-      "mode_select",
       "difficulty_select",
       "play",
       "pause",
       "gameover"
     ],
-    "logs_captured": 182,
+    "logs_captured": 155,
     "events": {
-      "state_transitions": 7,
-      "game_events": 174,
+      "state_transitions": 6,
+      "game_events": 148,
       "gameover_events": 1
     },
     "exit_state": "analysis_complete",
