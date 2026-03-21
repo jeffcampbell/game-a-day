@@ -86,7 +86,6 @@ function _init()
   projectiles = {}
   particles = {}
   powerups = {}
-  active_powerups = {}
   enemy_spawn_timer = 30
   enemies_killed = 0
   difficulty_level = 1
@@ -539,7 +538,7 @@ function spawn_powerup(x, y)
 
   if rnd(1) < drop_chance then
     local pu_type = flr(rnd(4)) + 1  -- types: 1=shield, 2=rapid, 3=spread, 4=score
-    add(powerups, {x=x, y=y, type=pu_type, age=0})
+    add(powerups, {x=x, y=y, type=pu_type, age=0, alive=true})
     _log("powerup:spawn:"..pu_type)
   end
 end
