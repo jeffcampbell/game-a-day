@@ -222,9 +222,24 @@ function inslb(mode, score)
 end
 
 function cka() end
-function una(id) as[id]=true sva() end
+function una(id)
+  as[id] = true
+  sas[id] = true
+  _log("achievement:"..id)
+  sva()
+  sfx(6)
+  shf = 2
+  shi = 0.5
+  add(mts, {
+    text = "achievement!",
+    y = 50,
+    life = 40,
+    initial_life = 40,
+    col = 12
+  })
+end
 function cna() local c=0 for i=1,16 do if as[i] then c+=1 end end return c end
-function csa() local c=0 for i=1,16 do if as[i] then c+=1 end end return c end
+function csa() local c=0 for i=1,16 do if sas[i] then c+=1 end end return c end
 
 function _update()
   if state == "menu" then
@@ -312,9 +327,6 @@ end
 function ims()
   gm = "normal"
   ids()
-end
-  print("up/down: select", 24, 108, 6)
-  print("o: confirm", 32, 116, 6)
 end
 
 function ids()
