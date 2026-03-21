@@ -36,6 +36,7 @@ difficulty_selected = 2
 difficulty_names = {"easy", "normal", "hard"}
 boss_health = 0
 wave_complete_timer = 0
+current_music = -1  -- track which music pattern is playing
 
 -- visual effects
 shake_timer = 0
@@ -227,6 +228,11 @@ function update_difficulty()
     init_wave(1)
     _log("state:play")
     sfx(2)
+
+    -- start music based on difficulty
+    current_music = difficulty - 1  -- 0=easy, 1=normal, 2=hard
+    music(current_music)
+    _log("music:"..difficulty_names[difficulty])
   end
 end
 
@@ -338,10 +344,11 @@ function update_play()
       create_explosion(player.x, player.y, 8, 1, 10)
       trigger_shake(3)
       trigger_flash(10)
-      sfx(1)
+      sfx(4)  -- boss attack threatening sound
       _log("collision:boss")
 
       if lives <= 0 then
+        music(-1)  -- stop music when player dies
         state = "gameover"
         _log("state:gameover:lose")
         sfx(3)
@@ -455,9 +462,12 @@ end
 function update_wave_complete()
   wave_complete_timer -= 1
   if wave_complete_timer <= 0 or btnp(4) or btnp(5) then
+    sfx(5)  -- wave complete stinger
     wave_count += 1
     state = "play"
     init_wave(wave_count)
+    -- restart music for next wave
+    music(current_music)
     _log("state:play")
   end
 end
@@ -467,6 +477,8 @@ function update_boss_defeated()
     wave_complete_timer -= 1
   end
   if wave_complete_timer <= 0 and (btnp(4) or btnp(5)) then
+    music(-1)  -- stop music
+    sfx(6)     -- victory stinger
     state = "gameover"
     _log("state:gameover:win")
   end
@@ -474,6 +486,7 @@ end
 
 function update_gameover()
   if btnp(4) or btnp(5) then
+    music(-1)  -- stop any music
     state = "menu"
     _log("state:menu")
     sfx(2)
@@ -867,6 +880,12 @@ __sfx__
 010100001c051d055000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 01010000164514b451000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 01040000304503045030450304500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010300002c3503c35000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01050000084500845008450084500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010300002c450344502c450344500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010400005c5505a5505c5505a55050450504500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
-00 00000000
+00 00040404
+01 01050505
+02 02070707
 
