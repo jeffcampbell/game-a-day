@@ -1,12 +1,25 @@
 {
   "title": "Treasure Cave",
-  "description": "An action-exploration game where you navigate a cavern, collect treasures, and avoid enemies and hazards.",
+  "description": "A polished action-exploration game with four difficulty-scaled levels. Navigate caverns, collect treasures, and defeat enemies and hazards. Features enhanced audio effects, particle systems, animated UI, and a challenging boss encounter on level 4. Includes screen shake, color palette effects, and dynamic difficulty scaling.",
   "genres": ["action", "adventure"],
   "difficulty": 3,
   "playtime_minutes": 5,
-  "completion_status": "complete",
+  "completion_status": "polished",
   "target_audience": "general",
-  "token_count": 932,
+  "token_count": 2338,
   "sprite_count": 4,
-  "sound_count": 2
+  "sound_count": 10,
+  "features": [
+    "10 distinct sound effects (menu, selection, hit, treasure collection, boss charge, boss hit, victory fanfare, game over)",
+    "Particle effects system with treasure sparkles and hit effects",
+    "Screen shake with intensity variation (enemy hits, boss hits, treasure collection)",
+    "Animated UI elements (pulsing health bar, treasure counter, lives indicator)",
+    "Palette color swaps for boss phases based on health",
+    "Boss encounter on level 4 with charge AI and health phases",
+    "Difficulty selection (easy, normal, hard) with scaled enemies, hazards, and treasures",
+    "Enhanced sprite designs with color variations",
+    "Flash overlay effects for treasure and damage feedback",
+    "Level complete celebration screen with animations",
+    "Hazard visual feedback with pulsing animation"
+  ]
 }
