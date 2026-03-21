@@ -1,0 +1,24 @@
+{
+  "title": "Space Shooter",
+  "description": "Classic arcade-style space shooter. Pilot your spaceship through waves of incoming enemies. Use arrow keys to move left and right, press Z or X to fire projectiles upward. Dodge or destroy enemies to earn points. Lose 3 lives and it's game over. The game progressively gets harder as your score increases, with enemies moving faster and spawning more frequently.",
+  "genres": [
+    "action",
+    "arcade"
+  ],
+  "difficulty": 3,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general",
+  "token_count": 900,
+  "sprite_count": 0,
+  "sound_count": 4,
+  "audio_features": [
+    "sound_effects"
+  ],
+  "visual_features": [
+    "color_coded_enemies",
+    "score_display",
+    "lives_counter",
+    "difficulty_indicator"
+  ]
+}
