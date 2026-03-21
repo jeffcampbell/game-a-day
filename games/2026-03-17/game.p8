@@ -638,7 +638,7 @@ function update_play()
                     enemy.x, enemy.y, enemy.w, enemy.h) then
       lives -= 1 combo_count = 0 combo_window = 0
       _log("action:hit_enemy")
-      hit_effect(player.x, player.y, 2, 8, 8)
+      hit_effect(player.x, player.y, 2, 8, 8, 6, 3, 1.5)
       if lives <= 0 then _log("gameover:lose") state = "gameover"
       else player.x = 64 player.y = 100 player.vy = 0 player.coyote_frames = max_coyote end
     end
@@ -647,7 +647,7 @@ function update_play()
   if boss and collide_rect(player.x, player.y, player.w, player.h,
                            boss.x, boss.y, boss.w, boss.h) then
     boss.health -= 1 _log("action:hit_boss:"..boss.health)
-    hit_effect(boss.x, boss.y, 3, 9, 10)
+    hit_effect(boss.x, boss.y, 3, 9, 10, 8, 4, 1.8)
     player.x -= 3 player.vy = -4
     if boss.health <= 0 then
       local m=min(combo_count+1, 5)
@@ -846,8 +846,8 @@ function get_camera_offset()
   return 0, 0
 end
 
-function hit_effect(x,y,s,c,p)
-  sfx(2) sfx(6) apply_shake(s,s*3) spawn_particles(x+4,y+4,p,c,1.5) set_flash(c,3)
+function hit_effect(x,y,s,c,p,sd,fd,ps)
+  sfx(2) sfx(6) apply_shake(s,sd) spawn_particles(x+4,y+4,p,c,ps) set_flash(c,fd)
 end
 
 function draw_menu()
