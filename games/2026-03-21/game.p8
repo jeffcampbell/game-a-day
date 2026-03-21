@@ -75,7 +75,6 @@ fire_cooldown = 0
 boss = nil
 boss_phase_timer = 0
 boss_projectiles = {}
-boss_attack_timer = 0
 
 -- power-ups
 powerups = {}
@@ -106,7 +105,7 @@ function _init()
   flash_timer = 0
   boss = nil
   boss_health = 0
-  boss_attack_timer = 0
+  boss_phase_timer = 0
   score_multiplier = 1
   shield_count = 0
   rapid_fire_timer = 0
