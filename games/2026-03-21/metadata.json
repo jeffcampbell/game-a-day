@@ -9,9 +9,9 @@
   "playtime_minutes": 5,
   "completion_status": "complete",
   "target_audience": "general",
-  "token_count": 900,
+  "token_count": 3986,
   "sprite_count": 8,
-  "sound_count": 4,
+  "sound_count": 5,
   "audio_features": [
     "sound_effects"
   ],
