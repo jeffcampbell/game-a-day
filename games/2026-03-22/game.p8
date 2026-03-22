@@ -1390,9 +1390,9 @@ function draw_gameover()
     local is_win = score >= win_score or time_elapsed >= win_time
     local msg_color = is_win and 11 or 8  -- green for win, red for loss
     if is_win then
-      print("★victory!★", 44, 5, 11)
+      print("★victory!★", 44, 5, msg_color)
     else
-      print("great effort!", 40, 5, 8)
+      print("great effort!", 40, 5, msg_color)
     end
 
     -- final score - prominent display
