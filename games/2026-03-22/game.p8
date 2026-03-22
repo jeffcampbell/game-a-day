@@ -57,6 +57,12 @@ difficulty_indicator = "balanced"  -- "easy", "balanced", "hard"
 hazard_speed_adjust = 0  -- cumulative speed adjustment
 spawn_rate_adjust = 0  -- cumulative spawn rate adjustment
 
+-- power-up system
+powerups = {}
+active_powerup = nil  -- {type, timer}
+powerups_collected = 0  -- total count
+powerup_spawn_counter = 0  -- spawn every 10-15 obstacles
+
 -- high score data
 high_scores = {0, 0, 0, 0, 0}  -- top 5 scores
 games_played = 0
@@ -516,6 +522,9 @@ function start_game()
   obstacles = {}
   particles = {}
   floaters = {}
+  powerups = {}
+  active_powerup = nil
+  powerup_spawn_counter = 0
   shake_frames = 0
   speed_trap_frames = 0
   speed_trap_frames2 = 0
@@ -583,6 +592,24 @@ function update_play()
     speed_trap_frames2 -= 1
   end
 
+  -- update active powerup
+  if active_powerup then
+    active_powerup.timer -= 1
+    if active_powerup.timer <= 0 then
+      _log("powerup:expire:"..active_powerup.type)
+      active_powerup = nil
+    end
+  end
+
+  -- update powerups
+  for i = #powerups, 1, -1 do
+    local pu = powerups[i]
+    pu.y += pu.speed
+    if pu.y > 128 then
+      deli(powerups, i)
+    end
+  end
+
   -- ambient engine loop every 2 seconds
   engine_loop_counter += 1
   if engine_loop_counter > 120 then
@@ -590,10 +617,13 @@ function update_play()
     engine_loop_counter = 0
   end
 
-  -- player 1 input (with speed reduction if in speed trap)
+  -- player 1 input (with modifiers for speed trap and speed boost)
   local move_speed = player.speed
   if speed_trap_frames > 0 then
     move_speed = player.speed * 0.5  -- halve speed during trap
+  end
+  if active_powerup and active_powerup.type == "speed_boost" then
+    move_speed = move_speed * 1.3  -- 30% speed increase
   end
 
   if test_input(0) then  -- left
@@ -609,6 +639,9 @@ function update_play()
     if speed_trap_frames2 > 0 then
       move_speed2 = player2.speed * 0.5
     end
+    if active_powerup and active_powerup.type == "speed_boost" then
+      move_speed2 = move_speed2 * 1.3
+    end
 
     if btn(0, 1) then  -- left (player 2)
       player2.x = max(lane_left2, player2.x - move_speed2)
@@ -621,10 +654,16 @@ function update_play()
   -- update adaptive difficulty
   update_adaptive_difficulty()
 
-  -- obstacle spawning
+  -- obstacle/powerup spawning
   spawn_timer -= 1
   if spawn_timer <= 0 then
     spawn_obstacle()
+    powerup_spawn_counter += 1
+    -- spawn powerup every 10-15 obstacles (probability-based)
+    if powerup_spawn_counter > 10 and rnd(100) < 30 then
+      spawn_powerup()
+      powerup_spawn_counter = 0
+    end
     spawn_timer = spawn_rate + spawn_rate_adjust
 
     -- increase difficulty over time (only for normal and hard)
@@ -652,7 +691,12 @@ function update_play()
   -- update obstacles
   for i = #obstacles, 1, -1 do
     local obs = obstacles[i]
-    obs.y += obs.speed
+    local obs_speed = obs.speed
+    -- slow time powerup reduces obstacle speed
+    if active_powerup and active_powerup.type == "slow_time" then
+      obs_speed = obs_speed * 0.5
+    end
+    obs.y += obs_speed
 
     -- player 1 collision
     local p1_hit = false
@@ -686,9 +730,14 @@ function update_play()
     if obs.y > 128 then
       if not obs.p1_counted then
         if num_players == 1 or not p1_hit then
-          score += 1
+          local points = 1
+          if active_powerup and active_powerup.type == "score_mult" then
+            points = 2
+          end
+          score += points
           sfx(1)
-          add_floater(player.x, player.y, "+1", 11)
+          local display = "+"..points
+          add_floater(player.x, player.y, display, 11)
           -- track dodge success for adaptive difficulty
           if not obs.was_hit then
             dodge_successes += 1
@@ -700,9 +749,14 @@ function update_play()
       if num_players == 2 then
         if not obs.p2_counted then
           if not p2_hit then
-            score2 += 1
+            local points = 1
+            if active_powerup and active_powerup.type == "score_mult" then
+              points = 2
+            end
+            score2 += points
             sfx(1)
-            add_floater(player2.x, player2.y, "+1", 11)
+            local display = "+"..points
+            add_floater(player2.x, player2.y, display, 11)
             -- track dodge success for adaptive difficulty
             if not obs.was_hit then
               dodge_successes += 1
@@ -724,6 +778,22 @@ function update_play()
     p.life -= 1
     if p.life <= 0 then
       deli(particles, i)
+    end
+  end
+
+  -- powerup collision
+  for i = #powerups, 1, -1 do
+    local pu = powerups[i]
+    -- check p1 collision
+    if pu.y < player.y + player.h and pu.y + 8 > player.y and
+       pu.x < player.x + player.w and pu.x + 6 > player.x then
+      handle_powerup_pickup(pu.type)
+      deli(powerups, i)
+    -- check p2 collision
+    elseif num_players == 2 and pu.y < player2.y + player2.h and pu.y + 8 > player2.y and
+       pu.x2 < player2.x + player2.w and pu.x2 + 6 > player2.x then
+      handle_powerup_pickup(pu.type)
+      deli(powerups, i)
     end
   end
 
@@ -880,7 +950,15 @@ function handle_obstacle_collision(obs, player_id)
   if player_id == "p1" then
     if obs.type == "hazard" then
       _log("obstacle:hazard")
-      if player.invincibility_frames <= 0 then
+      -- check if shield powerup is active
+      if active_powerup and active_powerup.type == "shield" then
+        _log("shield:activated")
+        add_floater(player.x, player.y, "shield!", 11)
+        sfx(5)
+        -- consume the shield
+        active_powerup = nil
+        shake_frames = 2
+      elseif player.invincibility_frames <= 0 then
         lives -= 1
         player.invincibility_frames = 120  -- 2 seconds of invincibility after hit (increased for recovery)
         spawn_particle(obs.x, obs.y)
@@ -909,7 +987,15 @@ function handle_obstacle_collision(obs, player_id)
   else  -- p2
     if obs.type == "hazard" then
       _log("obstacle:hazard:p2")
-      if player2.invincibility_frames <= 0 then
+      -- check if shield powerup is active
+      if active_powerup and active_powerup.type == "shield" then
+        _log("shield:activated:p2")
+        add_floater(player2.x, player2.y, "shield!", 11)
+        sfx(5)
+        -- consume the shield
+        active_powerup = nil
+        shake_frames = 2
+      elseif player2.invincibility_frames <= 0 then
         lives2 -= 1
         player2.invincibility_frames = 120  -- 2 seconds of invincibility after hit (increased for recovery)
         spawn_particle(obs.x2, obs.y)
@@ -992,6 +1078,37 @@ function spawn_obstacle()
   add(obstacles, obs)
 end
 
+function spawn_powerup()
+  local types = {"shield", "speed_boost", "slow_time", "score_mult"}
+  local pt = types[flr(rnd(4)) + 1]
+
+  add(powerups, {
+    x = lane_left + rnd(lane_width - 6),
+    x2 = lane_left2 + rnd(lane_width2 - 6),
+    y = -8,
+    speed = 0.5,
+    type = pt
+  })
+  _log("powerup:spawn:"..pt)
+end
+
+function handle_powerup_pickup(pt)
+  _log("powerup:pickup:"..pt)
+  powerups_collected += 1
+  sfx(6)
+
+  local t = 300
+  local msg = pt
+  local col = 11
+  if pt == "speed_boost" then t = 300; msg = "faster!"; col = 10
+  elseif pt == "slow_time" then t = 240; msg = "slow!"; col = 13
+  elseif pt == "score_mult" then t = 480; msg = "2x!"; col = 3
+  end
+
+  active_powerup = {type=pt, timer=t}
+  add_floater(player.x, player.y, msg, col)
+end
+
 function spawn_particle(x, y)
   local colors = {8, 9, 10, 15}  -- varied impact colors
   for i = 1, 6 do  -- more particles on collision
@@ -1061,6 +1178,15 @@ function draw_play()
         spr(obs.sprite_id, obs.x, obs.y)
       end
     end
+
+    -- draw powerups (1p)
+    for pu in all(powerups) do
+      local col = 11
+      if pu.type == "speed_boost" then col = 10
+      elseif pu.type == "slow_time" then col = 13
+      elseif pu.type == "score_mult" then col = 3 end
+      circfill(pu.x + 3, pu.y + 4, 2, col)
+    end
   else
     -- split-screen two player view
     -- left side: player 1
@@ -1108,6 +1234,16 @@ function draw_play()
         spr(obs.sprite_id, obs.x2, obs.y)
       end
     end
+
+    -- draw powerups (2p)
+    for pu in all(powerups) do
+      local col = 11
+      if pu.type == "speed_boost" then col = 10
+      elseif pu.type == "slow_time" then col = 13
+      elseif pu.type == "score_mult" then col = 3 end
+      circfill(pu.x + 3, pu.y + 4, 2, col)
+      circfill(pu.x2 + 3, pu.y + 4, 2, col)
+    end
   end
 
   -- draw particles
@@ -1135,6 +1271,16 @@ function draw_play()
       print("lives:"..lives, 2, 10, 7)
       print("time:"..flr(time_elapsed), 2, 18, 7)
     end
+    -- draw active powerup indicator
+    if active_powerup then
+      local col = 11
+      if active_powerup.type == "speed_boost" then col = 10
+      elseif active_powerup.type == "slow_time" then col = 13
+      elseif active_powerup.type == "score_mult" then col = 3
+      end
+      print(active_powerup.type.." "..flr(active_powerup.timer / 60).."s", 72, 10, col)
+    end
+
     -- draw difficulty indicator
     local diff_col = 10  -- balanced = yellow
     if difficulty_indicator == "easy" then
@@ -1320,6 +1466,7 @@ function draw_stats()
   print("best:"..personal_best, 65, 35, 6)
   print("avg:"..avg, 65, 45, 6)
   print("time:"..best_time.."s", 65, 55, 6)
+  print("powerups:"..powerups_collected, 65, 65, 10)
 
   print("press z to menu", 30, 110, 3)
 end
