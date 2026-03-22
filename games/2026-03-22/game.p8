@@ -48,6 +48,10 @@ total_score_sum = 0
 best_time = 0
 personal_best = 0
 
+-- achievement flags (set during save_game_score)
+is_new_record_achieved = false
+is_personal_best_achieved = false
+
 -- player
 player = {
   x = 64,
@@ -70,6 +74,8 @@ win_time = 120  -- 2 minutes in seconds
 function _init()
   cartdata(0)  -- enable cartridge data
   load_stats()
+  is_new_record_achieved = false
+  is_personal_best_achieved = false
   _log("state:menu")
 end
 
@@ -95,6 +101,10 @@ function save_stats()
 end
 
 function save_game_score(final_score, final_time)
+  -- store old values before updating (for achievement detection)
+  local old_personal_best = personal_best
+  local old_high_score_1 = high_scores[1]
+
   games_played += 1
   total_score_sum += final_score
 
@@ -119,6 +129,10 @@ function save_game_score(final_score, final_time)
   end
 
   save_stats()
+
+  -- set achievement flags based on old values
+  is_new_record_achieved = final_score > old_high_score_1
+  is_personal_best_achieved = final_score > old_personal_best and final_score <= old_high_score_1
 end
 
 function get_rank(score)
@@ -128,14 +142,6 @@ function get_rank(score)
     end
   end
   return 0
-end
-
-function is_new_record(score)
-  return score > high_scores[1]
-end
-
-function is_personal_best(score)
-  return score > personal_best and score <= high_scores[1]
 end
 
 function _update()
@@ -234,6 +240,8 @@ function start_game()
   shake_frames = 0
   music_playing = true
   music(0)  -- start background music
+  is_new_record_achieved = false
+  is_personal_best_achieved = false
 
   -- difficulty affects spawn rate
   if difficulty == 1 then
@@ -525,12 +533,12 @@ function draw_gameover()
   print("game over", 48, 40, 8)
   print("final score:"..score, 30, 60, 7)
 
-  -- show achievement messages
+  -- show achievement messages (using flags set in save_game_score)
   local rank = get_rank(score)
-  if is_new_record(score) then
+  if is_new_record_achieved then
     print("★new record!★", 40, 75, 10)
     _log("achievement:new_record")
-  elseif is_personal_best(score) then
+  elseif is_personal_best_achieved then
     print("personal best!", 38, 75, 11)
     _log("achievement:personal_best")
   elseif rank > 0 then
