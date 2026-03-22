@@ -553,7 +553,7 @@ function start_game()
   else
     -- endless mode: difficulty select
     if difficulty == 1 then
-      spawn_rate = 300  -- easy: 5 seconds between spawns
+      spawn_rate = 420  -- easy: 7 seconds between spawns (increased for playability)
     elseif difficulty == 2 then
       spawn_rate = 200  -- normal: 3.3 seconds between spawns
     else
@@ -634,8 +634,8 @@ function update_play()
     end
     if current_score > 0 and current_score % 100 == 0 then
       if difficulty == 1 then
-        -- easy mode: very slow difficulty ramp
-        spawn_rate = max(200, spawn_rate - 1)
+        -- easy mode: minimal difficulty ramp to keep it playable
+        spawn_rate = max(350, spawn_rate - 0.5)
       elseif difficulty == 2 then
         -- normal mode: moderate ramp
         spawn_rate = max(150, spawn_rate - 1)
@@ -840,18 +840,35 @@ function update_adaptive_difficulty()
 
   -- adjust difficulty every 30 frames to smooth transitions
   if adaptive_window % 30 == 0 then
-    if dodge_rate > 0.8 then
-      -- too easy: increase difficulty
-      spawn_rate_adjust = max(-5, spawn_rate_adjust - 0.1)
-      hazard_speed_adjust = min(0.5, hazard_speed_adjust + 0.05)
-    elseif dodge_rate < 0.4 then
-      -- too hard: decrease difficulty (more aggressive help)
-      spawn_rate_adjust = min(15, spawn_rate_adjust + 0.2)
-      hazard_speed_adjust = max(-0.5, hazard_speed_adjust - 0.1)
+    -- easy mode: much more conservative to ensure playability
+    if difficulty == 1 then
+      if dodge_rate > 0.9 then
+        -- very easy: only increase difficulty if nearly perfect
+        spawn_rate_adjust = max(-2, spawn_rate_adjust - 0.05)
+      elseif dodge_rate < 0.3 then
+        -- struggling: provide more help
+        spawn_rate_adjust = min(20, spawn_rate_adjust + 0.3)
+        hazard_speed_adjust = max(-0.5, hazard_speed_adjust - 0.15)
+      else
+        -- acceptable: gradually return to normal
+        spawn_rate_adjust *= 0.95
+        hazard_speed_adjust *= 0.95
+      end
     else
-      -- balanced: gradually return to normal
-      spawn_rate_adjust *= 0.95
-      hazard_speed_adjust *= 0.95
+      -- normal/hard: original logic
+      if dodge_rate > 0.8 then
+        -- too easy: increase difficulty
+        spawn_rate_adjust = max(-5, spawn_rate_adjust - 0.1)
+        hazard_speed_adjust = min(0.5, hazard_speed_adjust + 0.05)
+      elseif dodge_rate < 0.4 then
+        -- too hard: decrease difficulty (more aggressive help)
+        spawn_rate_adjust = min(15, spawn_rate_adjust + 0.2)
+        hazard_speed_adjust = max(-0.5, hazard_speed_adjust - 0.1)
+      else
+        -- balanced: gradually return to normal
+        spawn_rate_adjust *= 0.95
+        hazard_speed_adjust *= 0.95
+      end
     end
   end
 end
@@ -865,7 +882,7 @@ function handle_obstacle_collision(obs, player_id)
       _log("obstacle:hazard")
       if player.invincibility_frames <= 0 then
         lives -= 1
-        player.invincibility_frames = 60  -- 1 second of invincibility after hit
+        player.invincibility_frames = 120  -- 2 seconds of invincibility after hit (increased for recovery)
         spawn_particle(obs.x, obs.y)
         sfx(0)
         shake_frames = 4
@@ -894,7 +911,7 @@ function handle_obstacle_collision(obs, player_id)
       _log("obstacle:hazard:p2")
       if player2.invincibility_frames <= 0 then
         lives2 -= 1
-        player2.invincibility_frames = 60  -- 1 second of invincibility after hit
+        player2.invincibility_frames = 120  -- 2 seconds of invincibility after hit (increased for recovery)
         spawn_particle(obs.x2, obs.y)
         sfx(0)
         shake_frames = 4
