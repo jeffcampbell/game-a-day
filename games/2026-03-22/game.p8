@@ -49,6 +49,14 @@ speed_trap_frames = 0  -- frames remaining in speed trap effect
 speed_trap_frames2 = 0  -- second player speed trap
 engine_loop_counter = 0  -- counter for ambient engine loop
 
+-- adaptive difficulty tracking (10-second rolling window)
+dodge_successes = 0  -- obstacles passed without hitting
+dodge_attempts = 0  -- total obstacles in current window
+adaptive_window = 0  -- frame counter for window (max 600)
+difficulty_indicator = "balanced"  -- "easy", "balanced", "hard"
+hazard_speed_adjust = 0  -- cumulative speed adjustment
+spawn_rate_adjust = 0  -- cumulative spawn rate adjustment
+
 -- high score data
 high_scores = {0, 0, 0, 0, 0}  -- top 5 scores
 games_played = 0
@@ -357,6 +365,13 @@ function start_game()
   speed_trap_frames2 = 0
   music_playing = true
   engine_loop_counter = 0
+  -- reset adaptive difficulty
+  dodge_successes = 0
+  dodge_attempts = 0
+  adaptive_window = 0
+  difficulty_indicator = "balanced"
+  hazard_speed_adjust = 0
+  spawn_rate_adjust = 0
   music(1)  -- start gameplay ambient music
   is_new_record_achieved = false
   is_personal_best_achieved = false
@@ -447,11 +462,14 @@ function update_play()
     end
   end
 
+  -- update adaptive difficulty
+  update_adaptive_difficulty()
+
   -- obstacle spawning
   spawn_timer -= 1
   if spawn_timer <= 0 then
     spawn_obstacle()
-    spawn_timer = spawn_rate
+    spawn_timer = spawn_rate + spawn_rate_adjust
 
     -- increase difficulty over time
     local current_score = score
@@ -506,6 +524,10 @@ function update_play()
           score += 1
           sfx(1)
           add_floater(player.x, player.y, "+1", 11)
+          -- track dodge success for adaptive difficulty
+          if not obs.was_hit then
+            dodge_successes += 1
+          end
         end
         obs.p1_counted = true
       end
@@ -516,6 +538,10 @@ function update_play()
             score2 += 1
             sfx(1)
             add_floater(player2.x, player2.y, "+1", 11)
+            -- track dodge success for adaptive difficulty
+            if not obs.was_hit then
+              dodge_successes += 1
+            end
           end
           obs.p2_counted = true
         end
@@ -623,7 +649,52 @@ function update_play()
   end
 end
 
+function update_adaptive_difficulty()
+  -- update rolling window counter
+  adaptive_window += 1
+  if adaptive_window > 600 then  -- 10 seconds at 60fps
+    adaptive_window = 0
+    dodge_successes = 0
+    dodge_attempts = 0
+  end
+
+  -- calculate dodge rate (with safety check)
+  local dodge_rate = 0
+  if dodge_attempts > 0 then
+    dodge_rate = dodge_successes / dodge_attempts
+  end
+
+  -- determine difficulty level
+  if dodge_rate > 0.8 then
+    difficulty_indicator = "hard"
+  elseif dodge_rate < 0.4 then
+    difficulty_indicator = "easy"
+  else
+    difficulty_indicator = "balanced"
+  end
+
+  -- adjust difficulty every 30 frames to smooth transitions
+  if adaptive_window % 30 == 0 then
+    if dodge_rate > 0.8 then
+      -- too easy: increase difficulty
+      spawn_rate_adjust = min(10, spawn_rate_adjust + 0.1)
+      hazard_speed_adjust = min(0.5, hazard_speed_adjust + 0.05)
+    elseif dodge_rate < 0.4 then
+      -- too hard: decrease difficulty
+      spawn_rate_adjust = max(-5, spawn_rate_adjust - 0.1)
+      hazard_speed_adjust = max(-0.3, hazard_speed_adjust - 0.05)
+    else
+      -- balanced: gradually return to normal
+      spawn_rate_adjust *= 0.95
+      hazard_speed_adjust *= 0.95
+    end
+  end
+end
+
 function handle_obstacle_collision(obs, player_id)
+  -- mark obstacle as hit for adaptive difficulty tracking
+  obs.was_hit = true
+
   if player_id == "p1" then
     if obs.type == "hazard" then
       _log("obstacle:hazard")
@@ -696,12 +767,16 @@ function spawn_obstacle()
     y = -8,
     w = w,
     h = 8,
-    speed = 0.7 + (difficulty - 1) * 0.35,
+    speed = 0.7 + (difficulty - 1) * 0.35 + hazard_speed_adjust,
     type = "hazard",
     sprite_id = 2,
     p1_counted = false,
-    p2_counted = false
+    p2_counted = false,
+    was_hit = false  -- track if this obstacle hit any player
   }
+
+  -- track attempt for adaptive difficulty
+  dodge_attempts += 1
 
   -- determine obstacle type based on mode
   local roll = rnd(100)
@@ -715,7 +790,7 @@ function spawn_obstacle()
     b_pct = types.b or 20
     s_pct = types.s or 10
     t_pct = types.t or 5
-    obs.speed = lvl.hazard_speed
+    obs.speed = lvl.hazard_speed + hazard_speed_adjust
   end
 
   if roll < h_pct then
@@ -878,6 +953,14 @@ function draw_play()
       print("lives:"..lives, 2, 10, 7)
       print("time:"..flr(time_elapsed), 2, 18, 7)
     end
+    -- draw difficulty indicator
+    local diff_col = 10  -- balanced = yellow
+    if difficulty_indicator == "easy" then
+      diff_col = 11  -- easy = green
+    elseif difficulty_indicator == "hard" then
+      diff_col = 8  -- hard = red
+    end
+    print("dif:"..difficulty_indicator, 100, 2, diff_col)
   else
     -- 2-player UI
     print("p1:"..score, 2, 2, 7)
@@ -889,6 +972,14 @@ function draw_play()
     else
       print("time:"..flr(time_elapsed), 35, 2, 7)
     end
+    -- draw difficulty indicator (2-player view)
+    local diff_col = 10  -- balanced = yellow
+    if difficulty_indicator == "easy" then
+      diff_col = 11  -- easy = green
+    elseif difficulty_indicator == "hard" then
+      diff_col = 8  -- hard = red
+    end
+    print("d:"..difficulty_indicator, 95, 10, diff_col)
   end
 end
 
