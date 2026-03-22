@@ -62,11 +62,11 @@ is_personal_best_achieved = false
 
 -- campaign level definitions
 levels = {
-  {name="intro", score_target=50, spawn_rate_start=45, obstacle_types={h=80,b=15,s=3,t=2}, hazard_speed=0.5},
-  {name="variety", score_target=100, spawn_rate_start=35, obstacle_types={h=70,b=20,s=8,t=2}, hazard_speed=0.8},
-  {name="challenge", score_target=150, spawn_rate_start=28, obstacle_types={h=60,b=20,s=15,t=5}, hazard_speed=1.0},
-  {name="intense", score_target=200, spawn_rate_start=20, obstacle_types={h=50,b=20,s=20,t=10}, hazard_speed=1.2},
-  {name="boss", score_target=250, spawn_rate_start=15, obstacle_types={h=40,b=20,s=20,t=20}, hazard_speed=1.5}
+  {name="intro", score_target=50, spawn_rate_start=60, obstacle_types={h=80,b=15,s=3,t=2}, hazard_speed=0.5},
+  {name="variety", score_target=100, spawn_rate_start=50, obstacle_types={h=70,b=20,s=8,t=2}, hazard_speed=0.7},
+  {name="challenge", score_target=150, spawn_rate_start=40, obstacle_types={h=60,b=20,s=15,t=5}, hazard_speed=0.9},
+  {name="intense", score_target=200, spawn_rate_start=30, obstacle_types={h=50,b=20,s=20,t=10}, hazard_speed=1.1},
+  {name="boss", score_target=250, spawn_rate_start=20, obstacle_types={h=40,b=20,s=20,t=20}, hazard_speed=1.3}
 }
 
 -- player
@@ -382,11 +382,11 @@ function start_game()
   else
     -- endless mode: difficulty select
     if difficulty == 1 then
-      spawn_rate = 45
+      spawn_rate = 60
     elseif difficulty == 2 then
-      spawn_rate = 30
+      spawn_rate = 45
     else
-      spawn_rate = 18
+      spawn_rate = 30
     end
     win_score = 500
     if num_players == 2 then
@@ -629,6 +629,7 @@ function handle_obstacle_collision(obs, player_id)
       _log("obstacle:hazard")
       if player.invincibility_frames <= 0 then
         lives -= 1
+        player.invincibility_frames = 60  -- 1 second of invincibility after hit
         spawn_particle(obs.x, obs.y)
         sfx(0)
         shake_frames = 4
@@ -657,6 +658,7 @@ function handle_obstacle_collision(obs, player_id)
       _log("obstacle:hazard:p2")
       if player2.invincibility_frames <= 0 then
         lives2 -= 1
+        player2.invincibility_frames = 60  -- 1 second of invincibility after hit
         spawn_particle(obs.x2, obs.y)
         sfx(0)
         shake_frames = 4
@@ -694,7 +696,7 @@ function spawn_obstacle()
     y = -8,
     w = w,
     h = 8,
-    speed = 1 + (difficulty - 1) * 0.5,
+    speed = 0.7 + (difficulty - 1) * 0.35,
     type = "hazard",
     sprite_id = 2,
     p1_counted = false,
