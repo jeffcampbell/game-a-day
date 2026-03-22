@@ -331,31 +331,41 @@ function update_difficulty()
 end
 
 -- enemy type selection based on difficulty
+-- types: 1=straight, 2=fast, 3=tank, 4=weaver, 5=scout
 function spawn_enemy_type()
   local r = rnd(100)
   if difficulty == 1 then
-    -- easy: 70% standard, 20% fast, 10% tank
-    if r < 70 then return 1
-    elseif r < 90 then return 2
-    else return 3 end
+    -- easy: favor simple types (1,5), minimal weaver
+    if r < 50 then return 1       -- 50% straight
+    elseif r < 70 then return 5   -- 20% scout
+    elseif r < 85 then return 2   -- 15% fast
+    elseif r < 95 then return 3   -- 10% tank
+    else return 4 end             -- 5% weaver
   elseif difficulty == 2 then
-    -- normal: 50% standard, 30% fast, 20% tank
-    if r < 50 then return 1
-    elseif r < 80 then return 2
-    else return 3 end
+    -- normal: balanced mix of all types
+    if r < 30 then return 1       -- 30% straight
+    elseif r < 50 then return 5   -- 20% scout
+    elseif r < 65 then return 2   -- 15% fast
+    elseif r < 80 then return 4   -- 15% weaver
+    else return 3 end             -- 20% tank
   else
-    -- hard: 40% standard, 40% fast, 20% tank
-    if r < 40 then return 1
-    elseif r < 80 then return 2
-    else return 3 end
+    -- hard: favor challenging types (3,4,2), less scout
+    if r < 25 then return 4       -- 25% weaver
+    elseif r < 45 then return 3   -- 20% tank
+    elseif r < 60 then return 2   -- 15% fast
+    elseif r < 80 then return 1   -- 20% straight
+    else return 5 end             -- 20% scout
   end
 end
 
 -- get base speed for enemy type
+-- types: 1=straight(1.0), 2=fast(1.5), 3=tank(0.6), 4=weaver(0.8), 5=scout(1.8)
 function get_enemy_speed(etype)
-  if etype == 1 then return 1.0    -- standard
-  elseif etype == 2 then return 1.5  -- fast
-  else return 0.6 end                -- tank (slower)
+  if etype == 1 then return 1.0
+  elseif etype == 2 then return 1.5
+  elseif etype == 3 then return 0.6
+  elseif etype == 4 then return 0.8   -- weaver
+  else return 1.8 end                 -- scout (fast)
 end
 
 function update_play()
@@ -626,6 +636,7 @@ function update_play()
       -- tank enemies have 2 health, others have 1
       local health = etype == 3 and 2 or 1
       spawn_enemy_with_fade(rnd(120)+4, 4, etype, spd, health)
+      _log("spawn:type"..etype)
       enemy_spawn_timer = spawn_rate
     end
 
@@ -635,6 +646,27 @@ function update_play()
       if e.fade_timer then
         e.fade_timer -= 1
       end
+
+      -- type-specific movement
+      if e.type == 4 then
+        -- weaver: sine-wave pattern
+        local sine_offset = sin(e.y / 16 + e.x / 64) * 2
+        e.x += sine_offset
+        e.x = mid(4, e.x, 124)  -- clamp to bounds
+      elseif e.type == 5 then
+        -- scout: erratic zigzag
+        e.zag_timer += 1
+        if e.zag_timer % 8 == 0 then
+          e.zag_dir = 1 - e.zag_dir
+        end
+        if e.zag_dir == 0 then
+          e.x -= 0.7
+        else
+          e.x += 0.7
+        end
+        e.x = mid(4, e.x, 124)  -- clamp to bounds
+      end
+
       e.y += e.speed
       if e.y > 128 then
         e.alive = false
@@ -677,27 +709,31 @@ function update_play()
             multiplier_last_value = new_multiplier
             combo_multiplier = new_multiplier
 
-            -- scoring based on type
+            -- scoring based on type (1:straight 50, 2:fast 75, 3:tank 150, 4:weaver 75, 5:scout 25)
             local points = 0
             if e.type == 1 then
-              points = 10
+              points = 50
             elseif e.type == 2 then
-              points = 20
-            else  -- tank
-              points = 15 + 5  -- 15 + 5 bonus
+              points = 75
+            elseif e.type == 3 then
+              points = 150
+            elseif e.type == 4 then
+              points = 75
+            else  -- type 5 scout
+              points = 25
             end
             local earned_points = flr(points * score_multiplier * combo_multiplier)
             score += earned_points
 
             -- visual feedback on kill with type-specific effects
-            local kill_colors = {8, 10, 14}  -- cyan for standard, red for fast, gray for tank
-            local kill_count = {4, 6, 8}
-            create_explosion(e.x, e.y, kill_count[e.type], 2, kill_colors[e.type])
+            local kill_colors = {8, 10, 14, 6, 11}  -- cyan, red, gray, purple, yellow
+            local kill_count = {4, 5, 8, 5, 3}      -- explosion particles per type
+            create_explosion(e.x, e.y, kill_count[e.type] or 4, 2, kill_colors[e.type] or 7)
             trigger_shake(2)
             trigger_flash(11)
             enemies_killed += 1
-            -- type-specific death sounds
-            local death_sound = e.type == 2 and 0 or (e.type == 3 and 2 or 1)
+            -- type-specific death sounds (reuse existing sounds)
+            local death_sound = e.type == 2 and 0 or (e.type == 3 and 2 or (e.type == 5 and 0 or 1))
             sfx(death_sound)
             create_score_popup(e.x, e.y, earned_points)  -- show score
             _log("kill:enemy:type"..e.type..",combo:"..combo.."x")
@@ -852,6 +888,11 @@ end
 function spawn_enemy_with_fade(x, y, etype, spd, health)
   -- spawn with fade-in animation
   local e = {x=x, y=y, type=etype, speed=spd, health=health, fade_timer=10, fade_max=10, alive=true}
+  -- initialize movement tracking for special types
+  if etype == 5 then  -- scout
+    e.zag_dir = rnd(1) > 0.5 and 1 or 0
+    e.zag_timer = 0
+  end
   add(enemies, e)
 end
 
@@ -1214,25 +1255,32 @@ function draw_play()
       end
 
       if e.type == 1 then
-        -- standard enemy: cyan colored
+        -- straight: cyan colored
         spr(1, e.x-4, draw_y)
       elseif e.type == 2 then
-        -- fast enemy: red colored with larger sprite
+        -- fast: red with speed indicator
         spr(2, e.x-4, draw_y)
-        -- add speed indicator: small line to right
         line(e.x+1, e.y-1, e.x+3, e.y-1, 10)
-      else
-        -- tank enemy: yellow/gray colored with health indicator
+      elseif e.type == 3 then
+        -- tank: gray with health dots
         spr(2, e.x-4, draw_y)
-        -- draw health indicator dots for tank
         if e.health and e.health == 2 then
-          -- full health: two dots
           pset(e.x-2, draw_y-2, 14)
           pset(e.x+1, draw_y-2, 14)
         else
-          -- damaged: one dot
           pset(e.x-2, draw_y-2, 14)
         end
+      elseif e.type == 4 then
+        -- weaver: purple with wavy pattern
+        spr(1, e.x-4, draw_y)
+        -- wave indicator: vertical line
+        pset(e.x, draw_y-3, 13)
+        pset(e.x, draw_y+2, 13)
+      else
+        -- scout (type 5): yellow, small, zigzag
+        spr(1, e.x-4, draw_y)
+        -- speed stripes
+        line(e.x-2, e.y, e.x+2, e.y, 11)
       end
 
       ::skip_enemy_draw::
