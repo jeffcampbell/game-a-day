@@ -1,0 +1,48 @@
+{
+  "game_date": "2026-03-22",
+  "sessions_analyzed": 5,
+  "completion_summary": {
+    "completion_rate": 0.0,
+    "avg_playtime_seconds": 18.0,
+    "wins": 0,
+    "losses": 5,
+    "quits": 0
+  },
+  "critical_failure_points": [
+    {
+      "location": "state:gameover",
+      "failure_rate": 1.0,
+      "frequency": "5 of 5 sessions",
+      "likely_cause": "Player retention issue at gameover"
+    }
+  ],
+  "input_heatmap": {
+    "left": 1552,
+    "right": 1499,
+    "up": 0,
+    "down": 0,
+    "o_button": 5,
+    "x_button": 0
+  },
+  "state_flow": "menu \u2192 play \u2192 gameover / lost(5)",
+  "next_steps": [
+    {
+      "priority": 1,
+      "recommendation": "Critical failure point at 'gameover' (50%+ quit rate) - check difficulty, clarity, or fairness",
+      "estimated_impact": "high",
+      "estimated_tokens_to_fix": 30
+    },
+    {
+      "priority": 2,
+      "recommendation": "Controls not used: up, down, x_button - consider removing from tutorial or assigning functions",
+      "estimated_impact": "low",
+      "estimated_tokens_to_fix": 5
+    },
+    {
+      "priority": 3,
+      "recommendation": "Low completion rate (0% wins) - consider adding hints, reducing difficulty, or clarifying objectives",
+      "estimated_impact": "high",
+      "estimated_tokens_to_fix": 40
+    }
+  ]
+}
