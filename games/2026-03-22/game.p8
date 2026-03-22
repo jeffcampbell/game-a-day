@@ -36,6 +36,9 @@ spawn_timer = 0
 spawn_rate = 30  -- frames between spawns
 obstacles = {}
 particles = {}
+floaters = {}  -- floating score text
+shake_frames = 0  -- screen shake effect
+music_playing = false
 
 -- player
 player = {
@@ -89,6 +92,7 @@ function update_menu()
   if btnp(4) then  -- z button
     _log("state:difficulty_select")
     state = "difficulty_select"
+    sfx(2)  -- ui sound
   end
 end
 
@@ -141,6 +145,10 @@ function start_game()
   spawn_timer = 0
   obstacles = {}
   particles = {}
+  floaters = {}
+  shake_frames = 0
+  music_playing = true
+  music(0)  -- start background music
 
   -- difficulty affects spawn rate
   if difficulty == 1 then
@@ -171,6 +179,8 @@ function update_play()
     if score > 0 and score % 100 == 0 then
       spawn_rate = max(10, spawn_rate - 2)
       _log("level_up")
+      sfx(3)  -- level-up sound
+      shake_frames = 2  -- light shake on level-up
     end
   end
 
@@ -187,14 +197,21 @@ function update_play()
       _log("collision")
       lives -= 1
       spawn_particle(obs.x, obs.y)
+      sfx(0)  -- collision sound
+      shake_frames = 4  -- screen shake
       deli(obstacles, i)
       if lives <= 0 then
         _log("gameover:lose")
         state = "gameover"
+        music_playing = false
+        music()  -- stop background music
+        sfx(2)  -- gameover sound
       end
     elseif obs.y > 128 then
       -- passed obstacle safely
       score += 1
+      sfx(1)  -- score point sound
+      add_floater(player.x, player.y, "+1", 11)
       deli(obstacles, i)
     end
   end
@@ -208,6 +225,21 @@ function update_play()
     end
   end
 
+  -- update floaters
+  for i = #floaters, 1, -1 do
+    local f = floaters[i]
+    f.life -= 1
+    f.y -= 1
+    if f.life <= 0 then
+      deli(floaters, i)
+    end
+  end
+
+  -- update screen shake
+  if shake_frames > 0 then
+    shake_frames -= 1
+  end
+
   -- update timer
   time_elapsed += 1/60
 
@@ -215,6 +247,7 @@ function update_play()
   if score >= win_score or time_elapsed >= win_time then
     _log("gameover:win")
     state = "gameover"
+    music()  -- stop background music
   end
 end
 
@@ -233,20 +266,40 @@ function spawn_obstacle()
 end
 
 function spawn_particle(x, y)
-  for i = 1, 4 do
+  local colors = {8, 9, 10, 15}  -- varied impact colors
+  for i = 1, 6 do  -- more particles on collision
     local p = {
-      x = x + rnd(6) - 3,
-      y = y + rnd(6) - 3,
-      vx = rnd(2) - 1,
-      vy = rnd(1) - 0.5,
-      life = 10,
-      col = 8
+      x = x + rnd(8) - 4,
+      y = y + rnd(8) - 4,
+      vx = rnd(3) - 1.5,
+      vy = rnd(2) - 1,
+      life = 15,
+      col = colors[flr(rnd(4)) + 1]
     }
     add(particles, p)
   end
 end
 
+function add_floater(x, y, text, col)
+  add(floaters, {
+    x = x,
+    y = y,
+    text = text,
+    col = col,
+    life = 30
+  })
+end
+
 function draw_play()
+  -- apply screen shake
+  local shake_x = 0
+  local shake_y = 0
+  if shake_frames > 0 then
+    shake_x = rnd(3) - 1.5
+    shake_y = rnd(3) - 1.5
+  end
+  camera(shake_x, shake_y)
+
   -- draw lane markers
   line(lane_left, 0, lane_left, 128, 5)
   line(lane_right, 0, lane_right, 128, 5)
@@ -271,6 +324,14 @@ function draw_play()
     p.y += p.vy
   end
 
+  -- draw floaters
+  for f in all(floaters) do
+    print(f.text, f.x - 4, f.y, f.col)
+  end
+
+  -- reset camera
+  camera(0, 0)
+
   -- draw ui
   print("score:"..score, 2, 2, 7)
   print("lives:"..lives, 2, 10, 7)
@@ -282,6 +343,9 @@ function update_gameover()
   if btnp(4) then  -- z button
     _log("state:menu")
     state = "menu"
+    music_playing = false
+    music()  -- stop background music
+    sfx(2)  -- ui sound
   end
 end
 
@@ -382,6 +446,14 @@ __label__
 33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333
 33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333
 33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333
+__sfx__
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0010000007050705070507050705070507050705070507050705070507050705070507050705070507050705070507050705070507050705070507050705070507
+001000005a05640568055605570055005b005f00630062005e005a00560051004d0049004500410000000000000000000000000000000000000000000000000
+0010000067066d066606650060005b005700530000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__music__
+00 00000000
 33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333
 33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333
 33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333
