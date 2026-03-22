@@ -1,0 +1,12 @@
+{
+  "title": "Tile Tactics",
+  "description": "A compact turn-based strategy game where you control a single unit on an 8x8 grid. Navigate past obstacles, engage enemy units in tactical combat, and achieve victory by defeating all foes before your health is depleted. Simple rules with meaningful tactical choices.",
+  "genres": ["strategy"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general",
+  "token_count": 1113,
+  "sprite_count": 0,
+  "sound_count": 0
+}
