@@ -41,6 +41,13 @@ shake_frames = 0  -- screen shake effect
 music_playing = false
 speed_trap_frames = 0  -- frames remaining in speed trap effect
 
+-- high score data
+high_scores = {0, 0, 0, 0, 0}  -- top 5 scores
+games_played = 0
+total_score_sum = 0
+best_time = 0
+personal_best = 0
+
 -- player
 player = {
   x = 64,
@@ -61,7 +68,74 @@ win_score = 500
 win_time = 120  -- 2 minutes in seconds
 
 function _init()
+  cartdata(0)  -- enable cartridge data
+  load_stats()
   _log("state:menu")
+end
+
+-- cartdata functions (addresses 0-8)
+function load_stats()
+  games_played = dget(0)
+  personal_best = dget(1)
+  total_score_sum = dget(2)
+  best_time = dget(3)
+  for i = 1, 5 do
+    high_scores[i] = dget(3 + i)
+  end
+end
+
+function save_stats()
+  dset(0, games_played)
+  dset(1, personal_best)
+  dset(2, total_score_sum)
+  dset(3, best_time)
+  for i = 1, 5 do
+    dset(3 + i, high_scores[i])
+  end
+end
+
+function save_game_score(final_score, final_time)
+  games_played += 1
+  total_score_sum += final_score
+
+  if final_time > best_time then
+    best_time = final_time
+  end
+
+  if final_score > personal_best then
+    personal_best = final_score
+  end
+
+  -- insert into high scores
+  for i = 1, 5 do
+    if final_score > high_scores[i] then
+      -- shift scores down
+      for j = 5, i + 1, -1 do
+        high_scores[j] = high_scores[j - 1]
+      end
+      high_scores[i] = final_score
+      break
+    end
+  end
+
+  save_stats()
+end
+
+function get_rank(score)
+  for i = 1, 5 do
+    if score == high_scores[i] then
+      return i
+    end
+  end
+  return 0
+end
+
+function is_new_record(score)
+  return score > high_scores[1]
+end
+
+function is_personal_best(score)
+  return score > personal_best and score <= high_scores[1]
 end
 
 function _update()
@@ -73,6 +147,8 @@ function _update()
     update_play()
   elseif state == "gameover" then
     update_gameover()
+  elseif state == "stats" then
+    update_stats()
   end
 end
 
@@ -86,6 +162,8 @@ function _draw()
     draw_play()
   elseif state == "gameover" then
     draw_gameover()
+  elseif state == "stats" then
+    draw_stats()
   end
 end
 
@@ -95,6 +173,10 @@ function update_menu()
     _log("state:difficulty_select")
     state = "difficulty_select"
     sfx(2)  -- ui sound
+  elseif btnp(5) then  -- x button
+    _log("state:stats")
+    state = "stats"
+    sfx(2)  -- ui sound
   end
 end
 
@@ -103,6 +185,7 @@ function draw_menu()
   print("dodge obstacles", 40, 50, 7)
   print("survive 2 min or reach 500pts", 15, 65, 6)
   print("press z to start", 32, 85, 3)
+  print("press x for stats", 30, 100, 6)
 end
 
 -- difficulty select state
@@ -222,6 +305,7 @@ function update_play()
           shake_frames = 4
           if lives <= 0 then
             _log("gameover:lose")
+            save_game_score(score, flr(time_elapsed))
             state = "gameover"
             music_playing = false
             music()
@@ -288,6 +372,7 @@ function update_play()
   -- check win condition
   if score >= win_score or time_elapsed >= win_time then
     _log("gameover:win")
+    save_game_score(score, flr(time_elapsed))
     state = "gameover"
     music()  -- stop background music
   end
@@ -440,13 +525,61 @@ function draw_gameover()
   print("game over", 48, 40, 8)
   print("final score:"..score, 30, 60, 7)
 
-  if score >= win_score or time_elapsed >= win_time then
-    print("you won!", 48, 75, 11)
+  -- show achievement messages
+  local rank = get_rank(score)
+  if is_new_record(score) then
+    print("★new record!★", 40, 75, 10)
+    _log("achievement:new_record")
+  elseif is_personal_best(score) then
+    print("personal best!", 38, 75, 11)
+    _log("achievement:personal_best")
+  elseif rank > 0 then
+    print("#"..rank.." all time", 40, 75, 14)
   else
-    print("you lost", 48, 75, 8)
+    if score >= win_score or time_elapsed >= win_time then
+      print("you won!", 48, 75, 11)
+    else
+      print("you lost", 48, 75, 8)
+    end
   end
 
-  print("press z to try again", 20, 95, 3)
+  print("press z to try again", 20, 105, 3)
+end
+
+-- stats state
+function update_stats()
+  if btnp(4) then  -- z button
+    _log("state:menu")
+    state = "menu"
+    sfx(2)  -- ui sound
+  end
+end
+
+function draw_stats()
+  print("statistics", 48, 5, 7)
+
+  -- high scores
+  print("high scores:", 10, 20, 11)
+  for i = 1, 5 do
+    local score_str = ""..high_scores[i]
+    if high_scores[i] > 0 then
+      print("#"..i.." "..score_str, 15, 25 + (i - 1) * 8, 7)
+    else
+      print("#"..i.." ---", 15, 25 + (i - 1) * 8, 5)
+    end
+  end
+
+  -- stats
+  local avg = 0
+  if games_played > 0 then
+    avg = flr(total_score_sum / games_played)
+  end
+  print("games:"..games_played, 65, 25, 6)
+  print("best:"..personal_best, 65, 35, 6)
+  print("avg:"..avg, 65, 45, 6)
+  print("time:"..best_time.."s", 65, 55, 6)
+
+  print("press z to menu", 30, 110, 3)
 end
 
 __gfx__
