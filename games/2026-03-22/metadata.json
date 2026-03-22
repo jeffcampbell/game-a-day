@@ -1,27 +1,41 @@
 {
   "title": "Lane Racer",
-  "description": "A top-down racing game where you pilot a car down a narrow lane, dodging obstacles and other vehicles. Use arrow keys to steer left and right. Avoid collisions to maintain your 3 lives. Earn points for each obstacle you dodge successfully. Reach 500 points or survive 2 minutes to win. Difficulty levels affect obstacle spawn rates.",
+  "description": "A top-down racing game where you pilot a car down a narrow lane, dodging obstacles and other vehicles. Use arrow keys to steer left and right. Avoid collisions to maintain your 3 lives. Earn points for each obstacle you dodge successfully. Reach 500 points or survive 2 minutes to win. Difficulty levels affect obstacle spawn rates. Features persistent high-score leaderboard, multiple obstacle types with unique mechanics, sprite-based rendering, and ambient audio.",
   "genres": [
     "racing",
     "sports"
   ],
   "difficulty": 2,
   "playtime_minutes": 4,
-  "completion_status": "complete",
+  "completion_status": "polished",
   "target_audience": "general",
-  "token_count": 910,
-  "sprite_count": 1,
-  "sound_count": 0,
+  "token_count": 1847,
+  "sprite_count": 5,
+  "sound_count": 10,
   "visual_features": [
     "lane_markers",
     "score_display",
     "lives_counter",
-    "timer_display"
+    "timer_display",
+    "sprite_obstacles",
+    "screen_shake",
+    "particle_effects"
   ],
   "game_mechanics": [
     "steering",
     "obstacle_avoidance",
     "difficulty_progression",
-    "scoring"
+    "scoring",
+    "leaderboard",
+    "multiple_obstacle_types",
+    "invincibility_shield",
+    "speed_traps"
+  ],
+  "audio_features": [
+    "background_music",
+    "ambient_engine_loop",
+    "collision_sounds",
+    "level_up_feedback",
+    "bonus_pickup_sounds"
   ]
 }
