@@ -571,7 +571,7 @@ function start_game()
     if difficulty == 1 then
       spawn_rate = 420  -- easy: 7 seconds between spawns (increased for playability)
     elseif difficulty == 2 then
-      spawn_rate = 200  -- normal: 3.3 seconds between spawns
+      spawn_rate = 250  -- normal: 4.2 seconds between spawns
     else
       spawn_rate = 150  -- hard: 2.5 seconds between spawns
     end
@@ -984,12 +984,12 @@ function handle_obstacle_collision(obs, player_id)
       add_floater(player.x, player.y, "+5", 3)
     elseif obs.type == "speed_trap" then
       _log("obstacle:speed_trap")
-      speed_trap_frames = 2
+      speed_trap_frames = 120
       sfx(1)
       add_floater(player.x, player.y, "slow", 9)
     elseif obs.type == "shield" then
       _log("obstacle:shield")
-      player.invincibility_frames = 300
+      player.invincibility_frames = 120
       sfx(4)
       add_floater(player.x, player.y, "shield!", 11)
     end
@@ -1021,12 +1021,12 @@ function handle_obstacle_collision(obs, player_id)
       add_floater(player2.x, player2.y, "+5", 3)
     elseif obs.type == "speed_trap" then
       _log("obstacle:speed_trap:p2")
-      speed_trap_frames2 = 2
+      speed_trap_frames2 = 120
       sfx(1)
       add_floater(player2.x, player2.y, "slow", 9)
     elseif obs.type == "shield" then
       _log("obstacle:shield:p2")
-      player2.invincibility_frames = 300
+      player2.invincibility_frames = 120
       sfx(4)
       add_floater(player2.x, player2.y, "shield!", 11)
     end
