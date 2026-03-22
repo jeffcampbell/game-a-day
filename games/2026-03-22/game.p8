@@ -29,11 +29,14 @@ end
 -- game state
 state = "menu"
 mode = "endless"  -- "endless" or "campaign"
+num_players = 1  -- 1 or 2
 difficulty = 1  -- 1=easy, 2=normal, 3=hard
 current_level = 1  -- for campaign mode
 campaign_progress = 0  -- highest level completed (0-5)
 score = 0
+score2 = 0  -- second player score
 lives = 3
+lives2 = 3  -- second player lives
 time_elapsed = 0
 spawn_timer = 0
 spawn_rate = 30  -- frames between spawns
@@ -43,6 +46,7 @@ floaters = {}  -- floating score text
 shake_frames = 0  -- screen shake effect
 music_playing = false
 speed_trap_frames = 0  -- frames remaining in speed trap effect
+speed_trap_frames2 = 0  -- second player speed trap
 engine_loop_counter = 0  -- counter for ambient engine loop
 
 -- high score data
@@ -67,7 +71,7 @@ levels = {
 
 -- player
 player = {
-  x = 64,
+  x = 32,
   y = 110,
   w = 6,
   h = 6,
@@ -75,10 +79,25 @@ player = {
   invincibility_frames = 0  -- frames remaining in invincibility state
 }
 
+-- player 2
+player2 = {
+  x = 96,
+  y = 110,
+  w = 6,
+  h = 6,
+  speed = 2,
+  invincibility_frames = 0
+}
+
 -- lane bounds
-lane_left = 30
-lane_right = 98
+lane_left = 8
+lane_right = 56
 lane_width = lane_right - lane_left
+
+-- player 2 lane bounds
+lane_left2 = 72
+lane_right2 = 120
+lane_width2 = lane_right2 - lane_left2
 
 -- constants
 win_score = 500
@@ -221,9 +240,21 @@ end
 -- mode select state
 function update_mode_select()
   if btnp(0) then  -- left
-    mode = "endless"
+    num_players = max(1, num_players - 1)
   elseif btnp(1) then  -- right
-    mode = "campaign"
+    num_players = min(2, num_players + 1)
+  elseif btnp(2) then  -- up
+    if num_players == 1 then
+      mode = "endless"
+    elseif num_players == 2 then
+      mode = "endless"
+    end
+  elseif btnp(3) then  -- down
+    if num_players == 1 then
+      mode = "campaign"
+    elseif num_players == 2 then
+      mode = "campaign"
+    end
   elseif btnp(4) then  -- z button
     _log("state:difficulty_select")
     state = "difficulty_select"
@@ -237,19 +268,25 @@ end
 
 function draw_mode_select()
   print("select mode", 42, 30, 7)
+  print("left/right: players", 28, 45, 6)
 
-  local x1, x2 = 15, 70
-  local col1, col2 = 6, 6
-  if mode == "endless" then col1 = 11 else col2 = 11 end
+  -- player count
+  local p1_col, p2_col = 6, 6
+  if num_players == 1 then p1_col = 11 else p2_col = 11 end
+  print("1p", 20, 60, p1_col)
+  print("2p", 105, 60, p2_col)
 
-  print("endless", x1, 60, col1)
-  print("campaign", x2, 60, col2)
+  -- mode (up/down)
+  local e_col, c_col = 6, 6
+  if mode == "endless" then e_col = 11 else c_col = 11 end
+  print("endless", 40, 75, e_col)
+  print("campaign", 40, 85, c_col)
 
   if mode == "campaign" then
-    print("lvl: "..min(5, campaign_progress+1).."/5", 35, 80, 10)
+    print("lvl: "..min(5, campaign_progress+1).."/5", 35, 100, 10)
   end
 
-  print("arrows to choose, z to play", 5, 110, 6)
+  print("z to play", 50, 110, 3)
 end
 
 -- difficulty select state
@@ -278,7 +315,11 @@ function draw_difficulty_select()
   if mode == "campaign" then
     print("campaign: level "..current_level, 22, 30, 7)
   else
-    print("select difficulty", 32, 30, 7)
+    if num_players == 1 then
+      print("select difficulty", 32, 30, 7)
+    else
+      print("difficulty (2-player)", 28, 30, 7)
+    end
   end
 
   local y_base = 50
@@ -303,25 +344,41 @@ end
 function start_game()
   state = "play"
   score = 0
+  score2 = 0
   lives = 3
+  lives2 = 3
   time_elapsed = 0
   spawn_timer = 0
   obstacles = {}
   particles = {}
   floaters = {}
   shake_frames = 0
+  speed_trap_frames = 0
+  speed_trap_frames2 = 0
   music_playing = true
   engine_loop_counter = 0
   music(1)  -- start gameplay ambient music
   is_new_record_achieved = false
   is_personal_best_achieved = false
 
+  -- reset player positions
+  player.x = 32
+  player.y = 110
+  player.invincibility_frames = 0
+  player2.x = 96
+  player2.y = 110
+  player2.invincibility_frames = 0
+
   if mode == "campaign" then
     -- campaign mode: level-based difficulty
     local lvl = levels[current_level]
     spawn_rate = lvl.spawn_rate_start
     win_score = lvl.score_target
-    _log("campaign_start:level:"..current_level)
+    if num_players == 2 then
+      _log("campaign_start:level:"..current_level.":2p")
+    else
+      _log("campaign_start:level:"..current_level)
+    end
   else
     -- endless mode: difficulty select
     if difficulty == 1 then
@@ -332,6 +389,9 @@ function start_game()
       spawn_rate = 18
     end
     win_score = 500
+    if num_players == 2 then
+      _log("endless_start:2p")
+    end
   end
 end
 
@@ -340,10 +400,16 @@ function update_play()
   if player.invincibility_frames > 0 then
     player.invincibility_frames -= 1
   end
+  if num_players == 2 and player2.invincibility_frames > 0 then
+    player2.invincibility_frames -= 1
+  end
 
   -- update speed trap effect
   if speed_trap_frames > 0 then
     speed_trap_frames -= 1
+  end
+  if num_players == 2 and speed_trap_frames2 > 0 then
+    speed_trap_frames2 -= 1
   end
 
   -- ambient engine loop every 2 seconds
@@ -353,7 +419,7 @@ function update_play()
     engine_loop_counter = 0
   end
 
-  -- player input (with speed reduction if in speed trap)
+  -- player 1 input (with speed reduction if in speed trap)
   local move_speed = player.speed
   if speed_trap_frames > 0 then
     move_speed = player.speed * 0.5  -- halve speed during trap
@@ -366,6 +432,21 @@ function update_play()
     player.x = min(lane_right, player.x + move_speed)
   end
 
+  -- player 2 input (separate buttons via btn(i, p=1))
+  if num_players == 2 then
+    local move_speed2 = player2.speed
+    if speed_trap_frames2 > 0 then
+      move_speed2 = player2.speed * 0.5
+    end
+
+    if btn(0, 1) then  -- left (player 2)
+      player2.x = max(lane_left2, player2.x - move_speed2)
+    end
+    if btn(1, 1) then  -- right (player 2)
+      player2.x = min(lane_right2, player2.x + move_speed2)
+    end
+  end
+
   -- obstacle spawning
   spawn_timer -= 1
   if spawn_timer <= 0 then
@@ -373,7 +454,11 @@ function update_play()
     spawn_timer = spawn_rate
 
     -- increase difficulty over time
-    if score > 0 and score % 100 == 0 then
+    local current_score = score
+    if num_players == 2 then
+      current_score = max(score, score2)
+    end
+    if current_score > 0 and current_score % 100 == 0 then
       spawn_rate = max(10, spawn_rate - 2)
       _log("level_up")
       sfx(3)  -- level-up sound
@@ -386,56 +471,53 @@ function update_play()
     local obs = obstacles[i]
     obs.y += obs.speed
 
-    -- check collision with player
+    -- player 1 collision
+    local p1_hit = false
     if obs.y < player.y + player.h and
        obs.y + obs.h > player.y and
        obs.x < player.x + player.w and
        obs.x + obs.w > player.x then
+      p1_hit = true
+    end
 
-      -- handle obstacle type
-      if obs.type == "hazard" then
-        _log("obstacle:hazard")
-        if player.invincibility_frames <= 0 then
-          lives -= 1
-          spawn_particle(obs.x, obs.y)
-          sfx(0)  -- collision sound
-          shake_frames = 4
-          if lives <= 0 then
-            _log("gameover:lose")
-            save_game_score(score, flr(time_elapsed))
-            state = "gameover"
-            music_playing = false
-            music()
-            sfx(2)
-          end
-        else
-          sfx(5)  -- invincibility hit sound
-          _log("invincibility:triggered")
-        end
-      elseif obs.type == "bonus" then
-        _log("obstacle:bonus")
-        score += 5
-        sfx(4)  -- bonus sound
-        add_floater(player.x, player.y, "+5", 3)
-      elseif obs.type == "speed_trap" then
-        _log("obstacle:speed_trap")
-        speed_trap_frames = 2
-        sfx(1)  -- speed trap sound
-        add_floater(player.x, player.y, "slow", 9)
-      elseif obs.type == "shield" then
-        _log("obstacle:shield")
-        player.invincibility_frames = 300  -- 5 seconds at 60fps
-        sfx(4)  -- shield pickup sound
-        add_floater(player.x, player.y, "shield!", 11)
+    -- player 2 collision (for p2-specific lane)
+    local p2_hit = false
+    if num_players == 2 then
+      if obs.y < player2.y + player2.h and
+         obs.y + obs.h > player2.y and
+         obs.x2 < player2.x + player2.w and
+         obs.x2 + obs.w > player2.x then
+        p2_hit = true
       end
+    end
 
-      deli(obstacles, i)
-    elseif obs.y > 128 then
-      -- passed obstacle safely
-      score += 1
-      sfx(1)  -- score point sound
-      add_floater(player.x, player.y, "+1", 11)
-      deli(obstacles, i)
+    -- handle collisions
+    if p1_hit then
+      handle_obstacle_collision(obs, "p1")
+    end
+    if p2_hit then
+      handle_obstacle_collision(obs, "p2")
+    end
+
+    -- check if passed
+    if obs.y > 128 then
+      if not obs.p1_counted and (num_players == 1 or not p1_hit) then
+        score += 1
+        sfx(1)
+        add_floater(player.x, player.y, "+1", 11)
+        obs.p1_counted = true
+      end
+      if num_players == 2 then
+        if not obs.p2_counted and not p2_hit then
+          score2 += 1
+          sfx(1)
+          add_floater(player2.x, player2.y, "+1", 11)
+          obs.p2_counted = true
+        end
+      end
+      if obs.p1_counted and (num_players == 1 or obs.p2_counted) then
+        deli(obstacles, i)
+      end
     end
   end
 
@@ -466,23 +548,57 @@ function update_play()
   -- update timer
   time_elapsed += 1/60
 
+  -- check game over condition (either player loses all lives)
+  if num_players == 2 then
+    if lives <= 0 or lives2 <= 0 then
+      _log("gameover:lose")
+      local final_score = max(score, score2)
+      save_game_score(final_score, flr(time_elapsed))
+      state = "gameover"
+      music_playing = false
+      music()
+    end
+  else
+    if lives <= 0 then
+      _log("gameover:lose")
+      save_game_score(score, flr(time_elapsed))
+      state = "gameover"
+      music_playing = false
+      music()
+    end
+  end
+
   -- check win condition
   local level_won = false
   if mode == "campaign" then
-    -- campaign: win on score target
-    if score >= win_score then
-      level_won = true
+    -- campaign: win when both players reach target (or player 1 if solo)
+    if num_players == 2 then
+      if score >= win_score and score2 >= win_score then
+        level_won = true
+      end
+    else
+      if score >= win_score then
+        level_won = true
+      end
     end
   else
     -- endless: win on score or time
-    if score >= win_score or time_elapsed >= win_time then
-      level_won = true
+    if num_players == 2 then
+      local high_score = max(score, score2)
+      if high_score >= win_score or time_elapsed >= win_time then
+        level_won = true
+      end
+    else
+      if score >= win_score or time_elapsed >= win_time then
+        level_won = true
+      end
     end
   end
 
   if level_won then
     _log("gameover:win")
-    save_game_score(score, flr(time_elapsed))
+    local final_score = max(score, score2)
+    save_game_score(final_score, flr(time_elapsed))
 
     if mode == "campaign" then
       -- update campaign progress
@@ -501,17 +617,82 @@ function update_play()
   end
 end
 
+function handle_obstacle_collision(obs, player_id)
+  if player_id == "p1" then
+    if obs.type == "hazard" then
+      _log("obstacle:hazard")
+      if player.invincibility_frames <= 0 then
+        lives -= 1
+        spawn_particle(obs.x, obs.y)
+        sfx(0)
+        shake_frames = 4
+      else
+        sfx(5)
+        _log("invincibility:triggered")
+      end
+    elseif obs.type == "bonus" then
+      _log("obstacle:bonus")
+      score += 5
+      sfx(4)
+      add_floater(player.x, player.y, "+5", 3)
+    elseif obs.type == "speed_trap" then
+      _log("obstacle:speed_trap")
+      speed_trap_frames = 2
+      sfx(1)
+      add_floater(player.x, player.y, "slow", 9)
+    elseif obs.type == "shield" then
+      _log("obstacle:shield")
+      player.invincibility_frames = 300
+      sfx(4)
+      add_floater(player.x, player.y, "shield!", 11)
+    end
+  else  -- p2
+    if obs.type == "hazard" then
+      _log("obstacle:hazard:p2")
+      if player2.invincibility_frames <= 0 then
+        lives2 -= 1
+        spawn_particle(obs.x2, obs.y)
+        sfx(0)
+        shake_frames = 4
+      else
+        sfx(5)
+        _log("invincibility:triggered:p2")
+      end
+    elseif obs.type == "bonus" then
+      _log("obstacle:bonus:p2")
+      score2 += 5
+      sfx(4)
+      add_floater(player2.x, player2.y, "+5", 3)
+    elseif obs.type == "speed_trap" then
+      _log("obstacle:speed_trap:p2")
+      speed_trap_frames2 = 2
+      sfx(1)
+      add_floater(player2.x, player2.y, "slow", 9)
+    elseif obs.type == "shield" then
+      _log("obstacle:shield:p2")
+      player2.invincibility_frames = 300
+      sfx(4)
+      add_floater(player2.x, player2.y, "shield!", 11)
+    end
+  end
+end
+
 function spawn_obstacle()
   local w = 8 + flr(rnd(8))
   local x = lane_left + rnd(lane_width - w)
+  local x2 = lane_left2 + rnd(lane_width2 - w)
+
   local obs = {
     x = x,
+    x2 = x2,
     y = -8,
     w = w,
     h = 8,
     speed = 1 + (difficulty - 1) * 0.5,
     type = "hazard",
-    sprite_id = 2
+    sprite_id = 2,
+    p1_counted = false,
+    p2_counted = false
   }
 
   -- determine obstacle type based on mode
@@ -530,19 +711,15 @@ function spawn_obstacle()
   end
 
   if roll < h_pct then
-    -- hazard
     obs.type = "hazard"
     obs.sprite_id = 2
   elseif roll < h_pct + b_pct then
-    -- bonus
     obs.type = "bonus"
     obs.sprite_id = 3
   elseif roll < h_pct + b_pct + s_pct then
-    -- speed trap
     obs.type = "speed_trap"
     obs.sprite_id = 4
   elseif roll < 100 then
-    -- treasure/shield (rare)
     obs.type = "shield"
     obs.sprite_id = 5
   end
@@ -585,37 +762,86 @@ function draw_play()
   end
   camera(shake_x, shake_y)
 
-  -- draw lane markers
-  line(lane_left, 0, lane_left, 128, 5)
-  line(lane_right, 0, lane_right, 128, 5)
+  if num_players == 1 then
+    -- single player view
+    -- draw lane markers
+    line(lane_left, 0, lane_left, 128, 5)
+    line(lane_right, 0, lane_right, 128, 5)
 
-  -- draw center line dashes
-  for y = 0, 128, 10 do
-    line(64, y, 64, y + 5, 5)
-  end
+    -- draw center line dashes
+    for y = 0, 128, 10 do
+      line(64, y, 64, y + 5, 5)
+    end
 
-  -- draw player car
-  spr(1, player.x - 3, player.y - 3)
+    -- draw player car
+    spr(1, player.x - 3, player.y - 3)
 
-  -- draw invincibility shield (pulsing circle)
-  if player.invincibility_frames > 0 then
-    local pulse = abs(sin(time_elapsed * 4)) * 2
-    circ(player.x, player.y, 4 + pulse, 11)
-  end
+    -- draw invincibility shield
+    if player.invincibility_frames > 0 then
+      local pulse = abs(sin(time_elapsed * 4)) * 2
+      circ(player.x, player.y, 4 + pulse, 11)
+    end
 
-  -- draw speed trap indicator (red outline)
-  if speed_trap_frames > 0 then
-    rect(player.x - 4, player.y - 4, player.x + 4, player.y + 4, 8)
-  end
+    -- draw speed trap indicator
+    if speed_trap_frames > 0 then
+      rect(player.x - 4, player.y - 4, player.x + 4, player.y + 4, 8)
+    end
 
-  -- draw obstacles (sprite-based)
-  for obs in all(obstacles) do
-    -- calculate scale based on width (default width is 8)
-    local scale = obs.w / 8
-    if scale > 1 then
-      sspr(obs.sprite_id * 8, 0, 8, 8, obs.x, obs.y, obs.w, 8)
-    else
-      spr(obs.sprite_id, obs.x, obs.y)
+    -- draw obstacles
+    for obs in all(obstacles) do
+      local scale = obs.w / 8
+      if scale > 1 then
+        sspr(obs.sprite_id * 8, 0, 8, 8, obs.x, obs.y, obs.w, 8)
+      else
+        spr(obs.sprite_id, obs.x, obs.y)
+      end
+    end
+  else
+    -- split-screen two player view
+    -- left side: player 1
+    line(lane_left, 0, lane_left, 128, 5)
+    line(lane_right, 0, lane_right, 128, 5)
+
+    spr(1, player.x - 3, player.y - 3)
+    if player.invincibility_frames > 0 then
+      local pulse = abs(sin(time_elapsed * 4)) * 2
+      circ(player.x, player.y, 4 + pulse, 11)
+    end
+    if speed_trap_frames > 0 then
+      rect(player.x - 4, player.y - 4, player.x + 4, player.y + 4, 8)
+    end
+
+    -- right side: player 2
+    line(lane_left2, 0, lane_left2, 128, 5)
+    line(lane_right2, 0, lane_right2, 128, 5)
+
+    spr(1, player2.x - 3, player2.y - 3)
+    if player2.invincibility_frames > 0 then
+      local pulse = abs(sin(time_elapsed * 4)) * 2
+      circ(player2.x, player2.y, 4 + pulse, 11)
+    end
+    if speed_trap_frames2 > 0 then
+      rect(player2.x - 4, player2.y - 4, player2.x + 4, player2.y + 4, 8)
+    end
+
+    -- divider line between screens
+    line(64, 0, 64, 128, 5)
+
+    -- draw obstacles for both players
+    for obs in all(obstacles) do
+      local scale = obs.w / 8
+      -- player 1 obstacles
+      if scale > 1 then
+        sspr(obs.sprite_id * 8, 0, 8, 8, obs.x, obs.y, obs.w, 8)
+      else
+        spr(obs.sprite_id, obs.x, obs.y)
+      end
+      -- player 2 obstacles
+      if scale > 1 then
+        sspr(obs.sprite_id * 8, 0, 8, 8, obs.x2, obs.y, obs.w, 8)
+      else
+        spr(obs.sprite_id, obs.x2, obs.y)
+      end
     end
   end
 
@@ -635,13 +861,26 @@ function draw_play()
   camera(0, 0)
 
   -- draw ui
-  print("score:"..score, 2, 2, 7)
-  if mode == "campaign" then
-    print("level:"..current_level, 2, 10, 7)
-    print("target:"..win_score, 2, 18, 6)
+  if num_players == 1 then
+    print("score:"..score, 2, 2, 7)
+    if mode == "campaign" then
+      print("level:"..current_level, 2, 10, 7)
+      print("target:"..win_score, 2, 18, 6)
+    else
+      print("lives:"..lives, 2, 10, 7)
+      print("time:"..flr(time_elapsed), 2, 18, 7)
+    end
   else
-    print("lives:"..lives, 2, 10, 7)
-    print("time:"..flr(time_elapsed), 2, 18, 7)
+    -- 2-player UI
+    print("p1:"..score, 2, 2, 7)
+    print("p2:"..score2, 2, 10, 7)
+    print("l1:"..lives, 2, 18, 8)
+    print("l2:"..lives2, 65, 18, 8)
+    if mode == "campaign" then
+      print("target:"..win_score, 35, 2, 6)
+    else
+      print("time:"..flr(time_elapsed), 35, 2, 7)
+    end
   end
 end
 
@@ -670,13 +909,19 @@ end
 
 function draw_level_complete()
   print("level complete!", 35, 30, 11)
-  print("score: "..score, 42, 50, 7)
+
+  if num_players == 1 then
+    print("score: "..score, 42, 50, 7)
+  else
+    print("p1: "..score, 38, 50, 7)
+    print("p2: "..score2, 38, 60, 7)
+  end
 
   if current_level < 5 then
-    print("level "..current_level.." / 5", 38, 70, 6)
-    print("press z for level "..(current_level+1), 18, 90, 3)
+    print("level "..current_level.." / 5", 38, 75, 6)
+    print("press z for level "..(current_level+1), 15, 90, 3)
   else
-    print("★ campaign complete! ★", 25, 70, 10)
+    print("★ campaign complete! ★", 25, 75, 10)
     print("press z to finish", 30, 90, 3)
   end
 
@@ -695,28 +940,70 @@ function update_gameover()
 end
 
 function draw_gameover()
-  print("game over", 48, 40, 8)
-  print("final score:"..score, 30, 60, 7)
+  if num_players == 1 then
+    print("game over", 48, 40, 8)
+    print("final score:"..score, 30, 60, 7)
 
-  -- show achievement messages (using flags set in save_game_score)
-  local rank = get_rank(score)
-  if is_new_record_achieved then
-    print("★new record!★", 40, 75, 10)
-    _log("achievement:new_record")
-  elseif is_personal_best_achieved then
-    print("personal best!", 38, 75, 11)
-    _log("achievement:personal_best")
-  elseif rank > 0 then
-    print("#"..rank.." all time", 40, 75, 14)
-  else
-    if score >= win_score or time_elapsed >= win_time then
-      print("you won!", 48, 75, 11)
+    -- show achievement messages
+    local rank = get_rank(score)
+    if is_new_record_achieved then
+      print("★new record!★", 40, 75, 10)
+      _log("achievement:new_record")
+    elseif is_personal_best_achieved then
+      print("personal best!", 38, 75, 11)
+      _log("achievement:personal_best")
+    elseif rank > 0 then
+      print("#"..rank.." all time", 40, 75, 14)
     else
-      print("you lost", 48, 75, 8)
+      if score >= win_score or time_elapsed >= win_time then
+        print("you won!", 48, 75, 11)
+      else
+        print("you lost", 48, 75, 8)
+      end
     end
-  end
 
-  print("press z to try again", 20, 105, 3)
+    print("press z to try again", 20, 105, 3)
+  else
+    -- 2-player game over
+    print("game over", 48, 20, 8)
+    print("p1: "..score, 20, 35, 7)
+    print("p2: "..score2, 20, 45, 7)
+
+    -- determine winner
+    if lives <= 0 and lives2 > 0 then
+      print("player 2 wins!", 38, 60, 11)
+      _log("p2_wins")
+    elseif lives2 <= 0 and lives > 0 then
+      print("player 1 wins!", 38, 60, 11)
+      _log("p1_wins")
+    elseif lives <= 0 and lives2 <= 0 then
+      if score > score2 then
+        print("player 1 wins!", 38, 60, 11)
+        _log("p1_wins")
+      elseif score2 > score then
+        print("player 2 wins!", 38, 60, 11)
+        _log("p2_wins")
+      else
+        print("tie game!", 45, 60, 14)
+        _log("tie")
+      end
+    else
+      if score >= win_score and score2 >= win_score then
+        if score > score2 then
+          print("p1 wins!", 45, 60, 11)
+          _log("p1_wins")
+        elseif score2 > score then
+          print("p2 wins!", 45, 60, 11)
+          _log("p2_wins")
+        else
+          print("tie!", 52, 60, 14)
+          _log("tie")
+        end
+      end
+    end
+
+    print("press z to menu", 36, 105, 3)
+  end
 end
 
 -- stats state
