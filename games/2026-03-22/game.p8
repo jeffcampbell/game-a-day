@@ -787,12 +787,12 @@ function update_play()
     -- check p1 collision
     if pu.y < player.y + player.h and pu.y + 8 > player.y and
        pu.x < player.x + player.w and pu.x + 6 > player.x then
-      handle_powerup_pickup(pu.type)
+      handle_powerup_pickup(pu.type, "p1")
       deli(powerups, i)
     -- check p2 collision
     elseif num_players == 2 and pu.y < player2.y + player2.h and pu.y + 8 > player2.y and
        pu.x2 < player2.x + player2.w and pu.x2 + 6 > player2.x then
-      handle_powerup_pickup(pu.type)
+      handle_powerup_pickup(pu.type, "p2")
       deli(powerups, i)
     end
   end
@@ -1092,7 +1092,7 @@ function spawn_powerup()
   _log("powerup:spawn:"..pt)
 end
 
-function handle_powerup_pickup(pt)
+function handle_powerup_pickup(pt, player_id)
   _log("powerup:pickup:"..pt)
   powerups_collected += 1
   sfx(6)
@@ -1106,7 +1106,12 @@ function handle_powerup_pickup(pt)
   end
 
   active_powerup = {type=pt, timer=t}
-  add_floater(player.x, player.y, msg, col)
+
+  local px, py = player.x, player.y
+  if player_id == "p2" then
+    px, py = player2.x, player2.y
+  end
+  add_floater(px, py, msg, col)
 end
 
 function spawn_particle(x, y)
