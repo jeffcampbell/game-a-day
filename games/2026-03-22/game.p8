@@ -70,11 +70,11 @@ is_personal_best_achieved = false
 
 -- campaign level definitions
 levels = {
-  {name="intro", score_target=50, spawn_rate_start=60, obstacle_types={h=80,b=15,s=3,t=2}, hazard_speed=0.5},
-  {name="variety", score_target=100, spawn_rate_start=50, obstacle_types={h=70,b=20,s=8,t=2}, hazard_speed=0.7},
-  {name="challenge", score_target=150, spawn_rate_start=40, obstacle_types={h=60,b=20,s=15,t=5}, hazard_speed=0.9},
-  {name="intense", score_target=200, spawn_rate_start=30, obstacle_types={h=50,b=20,s=20,t=10}, hazard_speed=1.1},
-  {name="boss", score_target=250, spawn_rate_start=20, obstacle_types={h=40,b=20,s=20,t=20}, hazard_speed=1.3}
+  {name="intro", score_target=50, spawn_rate_start=240, obstacle_types={h=80,b=15,s=3,t=2}, hazard_speed=0.5},
+  {name="variety", score_target=100, spawn_rate_start=200, obstacle_types={h=70,b=20,s=8,t=2}, hazard_speed=0.7},
+  {name="challenge", score_target=150, spawn_rate_start=160, obstacle_types={h=60,b=20,s=15,t=5}, hazard_speed=0.9},
+  {name="intense", score_target=200, spawn_rate_start=120, obstacle_types={h=50,b=20,s=20,t=10}, hazard_speed=1.1},
+  {name="boss", score_target=250, spawn_rate_start=90, obstacle_types={h=40,b=20,s=20,t=20}, hazard_speed=1.3}
 }
 
 -- player
@@ -397,11 +397,11 @@ function start_game()
   else
     -- endless mode: difficulty select
     if difficulty == 1 then
-      spawn_rate = 60
+      spawn_rate = 240  -- easy: 4 seconds between spawns
     elseif difficulty == 2 then
-      spawn_rate = 45
+      spawn_rate = 150  -- normal: 2.5 seconds between spawns
     else
-      spawn_rate = 30
+      spawn_rate = 120  -- hard: 2 seconds between spawns
     end
     win_score = 500
     if num_players == 2 then
@@ -471,13 +471,22 @@ function update_play()
     spawn_obstacle()
     spawn_timer = spawn_rate + spawn_rate_adjust
 
-    -- increase difficulty over time
+    -- increase difficulty over time (only for normal and hard)
     local current_score = score
     if num_players == 2 then
       current_score = max(score, score2)
     end
     if current_score > 0 and current_score % 100 == 0 then
-      spawn_rate = max(10, spawn_rate - 2)
+      if difficulty == 1 then
+        -- easy mode: very slow difficulty ramp
+        spawn_rate = max(30, spawn_rate - 1)
+      elseif difficulty == 2 then
+        -- normal mode: moderate ramp
+        spawn_rate = max(20, spawn_rate - 1)
+      else
+        -- hard mode: standard ramp
+        spawn_rate = max(15, spawn_rate - 2)
+      end
       _log("level_up")
       sfx(3)  -- level-up sound
       shake_frames = 2  -- light shake on level-up
@@ -680,9 +689,9 @@ function update_adaptive_difficulty()
       spawn_rate_adjust = max(-5, spawn_rate_adjust - 0.1)
       hazard_speed_adjust = min(0.5, hazard_speed_adjust + 0.05)
     elseif dodge_rate < 0.4 then
-      -- too hard: decrease difficulty
-      spawn_rate_adjust = min(10, spawn_rate_adjust + 0.1)
-      hazard_speed_adjust = max(-0.3, hazard_speed_adjust - 0.05)
+      -- too hard: decrease difficulty (more aggressive help)
+      spawn_rate_adjust = min(15, spawn_rate_adjust + 0.2)
+      hazard_speed_adjust = max(-0.5, hazard_speed_adjust - 0.1)
     else
       -- balanced: gradually return to normal
       spawn_rate_adjust *= 0.95
