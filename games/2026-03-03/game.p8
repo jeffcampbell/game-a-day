@@ -28,6 +28,7 @@ end
 state="menu"
 
 function _init()
+ _log("state:menu")
 end
 
 function _update()
@@ -46,6 +47,10 @@ function _draw()
 end
 
 function update_menu()
+ if btnp(4) or btnp(5) then
+  state="play"
+  _log("state:play")
+ end
 end
 
 function draw_menu()
@@ -58,6 +63,10 @@ function draw_play()
 end
 
 function update_gameover()
+ if btnp(4) or btnp(5) then
+  state="menu"
+  _log("state:menu")
+ end
 end
 
 function draw_gameover()
