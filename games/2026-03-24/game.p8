@@ -9,9 +9,15 @@ testmode = false
 test_log = {}
 test_inputs = {}
 test_input_idx = 0
+testmode_curr_input = 0
+testmode_prev_input = 0
 
 function _log(msg)
   if testmode then add(test_log, msg) end
+end
+
+function _capture()
+  if testmode then add(test_log, "SCREEN:"..tostr(stat(0))) end
 end
 
 function test_input(b)
@@ -20,6 +26,26 @@ function test_input(b)
     return test_inputs[test_input_idx] or 0
   end
   return btn()
+end
+
+function read_input()
+  testmode_prev_input = testmode_curr_input
+  if testmode and test_input_idx < #test_inputs then
+    test_input_idx += 1
+    testmode_curr_input = test_inputs[test_input_idx] or 0
+  else
+    testmode_curr_input = btn()
+  end
+end
+
+function test_btn(b)
+  return (testmode_curr_input & (1 << b)) ~= 0
+end
+
+function test_btnp(b)
+  local curr = test_btn(b)
+  local prev = (testmode_prev_input & (1 << b)) ~= 0
+  return curr and not prev
 end
 
 -- game state
@@ -107,7 +133,7 @@ function move_towards_player(enemy, player, map)
 end
 
 function update_menu()
-  if btnp(4) then  -- z button
+  if test_btnp(4) then  -- z button
     _log("state:play")
     state = "play"
     player = {x=1, y=1, hp=3}
@@ -122,18 +148,18 @@ function update_play()
   -- player movement
   local old_x, old_y = player.x, player.y
 
-  if btnp(0) and is_walkable(player.x-1, player.y, game_map) then
+  if test_btnp(0) and is_walkable(player.x-1, player.y, game_map) then
     player.x -= 1
-  elseif btnp(1) and is_walkable(player.x+1, player.y, game_map) then
+  elseif test_btnp(1) and is_walkable(player.x+1, player.y, game_map) then
     player.x += 1
-  elseif btnp(2) and is_walkable(player.x, player.y-1, game_map) then
+  elseif test_btnp(2) and is_walkable(player.x, player.y-1, game_map) then
     player.y -= 1
-  elseif btnp(3) and is_walkable(player.x, player.y+1, game_map) then
+  elseif test_btnp(3) and is_walkable(player.x, player.y+1, game_map) then
     player.y += 1
   end
 
   -- attack adjacent enemy
-  if btnp(4) then  -- z button
+  if test_btnp(4) then  -- z button
     local target = nil
     for e in all(enemies) do
       if distance(player.x, player.y, e.x, e.y) == 1 then
@@ -183,13 +209,14 @@ function update_play()
 end
 
 function update_gameover()
-  if btnp(4) then  -- z to restart
+  if test_btnp(4) then  -- z to restart
     _log("state:menu")
     state = "menu"
   end
 end
 
 function _update()
+  read_input()
   if state == "menu" then update_menu()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
