@@ -23,6 +23,16 @@ function test_input(b)
   return btn()
 end
 
+-- wrapper for btn() style button checks
+function test_btn(b)
+  return band(curr_btn, shl(1, b)) > 0
+end
+
+-- wrapper for btnp() style button presses
+function test_btnp(b)
+  return band(curr_btn, shl(1, b)) > 0 and not band(prev_btn, shl(1, b)) > 0
+end
+
 -- game state
 state = "menu"
 score = 0
@@ -30,6 +40,10 @@ level = 1
 game_time = 0
 spawn_counter = 0
 spawn_rate = 30  -- decrease over time for difficulty
+
+-- button state caching for test_input integration
+curr_btn = 0
+prev_btn = 0
 
 -- grid constants
 grid_w = 8
@@ -176,17 +190,16 @@ end
 
 -- apply gravity to settled tiles after clearing
 function settle_tiles()
-  for y = grid_h, 2, -1 do
-    for x = 1, grid_w do
-      if grid[y][x] == 0 and grid[y - 1][x] ~= 0 then
-        local drop_y = y
-        while drop_y <= grid_h and grid[drop_y][x] == 0 do
-          drop_y += 1
+  local changed = true
+  while changed do
+    changed = false
+    for y = grid_h, 2, -1 do
+      for x = 1, grid_w do
+        if grid[y][x] == 0 and grid[y - 1][x] ~= 0 then
+          grid[y][x] = grid[y - 1][x]
+          grid[y - 1][x] = 0
+          changed = true
         end
-        if drop_y > grid_h then drop_y = grid_h end
-
-        grid[drop_y][x] = grid[y - 1][x]
-        grid[y - 1][x] = 0
       end
     end
   end
@@ -203,7 +216,7 @@ function check_game_over()
 end
 
 function update_menu()
-  if btnp(4) or btnp(5) then  -- z or x
+  if test_btnp(4) or test_btnp(5) then  -- z or x
     init_game()
     state = "play"
     _log("state:play")
@@ -248,13 +261,16 @@ function update_play()
 end
 
 function update_gameover()
-  if btnp(4) or btnp(5) then  -- z or x
+  if test_btnp(4) or test_btnp(5) then  -- z or x
     state = "menu"
     _log("state:menu")
   end
 end
 
 function _update()
+  prev_btn = curr_btn
+  curr_btn = test_input(0)
+
   if state == "menu" then update_menu()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
