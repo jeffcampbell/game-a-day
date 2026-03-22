@@ -501,20 +501,26 @@ function update_play()
 
     -- check if passed
     if obs.y > 128 then
-      if not obs.p1_counted and (num_players == 1 or not p1_hit) then
-        score += 1
-        sfx(1)
-        add_floater(player.x, player.y, "+1", 11)
+      if not obs.p1_counted then
+        if num_players == 1 or not p1_hit then
+          score += 1
+          sfx(1)
+          add_floater(player.x, player.y, "+1", 11)
+        end
         obs.p1_counted = true
       end
+
       if num_players == 2 then
-        if not obs.p2_counted and not p2_hit then
-          score2 += 1
-          sfx(1)
-          add_floater(player2.x, player2.y, "+1", 11)
+        if not obs.p2_counted then
+          if not p2_hit then
+            score2 += 1
+            sfx(1)
+            add_floater(player2.x, player2.y, "+1", 11)
+          end
           obs.p2_counted = true
         end
       end
+
       if obs.p1_counted and (num_players == 1 or obs.p2_counted) then
         deli(obstacles, i)
       end
