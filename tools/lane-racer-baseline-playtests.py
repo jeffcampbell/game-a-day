@@ -312,17 +312,26 @@ class LaneRacerPlaytestGenerator:
 
         return (buttons, final_outcome)
 
-    def generate_baseline_sessions(self, num_sessions: int = 4) -> list:
+    def generate_baseline_sessions(self, num_sessions: int = 4, playstyle: str = None) -> list:
         """Generate a baseline set of sessions with mixed playstyles and modes.
 
         Args:
             num_sessions: Total sessions to generate (default 4)
+            playstyle: Optional filter for specific playstyle ("aggressive", "cautious", "balanced")
 
         Returns:
             List of session dicts
         """
         sessions = []
         profile_list = list(RACER_PROFILES.values())
+
+        # Filter profiles by playstyle if specified
+        if playstyle:
+            profile_list = [p for p in profile_list if p.playstyle == playstyle]
+            if not profile_list:
+                print(f"Error: No profiles found for playstyle '{playstyle}'")
+                return []
+
         mode_list = ["endless", "campaign"]
 
         # Generate mix of profiles and modes
@@ -405,7 +414,9 @@ def main():
     generator = LaneRacerPlaytestGenerator(game_dir)
 
     print(f"\nGenerating {args.sessions} sessions...\n")
-    sessions = generator.generate_baseline_sessions(num_sessions=args.sessions)
+    sessions = generator.generate_baseline_sessions(
+        num_sessions=args.sessions, playstyle=args.playstyle
+    )
 
     if not args.no_save:
         print(f"\nSaving sessions...\n")
