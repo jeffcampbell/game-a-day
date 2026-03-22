@@ -356,7 +356,7 @@ function start_game()
   lives = 3
   lives2 = 3
   time_elapsed = 0
-  spawn_timer = 0
+  spawn_timer = spawn_rate  -- give players grace period before first obstacle
   obstacles = {}
   particles = {}
   floaters = {}
