@@ -78,13 +78,22 @@ personal_best = 0
 is_new_record_achieved = false
 is_personal_best_achieved = false
 
+-- theme colors per level: bg, primary, secondary
+themes = {
+  intro = {bg=1, primary=12, secondary=13},  -- blue/cyan
+  variety = {bg=1, primary=2, secondary=14},  -- purple/magenta
+  challenge = {bg=1, primary=8, secondary=9},  -- red/orange
+  intense = {bg=1, primary=8, secondary=3},  -- dark red/yellow
+  boss = {bg=0, primary=8, secondary=2}  -- dark/flashing
+}
+
 -- campaign level definitions
 levels = {
-  {name="intro", score_target=50, spawn_rate_start=320, obstacle_types={h=80,b=15,s=3,t=2}, hazard_speed=0.5},
-  {name="variety", score_target=100, spawn_rate_start=280, obstacle_types={h=70,b=20,s=8,t=2}, hazard_speed=0.7},
-  {name="challenge", score_target=150, spawn_rate_start=240, obstacle_types={h=60,b=20,s=15,t=5}, hazard_speed=0.9},
-  {name="intense", score_target=200, spawn_rate_start=200, obstacle_types={h=50,b=20,s=20,t=10}, hazard_speed=1.1},
-  {name="boss", score_target=250, spawn_rate_start=160, obstacle_types={h=40,b=20,s=20,t=20}, hazard_speed=1.3}
+  {name="intro", score_target=50, spawn_rate_start=320, obstacle_types={h=65,b=20,s=5,t=5,r=3,o=2,m=0}, hazard_speed=0.5},
+  {name="variety", score_target=100, spawn_rate_start=280, obstacle_types={h=50,b=18,s=10,t=8,r=8,o=3,m=3}, hazard_speed=0.7},
+  {name="challenge", score_target=150, spawn_rate_start=240, obstacle_types={h=40,b=15,s=15,t=10,r=10,o=5,m=5}, hazard_speed=0.9},
+  {name="intense", score_target=200, spawn_rate_start=200, obstacle_types={h=30,b=12,s=15,t=12,r=15,o=10,m=6}, hazard_speed=1.1},
+  {name="boss", score_target=250, spawn_rate_start=160, obstacle_types={h=25,b=10,s=15,t=15,r=15,o=15,m=5}, hazard_speed=1.3}
 }
 
 -- player
@@ -705,6 +714,41 @@ function update_play()
     end
     obs.y += obs_speed
 
+    -- handle new obstacle type movement
+    if obs.type == "bounce" then
+      -- diagonal movement with bouncing
+      obs.bounce_angle += 0.08
+      local horiz = sin(obs.bounce_angle) * obs_speed * 2
+      obs.x += horiz
+      obs.x2 += horiz
+      -- bounce off lane edges
+      if obs.x < lane_left or obs.x + obs.w > lane_right then
+        obs.bounce_angle = -obs.bounce_angle + 0.5
+      end
+      if obs.x2 < lane_left2 or obs.x2 + obs.w > lane_right2 then
+        obs.bounce_angle = -obs.bounce_angle + 0.5
+      end
+      obs.x = mid(lane_left, obs.x, lane_right - obs.w)
+      obs.x2 = mid(lane_left2, obs.x2, lane_right2 - obs.w)
+    elseif obs.type == "rotate" then
+      -- rotating in place
+      obs.rotation += 0.1
+    elseif obs.type == "move" then
+      -- horizontal sliding motion
+      local move_dist = obs_speed * 0.8
+      obs.x += move_dist * obs.move_dir
+      obs.x2 += move_dist * obs.move_dir
+      -- bounce off walls
+      if obs.x < lane_left or obs.x + obs.w > lane_right then
+        obs.move_dir = -obs.move_dir
+      end
+      if obs.x2 < lane_left2 or obs.x2 + obs.w > lane_right2 then
+        obs.move_dir = -obs.move_dir
+      end
+      obs.x = mid(lane_left, obs.x, lane_right - obs.w)
+      obs.x2 = mid(lane_left2, obs.x2, lane_right2 - obs.w)
+    end
+
     -- player 1 collision
     local p1_hit = false
     if obs.y < player.y + player.h and
@@ -1000,6 +1044,25 @@ function handle_obstacle_collision(obs, player_id)
       player.invincibility_frames = 120
       sfx(4)
       add_floater(player.x, player.y, "shield!", 11)
+    elseif obs.type == "bounce" or obs.type == "rotate" or obs.type == "move" then
+      _log("obstacle:"..obs.type)
+      -- all new obstacles are hazards (block with shield or take damage)
+      if active_powerup and active_powerup.type == "shield" then
+        _log("shield:activated")
+        add_floater(player.x, player.y, "shield!", 11)
+        sfx(5)
+        active_powerup = nil
+        shake_frames = 2
+      elseif player.invincibility_frames <= 0 then
+        lives -= 1
+        player.invincibility_frames = 120
+        spawn_particle(obs.x, obs.y)
+        sfx(0)
+        shake_frames = 4
+      else
+        sfx(5)
+        _log("invincibility:triggered")
+      end
     end
   else  -- p2
     if obs.type == "hazard" then
@@ -1037,6 +1100,25 @@ function handle_obstacle_collision(obs, player_id)
       player2.invincibility_frames = 120
       sfx(4)
       add_floater(player2.x, player2.y, "shield!", 11)
+    elseif obs.type == "bounce" or obs.type == "rotate" or obs.type == "move" then
+      _log("obstacle:"..obs.type..":p2")
+      -- all new obstacles are hazards (block with shield or take damage)
+      if active_powerup and active_powerup.type == "shield" then
+        _log("shield:activated:p2")
+        add_floater(player2.x, player2.y, "shield!", 11)
+        sfx(5)
+        active_powerup = nil
+        shake_frames = 2
+      elseif player2.invincibility_frames <= 0 then
+        lives2 -= 1
+        player2.invincibility_frames = 120
+        spawn_particle(obs.x2, obs.y)
+        sfx(0)
+        shake_frames = 4
+      else
+        sfx(5)
+        _log("invincibility:triggered:p2")
+      end
     end
   end
 end
@@ -1057,7 +1139,10 @@ function spawn_obstacle()
     sprite_id = 2,
     p1_counted = false,
     p2_counted = false,
-    was_hit = false  -- track if this obstacle hit any player
+    was_hit = false,  -- track if this obstacle hit any player
+    bounce_angle = 0,  -- for bouncing obstacles
+    rotation = 0,  -- for rotating obstacles
+    move_dir = 1  -- for moving obstacles: 1=left, -1=right
   }
 
   -- track attempt for adaptive difficulty
@@ -1065,7 +1150,7 @@ function spawn_obstacle()
 
   -- determine obstacle type based on mode
   local roll = rnd(100)
-  local h_pct, b_pct, s_pct, t_pct = 60, 25, 10, 5
+  local h_pct, b_pct, s_pct, t_pct, r_pct, o_pct, m_pct = 60, 25, 10, 5, 0, 0, 0
 
   if mode == "campaign" then
     -- use level-specific obstacle distribution
@@ -1075,6 +1160,9 @@ function spawn_obstacle()
     b_pct = types.b or 20
     s_pct = types.s or 10
     t_pct = types.t or 5
+    r_pct = types.r or 0  -- bouncing
+    o_pct = types.o or 0  -- rotating
+    m_pct = types.m or 0  -- moving barrier
     obs.speed = lvl.hazard_speed + hazard_speed_adjust
   end
 
@@ -1087,9 +1175,21 @@ function spawn_obstacle()
   elseif roll < h_pct + b_pct + s_pct then
     obs.type = "speed_trap"
     obs.sprite_id = 4
-  elseif roll < 100 then
+  elseif roll < h_pct + b_pct + s_pct + t_pct then
     obs.type = "shield"
     obs.sprite_id = 5
+  elseif roll < h_pct + b_pct + s_pct + t_pct + r_pct then
+    obs.type = "bounce"
+    obs.sprite_id = 2  -- reuse hazard sprite
+    obs.bounce_angle = rnd(1) * 0.5 + 0.3  -- diagonal movement
+  elseif roll < h_pct + b_pct + s_pct + t_pct + r_pct + o_pct then
+    obs.type = "rotate"
+    obs.sprite_id = 4  -- reuse speed_trap sprite
+    obs.h = 6  -- slightly smaller for visual distinction
+  elseif roll < 100 then
+    obs.type = "move"
+    obs.sprite_id = 3  -- reuse bonus sprite
+    obs.move_dir = rnd(100) < 50 and 1 or -1
   end
 
   add(obstacles, obs)
@@ -1166,15 +1266,33 @@ function draw_play()
   end
   camera(shake_x, shake_y)
 
+  -- apply level theme colors
+  local theme = nil
+  local lvl = nil
+  if mode == "campaign" then
+    lvl = levels[current_level]
+    theme = themes[lvl.name]
+  end
+  -- boss theme: add flashing
+  local theme_primary = 5
+  local theme_secondary = 5
+  if theme then
+    theme_primary = theme.primary
+    theme_secondary = theme.secondary
+    if lvl and lvl.name == "boss" and flr(time_elapsed * 3) % 2 == 0 then
+      theme_primary = 2
+    end
+  end
+
   if num_players == 1 then
     -- single player view
     -- draw lane markers
-    line(lane_left, 0, lane_left, 128, 5)
-    line(lane_right, 0, lane_right, 128, 5)
+    line(lane_left, 0, lane_left, 128, theme_primary)
+    line(lane_right, 0, lane_right, 128, theme_primary)
 
     -- draw center line dashes
     for y = 0, 128, 10 do
-      line(64, y, 64, y + 5, 5)
+      line(64, y, 64, y + 5, theme_secondary)
     end
 
     -- draw player car
@@ -1212,8 +1330,8 @@ function draw_play()
   else
     -- split-screen two player view
     -- left side: player 1
-    line(lane_left, 0, lane_left, 128, 5)
-    line(lane_right, 0, lane_right, 128, 5)
+    line(lane_left, 0, lane_left, 128, theme_primary)
+    line(lane_right, 0, lane_right, 128, theme_primary)
 
     spr(1, player.x - 3, player.y - 3)
     if player.invincibility_frames > 0 then
@@ -1225,8 +1343,8 @@ function draw_play()
     end
 
     -- right side: player 2
-    line(lane_left2, 0, lane_left2, 128, 5)
-    line(lane_right2, 0, lane_right2, 128, 5)
+    line(lane_left2, 0, lane_left2, 128, theme_primary)
+    line(lane_right2, 0, lane_right2, 128, theme_primary)
 
     spr(1, player2.x - 3, player2.y - 3)
     if player2.invincibility_frames > 0 then
@@ -1238,7 +1356,7 @@ function draw_play()
     end
 
     -- divider line between screens
-    line(64, 0, 64, 128, 5)
+    line(64, 0, 64, 128, theme_secondary)
 
     -- draw obstacles for both players
     for obs in all(obstacles) do
