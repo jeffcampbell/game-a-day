@@ -58,8 +58,8 @@ is_personal_best_achieved = false
 
 -- campaign level definitions
 levels = {
-  {name="intro", score_target=50, spawn_rate_start=45, obstacle_types={h=80,b=20}, hazard_speed=0.5},
-  {name="variety", score_target=100, spawn_rate_start=35, obstacle_types={h=70,b=20,s=10}, hazard_speed=0.8},
+  {name="intro", score_target=50, spawn_rate_start=45, obstacle_types={h=80,b=15,s=3,t=2}, hazard_speed=0.5},
+  {name="variety", score_target=100, spawn_rate_start=35, obstacle_types={h=70,b=20,s=8,t=2}, hazard_speed=0.8},
   {name="challenge", score_target=150, spawn_rate_start=28, obstacle_types={h=60,b=20,s=15,t=5}, hazard_speed=1.0},
   {name="intense", score_target=200, spawn_rate_start=20, obstacle_types={h=50,b=20,s=20,t=10}, hazard_speed=1.2},
   {name="boss", score_target=250, spawn_rate_start=15, obstacle_types={h=40,b=20,s=20,t=20}, hazard_speed=1.5}
@@ -296,9 +296,7 @@ function draw_difficulty_select()
   end
 
   print("arrows to choose, z to play", 5, 90, 6)
-  if mode ~= "endless" then
-    print("x to back", 45, 105, 6)
-  end
+  print("x to back", 45, 105, 6)
 end
 
 -- play state
@@ -654,6 +652,7 @@ function update_level_complete()
       _log("campaign:completed")
       state = "menu"
       music(0)
+      sfx(2)
     else
       -- next level
       _log("campaign:next_level")
@@ -661,7 +660,6 @@ function update_level_complete()
       sfx(2)
       start_game()
     end
-    sfx(2)
   elseif btnp(5) then  -- x button
     _log("state:menu")
     state = "menu"
