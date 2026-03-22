@@ -677,11 +677,11 @@ function update_adaptive_difficulty()
   if adaptive_window % 30 == 0 then
     if dodge_rate > 0.8 then
       -- too easy: increase difficulty
-      spawn_rate_adjust = min(10, spawn_rate_adjust + 0.1)
+      spawn_rate_adjust = max(-5, spawn_rate_adjust - 0.1)
       hazard_speed_adjust = min(0.5, hazard_speed_adjust + 0.05)
     elseif dodge_rate < 0.4 then
       -- too hard: decrease difficulty
-      spawn_rate_adjust = max(-5, spawn_rate_adjust - 0.1)
+      spawn_rate_adjust = min(10, spawn_rate_adjust + 0.1)
       hazard_speed_adjust = max(-0.3, hazard_speed_adjust - 0.05)
     else
       -- balanced: gradually return to normal
