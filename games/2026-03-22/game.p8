@@ -39,6 +39,7 @@ particles = {}
 floaters = {}  -- floating score text
 shake_frames = 0  -- screen shake effect
 music_playing = false
+speed_trap_frames = 0  -- frames remaining in speed trap effect
 
 -- player
 player = {
@@ -46,7 +47,8 @@ player = {
   y = 110,
   w = 6,
   h = 6,
-  speed = 2
+  speed = 2,
+  invincibility_frames = 0  -- frames remaining in invincibility state
 }
 
 -- lane bounds
@@ -161,12 +163,27 @@ function start_game()
 end
 
 function update_play()
-  -- player input
+  -- update invincibility
+  if player.invincibility_frames > 0 then
+    player.invincibility_frames -= 1
+  end
+
+  -- update speed trap effect
+  if speed_trap_frames > 0 then
+    speed_trap_frames -= 1
+  end
+
+  -- player input (with speed reduction if in speed trap)
+  local move_speed = player.speed
+  if speed_trap_frames > 0 then
+    move_speed = player.speed * 0.5  -- halve speed during trap
+  end
+
   if test_input(0) then  -- left
-    player.x = max(lane_left, player.x - player.speed)
+    player.x = max(lane_left, player.x - move_speed)
   end
   if test_input(1) then  -- right
-    player.x = min(lane_right, player.x + player.speed)
+    player.x = min(lane_right, player.x + move_speed)
   end
 
   -- obstacle spawning
@@ -194,19 +211,44 @@ function update_play()
        obs.y + obs.h > player.y and
        obs.x < player.x + player.w and
        obs.x + obs.w > player.x then
-      _log("collision")
-      lives -= 1
-      spawn_particle(obs.x, obs.y)
-      sfx(0)  -- collision sound
-      shake_frames = 4  -- screen shake
-      deli(obstacles, i)
-      if lives <= 0 then
-        _log("gameover:lose")
-        state = "gameover"
-        music_playing = false
-        music()  -- stop background music
-        sfx(2)  -- gameover sound
+
+      -- handle obstacle type
+      if obs.type == "hazard" then
+        _log("obstacle:hazard")
+        if player.invincibility_frames <= 0 then
+          lives -= 1
+          spawn_particle(obs.x, obs.y)
+          sfx(0)  -- collision sound
+          shake_frames = 4
+          if lives <= 0 then
+            _log("gameover:lose")
+            state = "gameover"
+            music_playing = false
+            music()
+            sfx(2)
+          end
+        else
+          sfx(5)  -- invincibility hit sound
+          _log("invincibility:triggered")
+        end
+      elseif obs.type == "bonus" then
+        _log("obstacle:bonus")
+        score += 5
+        sfx(4)  -- bonus sound
+        add_floater(player.x, player.y, "+5", 3)
+      elseif obs.type == "speed_trap" then
+        _log("obstacle:speed_trap")
+        speed_trap_frames = 2
+        sfx(1)  -- speed trap sound
+        add_floater(player.x, player.y, "slow", 9)
+      elseif obs.type == "shield" then
+        _log("obstacle:shield")
+        player.invincibility_frames = 300  -- 5 seconds at 60fps
+        sfx(4)  -- shield pickup sound
+        add_floater(player.x, player.y, "shield!", 11)
       end
+
+      deli(obstacles, i)
     elseif obs.y > 128 then
       -- passed obstacle safely
       score += 1
@@ -260,8 +302,36 @@ function spawn_obstacle()
     w = w,
     h = 8,
     speed = 1 + (difficulty - 1) * 0.5,
-    col = 8 + flr(rnd(8))
+    type = "hazard",
+    col = 8
   }
+
+  -- determine obstacle type based on weighted probability
+  local roll = rnd(100)
+
+  if roll < 60 then
+    -- hazard (60%)
+    obs.type = "hazard"
+    obs.col = 8  -- gray/dark
+  elseif roll < 85 then
+    -- bonus (25%)
+    obs.type = "bonus"
+    obs.col = 3  -- green
+  elseif roll < 95 then
+    -- speed trap (10%)
+    obs.type = "speed_trap"
+    obs.col = 9  -- yellow/orange
+  else
+    -- shield (5%, hard difficulty only)
+    if difficulty >= 3 then
+      obs.type = "shield"
+      obs.col = 11  -- cyan
+    else
+      obs.type = "bonus"  -- fallback to bonus on easier difficulties
+      obs.col = 3
+    end
+  end
+
   add(obstacles, obs)
 end
 
@@ -312,9 +382,39 @@ function draw_play()
   -- draw player car
   spr(1, player.x - 3, player.y - 3)
 
+  -- draw invincibility shield (pulsing circle)
+  if player.invincibility_frames > 0 then
+    local pulse = abs(sin(time_elapsed * 4)) * 2
+    circ(player.x, player.y, 4 + pulse, 11)
+  end
+
+  -- draw speed trap indicator (red outline)
+  if speed_trap_frames > 0 then
+    rect(player.x - 4, player.y - 4, player.x + 4, player.y + 4, 8)
+  end
+
   -- draw obstacles
   for obs in all(obstacles) do
-    rectfill(obs.x, obs.y, obs.x + obs.w - 1, obs.y + obs.h - 1, obs.col)
+    if obs.type == "hazard" then
+      -- hazard: solid gray with red outline
+      rectfill(obs.x, obs.y, obs.x + obs.w - 1, obs.y + obs.h - 1, 8)
+      rect(obs.x, obs.y, obs.x + obs.w - 1, obs.y + obs.h - 1, 2)
+    elseif obs.type == "bonus" then
+      -- bonus: green filled with highlight
+      rectfill(obs.x, obs.y, obs.x + obs.w - 1, obs.y + obs.h - 1, 3)
+      line(obs.x + 1, obs.y + 1, obs.x + obs.w - 3, obs.y + 1, 11)
+    elseif obs.type == "speed_trap" then
+      -- speed trap: yellow with diagonal stripes
+      rectfill(obs.x, obs.y, obs.x + obs.w - 1, obs.y + obs.h - 1, 9)
+      for sy = obs.y, obs.y + obs.h - 1, 2 do
+        line(obs.x, sy, obs.x + obs.w - 1, sy, 8)
+      end
+    elseif obs.type == "shield" then
+      -- shield: cyan with pulsing effect
+      local pulse = abs(sin(time_elapsed * 3)) * 0.5
+      rectfill(obs.x, obs.y, obs.x + obs.w - 1, obs.y + obs.h - 1, 11)
+      rect(obs.x, obs.y, obs.x + obs.w - 1, obs.y + obs.h - 1, 7)
+    end
   end
 
   -- draw particles
