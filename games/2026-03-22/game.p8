@@ -304,7 +304,7 @@ function update_tutorial()
       obs.y += obs.speed
 
       -- check collision with player
-      if obs.y < 128 and obs.y + obs.h > player.y then
+      if obs.y < player.y + player.h and obs.y + obs.h > player.y then
         if player.x < obs.x + obs.w and player.x + player.w > obs.x then
           -- collision - reset obstacles
           tutorial_obstacles = {}
