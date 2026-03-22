@@ -107,6 +107,13 @@ lane_left2 = 72
 lane_right2 = 120
 lane_width2 = lane_right2 - lane_left2
 
+-- tutorial mode state
+tutorial_step = 1  -- 1=intro, 2=lives, 3=scoring, 4=practice, 5=complete
+tutorial_practice_spawned = 0  -- number of obstacles spawned in practice
+tutorial_practice_dodges = 0  -- successful dodges
+tutorial_obstacles = {}  -- obstacles during tutorial practice
+tutorial_spawn_timer = 0  -- timer for spawning practice obstacles
+
 -- constants
 win_score = 500
 win_time = 120  -- 2 minutes in seconds
@@ -190,6 +197,8 @@ end
 function _update()
   if state == "menu" then
     update_menu()
+  elseif state == "tutorial" then
+    update_tutorial()
   elseif state == "mode_select" then
     update_mode_select()
   elseif state == "difficulty_select" then
@@ -209,6 +218,8 @@ function _draw()
   cls(0)
   if state == "menu" then
     draw_menu()
+  elseif state == "tutorial" then
+    draw_tutorial()
   elseif state == "mode_select" then
     draw_mode_select()
   elseif state == "difficulty_select" then
@@ -227,8 +238,13 @@ end
 -- menu state
 function update_menu()
   if btnp(4) then  -- z button
-    _log("state:mode_select")
-    state = "mode_select"
+    _log("state:tutorial")
+    state = "tutorial"
+    tutorial_step = 1
+    tutorial_practice_spawned = 0
+    tutorial_practice_dodges = 0
+    tutorial_obstacles = {}
+    tutorial_spawn_timer = 0
     sfx(2)  -- ui sound
   elseif btnp(5) then  -- x button
     _log("state:stats")
@@ -241,8 +257,148 @@ function draw_menu()
   print("lane racer", 48, 30, 7)
   print("dodge obstacles", 40, 50, 7)
   print("survive 2 min or reach 500pts", 15, 65, 6)
-  print("press z to play", 32, 85, 3)
+  print("press z for tutorial", 28, 85, 3)
   print("press x for stats", 30, 100, 6)
+end
+
+-- tutorial state
+function update_tutorial()
+  if tutorial_step < 4 then
+    -- text steps: just advance on z button
+    if btnp(4) then  -- z button
+      _log("tutorial:step:"..tutorial_step)
+      tutorial_step += 1
+      sfx(2)
+    end
+  elseif tutorial_step == 4 then
+    -- practice mode: run simple obstacle avoidance
+    -- update player movement
+    if test_input(0) then  -- left
+      player.x = max(lane_left, player.x - player.speed)
+    elseif test_input(1) then  -- right
+      player.x = min(lane_right, player.x + player.speed)
+    end
+
+    -- spawn obstacles slowly (longer timer)
+    tutorial_spawn_timer += 1
+    if tutorial_spawn_timer > 150 and tutorial_practice_spawned < 3 then
+      -- spawn a slow obstacle
+      local w = 12
+      local x = lane_left + rnd(lane_width - w)
+      local obs = {
+        x = x,
+        y = -8,
+        w = w,
+        h = 8,
+        speed = 0.3,  -- very slow for tutorial
+        type = "hazard"
+      }
+      add(tutorial_obstacles, obs)
+      tutorial_practice_spawned += 1
+      tutorial_spawn_timer = 0
+      sfx(2)  -- spawn sound
+    end
+
+    -- update obstacles
+    for obs in all(tutorial_obstacles) do
+      obs.y += obs.speed
+
+      -- check collision with player
+      if obs.y < 128 and obs.y + obs.h > player.y then
+        if player.x < obs.x + obs.w and player.x + player.w > obs.x then
+          -- collision - reset obstacles
+          tutorial_obstacles = {}
+          tutorial_practice_spawned = 0
+          sfx(1)  -- collision sound
+        end
+      end
+
+      -- check if obstacle passed successfully
+      if obs.y > player.y + 10 and not obs.passed then
+        obs.passed = true
+        tutorial_practice_dodges += 1
+        if tutorial_practice_dodges >= 1 then
+          -- won tutorial!
+          _log("tutorial:practice_complete")
+          tutorial_step = 5
+          tutorial_obstacles = {}
+          tutorial_practice_dodges = 0
+          sfx(2)
+        end
+      end
+
+      -- remove if off screen
+      if obs.y > 128 then
+        del(tutorial_obstacles, obs)
+      end
+    end
+  elseif tutorial_step == 5 then
+    -- tutorial complete - advance to mode select on z
+    if btnp(4) then  -- z button
+      _log("state:mode_select")
+      state = "mode_select"
+      sfx(2)
+    end
+  end
+end
+
+function draw_tutorial()
+  if tutorial_step == 1 then
+    -- step 1: show controls
+    print("tutorial: controls", 32, 15, 7)
+    print("left/right arrows:", 20, 35, 6)
+    print("steer your vehicle", 20, 45, 6)
+    print("to avoid obstacles", 20, 55, 6)
+    print("", 0, 70, 0)
+    print("press z to continue", 22, 85, 3)
+  elseif tutorial_step == 2 then
+    -- step 2: explain lives
+    print("tutorial: lives", 40, 15, 7)
+    print("you have 3 lives", 25, 35, 6)
+    print("each collision", 28, 45, 6)
+    print("costs 1 life", 32, 55, 6)
+    print("lose all = game over", 18, 65, 6)
+    print("", 0, 70, 0)
+    print("press z to continue", 22, 85, 3)
+  elseif tutorial_step == 3 then
+    -- step 3: show scoring
+    print("tutorial: scoring", 36, 15, 7)
+    print("dodge obstacles", 28, 35, 6)
+    print("to earn points", 28, 45, 6)
+    print("reach 500 pts or survive", 12, 55, 6)
+    print("2 minutes to win", 28, 65, 6)
+    print("", 0, 70, 0)
+    print("press z to continue", 22, 85, 3)
+  elseif tutorial_step == 4 then
+    -- step 4: practice round
+    print("tutorial: practice", 32, 5, 7)
+    print("dodge the obstacles!", 20, 15, 3)
+
+    -- draw lanes
+    rectfill(lane_left, 25, lane_right, 127, 0)
+    rect(lane_left, 25, lane_right, 127, 6)
+
+    -- draw player
+    rectfill(player.x, player.y, player.x + player.w, player.y + player.h, 11)
+
+    -- draw obstacles
+    for obs in all(tutorial_obstacles) do
+      rectfill(obs.x, obs.y, obs.x + obs.w, obs.y + obs.h, 8)
+    end
+
+    -- show dodge count
+    print("dodges: "..tutorial_practice_dodges, 45, 117, 7)
+  elseif tutorial_step == 5 then
+    -- step 5: complete
+    print("tutorial: complete!", 32, 30, 11)
+    print("", 0, 50, 0)
+    print("great job!", 45, 60, 10)
+    print("", 0, 75, 0)
+    print("now ready for the", 24, 85, 6)
+    print("real game!", 40, 95, 6)
+    print("", 0, 105, 0)
+    print("press z to start", 28, 115, 3)
+  end
 end
 
 -- mode select state
