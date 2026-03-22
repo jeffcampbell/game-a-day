@@ -57,6 +57,10 @@ difficulty_indicator = "balanced"  -- "easy", "balanced", "hard"
 hazard_speed_adjust = 0  -- cumulative speed adjustment
 spawn_rate_adjust = 0  -- cumulative spawn rate adjustment
 
+-- game session tracking (persists until gameover)
+total_obstacles_dodged = 0  -- total dodges in current session
+session_start_personal_best = 0  -- personal best at session start
+
 -- power-up system
 powerups = {}
 active_powerup = nil  -- {type, timer}
@@ -537,6 +541,9 @@ function start_game()
   difficulty_indicator = "balanced"
   hazard_speed_adjust = 0
   spawn_rate_adjust = 0
+  -- reset session tracking
+  total_obstacles_dodged = 0
+  session_start_personal_best = personal_best
   music(1)  -- start gameplay ambient music
   is_new_record_achieved = false
   is_personal_best_achieved = false
@@ -741,6 +748,7 @@ function update_play()
           -- track dodge success for adaptive difficulty
           if not obs.was_hit then
             dodge_successes += 1
+            total_obstacles_dodged += 1
           end
         end
         obs.p1_counted = true
@@ -760,6 +768,7 @@ function update_play()
             -- track dodge success for adaptive difficulty
             if not obs.was_hit then
               dodge_successes += 1
+              total_obstacles_dodged += 1
             end
           end
           obs.p2_counted = true
@@ -1362,7 +1371,11 @@ end
 
 -- gameover state
 function update_gameover()
-  if btnp(4) then  -- z button
+  if btnp(4) then  -- z button - retry
+    _log("state:play")
+    start_game()
+    sfx(2)  -- ui sound
+  elseif btnp(5) then  -- x button - menu
     _log("state:menu")
     state = "menu"
     music_playing = false
@@ -1373,68 +1386,109 @@ end
 
 function draw_gameover()
   if num_players == 1 then
-    print("game over", 48, 40, 8)
-    print("final score:"..score, 30, 60, 7)
-
-    -- show achievement messages
-    local rank = get_rank(score)
-    if is_new_record_achieved then
-      print("★new record!★", 40, 75, 10)
-      _log("achievement:new_record")
-    elseif is_personal_best_achieved then
-      print("personal best!", 38, 75, 11)
-      _log("achievement:personal_best")
-    elseif rank > 0 then
-      print("#"..rank.." all time", 40, 75, 14)
+    -- header with result message (positive framing)
+    local is_win = score >= win_score or time_elapsed >= win_time
+    local msg_color = is_win and 11 or 8  -- green for win, red for loss
+    if is_win then
+      print("★victory!★", 44, 5, msg_color)
     else
-      if score >= win_score or time_elapsed >= win_time then
-        print("you won!", 48, 75, 11)
-      else
-        print("you lost", 48, 75, 8)
-      end
+      print("great effort!", 40, 5, msg_color)
     end
 
-    print("press z to try again", 20, 105, 3)
+    -- final score - prominent display
+    print("score: "..score, 38, 15, 7)
+
+    -- progress toward win condition
+    local progress = min(100, flr(score * 100 / win_score))
+    print("progress to 500:", 24, 25, 3)
+    print(score.."/500", 40, 32, 7)
+    -- simple progress indicator bar (16 chars wide)
+    local bar_width = flr(progress / 6.25)
+    for i = 1, 16 do
+      local ch = i <= bar_width and "█" or "░"
+      print(ch, 28 + i, 39, 3)
+    end
+
+    -- session stats
+    print("dodged: "..total_obstacles_dodged, 32, 48, 7)
+    local secs = time_elapsed
+    print("time: "..secs.."s", 38, 55, 7)
+
+    -- personal best comparison
+    print("best: "..personal_best, 38, 62, 3)
+    if score > session_start_personal_best then
+      print("★new pb!★", 44, 69, 10)
+    end
+
+    -- difficulty level
+    local diff_text = difficulty == 1 and "easy" or (difficulty == 2 and "normal" or "hard")
+    print(diff_text.." mode", 40, 76, 3)
+
+    -- rank in high scores
+    local rank = get_rank(score)
+    if rank > 0 then
+      print("rank #"..rank, 42, 82, 14)
+    end
+
+    -- button prompts
+    print("z: retry  x: menu", 22, 105, 3)
   else
     -- 2-player game over
-    print("game over", 48, 20, 8)
-    print("p1: "..score, 20, 35, 7)
-    print("p2: "..score2, 20, 45, 7)
+    print("★match complete★", 32, 5, 11)
+    print("p1: "..score, 20, 17, 7)
+    print("p2: "..score2, 20, 24, 7)
 
-    -- determine winner
+    -- determine and display winner
+    local p1_wins = false
+    local p2_wins = false
+    local tie = false
+
     if lives <= 0 and lives2 > 0 then
-      print("player 2 wins!", 38, 60, 11)
-      _log("p2_wins")
+      p2_wins = true
     elseif lives2 <= 0 and lives > 0 then
-      print("player 1 wins!", 38, 60, 11)
-      _log("p1_wins")
+      p1_wins = true
     elseif lives <= 0 and lives2 <= 0 then
       if score > score2 then
-        print("player 1 wins!", 38, 60, 11)
-        _log("p1_wins")
+        p1_wins = true
       elseif score2 > score then
-        print("player 2 wins!", 38, 60, 11)
-        _log("p2_wins")
+        p2_wins = true
       else
-        print("tie game!", 45, 60, 14)
-        _log("tie")
+        tie = true
       end
     else
       if score >= win_score and score2 >= win_score then
         if score > score2 then
-          print("p1 wins!", 45, 60, 11)
-          _log("p1_wins")
+          p1_wins = true
         elseif score2 > score then
-          print("p2 wins!", 45, 60, 11)
-          _log("p2_wins")
+          p2_wins = true
         else
-          print("tie!", 52, 60, 14)
-          _log("tie")
+          tie = true
         end
       end
     end
 
-    print("press z to menu", 36, 105, 3)
+    if p1_wins then
+      print("★player 1 wins!★", 32, 35, 11)
+      _log("p1_wins")
+    elseif p2_wins then
+      print("★player 2 wins!★", 32, 35, 11)
+      _log("p2_wins")
+    else
+      print("★it's a tie!★", 40, 35, 14)
+      _log("tie")
+    end
+
+    -- difficulty level
+    local diff_text = difficulty == 1 and "easy" or (difficulty == 2 and "normal" or "hard")
+    print(diff_text.." mode", 40, 50, 3)
+
+    -- session stats
+    print("dodged: "..total_obstacles_dodged, 32, 60, 7)
+    local secs = time_elapsed
+    print("time: "..secs.."s", 38, 67, 7)
+
+    -- button prompts
+    print("z: retry  x: menu", 22, 105, 3)
   end
 end
 
