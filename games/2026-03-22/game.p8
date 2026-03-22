@@ -32,7 +32,7 @@ mode = "endless"  -- "endless" or "campaign"
 num_players = 1  -- 1 or 2
 difficulty = 1  -- 1=easy, 2=normal, 3=hard
 current_level = 1  -- for campaign mode
-campaign_progress = 0  -- highest level completed (0-5)
+campaign_progress = 0  -- highest level completed (0-8)
 score = 0
 score2 = 0  -- second player score
 lives = 3
@@ -84,7 +84,10 @@ themes = {
   variety = {bg=1, primary=2, secondary=14},  -- purple/magenta
   challenge = {bg=1, primary=8, secondary=9},  -- red/orange
   intense = {bg=1, primary=8, secondary=3},  -- dark red/yellow
-  boss = {bg=0, primary=8, secondary=2}  -- dark/flashing
+  boss = {bg=0, primary=8, secondary=2},  -- dark/flashing
+  apex = {bg=0, primary=8, secondary=3},  -- apocalypse red/green
+  chaos = {bg=0, primary=2, secondary=12},  -- electric purple/blue
+  nightmare = {bg=0, primary=0, secondary=1}  -- void black
 }
 
 -- campaign level definitions
@@ -93,7 +96,10 @@ levels = {
   {name="variety", score_target=100, spawn_rate_start=280, obstacle_types={h=50,b=18,s=10,t=8,r=8,o=3,m=3}, hazard_speed=0.7},
   {name="challenge", score_target=150, spawn_rate_start=240, obstacle_types={h=40,b=15,s=15,t=10,r=10,o=5,m=5}, hazard_speed=0.9},
   {name="intense", score_target=200, spawn_rate_start=200, obstacle_types={h=30,b=12,s=15,t=12,r=15,o=10,m=6}, hazard_speed=1.1},
-  {name="boss", score_target=250, spawn_rate_start=160, obstacle_types={h=25,b=10,s=15,t=15,r=15,o=15,m=5}, hazard_speed=1.3}
+  {name="boss", score_target=250, spawn_rate_start=160, obstacle_types={h=25,b=10,s=15,t=15,r=15,o=15,m=5}, hazard_speed=1.3},
+  {name="apex", score_target=300, spawn_rate_start=140, obstacle_types={h=20,b=10,s=15,t=15,r=18,o=12,m=10}, hazard_speed=1.4},
+  {name="chaos", score_target=350, spawn_rate_start=120, obstacle_types={h=15,b=8,s=15,t=15,r=20,o=15,m=12}, hazard_speed=1.5},
+  {name="nightmare", score_target=400, spawn_rate_start=100, obstacle_types={h=10,b=8,s=15,t=15,r=25,o=15,m=12}, hazard_speed=1.6}
 }
 
 -- player
@@ -466,7 +472,7 @@ function draw_mode_select()
   print("campaign", 40, 85, c_col)
 
   if mode == "campaign" then
-    print("lvl: "..min(5, campaign_progress+1).."/5", 35, 100, 10)
+    print("lvl: "..min(8, campaign_progress+1).."/8", 35, 100, 10)
   end
 
   print("z to play", 50, 110, 3)
@@ -483,7 +489,7 @@ function update_difficulty_select()
     _log("difficulty:"..difficulty)
     if mode == "campaign" then
       current_level = campaign_progress + 1
-      if current_level > 5 then current_level = 5 end
+      if current_level > 8 then current_level = 8 end
       _log("campaign:level:"..current_level)
     end
     start_game()
