@@ -655,10 +655,9 @@ function update_play()
         e.x = mid(4, e.x, 124)  -- clamp to bounds
       elseif e.type == 5 then
         -- scout: erratic zigzag
-        if not e.zag_timer then e.zag_timer = 0 end
         e.zag_timer += 1
         if e.zag_timer % 8 == 0 then
-          e.zag_dir = e.zag_dir and 0 or 1
+          e.zag_dir = 1 - e.zag_dir
         end
         if e.zag_dir == 0 then
           e.x -= 0.7
