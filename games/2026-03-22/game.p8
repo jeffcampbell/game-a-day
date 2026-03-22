@@ -393,6 +393,7 @@ function update_play()
     save_game_score(score, flr(time_elapsed))
     state = "gameover"
     music_playing = false
+    music()
   end
 end
 
