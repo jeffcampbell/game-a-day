@@ -28,7 +28,10 @@ end
 
 -- game state
 state = "menu"
+mode = "endless"  -- "endless" or "campaign"
 difficulty = 1  -- 1=easy, 2=normal, 3=hard
+current_level = 1  -- for campaign mode
+campaign_progress = 0  -- highest level completed (0-5)
 score = 0
 lives = 3
 time_elapsed = 0
@@ -52,6 +55,15 @@ personal_best = 0
 -- achievement flags (set during save_game_score)
 is_new_record_achieved = false
 is_personal_best_achieved = false
+
+-- campaign level definitions
+levels = {
+  {name="intro", score_target=50, spawn_rate_start=45, obstacle_types={h=80,b=20}, hazard_speed=0.5},
+  {name="variety", score_target=100, spawn_rate_start=35, obstacle_types={h=70,b=20,s=10}, hazard_speed=0.8},
+  {name="challenge", score_target=150, spawn_rate_start=28, obstacle_types={h=60,b=20,s=15,t=5}, hazard_speed=1.0},
+  {name="intense", score_target=200, spawn_rate_start=20, obstacle_types={h=50,b=20,s=20,t=10}, hazard_speed=1.2},
+  {name="boss", score_target=250, spawn_rate_start=15, obstacle_types={h=40,b=20,s=20,t=20}, hazard_speed=1.5}
+}
 
 -- player
 player = {
@@ -81,12 +93,13 @@ function _init()
   _log("state:menu")
 end
 
--- cartdata functions (addresses 0-8)
+-- cartdata functions (addresses 0-9)
 function load_stats()
   games_played = dget(0)
   personal_best = dget(1)
   total_score_sum = dget(2)
   best_time = dget(3)
+  campaign_progress = dget(9)  -- campaign highest level
   for i = 1, 5 do
     high_scores[i] = dget(3 + i)
   end
@@ -97,6 +110,7 @@ function save_stats()
   dset(1, personal_best)
   dset(2, total_score_sum)
   dset(3, best_time)
+  dset(9, campaign_progress)
   for i = 1, 5 do
     dset(3 + i, high_scores[i])
   end
@@ -149,10 +163,14 @@ end
 function _update()
   if state == "menu" then
     update_menu()
+  elseif state == "mode_select" then
+    update_mode_select()
   elseif state == "difficulty_select" then
     update_difficulty_select()
   elseif state == "play" then
     update_play()
+  elseif state == "level_complete" then
+    update_level_complete()
   elseif state == "gameover" then
     update_gameover()
   elseif state == "stats" then
@@ -164,10 +182,14 @@ function _draw()
   cls(0)
   if state == "menu" then
     draw_menu()
+  elseif state == "mode_select" then
+    draw_mode_select()
   elseif state == "difficulty_select" then
     draw_difficulty_select()
   elseif state == "play" then
     draw_play()
+  elseif state == "level_complete" then
+    draw_level_complete()
   elseif state == "gameover" then
     draw_gameover()
   elseif state == "stats" then
@@ -178,8 +200,8 @@ end
 -- menu state
 function update_menu()
   if btnp(4) then  -- z button
-    _log("state:difficulty_select")
-    state = "difficulty_select"
+    _log("state:mode_select")
+    state = "mode_select"
     sfx(2)  -- ui sound
   elseif btnp(5) then  -- x button
     _log("state:stats")
@@ -192,8 +214,42 @@ function draw_menu()
   print("lane racer", 48, 30, 7)
   print("dodge obstacles", 40, 50, 7)
   print("survive 2 min or reach 500pts", 15, 65, 6)
-  print("press z to start", 32, 85, 3)
+  print("press z to play", 32, 85, 3)
   print("press x for stats", 30, 100, 6)
+end
+
+-- mode select state
+function update_mode_select()
+  if btnp(0) then  -- left
+    mode = "endless"
+  elseif btnp(1) then  -- right
+    mode = "campaign"
+  elseif btnp(4) then  -- z button
+    _log("state:difficulty_select")
+    state = "difficulty_select"
+    sfx(2)
+  elseif btnp(5) then  -- x button
+    _log("state:menu")
+    state = "menu"
+    sfx(2)
+  end
+end
+
+function draw_mode_select()
+  print("select mode", 42, 30, 7)
+
+  local x1, x2 = 15, 70
+  local col1, col2 = 6, 6
+  if mode == "endless" then col1 = 11 else col2 = 11 end
+
+  print("endless", x1, 60, col1)
+  print("campaign", x2, 60, col2)
+
+  if mode == "campaign" then
+    print("lvl: "..min(5, campaign_progress+1).."/5", 35, 80, 10)
+  end
+
+  print("arrows to choose, z to play", 5, 110, 6)
 end
 
 -- difficulty select state
@@ -205,12 +261,25 @@ function update_difficulty_select()
   elseif btnp(4) then  -- z button
     _log("state:play")
     _log("difficulty:"..difficulty)
+    if mode == "campaign" then
+      current_level = campaign_progress + 1
+      if current_level > 5 then current_level = 5 end
+      _log("campaign:level:"..current_level)
+    end
     start_game()
+  elseif btnp(5) then  -- x button
+    _log("state:mode_select")
+    state = "mode_select"
+    sfx(2)
   end
 end
 
 function draw_difficulty_select()
-  print("select difficulty", 32, 30, 7)
+  if mode == "campaign" then
+    print("campaign: level "..current_level, 22, 30, 7)
+  else
+    print("select difficulty", 32, 30, 7)
+  end
 
   local y_base = 50
   for i = 1, 3 do
@@ -227,6 +296,9 @@ function draw_difficulty_select()
   end
 
   print("arrows to choose, z to play", 5, 90, 6)
+  if mode ~= "endless" then
+    print("x to back", 45, 105, 6)
+  end
 end
 
 -- play state
@@ -246,13 +318,22 @@ function start_game()
   is_new_record_achieved = false
   is_personal_best_achieved = false
 
-  -- difficulty affects spawn rate
-  if difficulty == 1 then
-    spawn_rate = 45
-  elseif difficulty == 2 then
-    spawn_rate = 30
+  if mode == "campaign" then
+    -- campaign mode: level-based difficulty
+    local lvl = levels[current_level]
+    spawn_rate = lvl.spawn_rate_start
+    win_score = lvl.score_target
+    _log("campaign_start:level:"..current_level)
   else
-    spawn_rate = 18
+    -- endless mode: difficulty select
+    if difficulty == 1 then
+      spawn_rate = 45
+    elseif difficulty == 2 then
+      spawn_rate = 30
+    else
+      spawn_rate = 18
+    end
+    win_score = 500
   end
 end
 
@@ -388,12 +469,37 @@ function update_play()
   time_elapsed += 1/60
 
   -- check win condition
-  if score >= win_score or time_elapsed >= win_time then
+  local level_won = false
+  if mode == "campaign" then
+    -- campaign: win on score target
+    if score >= win_score then
+      level_won = true
+    end
+  else
+    -- endless: win on score or time
+    if score >= win_score or time_elapsed >= win_time then
+      level_won = true
+    end
+  end
+
+  if level_won then
     _log("gameover:win")
     save_game_score(score, flr(time_elapsed))
-    state = "gameover"
-    music_playing = false
-    music()
+
+    if mode == "campaign" then
+      -- update campaign progress
+      if current_level > campaign_progress then
+        campaign_progress = current_level
+        save_stats()
+      end
+      state = "level_complete"
+      music_playing = false
+      music()
+    else
+      state = "gameover"
+      music_playing = false
+      music()
+    end
   end
 end
 
@@ -410,30 +516,37 @@ function spawn_obstacle()
     sprite_id = 2
   }
 
-  -- determine obstacle type based on weighted probability
+  -- determine obstacle type based on mode
   local roll = rnd(100)
+  local h_pct, b_pct, s_pct, t_pct = 60, 25, 10, 5
 
-  if roll < 60 then
-    -- hazard (60%)
+  if mode == "campaign" then
+    -- use level-specific obstacle distribution
+    local lvl = levels[current_level]
+    local types = lvl.obstacle_types
+    h_pct = types.h or 60
+    b_pct = types.b or 20
+    s_pct = types.s or 10
+    t_pct = types.t or 5
+    obs.speed = lvl.hazard_speed
+  end
+
+  if roll < h_pct then
+    -- hazard
     obs.type = "hazard"
     obs.sprite_id = 2
-  elseif roll < 85 then
-    -- bonus (25%)
+  elseif roll < h_pct + b_pct then
+    -- bonus
     obs.type = "bonus"
     obs.sprite_id = 3
-  elseif roll < 95 then
-    -- speed trap (10%)
+  elseif roll < h_pct + b_pct + s_pct then
+    -- speed trap
     obs.type = "speed_trap"
     obs.sprite_id = 4
-  else
-    -- shield (5%, hard difficulty only)
-    if difficulty >= 3 then
-      obs.type = "shield"
-      obs.sprite_id = 5
-    else
-      obs.type = "bonus"  -- fallback to bonus on easier difficulties
-      obs.sprite_id = 3
-    end
+  elseif roll < 100 then
+    -- treasure/shield (rare)
+    obs.type = "shield"
+    obs.sprite_id = 5
   end
 
   add(obstacles, obs)
@@ -525,8 +638,51 @@ function draw_play()
 
   -- draw ui
   print("score:"..score, 2, 2, 7)
-  print("lives:"..lives, 2, 10, 7)
-  print("time:"..flr(time_elapsed), 2, 18, 7)
+  if mode == "campaign" then
+    print("level:"..current_level, 2, 10, 7)
+    print("target:"..win_score, 2, 18, 6)
+  else
+    print("lives:"..lives, 2, 10, 7)
+    print("time:"..flr(time_elapsed), 2, 18, 7)
+  end
+end
+
+-- level complete state (campaign only)
+function update_level_complete()
+  if btnp(4) then  -- z button
+    if current_level >= 5 then
+      _log("campaign:completed")
+      state = "menu"
+      music(0)
+    else
+      -- next level
+      _log("campaign:next_level")
+      current_level += 1
+      sfx(2)
+      start_game()
+    end
+    sfx(2)
+  elseif btnp(5) then  -- x button
+    _log("state:menu")
+    state = "menu"
+    music(0)
+    sfx(2)
+  end
+end
+
+function draw_level_complete()
+  print("level complete!", 35, 30, 11)
+  print("score: "..score, 42, 50, 7)
+
+  if current_level < 5 then
+    print("level "..current_level.." / 5", 38, 70, 6)
+    print("press z for level "..(current_level+1), 18, 90, 3)
+  else
+    print("★ campaign complete! ★", 25, 70, 10)
+    print("press z to finish", 30, 90, 3)
+  end
+
+  print("press x to menu", 32, 110, 6)
 end
 
 -- gameover state
