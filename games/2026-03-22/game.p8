@@ -604,6 +604,7 @@ function update_play()
     active_powerup.timer -= 1
     if active_powerup.timer <= 0 then
       _log("powerup:expire:"..active_powerup.type)
+      sfx(13)  -- power-up expiration sound
       active_powerup = nil
     end
   end
@@ -691,6 +692,7 @@ function update_play()
       end
       _log("level_up")
       sfx(3)  -- level-up sound
+      sfx(15, 1)  -- difficulty progression sound on channel 1
       shake_frames = 2  -- light shake on level-up
     end
   end
@@ -989,6 +991,7 @@ function handle_obstacle_collision(obs, player_id)
       _log("obstacle:bonus")
       score += 5
       sfx(4)
+      sfx(14)  -- bonus reward sound
       add_floater(player.x, player.y, "+5", 3)
     elseif obs.type == "speed_trap" then
       _log("obstacle:speed_trap")
@@ -1026,6 +1029,7 @@ function handle_obstacle_collision(obs, player_id)
       _log("obstacle:bonus:p2")
       score2 += 5
       sfx(4)
+      sfx(14)  -- bonus reward sound
       add_floater(player2.x, player2.y, "+5", 3)
     elseif obs.type == "speed_trap" then
       _log("obstacle:speed_trap:p2")
@@ -1112,7 +1116,7 @@ end
 function handle_powerup_pickup(pt, player_id)
   _log("powerup:pickup:"..pt)
   powerups_collected += 1
-  sfx(6)
+  sfx(6)  -- pickup sound
 
   local t = 300
   local msg = pt
@@ -1123,6 +1127,7 @@ function handle_powerup_pickup(pt, player_id)
   end
 
   active_powerup = {type=pt, timer=t}
+  sfx(12)  -- power-up activation sound
 
   local px, py = player.x, player.y
   if player_id == "p2" then
@@ -1705,6 +1710,10 @@ __sfx__
 001000004706480649064a064b064a064906480646000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00100000640264005e025a0256025202520000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00100000790576057205700074007300750077007900780000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000007f067f067f067f067e067d066d065d064d063d062d061d050000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000005a044a044a033a032a031a020a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000006c037c034c033c032c052c051c050c04000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0010000070056c055c054c053c052c051c050c050c050c050c050c050c050c050c050b050a05090508050705060505040503050200000000000000000000000000000000
 __music__
 00 00010102 00020103 00010102 00020103
 01 02020202 02020202 02020202 02020202
