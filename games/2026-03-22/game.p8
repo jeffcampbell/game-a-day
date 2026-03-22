@@ -204,6 +204,7 @@ function update_play()
         _log("gameover:lose")
         state = "gameover"
         music_playing = false
+        music()  -- stop background music
         sfx(2)  -- gameover sound
       end
     elseif obs.y > 128 then
@@ -246,6 +247,7 @@ function update_play()
   if score >= win_score or time_elapsed >= win_time then
     _log("gameover:win")
     state = "gameover"
+    music()  -- stop background music
   end
 end
 
@@ -342,6 +344,7 @@ function update_gameover()
     _log("state:menu")
     state = "menu"
     music_playing = false
+    music()  -- stop background music
     sfx(2)  -- ui sound
   end
 end
