@@ -167,8 +167,8 @@ class LaneRacerPlaytestGenerator:
         """
         buttons = []
         max_frames = int(
-            rng.randint(600, 2000) / profile.skill_level
-        )  # Harder players go longer
+            rng.randint(600, 2000) * profile.skill_level
+        )  # Skilled players get longer to play
         collision_count = 0
         score = 0
         max_collisions = 3
@@ -258,7 +258,7 @@ class LaneRacerPlaytestGenerator:
             adjusted_skill = profile.skill_level / level_difficulty
 
             # Level duration (shorter than endless, more focused)
-            level_frames = int(rng.randint(300, 800) / adjusted_skill)
+            level_frames = int(rng.randint(300, 800) * adjusted_skill)
             level_buttons = []
             collision_count = 0
             score = 0

@@ -1,30 +1,30 @@
 {
   "game_date": "2026-03-22",
-  "sessions_analyzed": 5,
+  "sessions_analyzed": 12,
   "completion_summary": {
     "completion_rate": 0.0,
-    "avg_playtime_seconds": 18.0,
+    "avg_playtime_seconds": 15.3,
     "wins": 0,
-    "losses": 5,
+    "losses": 12,
     "quits": 0
   },
   "critical_failure_points": [
     {
       "location": "state:gameover",
       "failure_rate": 1.0,
-      "frequency": "5 of 5 sessions",
+      "frequency": "12 of 12 sessions",
       "likely_cause": "Player retention issue at gameover"
     }
   ],
   "input_heatmap": {
-    "left": 1552,
-    "right": 1499,
+    "left": 3333,
+    "right": 3305,
     "up": 0,
     "down": 0,
-    "o_button": 5,
+    "o_button": 12,
     "x_button": 0
   },
-  "state_flow": "menu \u2192 play \u2192 gameover / lost(5)",
+  "state_flow": "menu \u2192 play \u2192 gameover / lost(12)",
   "next_steps": [
     {
       "priority": 1,
