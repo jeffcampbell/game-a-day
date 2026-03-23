@@ -139,6 +139,7 @@ function update_gravity()
       -- place in grid
       grid[tile.y][tile.x] = tile.col
       del(falling_tiles, tile)
+      sfx(4)  -- tile placement sound
       _log("tile:placed:" .. tile.x .. "," .. tile.y)
     else
       -- fall down
@@ -244,9 +245,11 @@ function clear_matches()
     _log("combo:" .. combo)
     _log("score_gained:" .. score_gain)
 
-    -- play different sfx based on match size
-    if clear_count >= 8 then
-      sfx(2)  -- big cascade (level up sound reused)
+    -- play different sfx based on match size and combo
+    if combo >= 3 then
+      sfx(6)  -- combo streak sound
+    elseif clear_count >= 8 then
+      sfx(2)  -- big cascade
     elseif clear_count >= 5 then
       sfx(0)  -- medium match
     else
@@ -287,6 +290,7 @@ end
 function update_menu()
   if test_btnp(4) or test_btnp(5) then  -- z or x
     if not difficulty_selected then
+      sfx(5)  -- button press sound
       state = "difficulty"
       _log("state:difficulty")
     end
@@ -297,19 +301,24 @@ function update_difficulty()
   if test_btnp(1) then  -- right
     if difficulty == "easy" then
       difficulty = "medium"
+      sfx(3)  -- menu navigation sound
     elseif difficulty == "medium" then
       difficulty = "hard"
+      sfx(3)  -- menu navigation sound
     end
   end
   if test_btnp(0) then  -- left
     if difficulty == "hard" then
       difficulty = "medium"
+      sfx(3)  -- menu navigation sound
     elseif difficulty == "medium" then
       difficulty = "easy"
+      sfx(3)  -- menu navigation sound
     end
   end
 
   if test_btnp(4) or test_btnp(5) then  -- z or x to confirm
+    sfx(5)  -- button press/confirm sound
     set_difficulty(difficulty)
     difficulty_selected = true
     init_game()
@@ -385,6 +394,7 @@ end
 
 function update_gameover()
   if test_btnp(4) or test_btnp(5) then  -- z or x
+    sfx(5)  -- button press sound
     _log("action:return_to_menu")
     difficulty_selected = false
     state = "menu"
@@ -616,3 +626,7 @@ __sfx__
 010100000f050f0501c051c05000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0101000034053405340534053405340534053405340534053405340534053405340534053405340534053405340534053405340534053405340534053405000000000000000000000000000000000000000000
 010100003735373537353735373537353735373537353735373500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01010000240524052405240524052405240524052405000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01010000140514051405140514051405140514051405000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01010000340534053405340534053405340534053405000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010100001405240530053c053f05000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
