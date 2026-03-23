@@ -664,6 +664,22 @@ function update_tutorial()
       _log("state:play")
     end
   end
+
+  -- update pop animations
+  for i = #pop_anims, 1, -1 do
+    pop_anims[i].time += 1
+    if pop_anims[i].time > 8 then
+      del(pop_anims, pop_anims[i])
+    end
+  end
+
+  -- update score popups
+  for i = #score_popups, 1, -1 do
+    score_popups[i].time += 1
+    if score_popups[i].time > 30 then
+      del(score_popups, score_popups[i])
+    end
+  end
 end
 
 function update_gameover()
