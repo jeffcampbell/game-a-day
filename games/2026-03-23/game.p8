@@ -47,7 +47,6 @@ flash_time = 0  -- screen flash effect
 difficulty = "medium"  -- easy, medium, hard
 difficulty_selected = false
 music_difficulty = nil  -- track which difficulty's music is playing
-music_intensity_level = 0  -- track score-based intensity (0=baseline, 1=elevated, 2=intense)
 combo_intensity_level = 0  -- track combo-based intensity (0=baseline, 1=elevated, 2=intense)
 
 -- high score persistence
@@ -107,17 +106,6 @@ function save_high_scores()
   dset(5, total_tiles_matched)
 end
 
--- determine music intensity level based on score
-function get_score_intensity_level()
-  if score >= 600 then
-    return 2  -- intense
-  elseif score >= 300 then
-    return 1  -- elevated
-  else
-    return 0  -- baseline
-  end
-end
-
 -- determine music intensity level based on combo
 function get_combo_intensity_level()
   if combo >= 5 then
@@ -170,7 +158,6 @@ function init_game()
   flash_time = 0
   celebration_time = 0
   music_difficulty = nil  -- reset music tracking to force music change
-  music_intensity_level = 0  -- reset score-based intensity to baseline
   combo_intensity_level = 0  -- reset combo-based intensity to baseline
 
   -- load high scores on first game
