@@ -252,6 +252,7 @@ function update_play()
     local dx = ship.x - a.x
     local dy = ship.y - a.y
     if sqrt(dx * dx + dy * dy) < a.r + 3 then
+      _log("collision:asteroid")
       do_crash()
       return
     end

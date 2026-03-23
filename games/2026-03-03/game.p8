@@ -86,6 +86,7 @@ function update_play()
  if obs_spawn_timer>25 then
   add(obstacles,{x=rnd(120),y=-10,col=8})
   obs_spawn_timer=0
+  _log("spawn:obstacle")
  end
 
  -- update obstacles
@@ -97,6 +98,7 @@ function update_play()
   -- collision with player
   if abs(o.x-px)<8 and abs(o.y-py)<8 then
    hit=true
+   _log("collision:obstacle")
   elseif o.y>128 then
    deli(obstacles,i)
    score+=5
