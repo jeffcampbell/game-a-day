@@ -87,6 +87,7 @@ function update_play()
  if star_spawn_timer>20 then
   add(stars,{x=rnd(120),y=-10,col=11})
   star_spawn_timer=0
+  _log("spawn:star")
  end
 
  -- update stars

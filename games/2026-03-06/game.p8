@@ -131,6 +131,7 @@ function match_tiles()
  if #matched>=3 then
   _log("match:"..#matched)
   score+=#matched*10
+  _log("score:"..score)
   remove_matched()
  end
 end
