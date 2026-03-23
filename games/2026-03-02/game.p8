@@ -25,10 +25,24 @@ function test_input(b)
  return btn()
 end
 
+-- Star Collector
 state="menu"
+px,py=60,110
+score=0
+stars={}
+time_left=300
+star_spawn_timer=0
 
 function _init()
  _log("state:menu")
+ init_stars()
+end
+
+function init_stars()
+ stars={}
+ for i=1,3 do
+  add(stars,{x=rnd(120),y=-10-i*20,col=11})
+ end
 end
 
 function _update()
@@ -50,16 +64,70 @@ function update_menu()
  if btnp(4) or btnp(5) then
   state="play"
   _log("state:play")
+  score=0
+  time_left=300
+  init_stars()
  end
 end
 
 function draw_menu()
+ print("star collector",40,30,7)
+ print("press z or x",35,50,7)
+ print("collect stars!",38,60,7)
 end
 
 function update_play()
+ -- player movement
+ if btn(0) and px>4 then px-=2
+ elseif btn(1) and px<124 then px+=2
+ end
+
+ -- spawn new stars
+ star_spawn_timer+=1
+ if star_spawn_timer>20 then
+  add(stars,{x=rnd(120),y=-10,col=11})
+  star_spawn_timer=0
+ end
+
+ -- update stars
+ for i=#stars,1,-1 do
+  local s=stars[i]
+  s.y+=1.5
+
+  -- collision with player
+  if abs(s.x-px)<8 and abs(s.y-py)<8 then
+   deli(stars,i)
+   score+=10
+   _log("collected:"..score)
+  elseif s.y>128 then
+   deli(stars,i)
+  end
+ end
+
+ -- timer
+ time_left-=1
+ if time_left<=0 then
+  state="gameover"
+  _log("state:gameover")
+  _log("score:"..score)
+ end
 end
 
 function draw_play()
+ -- player
+ spr(1,px-4,py-4)
+
+ -- stars
+ for s in all(stars) do
+  pset(s.x,s.y,s.col)
+  pset(s.x+1,s.y,s.col)
+  pset(s.x,s.y+1,s.col)
+  pset(s.x+1,s.y+1,s.col)
+ end
+
+ -- ui
+ print("score:"..score,5,5,7)
+ print("time:"..flr(time_left/60),100,5,7)
 end
 
 function update_gameover()
@@ -70,6 +138,9 @@ function update_gameover()
 end
 
 function draw_gameover()
+ print("game over!",50,40,7)
+ print("score:"..score,50,55,7)
+ print("press z or x",35,70,7)
 end
 
 __gfx__
