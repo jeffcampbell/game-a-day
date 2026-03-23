@@ -70,9 +70,6 @@ grid_y = 8
 pop_anims = {}
 -- score popups for floating text feedback
 score_popups = {}
--- state transition fade effect
-fade_time = 0
-fade_direction = 0  -- 1 = fading in, -1 = fading out
 -- high score celebration
 celebration_time = 0
 
@@ -666,7 +663,6 @@ function draw_play()
     local progress = anim.time / 8
     local scale = 1 + (1 - progress)
     local size = flr(tile_size * scale / 2)
-    local alpha_factor = 1 - progress
     -- draw expanding circles with fade
     fillp()
     circfill(anim.x, anim.y, size, anim.col)
@@ -682,10 +678,10 @@ function draw_play()
     local alpha_progress = popup.time / 30
     local display_y = popup.y - y_offset
     local display_col = 7
-    -- change color based on multiplier
-    if popup.text:sub(1, 3) == "+30" then display_col = 10
-    elseif popup.text:sub(1, 3) == "+40" then display_col = 8
-    elseif popup.text:sub(1, 3) == "+50" then display_col = 12
+    -- change color based on score value
+    if popup.text == "+30" then display_col = 10
+    elseif popup.text == "+40" then display_col = 8
+    elseif popup.text == "+50" then display_col = 12
     end
     print(popup.text, popup.x - 8, display_y, display_col)
   end
