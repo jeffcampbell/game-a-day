@@ -46,6 +46,7 @@ screen_shake = 0  -- screen shake effect
 flash_time = 0  -- screen flash effect
 difficulty = "medium"  -- easy, medium, hard
 difficulty_selected = false
+music_difficulty = nil  -- track which difficulty's music is playing
 
 -- button state caching for test_input integration
 curr_btn = 0
@@ -106,6 +107,7 @@ function init_game()
   combo_timer = 0
   screen_shake = 0
   flash_time = 0
+  music_difficulty = nil  -- reset music tracking to force music change
 
   for y = 1, grid_h do
     grid[y] = {}
@@ -245,15 +247,24 @@ function clear_matches()
     _log("combo:" .. combo)
     _log("score_gained:" .. score_gain)
 
+    -- get pitch offset based on difficulty (higher pitches in harder modes)
+    local pitch_offset = 0
+    if difficulty == "hard" then
+      pitch_offset = 4  -- high pitch for hard mode
+    elseif difficulty == "medium" then
+      pitch_offset = 2  -- medium pitch for medium mode
+    end
+
     -- play different sfx based on match size and combo
     if combo >= 3 then
-      sfx(6)  -- combo streak sound
+      sfx(6, nil, pitch_offset)  -- combo streak sound with difficulty-driven pitch
+      _log("sfx:combo_streak:pitch_offset:" .. pitch_offset)
     elseif clear_count >= 8 then
-      sfx(2)  -- big cascade
+      sfx(2, nil, pitch_offset)  -- big cascade
     elseif clear_count >= 5 then
-      sfx(0)  -- medium match
+      sfx(0, nil, pitch_offset)  -- medium match
     else
-      sfx(0)  -- small match
+      sfx(0, nil, pitch_offset)  -- small match
     end
   end
 
@@ -409,14 +420,29 @@ function _update()
   -- background music management
   if state == "menu" or state == "difficulty" then
     if stat(54) == -1 then
-      music(0)
+      music(0)  -- calm menu music
     end
   elseif state == "play" then
-    if stat(54) == -1 then
-      music(0)
+    -- select music pattern based on difficulty
+    local target_pattern = 0  -- default easy
+    if difficulty == "medium" then
+      target_pattern = 1  -- medium intensity
+    elseif difficulty == "hard" then
+      target_pattern = 2  -- high intensity
+    end
+
+    -- only change music when difficulty changes
+    if music_difficulty ~= difficulty then
+      if stat(54) == -1 then
+        music(target_pattern)
+        music_difficulty = difficulty
+        _log("music:changed:pattern:" .. target_pattern .. ":difficulty:" .. difficulty)
+      end
+    elseif stat(54) == -1 then
+      music(target_pattern)
     end
   elseif state == "gameover" then
-    music(-1)
+    music(-1)  -- stop music on game over
   end
 
   if state == "menu" then update_menu()
@@ -650,3 +676,4 @@ __sfx__
 __music__
 00 04040203
 01 04050406
+02 04050605
