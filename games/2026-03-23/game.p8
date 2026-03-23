@@ -52,6 +52,7 @@ music_difficulty = nil  -- track which difficulty's music is playing
 high_score = 0
 high_level = 0
 high_combo = 0
+is_new_high_score = false
 
 -- button state caching for test_input integration
 curr_btn = 0
@@ -418,7 +419,7 @@ function update_play()
   -- check game over
   if check_game_over() then
     state = "gameover"
-    check_high_score()
+    is_new_high_score = check_high_score()
     _log("state:gameover")
     _log("final_score:" .. score)
     _log("level_reached:" .. level)
@@ -431,6 +432,7 @@ function update_gameover()
   if test_btnp(4) or test_btnp(5) then  -- z or x
     sfx(5)  -- button press sound
     _log("action:return_to_menu")
+    is_new_high_score = false
     difficulty_selected = false
     state = "menu"
     _log("state:menu")
@@ -618,7 +620,7 @@ function draw_gameover()
   print("score: " .. score, 35, 50, 7)
 
   -- check if new high score
-  if score > high_score then
+  if is_new_high_score then
     print("high score!", 40, 60, 7)
   end
 
