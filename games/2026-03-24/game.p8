@@ -56,6 +56,15 @@ turn_count = 0
 selected_x, selected_y = 1, 1
 message = ""
 message_timer = 0
+difficulty = 1  -- 1=easy, 2=normal, 3=hard
+score = 0
+difficulty_select = 2  -- currently selected difficulty in menu
+
+-- animation and effects
+screen_shake = 0
+flash_timer = 0
+flash_color = 0
+animation_frame = 0
 
 -- map: 0=walkable, 1=obstacle
 function init_map()
@@ -76,9 +85,19 @@ end
 
 function init_enemies()
   local e = {}
-  add(e, {x=6, y=0, hp=1})
-  add(e, {x=7, y=3, hp=1})
-  add(e, {x=3, y=6, hp=1})
+  if difficulty == 1 then  -- easy
+    add(e, {x=6, y=0, hp=1})
+    add(e, {x=7, y=3, hp=1})
+  elseif difficulty == 2 then  -- normal
+    add(e, {x=6, y=0, hp=1})
+    add(e, {x=7, y=3, hp=1})
+    add(e, {x=3, y=6, hp=1})
+  else  -- hard
+    add(e, {x=6, y=0, hp=2})
+    add(e, {x=7, y=3, hp=1})
+    add(e, {x=3, y=6, hp=1})
+    add(e, {x=2, y=1, hp=1})
+  end
   return e
 end
 
@@ -133,29 +152,51 @@ function move_towards_player(enemy, player, map)
 end
 
 function update_menu()
-  if test_btnp(4) then  -- z button
+  -- difficulty selection
+  if test_btnp(0) then
+    difficulty_select = max(1, difficulty_select - 1)
+    sfx(1)
+  elseif test_btnp(1) then
+    difficulty_select = min(3, difficulty_select + 1)
+    sfx(1)
+  end
+
+  if test_btnp(4) then  -- z button to start
     _log("state:play")
+    _log("difficulty:"..difficulty_select)
+    sfx(0)  -- menu confirm sound
+    music(0)  -- start background music
     state = "play"
+    difficulty = difficulty_select
     player = {x=1, y=1, hp=3}
     game_map = init_map()
     enemies = init_enemies()
     turn_count = 0
+    score = 0
     selected_x, selected_y = 1, 1
   end
 end
 
 function update_play()
+  -- decay effects
+  if screen_shake > 0 then screen_shake -= 1 end
+  if flash_timer > 0 then flash_timer -= 1 end
+
   -- player movement
   local old_x, old_y = player.x, player.y
 
   if test_btnp(0) and is_walkable(player.x-1, player.y, game_map) then
     player.x -= 1
+    sfx(1)  -- movement sound
   elseif test_btnp(1) and is_walkable(player.x+1, player.y, game_map) then
     player.x += 1
+    sfx(1)  -- movement sound
   elseif test_btnp(2) and is_walkable(player.x, player.y-1, game_map) then
     player.y -= 1
+    sfx(1)  -- movement sound
   elseif test_btnp(3) and is_walkable(player.x, player.y+1, game_map) then
     player.y += 1
+    sfx(1)  -- movement sound
   end
 
   -- attack adjacent enemy
@@ -169,17 +210,21 @@ function update_play()
     end
     if target then
       target.hp -= 1
+      sfx(2)  -- attack sound
+      screen_shake = 3
+      flash_timer = 4
+      flash_color = 8
       _log("attack:"..target.x..","..target.y)
       if target.hp <= 0 then
         del(enemies, target)
         _log("enemy_defeated")
+        sfx(4)  -- damage/defeat sound
       end
     end
   end
 
   if player.x ~= old_x or player.y ~= old_y then
     _log("move:"..player.x..","..player.y)
-    -- check if player moved onto enemy (shouldn't happen with walkability check)
   end
 
   -- enemy turn
@@ -187,6 +232,10 @@ function update_play()
     if distance(e.x, e.y, player.x, player.y) == 1 then
       -- attack player
       player.hp -= 1
+      sfx(3)  -- enemy attack sound
+      flash_timer = 6
+      flash_color = 8
+      screen_shake = 4
       _log("enemy_hit")
     else
       -- move towards player
@@ -199,10 +248,16 @@ function update_play()
   -- check win/lose
   if #enemies == 0 then
     _log("gameover:win")
+    score = 100 + (player.hp * 50) + (300 / max(1, turn_count))
+    _log("score:"..flr(score))
+    sfx(5)  -- victory sound
+    music()  -- stop music
     state = "gameover"
     message = "victory!"
   elseif player.hp <= 0 then
     _log("gameover:lose")
+    sfx(5)  -- defeat sound
+    music()  -- stop music
     state = "gameover"
     message = "defeated!"
   end
@@ -211,6 +266,7 @@ end
 function update_gameover()
   if test_btnp(4) then  -- z to restart
     _log("state:menu")
+    music()  -- stop music
     state = "menu"
   end
 end
@@ -229,7 +285,23 @@ function draw_menu()
   print("turn-based strategy", 28, 35, 7)
   print("", 0, 50, 0)
   print("defeat all enemies", 25, 55, 3)
-  print("press z to start", 30, 70, 7)
+
+  -- difficulty selection
+  local diff_colors = {8, 7, 8}
+  local diff_names = {"easy", "normal", "hard"}
+  local y_pos = 75
+
+  for i=1,3 do
+    local col = diff_colors[i]
+    if i == difficulty_select then
+      col = 11  -- highlight selected
+      print(">", 35, y_pos, col)
+    end
+    print(diff_names[i], 42, y_pos, col)
+    y_pos += 8
+  end
+
+  print("press z to start", 28, 110, 5)
 end
 
 function draw_grid(offset_x, offset_y, tile_size)
@@ -240,27 +312,61 @@ function draw_grid(offset_x, offset_y, tile_size)
 
       -- draw tile
       if game_map[y][x] == 1 then
-        rectfill(px, py, px+tile_size-1, py+tile_size-1, 5)
+        -- obstacle sprite
+        spr(3, px, py)
       else
+        -- walkable tile with border
         rect(px, py, px+tile_size-1, py+tile_size-1, 8)
       end
     end
   end
 end
 
+function draw_attack_range(offset_x, offset_y, tile_size)
+  -- show valid attack tiles
+  for y=0,7 do
+    for x=0,7 do
+      if distance(player.x, player.y, x, y) == 1 then
+        local px = offset_x + x * tile_size
+        local py = offset_y + y * tile_size
+        -- draw attack range indicator
+        rect(px+1, py+1, px+tile_size-2, py+tile_size-2, 11)
+      end
+    end
+  end
+end
+
 function draw_units(offset_x, offset_y, tile_size)
-  -- player
-  local px = offset_x + player.x * tile_size + 3
-  local py = offset_y + player.y * tile_size + 3
-  circfill(px, py, 2, 11)
-  print(player.hp, px-2, py-4, 7)
+  -- player with sprite
+  local px = offset_x + player.x * tile_size
+  local py = offset_y + player.y * tile_size
+  spr(0, px, py)
+
+  -- player hp indicator
+  if player.hp > 0 then
+    print(player.hp, px + 6, py - 2, 7)
+  end
 
   -- enemies
   for e in all(enemies) do
-    local ex = offset_x + e.x * tile_size + 3
-    local ey = offset_y + e.y * tile_size + 3
-    circfill(ex, ey, 2, 8)
-    print(e.hp, ex-2, ey-4, 7)
+    local ex = offset_x + e.x * tile_size
+    local ey = offset_y + e.y * tile_size
+
+    -- alternate enemy sprites
+    local enemy_sprite = 1 + ((e.x + e.y) % 2)
+    spr(enemy_sprite, ex, ey)
+
+    -- enemy hp indicator
+    if e.hp > 0 then
+      print(e.hp, ex + 6, ey - 2, 8)
+    end
+
+    -- show threat range (where enemies can attack)
+    if distance(e.x, e.y, player.x, player.y) == 1 then
+      local tx = offset_x + e.x * tile_size
+      local ty = offset_y + e.y * tile_size
+      rect(tx+1, ty+1, tx+tile_size-2, ty+tile_size-2, 8)
+    end
   end
 end
 
@@ -271,13 +377,30 @@ function draw_play()
   local offset_x = 8
   local offset_y = 8
 
+  -- apply screen shake
+  if screen_shake > 0 then
+    offset_x += rnd(3) - 1
+    offset_y += rnd(3) - 1
+  end
+
   draw_grid(offset_x, offset_y, tile_size)
+  draw_attack_range(offset_x, offset_y, tile_size)
   draw_units(offset_x, offset_y, tile_size)
 
+  -- flash effect
+  if flash_timer > 0 then
+    rectfill(0, 0, 127, 127, flash_color)
+  end
+
   -- ui panel
+  local diff_col = 7
+  if difficulty == 1 then diff_col = 3
+  elseif difficulty == 3 then diff_col = 8 end
+
   print("turn: "..turn_count, 2, 110, 7)
-  print("hp: "..player.hp, 40, 110, 11)
-  print("enemies: "..#enemies, 70, 110, 8)
+  print("hp: "..player.hp, 30, 110, 11)
+  print("enemies: "..#enemies, 55, 110, 8)
+  print("d"..difficulty, 85, 110, diff_col)
 
   print("arrows:move  z:attack", 2, 120, 5)
 end
@@ -287,10 +410,11 @@ function draw_gameover()
   print("game over", 45, 40, 7)
   if message == "victory!" then
     print(message, 48, 55, 3)
+    print("score: "..flr(score), 35, 70, 11)
   else
     print(message, 48, 55, 8)
   end
-  print("press z to menu", 30, 75, 7)
+  print("press z to menu", 30, 90, 7)
 end
 
 function _draw()
@@ -301,22 +425,24 @@ function _draw()
 end
 
 __gfx__
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00033000000880000088800000550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00333300008888000888880005555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+03333330088888008888888055555550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+03333330088888008888888055555555000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00333300088888008888888055555555000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00030300008880008888880055555550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00010100000000000088800005555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
+__sfx__
+000500000c5000c500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00050000135501355000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0002000009350083500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200000b3500b3500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0005000007350063500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0008000012350f3350d3350b3350935000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__music__
+00 00000000
 
 __label__
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
