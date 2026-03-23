@@ -90,7 +90,6 @@ function update_play()
  end
 
  -- update stars
- local collected=0
  for i=#stars,1,-1 do
   local s=stars[i]
   s.y+=1.5
