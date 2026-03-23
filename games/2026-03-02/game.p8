@@ -99,7 +99,6 @@ function update_play()
   if abs(s.x-px)<8 and abs(s.y-py)<8 then
    deli(stars,i)
    score+=10
-   collected+=1
    _log("collected:"..score)
   elseif s.y>128 then
    deli(stars,i)
@@ -129,7 +128,7 @@ function draw_play()
 
  -- ui
  print("score:"..score,5,5,7)
- print("time:"..flr(time_left/30),100,5,7)
+ print("time:"..flr(time_left/60),100,5,7)
 end
 
 function update_gameover()

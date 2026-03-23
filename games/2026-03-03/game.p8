@@ -133,7 +133,7 @@ function draw_play()
 
  -- ui
  print("score:"..score,5,5,7)
- print("time:"..flr(time_left/30),100,5,7)
+ print("time:"..flr(time_left/60),100,5,7)
 end
 
 function update_gameover()
