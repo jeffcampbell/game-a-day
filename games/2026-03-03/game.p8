@@ -25,10 +25,23 @@ function test_input(b)
  return btn()
 end
 
+-- Dodge Game
 state="menu"
+px,py=60,110
+score=0
+obstacles={}
+time_left=300
+obs_spawn_timer=0
+game_won=false
 
 function _init()
  _log("state:menu")
+ init_obstacles()
+end
+
+function init_obstacles()
+ obstacles={}
+ game_won=false
 end
 
 function _update()
@@ -50,16 +63,77 @@ function update_menu()
  if btnp(4) or btnp(5) then
   state="play"
   _log("state:play")
+  score=0
+  time_left=300
+  init_obstacles()
  end
 end
 
 function draw_menu()
+ print("dodge master",40,30,7)
+ print("press z or x",35,50,7)
+ print("avoid obstacles!",35,60,7)
 end
 
 function update_play()
+ -- player movement
+ if btn(0) and px>4 then px-=2
+ elseif btn(1) and px<124 then px+=2
+ end
+
+ -- spawn obstacles
+ obs_spawn_timer+=1
+ if obs_spawn_timer>25 then
+  add(obstacles,{x=rnd(120),y=-10,col=8})
+  obs_spawn_timer=0
+ end
+
+ -- update obstacles
+ local hit=false
+ for i=#obstacles,1,-1 do
+  local o=obstacles[i]
+  o.y+=1.8
+
+  -- collision with player
+  if abs(o.x-px)<8 and abs(o.y-py)<8 then
+   hit=true
+  elseif o.y>128 then
+   deli(obstacles,i)
+   score+=5
+   _log("dodged:"..score)
+  end
+ end
+
+ if hit then
+  state="gameover"
+  _log("state:gameover")
+  _log("score:"..score)
+ end
+
+ -- timer
+ time_left-=1
+ if time_left<=0 then
+  game_won=true
+  state="gameover"
+  _log("state:gameover")
+  _log("score:"..score)
+ end
 end
 
 function draw_play()
+ -- player (triangle)
+ line(px-3,py+3,px+3,py+3,11)
+ line(px-3,py+3,px,py-3,11)
+ line(px+3,py+3,px,py-3,11)
+
+ -- obstacles
+ for o in all(obstacles) do
+  rectfill(o.x-3,o.y-3,o.x+3,o.y+3,o.col)
+ end
+
+ -- ui
+ print("score:"..score,5,5,7)
+ print("time:"..flr(time_left/30),100,5,7)
 end
 
 function update_gameover()
@@ -70,6 +144,13 @@ function update_gameover()
 end
 
 function draw_gameover()
+ if game_won then
+  print("you won!",50,40,3)
+ else
+  print("game over!",50,40,7)
+ end
+ print("score:"..score,50,55,7)
+ print("press z or x",35,70,7)
 end
 
 __gfx__
