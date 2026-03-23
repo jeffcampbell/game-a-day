@@ -425,7 +425,8 @@ end
 function update_menu()
   -- navigate menu with up/down
   if test_btnp(2) then  -- up
-    menu_option = (menu_option - 1) % 3
+    menu_option = menu_option - 1
+    if menu_option < 0 then menu_option = 2 end
     sfx(3)  -- menu navigation sound
   end
   if test_btnp(3) then  -- down
@@ -603,7 +604,7 @@ function update_tutorial()
       -- trigger match animation
       add(pop_anims, {
         x = grid_x + 2.5 * tile_size,
-        y = grid_y + (grid_h - 2) * tile_size + tile_size / 2,
+        y = grid_y + (grid_h - 3) * tile_size + tile_size / 2,
         time = 0,
         col = tile_colors[1]
       })
