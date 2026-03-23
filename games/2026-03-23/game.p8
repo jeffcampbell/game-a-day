@@ -44,10 +44,14 @@ combo = 0  -- combo counter
 combo_timer = 0  -- frames since last match (reset combo if > 120)
 screen_shake = 0  -- screen shake effect
 flash_time = 0  -- screen flash effect
-difficulty = "medium"  -- easy, medium, hard
+difficulty = 2  -- difficulty level 1-5 (2=normal default)
 difficulty_selected = false
 music_difficulty = nil  -- track which difficulty's music is playing
 combo_intensity_level = 0  -- track combo-based intensity (0=baseline, 1=elevated, 2=intense)
+
+-- difficulty progression tracking
+highest_difficulty_reached = 0
+difficulty_completion_counts = {0, 0, 0, 0, 0}  -- completion count per level 1-5
 
 -- tutorial state
 tutorial_step = 0
@@ -113,6 +117,10 @@ function load_high_scores()
   total_tiles_matched = dget(5) or 0
   time_attack_high_score = dget(6) or 0
   time_attack_high_time = dget(7) or 0
+  highest_difficulty_reached = dget(8) or 0
+  for i = 1, 5 do
+    difficulty_completion_counts[i] = dget(8 + i) or 0
+  end
   _log("high_score:current:" .. high_score)
 end
 
@@ -126,6 +134,10 @@ function save_high_scores()
   dset(5, total_tiles_matched)
   dset(6, time_attack_high_score)
   dset(7, time_attack_high_time)
+  dset(8, highest_difficulty_reached)
+  for i = 1, 5 do
+    dset(8 + i, difficulty_completion_counts[i])
+  end
 end
 
 -- determine music intensity level based on combo
@@ -144,24 +156,35 @@ function set_difficulty(diff)
   difficulty = diff
   _log("difficulty:selected:" .. diff)
 
-  if diff == "easy" then
+  if diff == 1 then  -- beginner
+    grid_w = 4
+    grid_h = 4
+    spawn_rate = 60
+    _log("grid:4x4,spawn:60,level:beginner")
+  elseif diff == 2 then  -- normal
+    grid_w = 5
+    grid_h = 5
+    spawn_rate = 40
+    _log("grid:5x5,spawn:40,level:normal")
+  elseif diff == 3 then  -- hard
     grid_w = 6
-    grid_h = 10
-    spawn_rate = 50
-    _log("grid:6x10,spawn:50")
-  elseif diff == "medium" then
+    grid_h = 6
+    spawn_rate = 25
+    _log("grid:6x6,spawn:25,level:hard")
+  elseif diff == 4 then  -- extreme
     grid_w = 8
-    grid_h = 12
-    spawn_rate = 30
-    _log("grid:8x12,spawn:30")
-  elseif diff == "hard" then
-    grid_w = 10
-    grid_h = 14
+    grid_h = 8
     spawn_rate = 15
-    _log("grid:10x14,spawn:15")
+    _log("grid:8x8,spawn:15,level:extreme")
+  elseif diff == 5 then  -- expert
+    grid_w = 8
+    grid_h = 8
+    spawn_rate = 8
+    _log("grid:8x8,spawn:8,level:expert")
   end
 
   grid_x = (128 - grid_w * tile_size) / 2
+  grid_y = (128 - grid_h * tile_size) / 2 - 10
 end
 
 -- initialize grid
@@ -219,9 +242,9 @@ function init_tutorial()
   tutorial_highlight_x = 0
   tutorial_highlight_y = 0
 
-  -- set to easy difficulty for tutorial
+  -- set to beginner difficulty for tutorial
   if not difficulty_selected then
-    set_difficulty("easy")
+    set_difficulty(1)
     difficulty_selected = true
   end
 
@@ -267,15 +290,21 @@ function init_time_attack()
   load_high_scores()
 
   -- set time limits and targets based on difficulty
-  if difficulty == "easy" then
-    time_attack_timer = 60 * 60  -- 60 seconds at 60fps
+  if difficulty == 1 then  -- beginner: 90 seconds, 15 tiles
+    time_attack_timer = 90 * 60
+    time_attack_target = 15
+  elseif difficulty == 2 then  -- normal: 60 seconds, 30 tiles
+    time_attack_timer = 60 * 60
     time_attack_target = 30
-  elseif difficulty == "medium" then
-    time_attack_timer = 60 * 60  -- 60 seconds
+  elseif difficulty == 3 then  -- hard: 50 seconds, 50 tiles
+    time_attack_timer = 50 * 60
     time_attack_target = 50
-  elseif difficulty == "hard" then
-    time_attack_timer = 60 * 60  -- 60 seconds
+  elseif difficulty == 4 then  -- extreme: 40 seconds, 70 tiles
+    time_attack_timer = 40 * 60
     time_attack_target = 70
+  elseif difficulty == 5 then  -- expert: 30 seconds, 100 tiles
+    time_attack_timer = 30 * 60
+    time_attack_target = 100
   end
 
   for y = 1, grid_h do
@@ -286,7 +315,7 @@ function init_time_attack()
   end
 
   _log("state:time_attack")
-  _log("time_attack:started:" .. difficulty)
+  _log("time_attack:started:level:" .. difficulty)
   _log("time_attack:target:" .. time_attack_target)
 end
 
@@ -439,10 +468,10 @@ function clear_matches()
 
     -- get pitch offset based on difficulty (higher pitches in harder modes)
     local pitch_offset = 0
-    if difficulty == "hard" then
-      pitch_offset = 4  -- high pitch for hard mode
-    elseif difficulty == "medium" then
-      pitch_offset = 2  -- medium pitch for medium mode
+    if difficulty >= 4 then
+      pitch_offset = 4  -- high pitch for extreme/expert
+    elseif difficulty >= 3 then
+      pitch_offset = 2  -- medium pitch for hard and above
     end
 
     -- play different sfx based on match size and combo
@@ -533,20 +562,14 @@ end
 
 function update_difficulty()
   if test_btnp(1) then  -- right
-    if difficulty == "easy" then
-      difficulty = "medium"
-      sfx(3)  -- menu navigation sound
-    elseif difficulty == "medium" then
-      difficulty = "hard"
+    if difficulty < 5 then
+      difficulty += 1
       sfx(3)  -- menu navigation sound
     end
   end
   if test_btnp(0) then  -- left
-    if difficulty == "hard" then
-      difficulty = "medium"
-      sfx(3)  -- menu navigation sound
-    elseif difficulty == "medium" then
-      difficulty = "easy"
+    if difficulty > 1 then
+      difficulty -= 1
       sfx(3)  -- menu navigation sound
     end
   end
@@ -883,6 +906,14 @@ function check_high_score()
   -- track game statistics
   games_played += 1
   total_score += score
+
+  -- track difficulty completion
+  difficulty_completion_counts[difficulty] += 1
+  if difficulty > highest_difficulty_reached then
+    highest_difficulty_reached = difficulty
+    _log("difficulty:new_record:" .. difficulty)
+  end
+
   save_high_scores()
   return is_new
 end
@@ -916,11 +947,11 @@ function _update()
     end
   elseif state == "play" or state == "time_attack" then
     -- select music pattern based on difficulty and score
-    local difficulty_base = 0  -- easy
-    if difficulty == "medium" then
-      difficulty_base = 1
-    elseif difficulty == "hard" then
-      difficulty_base = 2
+    local difficulty_base = 0  -- beginner/normal
+    if difficulty == 3 then
+      difficulty_base = 1  -- hard
+    elseif difficulty >= 4 then
+      difficulty_base = 2  -- extreme/expert
     end
 
     local combo_intensity = get_combo_intensity_level()
@@ -1019,65 +1050,82 @@ end
 function draw_stats()
   cls(1)
 
-  print("statistics", 42, 15, 7)
-  line(30, 14, 98, 14, 7)
+  print("statistics", 42, 5, 7)
+  line(30, 4, 98, 4, 7)
 
   -- display all statistics
-  print("high score:", 10, 30, 11)
-  print(high_score, 70, 30, 10)
+  print("high score:", 10, 15, 11)
+  print(high_score, 70, 15, 10)
 
-  print("games played:", 8, 40, 11)
-  print(games_played, 70, 40, 10)
+  print("games played:", 8, 23, 11)
+  print(games_played, 70, 23, 10)
 
   -- calculate and display average score
   local avg_score = 0
   if games_played > 0 then
     avg_score = flr(total_score / games_played)
   end
-  print("avg score:", 12, 50, 11)
-  print(avg_score, 70, 50, 10)
+  print("avg score:", 12, 31, 11)
+  print(avg_score, 70, 31, 10)
 
-  print("tiles matched:", 8, 60, 11)
-  print(total_tiles_matched, 70, 60, 10)
+  -- difficulty progression
+  print("highest difficulty:", 5, 42, 11)
+  local diff_names = {"beginner", "normal", "hard", "extreme", "expert"}
+  if highest_difficulty_reached > 0 then
+    print(diff_names[highest_difficulty_reached], 75, 42, 10)
+  else
+    print("none", 75, 42, 5)
+  end
+
+  -- completions per difficulty
+  print("completions by level:", 5, 53, 7)
+  for i = 1, 5 do
+    local y = 53 + i * 7
+    local name = diff_names[i]
+    local count = difficulty_completion_counts[i]
+    print(name .. ":", 10, y, 5)
+    print(count, 60, y, 10)
+  end
 
   -- instructions
-  print("press z or x", 30, 105, 11)
-  print("to return to menu", 20, 113, 11)
+  print("press z or x", 30, 115, 11)
 end
 
 function draw_difficulty()
   cls(1)
 
-  print("select difficulty", 30, 20, 7)
+  print("select difficulty", 30, 10, 7)
+  line(20, 9, 108, 9, 7)
 
-  -- draw difficulty options with visual feedback
-  local easy_col = difficulty == "easy" and 7 or 5
-  local med_col = difficulty == "medium" and 7 or 5
-  local hard_col = difficulty == "hard" and 7 or 5
+  -- draw 5 difficulty options vertically
+  local diffs = {
+    {name = "beginner", grid = "4x4", color = 11, highest = 1},
+    {name = "normal", grid = "5x5", color = 10, highest = 2},
+    {name = "hard", grid = "6x6", color = 8, highest = 3},
+    {name = "extreme", grid = "8x8", color = 8, highest = 4},
+    {name = "expert", grid = "8x8 fast", color = 8, highest = 5}
+  }
 
-  -- easy option with selection box
-  if difficulty == "easy" then
-    rect(15, 48, 70, 65, 11)
+  for i = 1, 5 do
+    local y = 20 + (i - 1) * 18
+    local d = diffs[i]
+    local is_selected = difficulty == i
+    local col = is_selected and d.color or 5
+
+    if is_selected then
+      rect(10, y - 2, 118, y + 12, d.color)
+    end
+    print(d.name, 20, y, col)
+    print(d.grid, 65, y, 5)
+
+    -- show completion count if applicable
+    if difficulty_completion_counts[i] > 0 then
+      print("x" .. difficulty_completion_counts[i], 95, y, 7)
+    end
   end
-  print("easy", 20, 50, easy_col)
-  print("6x10 grid, slow spawn", 16, 57, 5)
-
-  -- medium option with selection box
-  if difficulty == "medium" then
-    rect(10, 73, 70, 90, 10)
-  end
-  print("medium", 15, 75, med_col)
-  print("8x12 grid, normal spawn", 12, 82, 5)
-
-  -- hard option with selection box
-  if difficulty == "hard" then
-    rect(15, 98, 70, 115, 8)
-  end
-  print("hard", 20, 100, hard_col)
-  print("10x14 grid, fast spawn", 14, 107, 5)
 
   -- instructions
-  print("< > select  z confirm", 12, 115, 11)
+  print("< > select  z confirm", 12, 118, 11)
 end
 
 function draw_play()
@@ -1149,14 +1197,8 @@ function draw_play()
   end
 
   -- draw difficulty indicator border
-  local border_col = 5  -- default gray
-  if difficulty == "easy" then
-    border_col = 11  -- cyan for easy
-  elseif difficulty == "medium" then
-    border_col = 10  -- yellow for medium
-  elseif difficulty == "hard" then
-    border_col = 8  -- red for hard
-  end
+  local border_cols = {11, 10, 8, 8, 8}  -- colors for each difficulty
+  local border_col = border_cols[difficulty] or 5
   rect(gx - 2, gy - 2, gx + grid_w * tile_size + 1, gy + grid_h * tile_size + 1, border_col)
 
   -- draw ui
