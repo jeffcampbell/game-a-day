@@ -181,6 +181,7 @@ function init_game()
   celebration_time = 0
   music_difficulty = nil  -- reset music tracking to force music change
   combo_intensity_level = 0  -- reset combo-based intensity to baseline
+  time_attack_mode = false  -- ensure mode flag is reset
 
   -- load high scores on first game
   load_high_scores()
@@ -724,7 +725,6 @@ function update_time_attack()
   -- check win condition first: tiles cleared >= target
   if time_attack_tiles_cleared >= time_attack_target then
     state = "gameover"
-    time_attack_mode = false
     is_new_high_score = check_time_attack_high_score()
     _log("state:gameover")
     _log("gameover:time_attack_win")
@@ -734,7 +734,6 @@ function update_time_attack()
   -- check lose condition: timer expired
   elseif time_attack_timer <= 0 then
     state = "gameover"
-    time_attack_mode = false
     is_new_high_score = check_time_attack_high_score()
     _log("state:gameover")
     _log("gameover:time_attack_lose")
@@ -864,6 +863,7 @@ function update_gameover()
     is_new_high_score = false
     difficulty_selected = false
     menu_option = 0  -- reset menu selection
+    time_attack_mode = false  -- reset mode flag when returning to menu
     state = "menu"
     _log("state:menu")
   end
