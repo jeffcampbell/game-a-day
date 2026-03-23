@@ -1,18 +1,19 @@
 {
-  "title": "Untitled Game",
-  "description": "A PICO-8 game",
+  "title": "Star Collector",
+  "description": "An action arcade PICO-8 game where you collect falling stars while avoiding missing them. Move left and right to position your collector, score points, and survive the timer.",
   "release_date": "2026-03-02",
   "genres": [
-    "puzzle"
+    "action",
+    "arcade"
   ],
   "theme": "",
-  "difficulty": 3,
+  "difficulty": 2,
   "playtime_minutes": 5,
   "target_audience": "general",
   "keywords": [],
-  "completion_status": "in-progress",
+  "completion_status": "complete",
   "tester_notes": "",
-  "token_count": 0,
-  "sprite_count": 0,
+  "token_count": 469,
+  "sprite_count": 1,
   "sound_count": 0
 }
