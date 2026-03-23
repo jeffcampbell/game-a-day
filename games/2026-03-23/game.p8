@@ -48,6 +48,7 @@ difficulty = "medium"  -- easy, medium, hard
 difficulty_selected = false
 music_difficulty = nil  -- track which difficulty's music is playing
 music_intensity_level = 0  -- track score-based intensity (0=baseline, 1=elevated, 2=intense)
+combo_intensity_level = 0  -- track combo-based intensity (0=baseline, 1=elevated, 2=intense)
 
 -- high score persistence
 high_score = 0
@@ -117,6 +118,17 @@ function get_score_intensity_level()
   end
 end
 
+-- determine music intensity level based on combo
+function get_combo_intensity_level()
+  if combo >= 5 then
+    return 2  -- intense
+  elseif combo >= 2 then
+    return 1  -- elevated
+  else
+    return 0  -- baseline
+  end
+end
+
 -- set difficulty parameters
 function set_difficulty(diff)
   difficulty = diff
@@ -159,6 +171,7 @@ function init_game()
   celebration_time = 0
   music_difficulty = nil  -- reset music tracking to force music change
   music_intensity_level = 0  -- reset score-based intensity to baseline
+  combo_intensity_level = 0  -- reset combo-based intensity to baseline
 
   -- load high scores on first game
   load_high_scores()
@@ -289,6 +302,7 @@ function clear_matches()
     -- check if combo was already active, otherwise reset
     if combo_timer > 120 then
       combo = 0
+      combo_intensity_level = 0
     end
     combo += 1
     combo_timer = 0  -- reset combo timer
@@ -426,6 +440,7 @@ function update_play()
   if combo_timer > 120 then  -- 2 seconds at 60fps
     combo = 0
     combo_timer = 0
+    combo_intensity_level = 0
   end
 
   -- update screen effects
@@ -545,19 +560,19 @@ function _update()
       difficulty_base = 2
     end
 
-    local score_intensity = get_score_intensity_level()
+    local combo_intensity = get_combo_intensity_level()
 
     -- pattern selection: offset by 3 for each intensity level
     -- patterns 0-2: baseline, 3-5: elevated, 6-8: intense
-    local target_pattern = difficulty_base + (score_intensity * 3)
+    local target_pattern = difficulty_base + (combo_intensity * 3)
 
     -- only change music when intensity or difficulty changes
-    if music_intensity_level ~= score_intensity or music_difficulty ~= difficulty then
+    if combo_intensity_level ~= combo_intensity or music_difficulty ~= difficulty then
       if stat(54) == -1 then
         music(target_pattern)
-        music_intensity_level = score_intensity
+        combo_intensity_level = combo_intensity
         music_difficulty = difficulty
-        _log("music:changed:pattern:" .. target_pattern .. ":intensity:" .. score_intensity)
+        _log("music:changed:pattern:" .. target_pattern .. ":combo_intensity:" .. combo_intensity)
       end
     elseif stat(54) == -1 then
       music(target_pattern)
@@ -773,6 +788,11 @@ function draw_play()
     local combo_col = combo > 5 and 8 or (combo > 3 and 10 or 11)
     print("x" .. flr(multiplier * 10) / 10, 80, 116, combo_col)
   end
+
+  -- draw music intensity indicator
+  local intensity_text = combo_intensity_level == 2 and "♪♪♪" or (combo_intensity_level == 1 and "♪♪" or "♪")
+  local intensity_col = combo_intensity_level == 2 and 8 or (combo_intensity_level == 1 and 10 or 7)
+  print(intensity_text, 105, 116, intensity_col)
 
   -- high score celebration pulse
   if celebration_time > 0 then
