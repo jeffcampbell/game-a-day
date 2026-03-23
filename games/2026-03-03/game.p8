@@ -77,8 +77,8 @@ end
 
 function update_play()
  -- player movement
- if btn(0) and px>4 then px-=2
- elseif btn(1) and px<124 then px+=2
+ if test_input(0) and px>4 then px-=2
+ elseif test_input(1) and px<124 then px+=2
  end
 
  -- spawn obstacles
