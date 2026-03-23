@@ -68,6 +68,10 @@ grid_y = 8
 
 -- pop animations for cleared tiles
 pop_anims = {}
+-- score popups for floating text feedback
+score_popups = {}
+-- high score celebration
+celebration_time = 0
 
 -- grid data: 0 = empty, 1-5 = tile colors
 grid = {}
@@ -132,6 +136,7 @@ function init_game()
   grid = {}
   falling_tiles = {}
   pop_anims = {}
+  score_popups = {}
   score = 0
   level = 1
   game_time = 0
@@ -140,6 +145,7 @@ function init_game()
   combo_timer = 0
   screen_shake = 0
   flash_time = 0
+  celebration_time = 0
   music_difficulty = nil  -- reset music tracking to force music change
   music_intensity_level = 0  -- reset score-based intensity to baseline
 
@@ -278,6 +284,17 @@ function clear_matches()
     local score_gain = flr(clear_count * 10 * multiplier)
     score += score_gain
 
+    -- create score popup at center of cleared area
+    local popup_x = grid_x + grid_w * tile_size / 2
+    local popup_y = grid_y + grid_h * tile_size / 2
+    add(score_popups, {
+      x = popup_x,
+      y = popup_y,
+      text = "+" .. score_gain,
+      time = 0,
+      col = 7
+    })
+
     screen_shake = 2
     flash_time = 4
     _log("match:detected:" .. clear_count)
@@ -396,6 +413,19 @@ function update_play()
     end
   end
 
+  -- update score popups (floating text)
+  for i = #score_popups, 1, -1 do
+    score_popups[i].time += 1
+    if score_popups[i].time > 30 then
+      del(score_popups, score_popups[i])
+    end
+  end
+
+  -- update high score celebration
+  if celebration_time > 0 then
+    celebration_time -= 1
+  end
+
   -- level progression
   local target_level = flr(score / 200) + 1
   if target_level > level then
@@ -459,6 +489,7 @@ function check_high_score()
     high_score = score
     high_level = level
     high_combo = combo
+    celebration_time = 60  -- 1 second celebration
     _log("high_score:new")
     is_new = true
   end
@@ -531,13 +562,16 @@ end
 function draw_menu()
   cls(1)
 
-  -- title
-  print("tile", 52, 20, 7)
+  -- animated title with color cycling
+  local title_offset = sin(time() * 2) * 2
+  print("tile", 52, 20 + title_offset, 7)
   print("match", 47, 28, 10)
   print("puzzle", 48, 36, 12)
 
-  -- high score display
+  -- high score display with emphasis
   print("best: " .. high_score, 70, 10, 11)
+  -- draw accent line
+  line(65, 9, 128, 9, 11)
 
   -- instructions
   print("match 3+ tiles", 26, 55, 11)
@@ -546,7 +580,13 @@ function draw_menu()
   print("spawn gets faster", 20, 75, 7)
   print("score increases levels", 16, 82, 7)
 
-  print("press z for difficulty", 21, 100, 10)
+  -- animated prompt
+  local blink = flr(time() * 2) % 2
+  if blink == 0 then
+    print("press z for difficulty", 21, 100, 10)
+  else
+    print("press z for difficulty", 21, 100, 12)
+  end
 end
 
 function draw_difficulty()
@@ -554,17 +594,29 @@ function draw_difficulty()
 
   print("select difficulty", 30, 20, 7)
 
-  -- draw difficulty options
+  -- draw difficulty options with visual feedback
   local easy_col = difficulty == "easy" and 7 or 5
   local med_col = difficulty == "medium" and 7 or 5
   local hard_col = difficulty == "hard" and 7 or 5
 
+  -- easy option with selection box
+  if difficulty == "easy" then
+    rect(15, 48, 70, 65, 11)
+  end
   print("easy", 20, 50, easy_col)
   print("6x10 grid, slow spawn", 16, 57, 5)
 
+  -- medium option with selection box
+  if difficulty == "medium" then
+    rect(10, 73, 70, 90, 10)
+  end
   print("medium", 15, 75, med_col)
   print("8x12 grid, normal spawn", 12, 82, 5)
 
+  -- hard option with selection box
+  if difficulty == "hard" then
+    rect(15, 98, 70, 115, 8)
+  end
   print("hard", 20, 100, hard_col)
   print("10x14 grid, fast spawn", 14, 107, 5)
 
@@ -605,12 +657,32 @@ function draw_play()
     draw_tile(px, py, tile.col)
   end
 
-  -- draw pop animations
+  -- draw pop animations with enhanced effects
   for anim in all(pop_anims) do
-    local scale = 1 + (8 - anim.time) / 8
+    -- scale and fade out
+    local progress = anim.time / 8
+    local scale = 1 + (1 - progress)
     local size = flr(tile_size * scale / 2)
+    -- draw expanding circles with fade
     fillp()
     circfill(anim.x, anim.y, size, anim.col)
+    -- add a slight outline for emphasis
+    if size > 0 then
+      circ(anim.x, anim.y, size, 7)
+    end
+  end
+
+  -- draw score popup text
+  for popup in all(score_popups) do
+    local y_offset = popup.time / 2  -- move up over time
+    local display_y = popup.y - y_offset
+    local display_col = 7
+    -- change color based on score value
+    if popup.text == "+30" then display_col = 10
+    elseif popup.text == "+40" then display_col = 8
+    elseif popup.text == "+50" then display_col = 12
+    end
+    print(popup.text, popup.x - 8, display_y, display_col)
   end
 
   -- draw flash effect
@@ -619,6 +691,17 @@ function draw_play()
     rectfill(0, 0, 127, 127, 7)
     fillp()
   end
+
+  -- draw difficulty indicator border
+  local border_col = 5  -- default gray
+  if difficulty == "easy" then
+    border_col = 11  -- cyan for easy
+  elseif difficulty == "medium" then
+    border_col = 10  -- yellow for medium
+  elseif difficulty == "hard" then
+    border_col = 8  -- red for hard
+  end
+  rect(gx - 2, gy - 2, gx + grid_w * tile_size + 1, gy + grid_h * tile_size + 1, border_col)
 
   -- draw ui
   print("score:" .. score, 5, 116, 7)
@@ -630,18 +713,46 @@ function draw_play()
     local combo_col = combo > 5 and 8 or (combo > 3 and 10 or 11)
     print("x" .. flr(multiplier * 10) / 10, 80, 116, combo_col)
   end
+
+  -- high score celebration pulse
+  if celebration_time > 0 then
+    local pulse = sin(celebration_time / 10) * 0.3 + 0.7
+    fillp(0x5a5a.1)
+    local offset = flr(pulse * 3)
+    rect(gx - 3 - offset, gy - 3 - offset,
+         gx + grid_w * tile_size + 2 + offset,
+         gy + grid_h * tile_size + 2 + offset, 14)
+    fillp()
+  end
 end
 
 function draw_gameover()
+  -- base background
   cls(1)
+
+  -- celebration effect for new high score
+  if is_new_high_score then
+    -- alternating color background for celebration
+    local blink = flr(time() * 4) % 2
+    if blink == 0 then
+      fillp(0x1122.1)
+      rectfill(0, 0, 127, 127, 14)
+    else
+      fillp(0x2244.1)
+      rectfill(0, 0, 127, 127, 15)
+    end
+    fillp()
+  end
 
   print("game over", 43, 30, 8)
 
+  -- highlight final score
   print("score: " .. score, 35, 50, 7)
 
-  -- check if new high score
+  -- check if new high score with emphasis
   if is_new_high_score then
-    print("high score!", 40, 60, 7)
+    local hs_col = 11
+    print("★ high score! ★", 31, 60, hs_col)
   end
 
   print("level: " .. level, 35, 70, 10)
@@ -649,7 +760,12 @@ function draw_gameover()
     print("final combo: " .. combo, 28, 80, 12)
   end
 
+  -- best score display with comparison
   print("best: " .. high_score, 40, 105, 11)
+  if not is_new_high_score and score < high_score then
+    local diff = high_score - score
+    print("-" .. diff .. " pts", 40, 113, 5)
+  end
 
   print("press z for menu", 26, 115, 10)
 end
