@@ -49,6 +49,12 @@ difficulty_selected = false
 music_difficulty = nil  -- track which difficulty's music is playing
 combo_intensity_level = 0  -- track combo-based intensity (0=baseline, 1=elevated, 2=intense)
 
+-- tutorial state
+tutorial_step = 0
+tutorial_time = 0
+tutorial_highlight_x = 0
+tutorial_highlight_y = 0
+
 -- high score persistence
 high_score = 0
 high_level = 0
@@ -63,6 +69,9 @@ total_tiles_matched = 0
 -- button state caching for test_input integration
 curr_btn = 0
 prev_btn = 0
+
+-- menu selection
+menu_option = 0  -- 0=play, 1=tutorial, 2=stats
 
 -- grid constants
 grid_w = 8
@@ -172,6 +181,52 @@ function init_game()
 
   _log("state:play")
   _log("game:initialized:" .. difficulty)
+end
+
+-- initialize tutorial state
+function init_tutorial()
+  grid = {}
+  falling_tiles = {}
+  pop_anims = {}
+  score_popups = {}
+  score = 0
+  level = 1
+  game_time = 0
+  spawn_counter = 0
+  combo = 0
+  combo_timer = 0
+  screen_shake = 0
+  flash_time = 0
+  celebration_time = 0
+  music_difficulty = nil
+  combo_intensity_level = 0
+  tutorial_step = 1
+  tutorial_time = 0
+  tutorial_highlight_x = 0
+  tutorial_highlight_y = 0
+
+  -- set to easy difficulty for tutorial
+  if not difficulty_selected then
+    set_difficulty("easy")
+    difficulty_selected = true
+  end
+
+  for y = 1, grid_h do
+    grid[y] = {}
+    for x = 1, grid_w do
+      grid[y][x] = 0
+    end
+  end
+
+  -- pre-populate some tiles for tutorial demonstration
+  grid[grid_h - 2][2] = tile_colors[1]  -- red
+  grid[grid_h - 2][3] = tile_colors[1]  -- red
+  grid[grid_h - 2][4] = tile_colors[1]  -- red for initial 3-match demo
+  grid[grid_h - 1][1] = tile_colors[2]  -- orange
+  grid[grid_h - 1][5] = tile_colors[3]  -- yellow
+
+  _log("state:tutorial")
+  _log("tutorial:step_1")
 end
 
 -- spawn new falling tile at top
@@ -368,17 +423,32 @@ function check_game_over()
 end
 
 function update_menu()
-  if test_btnp(4) then  -- z: start game
-    if not difficulty_selected then
-      sfx(5)  -- button press sound
-      state = "difficulty"
-      _log("state:difficulty")
-    end
+  -- navigate menu with up/down
+  if test_btnp(2) then  -- up
+    menu_option = menu_option - 1
+    if menu_option < 0 then menu_option = 2 end
+    sfx(3)  -- menu navigation sound
   end
-  if test_btnp(5) then  -- x: view stats
+  if test_btnp(3) then  -- down
+    menu_option = (menu_option + 1) % 3
+    sfx(3)  -- menu navigation sound
+  end
+
+  if test_btnp(4) then  -- z: select option
     sfx(5)  -- button press sound
-    state = "stats"
-    _log("state:stats")
+    if menu_option == 0 then  -- play
+      if not difficulty_selected then
+        state = "difficulty"
+        _log("state:difficulty")
+      end
+    elseif menu_option == 1 then  -- tutorial
+      init_tutorial()
+      state = "tutorial"
+      _log("action:start_tutorial")
+    elseif menu_option == 2 then  -- stats
+      state = "stats"
+      _log("state:stats")
+    end
   end
 end
 
@@ -500,12 +570,126 @@ function update_play()
   end
 end
 
+function update_tutorial()
+  tutorial_time += 1
+
+  -- allow skipping tutorial with X at any step
+  if test_btnp(5) then  -- x: skip tutorial
+    sfx(1)  -- game over sound for skip
+    _log("tutorial:skipped:step_" .. tutorial_step)
+    init_game()
+    state = "play"
+    return
+  end
+
+  if tutorial_step == 1 then
+    -- intro step: wait 3 seconds then advance
+    if tutorial_time > 180 then
+      tutorial_step = 2
+      tutorial_time = 0
+      _log("tutorial:step_2")
+      sfx(3)
+    end
+  elseif tutorial_step == 2 then
+    -- show tile selection: wait for input or timeout
+    if test_btnp(4) or tutorial_time > 240 then
+      tutorial_step = 3
+      tutorial_time = 0
+      _log("tutorial:step_3")
+      sfx(3)
+    end
+  elseif tutorial_step == 3 then
+    -- combo demonstration: simulate a match and show result
+    if tutorial_time == 1 then
+      -- trigger match animation
+      add(pop_anims, {
+        x = grid_x + 2.5 * tile_size,
+        y = grid_y + (grid_h - 3) * tile_size + tile_size / 2,
+        time = 0,
+        col = tile_colors[1]
+      })
+      grid[grid_h - 2][2] = 0
+      grid[grid_h - 2][3] = 0
+      grid[grid_h - 2][4] = 0
+      combo = 1
+      combo_timer = 0
+      score = 30
+      sfx(0)  -- match sound
+    end
+    if tutorial_time > 200 then
+      tutorial_step = 4
+      tutorial_time = 0
+      _log("tutorial:step_4")
+      sfx(3)
+    end
+  elseif tutorial_step == 4 then
+    -- show music intensity: display current intensity with combo
+    if tutorial_time == 1 then
+      combo = 3
+      combo_intensity_level = 1
+    end
+    if tutorial_time > 180 then
+      tutorial_step = 5
+      tutorial_time = 0
+      combo = 0
+      combo_timer = 120
+      score = 0
+      _log("tutorial:step_5")
+      sfx(3)
+    end
+  elseif tutorial_step == 5 then
+    -- freeplay: let player interact, then transition after they make a match or timeout
+    update_gravity()
+
+    -- spawn tiles slowly for tutorial
+    spawn_counter += 1
+    if spawn_counter >= 80 then
+      spawn_tile()
+      spawn_counter = 0
+    end
+
+    -- clear matches
+    local cleared = true
+    while cleared do
+      cleared = clear_matches()
+      if cleared then
+        settle_tiles()
+      end
+    end
+
+    -- advance after 10 seconds or on button press
+    if tutorial_time > 600 then
+      init_game()
+      state = "play"
+      _log("tutorial:completed")
+      _log("state:play")
+    end
+  end
+
+  -- update pop animations
+  for i = #pop_anims, 1, -1 do
+    pop_anims[i].time += 1
+    if pop_anims[i].time > 8 then
+      del(pop_anims, pop_anims[i])
+    end
+  end
+
+  -- update score popups
+  for i = #score_popups, 1, -1 do
+    score_popups[i].time += 1
+    if score_popups[i].time > 30 then
+      del(score_popups, score_popups[i])
+    end
+  end
+end
+
 function update_gameover()
   if test_btnp(4) or test_btnp(5) then  -- z or x
     sfx(5)  -- button press sound
     _log("action:return_to_menu")
     is_new_high_score = false
     difficulty_selected = false
+    menu_option = 0  -- reset menu selection
     state = "menu"
     _log("state:menu")
   end
@@ -537,6 +721,10 @@ function _update()
   if state == "menu" or state == "difficulty" then
     if stat(54) == -1 then
       music(0)  -- calm menu music
+    end
+  elseif state == "tutorial" then
+    if stat(54) == -1 then
+      music(0)  -- calm menu music for tutorial
     end
   elseif state == "play" then
     -- select music pattern based on difficulty and score
@@ -571,6 +759,7 @@ function _update()
   if state == "menu" then update_menu()
   elseif state == "stats" then update_stats()
   elseif state == "difficulty" then update_difficulty()
+  elseif state == "tutorial" then update_tutorial()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
   end
@@ -613,13 +802,24 @@ function draw_menu()
   print("spawn gets faster", 20, 75, 7)
   print("score increases levels", 16, 82, 7)
 
-  -- animated prompt
-  local blink = flr(time() * 2) % 2
-  if blink == 0 then
-    print("z-play  x-stats", 26, 100, 10)
-  else
-    print("z-play  x-stats", 26, 100, 12)
-  end
+  -- menu options with selection indicator
+  local play_col = menu_option == 0 and 10 or 7
+  local tutorial_col = menu_option == 1 and 10 or 7
+  local stats_col = menu_option == 2 and 10 or 7
+
+  local y = 95
+  if menu_option == 0 then print(">", 15, y, 10) end
+  print("play", 22, y, play_col)
+
+  y = 103
+  if menu_option == 1 then print(">", 15, y, 10) end
+  print("tutorial", 22, y, tutorial_col)
+
+  y = 111
+  if menu_option == 2 then print(">", 15, y, 10) end
+  print("stats", 22, y, stats_col)
+
+  print("up/down-select  z-go", 10, 120, 11)
 end
 
 function draw_stats()
@@ -793,6 +993,98 @@ function draw_play()
   end
 end
 
+function draw_tutorial()
+  cls(0)
+
+  -- draw grid with tiles
+  local gx = grid_x
+  local gy = grid_y
+  rectfill(gx - 1, gy - 1, gx + grid_w * tile_size,
+           gy + grid_h * tile_size, 5)
+
+  for y = 1, grid_h do
+    for x = 1, grid_w do
+      local px = gx + (x - 1) * tile_size
+      local py = gy + (y - 1) * tile_size
+      draw_tile(px, py, grid[y][x])
+    end
+  end
+
+  -- draw falling tiles
+  for tile in all(falling_tiles) do
+    local px = gx + (tile.x - 1) * tile_size
+    local py = gy + (tile.y - 1) * tile_size
+    draw_tile(px, py, tile.col)
+  end
+
+  -- draw pop animations
+  for anim in all(pop_anims) do
+    local progress = anim.time / 8
+    local scale = 1 + (1 - progress)
+    local size = flr(tile_size * scale / 2)
+    fillp()
+    circfill(anim.x, anim.y, size, anim.col)
+    if size > 0 then
+      circ(anim.x, anim.y, size, 7)
+    end
+  end
+
+  -- draw score popup text
+  for popup in all(score_popups) do
+    local y_offset = popup.time / 2
+    local display_y = popup.y - y_offset
+    print(popup.text, popup.x - 8, display_y, 7)
+  end
+
+  -- draw difficulty indicator border
+  local border_col = 11  -- cyan for easy
+  rect(gx - 2, gy - 2, gx + grid_w * tile_size + 1, gy + grid_h * tile_size + 1, border_col)
+
+  -- draw ui
+  print("score:" .. score, 5, 116, 7)
+  print("lvl:" .. level, 50, 116, 7)
+
+  if combo > 1 then
+    local multiplier = min(5, 1 + (combo - 1) * 0.5)
+    local combo_col = 11
+    print("x" .. flr(multiplier * 10) / 10, 80, 116, combo_col)
+  end
+
+  local intensity_text = combo_intensity_level == 2 and "♪♪♪" or (combo_intensity_level == 1 and "♪♪" or "♪")
+  local intensity_col = combo_intensity_level == 2 and 8 or (combo_intensity_level == 1 and 10 or 7)
+  print(intensity_text, 105, 116, intensity_col)
+
+  -- draw tutorial instructions based on step
+  local panel_y = 5
+  if tutorial_step == 1 then
+    print("goal: match 3+ tiles", 12, panel_y, 11)
+    print("to clear them and", 16, panel_y + 8, 11)
+    print("build combos!", 28, panel_y + 16, 11)
+    print("press z to continue", 16, panel_y + 32, 10)
+  elseif tutorial_step == 2 then
+    print("these tiles match!", 14, panel_y, 11)
+    -- highlight the three red tiles
+    rect(gx + tile_size - 1, gy + (grid_h - 3) * tile_size - 1,
+         gx + 5 * tile_size, gy + (grid_h - 2) * tile_size, 10)
+    print("matches clear & cascade", 10, panel_y + 32, 10)
+  elseif tutorial_step == 3 then
+    print("combo x" .. combo .. "!", 40, panel_y, 12)
+    print("more matches = higher", 12, panel_y + 8, 11)
+    print("score multiplier!", 20, panel_y + 16, 11)
+    print("press z to see music", 12, panel_y + 32, 10)
+  elseif tutorial_step == 4 then
+    print("music intensity", 28, panel_y, 11)
+    print("goes up with combos!", 14, panel_y + 8, 11)
+    print("watch the intensity", 16, panel_y + 24, 10)
+    print("indicator ♪ above", 22, panel_y + 32, 10)
+  elseif tutorial_step == 5 then
+    print("your turn! match", 24, panel_y, 11)
+    print("tiles and build combos.", 10, panel_y + 8, 11)
+    print("you have 10 seconds...", 12, panel_y + 24, 10)
+    print("press x to skip", 28, panel_y + 40, 7)
+  end
+end
+
 function draw_gameover()
   -- base background
   cls(1)
@@ -841,6 +1133,7 @@ function _draw()
   if state == "menu" then draw_menu()
   elseif state == "stats" then draw_stats()
   elseif state == "difficulty" then draw_difficulty()
+  elseif state == "tutorial" then draw_tutorial()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
   end
