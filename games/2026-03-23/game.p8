@@ -675,7 +675,6 @@ function draw_play()
   -- draw score popup text
   for popup in all(score_popups) do
     local y_offset = popup.time / 2  -- move up over time
-    local alpha_progress = popup.time / 30
     local display_y = popup.y - y_offset
     local display_col = 7
     -- change color based on score value
@@ -752,8 +751,6 @@ function draw_gameover()
 
   -- check if new high score with emphasis
   if is_new_high_score then
-    -- animate high score text
-    local pulse = sin(time() * 2) * 0.1 + 1
     local hs_col = 11
     print("★ high score! ★", 31, 60, hs_col)
   end
