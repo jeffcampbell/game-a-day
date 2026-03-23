@@ -40,6 +40,9 @@ level = 1
 game_time = 0
 spawn_counter = 0
 spawn_rate = 30  -- decrease over time for difficulty
+combo = 0  -- combo counter
+screen_shake = 0  -- screen shake effect
+flash_time = 0  -- screen flash effect
 
 -- button state caching for test_input integration
 curr_btn = 0
@@ -68,6 +71,9 @@ function init_game()
   game_time = 0
   spawn_counter = 0
   spawn_rate = 30
+  combo = 0
+  screen_shake = 0
+  flash_time = 0
 
   for y = 1, grid_h do
     grid[y] = {}
@@ -88,6 +94,7 @@ function spawn_tile()
     col = tile_colors[flr(rnd(5)) + 1]
   }
   add(falling_tiles, tile)
+  _log("tile:spawn:" .. tile.x)
 end
 
 -- apply gravity to falling tiles
@@ -180,9 +187,17 @@ function clear_matches()
   end
 
   if clear_count > 0 then
-    score += clear_count * 10
-    _log("cleared:" .. clear_count)
+    combo += 1
+    local score_gain = clear_count * 10 * combo
+    score += score_gain
+    screen_shake = 2
+    flash_time = 4
+    _log("match:detected:" .. clear_count)
+    _log("combo:" .. combo)
+    _log("score_gained:" .. score_gain)
     sfx(0)  -- play clear sound
+  else
+    combo = 0
   end
 
   return clear_count > 0
@@ -217,19 +232,31 @@ end
 
 function update_menu()
   if test_btnp(4) or test_btnp(5) then  -- z or x
+    _log("action:start_game")
     init_game()
     state = "play"
-    _log("state:play")
   end
 end
 
 function update_play()
   game_time += 1
 
+  -- update screen effects
+  if screen_shake > 0 then screen_shake -= 1 end
+  if flash_time > 0 then flash_time -= 1 end
+
+  -- level progression
+  local target_level = flr(score / 200) + 1
+  if target_level > level then
+    level = target_level
+    _log("level:up:" .. level)
+    sfx(2)  -- level up sound
+  end
+
   -- difficulty ramp
   if game_time % 600 == 0 then  -- every 10 seconds
-    spawn_rate = max(15, spawn_rate - 1)
-    _log("difficulty:ramp")
+    spawn_rate = max(10, spawn_rate - 2)
+    _log("difficulty:ramp:" .. spawn_rate)
   end
 
   -- spawn tiles
@@ -256,12 +283,14 @@ function update_play()
     state = "gameover"
     _log("state:gameover")
     _log("final_score:" .. score)
+    _log("level_reached:" .. level)
     sfx(1)  -- game over sound
   end
 end
 
 function update_gameover()
   if test_btnp(4) or test_btnp(5) then  -- z or x
+    _log("action:return_to_menu")
     state = "menu"
     _log("state:menu")
   end
@@ -282,58 +311,93 @@ function draw_tile(x, y, col)
     -- draw filled rectangle for tile
     fillp()
     rectfill(x, y, x + tile_size - 1, y + tile_size - 1, col)
-    -- border
-    rect(x, y, x + tile_size - 1, y + tile_size - 1, 0)
+    -- highlight top-left for depth
+    pset(x, y, 7)
+    pset(x + 1, y, 7)
+    pset(x, y + 1, 7)
+    -- shadow bottom-right for depth
+    pset(x + tile_size - 1, y + tile_size - 1, 1)
+    pset(x + tile_size - 2, y + tile_size - 1, 1)
+    pset(x + tile_size - 1, y + tile_size - 2, 1)
   end
 end
 
 function draw_menu()
-  cls(0)
+  cls(1)
 
-  print("tile match", 45, 30, 7)
-  print("puzzle", 50, 40, 7)
+  -- title
+  print("tile", 52, 20, 7)
+  print("match", 47, 28, 10)
+  print("puzzle", 48, 36, 12)
 
-  print("match 3+ tiles", 25, 60, 11)
-  print("to clear them", 30, 70, 11)
+  -- instructions
+  print("match 3+ tiles", 26, 55, 11)
+  print("to clear them", 30, 62, 11)
 
-  print("press z to start", 28, 95, 10)
+  print("spawn gets faster", 20, 75, 7)
+  print("score increases levels", 16, 82, 7)
+
+  print("press z to start", 27, 100, 10)
 end
 
 function draw_play()
   cls(0)
 
+  -- apply screen shake offset
+  local shake_x = 0
+  local shake_y = 0
+  if screen_shake > 0 then
+    shake_x = rnd(3) - 1
+    shake_y = rnd(3) - 1
+  end
+
   -- draw grid background
-  rectfill(grid_x - 1, grid_y - 1, grid_x + grid_w * tile_size,
-           grid_y + grid_h * tile_size, 5)
+  local gx = grid_x + shake_x
+  local gy = grid_y + shake_y
+  rectfill(gx - 1, gy - 1, gx + grid_w * tile_size,
+           gy + grid_h * tile_size, 5)
 
   -- draw settled tiles
   for y = 1, grid_h do
     for x = 1, grid_w do
-      local px = grid_x + (x - 1) * tile_size
-      local py = grid_y + (y - 1) * tile_size
+      local px = gx + (x - 1) * tile_size
+      local py = gy + (y - 1) * tile_size
       draw_tile(px, py, grid[y][x])
     end
   end
 
   -- draw falling tiles
   for tile in all(falling_tiles) do
-    local px = grid_x + (tile.x - 1) * tile_size
-    local py = grid_y + (tile.y - 1) * tile_size
+    local px = gx + (tile.x - 1) * tile_size
+    local py = gy + (tile.y - 1) * tile_size
     draw_tile(px, py, tile.col)
+  end
+
+  -- draw flash effect
+  if flash_time > 0 then
+    fillp(0x5a5a.1)
+    rectfill(0, 0, 127, 127, 7)
+    fillp()
   end
 
   -- draw ui
   print("score:" .. score, 5, 116, 7)
-  print("lvl:" .. level, 60, 116, 7)
-  print("time:" .. flr(game_time / 60), 90, 116, 7)
+  print("lvl:" .. level, 50, 116, 7)
+  print("combo:" .. combo, 80, 116, 7)
 end
 
 function draw_gameover()
-  cls(0)
+  cls(1)
 
-  print("game over", 45, 40, 8)
-  print("score: " .. score, 40, 60, 7)
-  print("press z for menu", 28, 90, 10)
+  print("game over", 43, 30, 8)
+
+  print("score: " .. score, 35, 50, 7)
+  print("level: " .. level, 35, 60, 10)
+  if combo > 0 then
+    print("final combo: " .. combo, 28, 70, 12)
+  end
+
+  print("press z for menu", 26, 95, 10)
 end
 
 function _draw()
@@ -416,3 +480,4 @@ ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 __sfx__
 010100000f050f0501c051c05000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0101000034053405340534053405340534053405340534053405340534053405340534053405340534053405340534053405340534053405340534053405000000000000000000000000000000000000000000
+010100003735373537353735373537353735373537353735373500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
