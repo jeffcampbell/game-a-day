@@ -71,7 +71,16 @@ curr_btn = 0
 prev_btn = 0
 
 -- menu selection
-menu_option = 0  -- 0=play, 1=tutorial, 2=stats
+menu_option = 0  -- 0=play, 1=tutorial, 2=stats, 3=time_attack
+
+-- time attack mode
+time_attack_timer = 0  -- counts down in frames
+time_attack_target = 0  -- tiles to clear
+time_attack_tiles_cleared = 0  -- tiles cleared in current run
+time_attack_mode = false  -- flag to track if in time attack mode
+time_attack_high_score = 0  -- high score for time attack mode
+time_attack_high_time = 0  -- best time (frames remaining) for time attack
+time_attack_pending = false  -- flag to indicate we should start time attack after difficulty selection
 
 -- grid constants
 grid_w = 8
@@ -102,6 +111,8 @@ function load_high_scores()
   games_played = dget(3) or 0
   total_score = dget(4) or 0
   total_tiles_matched = dget(5) or 0
+  time_attack_high_score = dget(6) or 0
+  time_attack_high_time = dget(7) or 0
   _log("high_score:current:" .. high_score)
 end
 
@@ -113,6 +124,8 @@ function save_high_scores()
   dset(3, games_played)
   dset(4, total_score)
   dset(5, total_tiles_matched)
+  dset(6, time_attack_high_score)
+  dset(7, time_attack_high_time)
 end
 
 -- determine music intensity level based on combo
@@ -168,6 +181,7 @@ function init_game()
   celebration_time = 0
   music_difficulty = nil  -- reset music tracking to force music change
   combo_intensity_level = 0  -- reset combo-based intensity to baseline
+  time_attack_mode = false  -- ensure mode flag is reset
 
   -- load high scores on first game
   load_high_scores()
@@ -227,6 +241,53 @@ function init_tutorial()
 
   _log("state:tutorial")
   _log("tutorial:step_1")
+end
+
+-- initialize time attack mode
+function init_time_attack()
+  grid = {}
+  falling_tiles = {}
+  pop_anims = {}
+  score_popups = {}
+  score = 0
+  level = 1
+  game_time = 0
+  spawn_counter = 0
+  combo = 0
+  combo_timer = 0
+  screen_shake = 0
+  flash_time = 0
+  celebration_time = 0
+  music_difficulty = nil
+  combo_intensity_level = 0
+  time_attack_tiles_cleared = 0
+  time_attack_mode = true
+
+  -- load high scores on first game
+  load_high_scores()
+
+  -- set time limits and targets based on difficulty
+  if difficulty == "easy" then
+    time_attack_timer = 60 * 60  -- 60 seconds at 60fps
+    time_attack_target = 30
+  elseif difficulty == "medium" then
+    time_attack_timer = 60 * 60  -- 60 seconds
+    time_attack_target = 50
+  elseif difficulty == "hard" then
+    time_attack_timer = 60 * 60  -- 60 seconds
+    time_attack_target = 70
+  end
+
+  for y = 1, grid_h do
+    grid[y] = {}
+    for x = 1, grid_w do
+      grid[y][x] = 0
+    end
+  end
+
+  _log("state:time_attack")
+  _log("time_attack:started:" .. difficulty)
+  _log("time_attack:target:" .. time_attack_target)
 end
 
 -- spawn new falling tile at top
@@ -341,6 +402,11 @@ function clear_matches()
     -- track total tiles matched across all games
     total_tiles_matched += clear_count
 
+    -- track tiles cleared in time attack mode
+    if time_attack_mode then
+      time_attack_tiles_cleared += clear_count
+    end
+
     -- check if combo was already active, otherwise reset
     if combo_timer > 120 then
       combo = 0
@@ -426,11 +492,11 @@ function update_menu()
   -- navigate menu with up/down
   if test_btnp(2) then  -- up
     menu_option = menu_option - 1
-    if menu_option < 0 then menu_option = 2 end
+    if menu_option < 0 then menu_option = 3 end
     sfx(3)  -- menu navigation sound
   end
   if test_btnp(3) then  -- down
-    menu_option = (menu_option + 1) % 3
+    menu_option = (menu_option + 1) % 4
     sfx(3)  -- menu navigation sound
   end
 
@@ -448,6 +514,11 @@ function update_menu()
     elseif menu_option == 2 then  -- stats
       state = "stats"
       _log("state:stats")
+    elseif menu_option == 3 then  -- time attack
+      time_attack_pending = true
+      state = "difficulty"
+      _log("state:difficulty")
+      _log("action:time_attack_mode")
     end
   end
 end
@@ -484,8 +555,14 @@ function update_difficulty()
     sfx(5)  -- button press/confirm sound
     set_difficulty(difficulty)
     difficulty_selected = true
-    init_game()
-    state = "play"
+    if time_attack_pending then
+      time_attack_pending = false
+      init_time_attack()
+      state = "time_attack"
+    else
+      init_game()
+      state = "play"
+    end
   end
 end
 
@@ -567,6 +644,102 @@ function update_play()
     _log("level_reached:" .. level)
     _log("final_combo:" .. combo)
     sfx(1)  -- game over sound
+  end
+end
+
+function update_time_attack()
+  game_time += 1
+  time_attack_timer -= 1
+
+  -- log timer at key intervals for testing
+  if time_attack_timer == 3600 or time_attack_timer == 1800 or time_attack_timer == 600 or time_attack_timer == 300 or (time_attack_timer > 0 and time_attack_timer % 600 == 0) then
+    _log("timer:" .. flr(time_attack_timer / 60))
+  end
+
+  -- update combo timer
+  combo_timer += 1
+  if combo_timer > 120 then
+    combo = 0
+    combo_timer = 0
+    combo_intensity_level = 0
+  end
+
+  -- update screen effects
+  if screen_shake > 0 then screen_shake -= 1 end
+  if flash_time > 0 then flash_time -= 1 end
+
+  -- update pop animations
+  for i = #pop_anims, 1, -1 do
+    pop_anims[i].time += 1
+    if pop_anims[i].time > 8 then
+      del(pop_anims, pop_anims[i])
+    end
+  end
+
+  -- update score popups (floating text)
+  for i = #score_popups, 1, -1 do
+    score_popups[i].time += 1
+    if score_popups[i].time > 30 then
+      del(score_popups, score_popups[i])
+    end
+  end
+
+  -- update high score celebration
+  if celebration_time > 0 then
+    celebration_time -= 1
+  end
+
+  -- level progression
+  local target_level = flr(score / 200) + 1
+  if target_level > level then
+    level = target_level
+    _log("level:up:" .. level)
+    sfx(2)  -- level up sound
+  end
+
+  -- difficulty ramp (slower in time attack)
+  if game_time % 1200 == 0 then  -- every 20 seconds (slower than survival)
+    spawn_rate = max(10, spawn_rate - 1)
+    _log("difficulty:ramp:" .. spawn_rate)
+  end
+
+  -- spawn tiles
+  spawn_counter += 1
+  if spawn_counter >= spawn_rate then
+    spawn_tile()
+    spawn_counter = 0
+  end
+
+  -- update gravity
+  update_gravity()
+
+  -- clear matches and settle
+  local cleared = true
+  while cleared do
+    cleared = clear_matches()
+    if cleared then
+      settle_tiles()
+    end
+  end
+
+  -- check win condition first: tiles cleared >= target
+  if time_attack_tiles_cleared >= time_attack_target then
+    state = "gameover"
+    is_new_high_score = check_time_attack_high_score()
+    _log("state:gameover")
+    _log("gameover:time_attack_win")
+    _log("final_score:" .. score)
+    _log("tiles_cleared:" .. time_attack_tiles_cleared)
+    sfx(4)  -- win sound
+  -- check lose condition: timer expired
+  elseif time_attack_timer <= 0 then
+    state = "gameover"
+    is_new_high_score = check_time_attack_high_score()
+    _log("state:gameover")
+    _log("gameover:time_attack_lose")
+    _log("final_score:" .. score)
+    _log("tiles_cleared:" .. time_attack_tiles_cleared)
+    sfx(1)  -- lose sound
   end
 end
 
@@ -690,6 +863,7 @@ function update_gameover()
     is_new_high_score = false
     difficulty_selected = false
     menu_option = 0  -- reset menu selection
+    time_attack_mode = false  -- reset mode flag when returning to menu
     state = "menu"
     _log("state:menu")
   end
@@ -713,6 +887,20 @@ function check_high_score()
   return is_new
 end
 
+-- check and save time attack high scores
+function check_time_attack_high_score()
+  local is_new = false
+  if score > time_attack_high_score then
+    time_attack_high_score = score
+    time_attack_high_time = time_attack_timer
+    celebration_time = 60  -- 1 second celebration
+    _log("time_attack_high_score:new")
+    is_new = true
+  end
+  save_high_scores()
+  return is_new
+end
+
 function _update()
   prev_btn = curr_btn
   curr_btn = test_input(0)
@@ -726,7 +914,7 @@ function _update()
     if stat(54) == -1 then
       music(0)  -- calm menu music for tutorial
     end
-  elseif state == "play" then
+  elseif state == "play" or state == "time_attack" then
     -- select music pattern based on difficulty and score
     local difficulty_base = 0  -- easy
     if difficulty == "medium" then
@@ -761,6 +949,7 @@ function _update()
   elseif state == "difficulty" then update_difficulty()
   elseif state == "tutorial" then update_tutorial()
   elseif state == "play" then update_play()
+  elseif state == "time_attack" then update_time_attack()
   elseif state == "gameover" then update_gameover()
   end
 end
@@ -806,6 +995,7 @@ function draw_menu()
   local play_col = menu_option == 0 and 10 or 7
   local tutorial_col = menu_option == 1 and 10 or 7
   local stats_col = menu_option == 2 and 10 or 7
+  local time_attack_col = menu_option == 3 and 10 or 7
 
   local y = 95
   if menu_option == 0 then print(">", 15, y, 10) end
@@ -819,7 +1009,11 @@ function draw_menu()
   if menu_option == 2 then print(">", 15, y, 10) end
   print("stats", 22, y, stats_col)
 
-  print("up/down-select  z-go", 10, 120, 11)
+  y = 119
+  if menu_option == 3 then print(">", 7, y, 10) end
+  print("time attack", 22, y, time_attack_col)
+
+  print("up/down-select  z-go", 8, 120, 11)
 end
 
 function draw_stats()
@@ -993,6 +1187,93 @@ function draw_play()
   end
 end
 
+function draw_time_attack()
+  cls(0)
+
+  -- apply screen shake offset
+  local sx = 0
+  local sy = 0
+  if screen_shake > 0 then
+    sx = rnd(3) - 1
+    sy = rnd(3) - 1
+  end
+
+  camera(sx, sy)
+
+  -- draw grid background
+  local gx = grid_x
+  local gy = grid_y
+  rectfill(gx - 1, gy - 1, gx + grid_w * tile_size, gy + grid_h * tile_size, 1)
+
+  -- draw tile grid with falling tiles
+  for y = 1, grid_h do
+    for x = 1, grid_w do
+      local col = grid[y][x]
+      if col > 0 then
+        fillp(0x5a5a.1)
+        rectfill(gx + (x - 1) * tile_size, gy + (y - 1) * tile_size,
+                 gx + x * tile_size - 1, gy + y * tile_size - 1, col)
+        fillp()
+      end
+    end
+  end
+
+  -- draw falling tiles
+  for i, tile in ipairs(falling_tiles) do
+    if tile.y >= 1 then
+      fillp(0x5a5a.1)
+      rectfill(gx + (tile.x - 1) * tile_size, gy + (tile.y - 1) * tile_size,
+               gx + tile.x * tile_size - 1, gy + tile.y * tile_size - 1, tile.col)
+      fillp()
+    end
+  end
+
+  -- draw pop animations
+  for i, anim in ipairs(pop_anims) do
+    print("+", anim.x - 2, anim.y, 7)
+  end
+
+  -- draw score popups
+  for i, popup in ipairs(score_popups) do
+    local col = 10  -- yellow
+    if popup.life < 10 then
+      col = 5  -- gray fade out
+    end
+    print(popup.text, popup.x - 8, popup.y - popup.life / 4, col)
+  end
+
+  -- flash screen on match
+  if flash_time > 0 then
+    fillp(0x5a5a.1)
+    rectfill(gx - 1, gy - 1, gx + grid_w * tile_size, gy + grid_h * tile_size, 7)
+    fillp()
+  end
+
+  camera()
+
+  -- draw ui overlay at top
+  print("time attack", 35, 2, 10)
+
+  -- draw timer prominently at top right
+  local timer_secs = flr(time_attack_timer / 60)
+  local timer_col = 10  -- white/light
+  if timer_secs <= 10 then
+    -- warning color for final 10 seconds
+    timer_col = 8  -- red
+  end
+  local timer_str = timer_secs
+  if timer_secs < 10 then
+    timer_str = "0" .. timer_secs
+  end
+  print(timer_str .. "s", 105, 2, timer_col)
+
+  -- draw tiles cleared and target
+  print("tiles: " .. time_attack_tiles_cleared .. "/" .. time_attack_target, 8, 115, 11)
+
+  -- draw score
+  print("score: " .. score, 8, 123, 10)
+end
+
 function draw_tutorial()
   cls(0)
 
@@ -1103,27 +1384,63 @@ function draw_gameover()
     fillp()
   end
 
-  print("game over", 43, 30, 8)
+  -- time attack mode gameover screen
+  if time_attack_mode then
+    -- check if it was a win (tiles cleared >= target)
+    if time_attack_tiles_cleared >= time_attack_target then
+      print("time attack complete!", 20, 30, 11)
+    else
+      print("time up!", 47, 30, 8)
+    end
 
-  -- highlight final score
-  print("score: " .. score, 35, 50, 7)
+    -- highlight final score
+    print("score: " .. score, 35, 50, 7)
 
-  -- check if new high score with emphasis
-  if is_new_high_score then
-    local hs_col = 11
-    print("★ high score! ★", 31, 60, hs_col)
-  end
+    -- show tiles cleared
+    print("tiles: " .. time_attack_tiles_cleared .. "/" .. time_attack_target, 20, 60, 10)
 
-  print("level: " .. level, 35, 70, 10)
-  if combo > 0 then
-    print("final combo: " .. combo, 28, 80, 12)
-  end
+    -- show time taken
+    local time_taken = 60 * 60 - time_attack_timer
+    local secs = flr(time_taken / 60)
+    local ms = time_taken % 60
+    print("time: " .. secs .. "." .. flr(ms / 6), 40, 70, 10)
 
-  -- best score display with comparison
-  print("best: " .. high_score, 40, 105, 11)
-  if not is_new_high_score and score < high_score then
-    local diff = high_score - score
-    print("-" .. diff .. " pts", 40, 113, 5)
+    -- check if new high score with emphasis
+    if is_new_high_score then
+      local hs_col = 11
+      print("★ new record! ★", 31, 85, hs_col)
+    end
+
+    -- best score display
+    print("best: " .. time_attack_high_score, 38, 105, 11)
+    if not is_new_high_score and score < time_attack_high_score then
+      local diff = time_attack_high_score - score
+      print("-" .. diff .. " pts", 40, 113, 5)
+    end
+  else
+    -- regular game over screen
+    print("game over", 43, 30, 8)
+
+    -- highlight final score
+    print("score: " .. score, 35, 50, 7)
+
+    -- check if new high score with emphasis
+    if is_new_high_score then
+      local hs_col = 11
+      print("★ high score! ★", 31, 60, hs_col)
+    end
+
+    print("level: " .. level, 35, 70, 10)
+    if combo > 0 then
+      print("final combo: " .. combo, 28, 80, 12)
+    end
+
+    -- best score display with comparison
+    print("best: " .. high_score, 40, 105, 11)
+    if not is_new_high_score and score < high_score then
+      local diff = high_score - score
+      print("-" .. diff .. " pts", 40, 113, 5)
+    end
   end
 
   print("press z for menu", 26, 115, 10)
@@ -1135,6 +1452,7 @@ function _draw()
   elseif state == "difficulty" then draw_difficulty()
   elseif state == "tutorial" then draw_tutorial()
   elseif state == "play" then draw_play()
+  elseif state == "time_attack" then draw_time_attack()
   elseif state == "gameover" then draw_gameover()
   end
 end
