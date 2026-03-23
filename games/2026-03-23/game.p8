@@ -47,6 +47,7 @@ flash_time = 0  -- screen flash effect
 difficulty = "medium"  -- easy, medium, hard
 difficulty_selected = false
 music_difficulty = nil  -- track which difficulty's music is playing
+music_intensity_level = 0  -- track score-based intensity (0=baseline, 1=elevated, 2=intense)
 
 -- high score persistence
 high_score = 0
@@ -90,6 +91,17 @@ function save_high_scores()
   dset(2, high_combo)
 end
 
+-- determine music intensity level based on score
+function get_score_intensity_level()
+  if score >= 600 then
+    return 2  -- intense
+  elseif score >= 300 then
+    return 1  -- elevated
+  else
+    return 0  -- baseline
+  end
+end
+
 -- set difficulty parameters
 function set_difficulty(diff)
   difficulty = diff
@@ -129,6 +141,7 @@ function init_game()
   screen_shake = 0
   flash_time = 0
   music_difficulty = nil  -- reset music tracking to force music change
+  music_intensity_level = 0  -- reset score-based intensity to baseline
 
   -- load high scores on first game
   load_high_scores()
@@ -463,20 +476,27 @@ function _update()
       music(0)  -- calm menu music
     end
   elseif state == "play" then
-    -- select music pattern based on difficulty
-    local target_pattern = 0  -- default easy
+    -- select music pattern based on difficulty and score
+    local difficulty_base = 0  -- easy
     if difficulty == "medium" then
-      target_pattern = 1  -- medium intensity
+      difficulty_base = 1
     elseif difficulty == "hard" then
-      target_pattern = 2  -- high intensity
+      difficulty_base = 2
     end
 
-    -- only change music when difficulty changes
-    if music_difficulty ~= difficulty then
+    local score_intensity = get_score_intensity_level()
+
+    -- pattern selection: offset by 3 for each intensity level
+    -- patterns 0-2: baseline, 3-5: elevated, 6-8: intense
+    local target_pattern = difficulty_base + (score_intensity * 3)
+
+    -- only change music when intensity or difficulty changes
+    if music_intensity_level ~= score_intensity or music_difficulty ~= difficulty then
       if stat(54) == -1 then
         music(target_pattern)
+        music_intensity_level = score_intensity
         music_difficulty = difficulty
-        _log("music:changed:pattern:" .. target_pattern .. ":difficulty:" .. difficulty)
+        _log("music:changed:pattern:" .. target_pattern .. ":intensity:" .. score_intensity)
       end
     elseif stat(54) == -1 then
       music(target_pattern)
@@ -730,3 +750,9 @@ __music__
 00 0a0a0203
 01 04050406
 02 0b0b0605
+03 0a0a0a06
+04 0405060a
+05 0b0b060a
+06 06060606
+07 06060a0a
+08 0b0b0b06
