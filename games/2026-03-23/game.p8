@@ -338,8 +338,6 @@ function draw_menu()
   print("score increases levels", 16, 82, 7)
 
   print("press z to start", 27, 100, 10)
-
-  _log("state:menu")
 end
 
 function draw_play()
