@@ -55,6 +55,11 @@ high_level = 0
 high_combo = 0
 is_new_high_score = false
 
+-- game statistics
+games_played = 0
+total_score = 0
+total_tiles_matched = 0
+
 -- button state caching for test_input integration
 curr_btn = 0
 prev_btn = 0
@@ -85,6 +90,9 @@ function load_high_scores()
   high_score = dget(0) or 0
   high_level = dget(1) or 0
   high_combo = dget(2) or 0
+  games_played = dget(3) or 0
+  total_score = dget(4) or 0
+  total_tiles_matched = dget(5) or 0
   _log("high_score:current:" .. high_score)
 end
 
@@ -93,6 +101,9 @@ function save_high_scores()
   dset(0, high_score)
   dset(1, high_level)
   dset(2, high_combo)
+  dset(3, games_played)
+  dset(4, total_score)
+  dset(5, total_tiles_matched)
 end
 
 -- determine music intensity level based on score
@@ -272,6 +283,9 @@ function clear_matches()
   end
 
   if clear_count > 0 then
+    -- track total tiles matched across all games
+    total_tiles_matched += clear_count
+
     -- check if combo was already active, otherwise reset
     if combo_timer > 120 then
       combo = 0
@@ -353,12 +367,25 @@ function check_game_over()
 end
 
 function update_menu()
-  if test_btnp(4) or test_btnp(5) then  -- z or x
+  if test_btnp(4) then  -- z: start game
     if not difficulty_selected then
       sfx(5)  -- button press sound
       state = "difficulty"
       _log("state:difficulty")
     end
+  end
+  if test_btnp(5) then  -- x: view stats
+    sfx(5)  -- button press sound
+    state = "stats"
+    _log("state:stats")
+  end
+end
+
+function update_stats()
+  if test_btnp(4) or test_btnp(5) then  -- z or x: return to menu
+    sfx(5)  -- button press sound
+    state = "menu"
+    _log("state:menu")
   end
 end
 
@@ -493,6 +520,9 @@ function check_high_score()
     _log("high_score:new")
     is_new = true
   end
+  -- track game statistics
+  games_played += 1
+  total_score += score
   save_high_scores()
   return is_new
 end
@@ -537,6 +567,7 @@ function _update()
   end
 
   if state == "menu" then update_menu()
+  elseif state == "stats" then update_stats()
   elseif state == "difficulty" then update_difficulty()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
@@ -583,10 +614,39 @@ function draw_menu()
   -- animated prompt
   local blink = flr(time() * 2) % 2
   if blink == 0 then
-    print("press z for difficulty", 21, 100, 10)
+    print("z-play  x-stats", 26, 100, 10)
   else
-    print("press z for difficulty", 21, 100, 12)
+    print("z-play  x-stats", 26, 100, 12)
   end
+end
+
+function draw_stats()
+  cls(1)
+
+  print("statistics", 42, 15, 7)
+  line(30, 14, 98, 14, 7)
+
+  -- display all statistics
+  print("high score:", 10, 30, 11)
+  print(high_score, 70, 30, 10)
+
+  print("games played:", 8, 40, 11)
+  print(games_played, 70, 40, 10)
+
+  -- calculate and display average score
+  local avg_score = 0
+  if games_played > 0 then
+    avg_score = flr(total_score / games_played)
+  end
+  print("avg score:", 12, 50, 11)
+  print(avg_score, 70, 50, 10)
+
+  print("tiles matched:", 8, 60, 11)
+  print(total_tiles_matched, 70, 60, 10)
+
+  -- instructions
+  print("press z or x", 30, 105, 11)
+  print("to return to menu", 20, 113, 11)
 end
 
 function draw_difficulty()
@@ -772,6 +832,7 @@ end
 
 function _draw()
   if state == "menu" then draw_menu()
+  elseif state == "stats" then draw_stats()
   elseif state == "difficulty" then draw_difficulty()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
