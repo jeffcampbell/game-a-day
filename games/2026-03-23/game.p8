@@ -41,8 +41,11 @@ game_time = 0
 spawn_counter = 0
 spawn_rate = 30  -- decrease over time for difficulty
 combo = 0  -- combo counter
+combo_timer = 0  -- frames since last match (reset combo if > 120)
 screen_shake = 0  -- screen shake effect
 flash_time = 0  -- screen flash effect
+difficulty = "medium"  -- easy, medium, hard
+difficulty_selected = false
 
 -- button state caching for test_input integration
 curr_btn = 0
@@ -55,6 +58,9 @@ tile_size = 8
 grid_x = (128 - grid_w * tile_size) / 2
 grid_y = 8
 
+-- pop animations for cleared tiles
+pop_anims = {}
+
 -- grid data: 0 = empty, 1-5 = tile colors
 grid = {}
 falling_tiles = {}  -- falling tile instances
@@ -62,16 +68,42 @@ falling_tiles = {}  -- falling tile instances
 -- tile colors: red, orange, yellow, green, light blue
 tile_colors = {8, 9, 10, 11, 12}
 
+-- set difficulty parameters
+function set_difficulty(diff)
+  difficulty = diff
+  _log("difficulty:selected:" .. diff)
+
+  if diff == "easy" then
+    grid_w = 6
+    grid_h = 10
+    spawn_rate = 50
+    _log("grid:6x10,spawn:50")
+  elseif diff == "medium" then
+    grid_w = 8
+    grid_h = 12
+    spawn_rate = 30
+    _log("grid:8x12,spawn:30")
+  elseif diff == "hard" then
+    grid_w = 10
+    grid_h = 14
+    spawn_rate = 15
+    _log("grid:10x14,spawn:15")
+  end
+
+  grid_x = (128 - grid_w * tile_size) / 2
+end
+
 -- initialize grid
 function init_game()
   grid = {}
   falling_tiles = {}
+  pop_anims = {}
   score = 0
   level = 1
   game_time = 0
   spawn_counter = 0
-  spawn_rate = 30
   combo = 0
+  combo_timer = 0
   screen_shake = 0
   flash_time = 0
 
@@ -83,7 +115,7 @@ function init_game()
   end
 
   _log("state:play")
-  _log("game:initialized")
+  _log("game:initialized:" .. difficulty)
 end
 
 -- spawn new falling tile at top
@@ -172,7 +204,7 @@ function clear_matches()
     end
   end
 
-  -- clear marked tiles
+  -- clear marked tiles and create pop animations
   local clear_count = 0
   for key, _ in pairs(to_clear) do
     local parts = {}
@@ -181,23 +213,45 @@ function clear_matches()
     end
     local x, y = parts[1], parts[2]
     if grid[y][x] ~= 0 then
+      -- create pop animation
+      add(pop_anims, {
+        x = grid_x + (x - 1) * tile_size + tile_size / 2,
+        y = grid_y + (y - 1) * tile_size + tile_size / 2,
+        time = 0,
+        col = grid[y][x]
+      })
       grid[y][x] = 0
       clear_count += 1
     end
   end
 
   if clear_count > 0 then
+    -- check if combo was already active, otherwise reset
+    if combo_timer > 120 then
+      combo = 0
+    end
     combo += 1
-    local score_gain = clear_count * 10 * combo
+    combo_timer = 0  -- reset combo timer
+
+    -- score multiplier based on combo
+    local multiplier = min(5, 1 + (combo - 1) * 0.5)  -- 1x, 1.5x, 2x, 2.5x, 3x...
+    local score_gain = flr(clear_count * 10 * multiplier)
     score += score_gain
+
     screen_shake = 2
     flash_time = 4
     _log("match:detected:" .. clear_count)
     _log("combo:" .. combo)
     _log("score_gained:" .. score_gain)
-    sfx(0)  -- play clear sound
-  else
-    combo = 0
+
+    -- play different sfx based on match size
+    if clear_count >= 8 then
+      sfx(2)  -- big cascade (level up sound reused)
+    elseif clear_count >= 5 then
+      sfx(0)  -- medium match
+    else
+      sfx(0)  -- small match
+    end
   end
 
   return clear_count > 0
@@ -232,7 +286,32 @@ end
 
 function update_menu()
   if test_btnp(4) or test_btnp(5) then  -- z or x
-    _log("action:start_game")
+    if not difficulty_selected then
+      state = "difficulty"
+      _log("state:difficulty")
+    end
+  end
+end
+
+function update_difficulty()
+  if test_btnp(1) then  -- right
+    if difficulty == "easy" then
+      difficulty = "medium"
+    elseif difficulty == "medium" then
+      difficulty = "hard"
+    end
+  end
+  if test_btnp(0) then  -- left
+    if difficulty == "hard" then
+      difficulty = "medium"
+    elseif difficulty == "medium" then
+      difficulty = "easy"
+    end
+  end
+
+  if test_btnp(4) or test_btnp(5) then  -- z or x to confirm
+    set_difficulty(difficulty)
+    difficulty_selected = true
     init_game()
     state = "play"
   end
@@ -241,9 +320,24 @@ end
 function update_play()
   game_time += 1
 
+  -- update combo timer
+  combo_timer += 1
+  if combo_timer > 120 then  -- 2 seconds at 60fps
+    combo = 0
+    combo_timer = 0
+  end
+
   -- update screen effects
   if screen_shake > 0 then screen_shake -= 1 end
   if flash_time > 0 then flash_time -= 1 end
+
+  -- update pop animations
+  for i = #pop_anims, 1, -1 do
+    pop_anims[i].time += 1
+    if pop_anims[i].time > 8 then
+      del(pop_anims, pop_anims[i])
+    end
+  end
 
   -- level progression
   local target_level = flr(score / 200) + 1
@@ -284,6 +378,7 @@ function update_play()
     _log("state:gameover")
     _log("final_score:" .. score)
     _log("level_reached:" .. level)
+    _log("final_combo:" .. combo)
     sfx(1)  -- game over sound
   end
 end
@@ -291,6 +386,7 @@ end
 function update_gameover()
   if test_btnp(4) or test_btnp(5) then  -- z or x
     _log("action:return_to_menu")
+    difficulty_selected = false
     state = "menu"
     _log("state:menu")
   end
@@ -301,6 +397,7 @@ function _update()
   curr_btn = test_input(0)
 
   if state == "menu" then update_menu()
+  elseif state == "difficulty" then update_difficulty()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
   end
@@ -337,7 +434,30 @@ function draw_menu()
   print("spawn gets faster", 20, 75, 7)
   print("score increases levels", 16, 82, 7)
 
-  print("press z to start", 27, 100, 10)
+  print("press z for difficulty", 21, 100, 10)
+end
+
+function draw_difficulty()
+  cls(1)
+
+  print("select difficulty", 30, 20, 7)
+
+  -- draw difficulty options
+  local easy_col = difficulty == "easy" and 7 or 5
+  local med_col = difficulty == "medium" and 7 or 5
+  local hard_col = difficulty == "hard" and 7 or 5
+
+  print("easy", 20, 50, easy_col)
+  print("6x10 grid, slow spawn", 16, 57, 5)
+
+  print("medium", 15, 75, med_col)
+  print("8x12 grid, normal spawn", 12, 82, 5)
+
+  print("hard", 20, 100, hard_col)
+  print("10x14 grid, fast spawn", 14, 107, 5)
+
+  -- instructions
+  print("< > select  z confirm", 12, 115, 11)
 end
 
 function draw_play()
@@ -373,6 +493,14 @@ function draw_play()
     draw_tile(px, py, tile.col)
   end
 
+  -- draw pop animations
+  for anim in all(pop_anims) do
+    local scale = 1 + (8 - anim.time) / 8
+    local size = flr(tile_size * scale / 2)
+    fillp()
+    circfill(anim.x, anim.y, size, anim.col)
+  end
+
   -- draw flash effect
   if flash_time > 0 then
     fillp(0x5a5a.1)
@@ -383,7 +511,13 @@ function draw_play()
   -- draw ui
   print("score:" .. score, 5, 116, 7)
   print("lvl:" .. level, 50, 116, 7)
-  print("combo:" .. combo, 80, 116, 7)
+
+  -- draw combo with visual feedback
+  if combo > 1 then
+    local multiplier = min(5, 1 + (combo - 1) * 0.5)
+    local combo_col = combo > 5 and 8 or (combo > 3 and 10 or 11)
+    print("x" .. flr(multiplier * 10) / 10, 80, 116, combo_col)
+  end
 end
 
 function draw_gameover()
@@ -402,6 +536,7 @@ end
 
 function _draw()
   if state == "menu" then draw_menu()
+  elseif state == "difficulty" then draw_difficulty()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
   end
