@@ -48,6 +48,12 @@ difficulty = "medium"  -- easy, medium, hard
 difficulty_selected = false
 music_difficulty = nil  -- track which difficulty's music is playing
 
+-- high score persistence
+high_score = 0
+high_level = 0
+high_combo = 0
+is_new_high_score = false
+
 -- button state caching for test_input integration
 curr_btn = 0
 prev_btn = 0
@@ -68,6 +74,21 @@ falling_tiles = {}  -- falling tile instances
 
 -- tile colors: red, orange, yellow, green, light blue
 tile_colors = {8, 9, 10, 11, 12}
+
+-- load high scores from cartdata
+function load_high_scores()
+  high_score = dget(0) or 0
+  high_level = dget(1) or 0
+  high_combo = dget(2) or 0
+  _log("high_score:current:" .. high_score)
+end
+
+-- save high scores to cartdata
+function save_high_scores()
+  dset(0, high_score)
+  dset(1, high_level)
+  dset(2, high_combo)
+end
 
 -- set difficulty parameters
 function set_difficulty(diff)
@@ -108,6 +129,9 @@ function init_game()
   screen_shake = 0
   flash_time = 0
   music_difficulty = nil  -- reset music tracking to force music change
+
+  -- load high scores on first game
+  load_high_scores()
 
   for y = 1, grid_h do
     grid[y] = {}
@@ -395,6 +419,7 @@ function update_play()
   -- check game over
   if check_game_over() then
     state = "gameover"
+    is_new_high_score = check_high_score()
     _log("state:gameover")
     _log("final_score:" .. score)
     _log("level_reached:" .. level)
@@ -407,10 +432,25 @@ function update_gameover()
   if test_btnp(4) or test_btnp(5) then  -- z or x
     sfx(5)  -- button press sound
     _log("action:return_to_menu")
+    is_new_high_score = false
     difficulty_selected = false
     state = "menu"
     _log("state:menu")
   end
+end
+
+-- check and save high scores
+function check_high_score()
+  local is_new = false
+  if score > high_score then
+    high_score = score
+    high_level = level
+    high_combo = combo
+    _log("high_score:new")
+    is_new = true
+  end
+  save_high_scores()
+  return is_new
 end
 
 function _update()
@@ -475,6 +515,9 @@ function draw_menu()
   print("tile", 52, 20, 7)
   print("match", 47, 28, 10)
   print("puzzle", 48, 36, 12)
+
+  -- high score display
+  print("best: " .. high_score, 70, 10, 11)
 
   -- instructions
   print("match 3+ tiles", 26, 55, 11)
@@ -575,12 +618,20 @@ function draw_gameover()
   print("game over", 43, 30, 8)
 
   print("score: " .. score, 35, 50, 7)
-  print("level: " .. level, 35, 60, 10)
-  if combo > 0 then
-    print("final combo: " .. combo, 28, 70, 12)
+
+  -- check if new high score
+  if is_new_high_score then
+    print("high score!", 40, 60, 7)
   end
 
-  print("press z for menu", 26, 95, 10)
+  print("level: " .. level, 35, 70, 10)
+  if combo > 0 then
+    print("final combo: " .. combo, 28, 80, 12)
+  end
+
+  print("best: " .. high_score, 40, 105, 11)
+
+  print("press z for menu", 26, 115, 10)
 end
 
 function _draw()
