@@ -1,18 +1,19 @@
 {
-  "title": "Untitled Game",
-  "description": "A PICO-8 game",
+  "title": "Dodge Master",
+  "description": "An action arcade PICO-8 game where you dodge falling obstacles. Move left and right to avoid collisions, accumulate points, and survive the timer. Beat the clock to win!",
   "release_date": "2026-03-03",
   "genres": [
-    "puzzle"
+    "action",
+    "arcade"
   ],
   "theme": "",
   "difficulty": 3,
   "playtime_minutes": 5,
   "target_audience": "general",
   "keywords": [],
-  "completion_status": "in-progress",
+  "completion_status": "complete",
   "tester_notes": "",
-  "token_count": 0,
+  "token_count": 491,
   "sprite_count": 0,
   "sound_count": 0
 }
