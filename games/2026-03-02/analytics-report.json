@@ -21,13 +21,14 @@
     },
     "exit_state": "analysis_complete",
     "metadata": {
-      "title": "Untitled Game",
-      "description": "A PICO-8 game",
+      "title": "Star Collector",
+      "description": "An action arcade PICO-8 game where you collect falling stars while avoiding missing them. Move left and right to position your collector, score points, and survive the timer.",
       "genres": [
-        "puzzle"
+        "action",
+        "arcade"
       ],
-      "difficulty": 3,
-      "completion_status": "in-progress"
+      "difficulty": 2,
+      "completion_status": "complete"
     }
   },
   "metrics": {}
