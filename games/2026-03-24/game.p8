@@ -85,6 +85,12 @@ flash_timer = 0
 flash_color = 0
 animation_frame = 0
 
+-- unit animations (for smooth movement)
+unit_anims = {}  -- {unit, old_x, old_y, new_x, new_y, progress}
+enemy_defeats = {}  -- {x, y, timer} for defeat particles
+combo_bursts = {}  -- {x, y, timer} for combo effects
+state_fade = 0  -- fade effect when transitioning states (0-15)
+
 -- map: 0=walkable, 1=obstacle
 function init_map(level)
   local map_width = 8
@@ -326,6 +332,9 @@ function move_towards_player(enemy, player, map)
     end
   end
 
+  if best_x ~= enemy.x or best_y ~= enemy.y then
+    add(unit_anims, {unit=enemy, old_x=enemy.x, old_y=enemy.y, new_x=best_x, new_y=best_y, progress=0})
+  end
   enemy.x = best_x
   enemy.y = best_y
 
@@ -342,6 +351,9 @@ function move_towards_player(enemy, player, map)
           best_x, best_y = nx, ny
         end
       end
+    end
+    if best_x ~= enemy.x or best_y ~= enemy.y then
+      add(unit_anims, {unit=enemy, old_x=enemy.x, old_y=enemy.y, new_x=best_x, new_y=best_y, progress=0})
     end
     enemy.x = best_x
     enemy.y = best_y
@@ -434,20 +446,49 @@ function update_play()
   -- decay effects
   if screen_shake > 0 then screen_shake -= 1 end
   if flash_timer > 0 then flash_timer -= 1 end
+  if state_fade > 0 then state_fade -= 1 end
+
+  -- update unit animations
+  for anim in all(unit_anims) do
+    anim.progress += 0.15  -- 6-7 frame animation
+    if anim.progress >= 1.0 then
+      del(unit_anims, anim)
+    end
+  end
+
+  -- decay defeat particles
+  for p in all(enemy_defeats) do
+    p.timer -= 1
+    if p.timer <= 0 then
+      del(enemy_defeats, p)
+    end
+  end
+
+  -- decay combo burst particles
+  for b in all(combo_bursts) do
+    b.timer -= 1
+    if b.timer <= 0 then
+      del(combo_bursts, b)
+    end
+  end
 
   -- player movement
   local old_x, old_y = player.x, player.y
 
   if test_btnp(0) and is_walkable(player.x-1, player.y, game_map) then
+    add(unit_anims, {unit="player", old_x=player.x, old_y=player.y, new_x=player.x-1, new_y=player.y, progress=0})
     player.x -= 1
     sfx(1)  -- movement sound
   elseif test_btnp(1) and is_walkable(player.x+1, player.y, game_map) then
+    add(unit_anims, {unit="player", old_x=player.x, old_y=player.y, new_x=player.x+1, new_y=player.y, progress=0})
     player.x += 1
     sfx(1)  -- movement sound
   elseif test_btnp(2) and is_walkable(player.x, player.y-1, game_map) then
+    add(unit_anims, {unit="player", old_x=player.x, old_y=player.y, new_x=player.x, new_y=player.y-1, progress=0})
     player.y -= 1
     sfx(1)  -- movement sound
   elseif test_btnp(3) and is_walkable(player.x, player.y+1, game_map) then
+    add(unit_anims, {unit="player", old_x=player.x, old_y=player.y, new_x=player.x, new_y=player.y+1, progress=0})
     player.y += 1
     sfx(1)  -- movement sound
   end
@@ -481,6 +522,7 @@ function update_play()
       flash_color = 8
       _log("attack:"..attack_type)
       if target.hp <= 0 then
+        add(enemy_defeats, {x=target.x, y=target.y, timer=8})
         del(enemies, target)
         _log("enemy_defeated")
         sfx(4)  -- damage/defeat sound
@@ -538,6 +580,7 @@ function update_play()
   end
 
   -- update combo multiplier
+  local old_combo = combo_multiplier
   if took_damage then
     turns_without_damage = 0
     combo_multiplier = 1.0
@@ -550,6 +593,10 @@ function update_play()
     else
       combo_multiplier = 1.0
     end
+  end
+  -- trigger burst effect on combo increase
+  if combo_multiplier > old_combo then
+    add(combo_bursts, {x=player.x, y=player.y, timer=10})
   end
 
   turn_count += 1
@@ -628,20 +675,49 @@ function update_endless_play()
   -- decay effects
   if screen_shake > 0 then screen_shake -= 1 end
   if flash_timer > 0 then flash_timer -= 1 end
+  if state_fade > 0 then state_fade -= 1 end
+
+  -- update unit animations
+  for anim in all(unit_anims) do
+    anim.progress += 0.15
+    if anim.progress >= 1.0 then
+      del(unit_anims, anim)
+    end
+  end
+
+  -- decay defeat particles
+  for p in all(enemy_defeats) do
+    p.timer -= 1
+    if p.timer <= 0 then
+      del(enemy_defeats, p)
+    end
+  end
+
+  -- decay combo burst particles
+  for b in all(combo_bursts) do
+    b.timer -= 1
+    if b.timer <= 0 then
+      del(combo_bursts, b)
+    end
+  end
 
   -- player movement
   local old_x, old_y = player.x, player.y
 
   if test_btnp(0) and is_walkable(player.x-1, player.y, game_map) then
+    add(unit_anims, {unit="player", old_x=player.x, old_y=player.y, new_x=player.x-1, new_y=player.y, progress=0})
     player.x -= 1
     sfx(1)
   elseif test_btnp(1) and is_walkable(player.x+1, player.y, game_map) then
+    add(unit_anims, {unit="player", old_x=player.x, old_y=player.y, new_x=player.x+1, new_y=player.y, progress=0})
     player.x += 1
     sfx(1)
   elseif test_btnp(2) and is_walkable(player.x, player.y-1, game_map) then
+    add(unit_anims, {unit="player", old_x=player.x, old_y=player.y, new_x=player.x, new_y=player.y-1, progress=0})
     player.y -= 1
     sfx(1)
   elseif test_btnp(3) and is_walkable(player.x, player.y+1, game_map) then
+    add(unit_anims, {unit="player", old_x=player.x, old_y=player.y, new_x=player.x, new_y=player.y+1, progress=0})
     player.y += 1
     sfx(1)
   end
@@ -671,6 +747,7 @@ function update_endless_play()
       flash_color = 8
       _log("attack")
       if target.hp <= 0 then
+        add(enemy_defeats, {x=target.x, y=target.y, timer=8})
         del(enemies, target)
         _log("enemy_defeated")
         sfx(4)
@@ -719,6 +796,7 @@ function update_endless_play()
   end
 
   -- update combo
+  local old_combo = combo_multiplier
   if took_damage then
     turns_without_damage = 0
     combo_multiplier = 1.0
@@ -731,6 +809,10 @@ function update_endless_play()
     else
       combo_multiplier = 1.0
     end
+  end
+  -- trigger burst effect on combo increase
+  if combo_multiplier > old_combo then
+    add(combo_bursts, {x=player.x, y=player.y, timer=10})
   end
 
   turn_count += 1
@@ -776,6 +858,10 @@ function update_gameover()
     _log("state:menu")
     music()  -- stop music
     state = "menu"
+    state_fade = 15
+    unit_anims = {}
+    enemy_defeats = {}
+    combo_bursts = {}
   end
 end
 
@@ -784,6 +870,10 @@ function update_endless_gameover()
     _log("state:menu")
     music()
     state = "menu"
+    state_fade = 15
+    unit_anims = {}
+    enemy_defeats = {}
+    combo_bursts = {}
   end
 end
 
@@ -877,6 +967,29 @@ function draw_grid(offset_x, offset_y, tile_size)
   end
 end
 
+function get_unit_pos(unit)
+  -- get animated position for a unit
+  for anim in all(unit_anims) do
+    local match = false
+    if unit == "player" then
+      match = anim.unit == "player"
+    else
+      match = anim.unit == unit
+    end
+    if match then
+      local t = mid(anim.progress, 0, 1)
+      local sx = anim.old_x + (anim.new_x - anim.old_x) * t
+      local sy = anim.old_y + (anim.new_y - anim.old_y) * t
+      return sx, sy
+    end
+  end
+  if unit == "player" then
+    return player.x, player.y
+  else
+    return unit.x, unit.y
+  end
+end
+
 function draw_attack_range(offset_x, offset_y, tile_size)
   -- show valid attack tiles with enhanced pulse effect
   for y=0,7 do
@@ -896,9 +1009,10 @@ function draw_attack_range(offset_x, offset_y, tile_size)
 end
 
 function draw_units(offset_x, offset_y, tile_size)
-  -- player with enhanced sprite and glow effect
-  local px = offset_x + player.x * tile_size
-  local py = offset_y + player.y * tile_size
+  -- player with enhanced sprite and glow effect (animated)
+  local player_sx, player_sy = get_unit_pos("player")
+  local px = offset_x + player_sx * tile_size
+  local py = offset_y + player_sy * tile_size
 
   -- player enhanced glow with pulse
   local glow_size = 6 + (animation_frame % 8 > 4 and 1 or 0)
@@ -917,8 +1031,9 @@ function draw_units(offset_x, offset_y, tile_size)
 
   -- enemies with enhanced effects and type-specific sprites
   for e in all(enemies) do
-    local ex = offset_x + e.x * tile_size
-    local ey = offset_y + e.y * tile_size
+    local enemy_sx, enemy_sy = get_unit_pos(e)
+    local ex = offset_x + enemy_sx * tile_size
+    local ey = offset_y + enemy_sy * tile_size
 
     -- select sprite based on enemy type
     local enemy_sprite = 1  -- standard enemy
@@ -964,6 +1079,30 @@ function draw_units(offset_x, offset_y, tile_size)
       rect(tx, ty, tx+tile_size-1, ty+tile_size-1, pulse)
       rect(tx+1, ty+1, tx+tile_size-2, ty+tile_size-2, pulse)
     end
+  end
+
+  -- draw defeat particles (shrinking enemies)
+  for d in all(enemy_defeats) do
+    local scale = (d.timer / 8.0)  -- shrink from 1.0 to 0
+    local px = offset_x + d.x * tile_size + 4
+    local py = offset_y + d.y * tile_size + 4
+    local sz = flr(4 * scale)
+    if sz > 0 then
+      circfill(px, py, sz, 8)
+    end
+  end
+
+  -- draw combo burst particles (expanding glow around player)
+  for b in all(combo_bursts) do
+    local progress = 1.0 - (b.timer / 10.0)  -- 0 to 1
+    local radius = 3 + progress * 4
+    local alpha_phase = flr((1.0 - progress) * 3)
+    local col = 11
+    if progress > 0.7 then col = 7
+    elseif progress > 0.4 then col = 11
+    else col = 3
+    end
+    circ(px + 4, py + 4, radius, col)
   end
 end
 
@@ -1162,6 +1301,13 @@ function _draw()
   elseif state == "gameover" then draw_gameover()
   elseif state == "endless_play" then draw_endless_play()
   elseif state == "endless_gameover" then draw_endless_gameover()
+  end
+
+  -- state transition fade
+  if state_fade > 0 then
+    local fade_alpha = state_fade / 15.0
+    local fade_col = 0
+    rectfill(0, 0, 127, 127, fade_col)
   end
 end
 
