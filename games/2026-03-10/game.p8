@@ -46,17 +46,18 @@ sandbox_mode = false -- true for freeplay sandbox mode
 upgrade_costs = {50, 75, 100} -- cost for levels 1, 2, 3
 
 -- difficulty settings
-diff_max_waves = {3, 5, 7}
-diff_spawn = {{1, 0.6}, {2, 0.8}, {3, 1.0}} -- {base, scale}
-diff_speed = {{0.15, 0.03}, {0.2, 0.04}, {0.25, 0.05}} -- {base, scale}
-diff_gold = {125, 100, 75}
+diff_max_waves = {5, 8, 10}
+diff_spawn = {{2, 0.5}, {3, 0.7}, {4, 0.9}} -- {base, scale}
+diff_speed = {{0.12, 0.02}, {0.15, 0.03}, {0.18, 0.04}} -- {base, scale}
+diff_gold = {150, 120, 100}
 diff_names = {"easy", "normal", "hard"}
 
--- tower types: 1=basic(cost:10), 2=spread(cost:20), 3=slow(cost:15)
-t_cost = {10, 20, 15}
-t_range = {2, 3, 2}
-t_damage = {1, 1, 1}
-t_names = {"basic", "spread", "slow"}
+-- tower types: 1=basic(cost:10), 2=spread(cost:20), 3=slow(cost:15), 4=ranger(cost:30)
+t_cost = {10, 20, 15, 30}
+t_range = {2, 3, 2, 5}
+t_damage = {1, 1, 1, 2}
+t_names = {"basic", "spread", "slow", "ranger"}
+t_fire_rate = {1, 1, 1, 0.5} -- slower fire rate for ranger
 
 -- get range with upgrades (+1 per level)
 function get_tower_range(tower)
@@ -66,6 +67,19 @@ end
 -- get damage multiplier with upgrades (+25% per level = *1.25, *1.5, *1.75)
 function get_dmg_mult(dmg_lvl)
   return 1.0 + dmg_lvl * 0.25
+end
+
+-- check if tower can be placed at (x,y)
+function can_place_tower(x, y)
+  -- can't build in spawn zone (left 2 columns) or goal zone (rightmost column)
+  if x < 2 or x > 14 then return false end
+
+  -- can't build on existing tower
+  for t in all(towers) do
+    if t.x == x and t.y == y then return false end
+  end
+
+  return true
 end
 
 function _update()
@@ -175,7 +189,7 @@ function update_play()
   -- cycle tower type (x button)
   if btnp(5) then
     tower_type += 1
-    if tower_type > 3 then tower_type = 1 end
+    if tower_type > 4 then tower_type = 1 end
     _log("tower_selected:"..t_names[tower_type])
   end
 
@@ -196,12 +210,20 @@ function update_play()
       upgrade_menu_cursor = 1
       state = "upgrade_menu"
       _log("upgrade_menu:open")
+    elseif not can_place_tower(cursor.x, cursor.y) then
+      -- invalid placement (in no-build zone or occupied)
+      sfx(6)
+      _log("placement_denied:invalid_zone")
     elseif gold >= t_cost[tower_type] then
-      -- place new tower with upgrade levels
-      add(towers, {x=cursor.x, y=cursor.y, type=tower_type, dmg_lvl=0, rng_lvl=0, spd_lvl=0})
+      -- place new tower with upgrade levels and fire cooldown
+      add(towers, {x=cursor.x, y=cursor.y, type=tower_type, dmg_lvl=0, rng_lvl=0, spd_lvl=0, fire_cooldown=0})
       gold -= t_cost[tower_type]
       sfx(tower_type - 1)
       _log("tower_placed:"..t_names[tower_type])
+    else
+      -- insufficient gold
+      sfx(6)
+      _log("placement_denied:insufficient_gold")
     end
   end
 
@@ -228,6 +250,11 @@ function update_play()
 
   -- towers shoot
   for t in all(towers) do
+    -- update fire cooldown
+    if t.fire_cooldown > 0 then
+      t.fire_cooldown -= t_fire_rate[t.type]
+    end
+
     -- find target with upgraded range
     local target = nil
     local min_x = 999
@@ -240,7 +267,9 @@ function update_play()
       end
     end
 
-    if target then
+    if target and t.fire_cooldown <= 0 then
+      -- reset fire cooldown
+      t.fire_cooldown = 1 / t_fire_rate[t.type]
       -- check if close range for screen shake
       local close = abs(target.x - t.x) < 4
       if close then screen_shake = 3 end
@@ -275,6 +304,17 @@ function update_play()
         -- create burst at target with particles
         add(bursts, {x=flr(target.x)*8+4, y=target.y*8+4, age=0, type=3})
         create_particles(flr(target.x)*8+4, target.y*8+4, 8)
+      elseif t.type == 4 then
+        -- ranger: high damage sniper
+        sfx(11)
+        _log("tower_attack:ranger")
+        target.hp -= 2 * dmg_mult
+        target.hit_flash = 3
+        -- create beam from tower to target (pulsing long line)
+        add(beams, {x0=t.x*8+4, y0=t.y*8+4, x1=flr(target.x)*8+4, y1=target.y*8+4, age=0, duration=4, type=4})
+        -- create burst at target with particles
+        add(bursts, {x=flr(target.x)*8+4, y=target.y*8+4, age=0, type=4})
+        create_particles(flr(target.x)*8+4, target.y*8+4, 12)
       else
         -- basic
         sfx(10)
@@ -523,33 +563,43 @@ function draw_play()
     line(0, y*8, 127, y*8, 1)
   end
 
-  -- goal zone
-  rectfill(120, 0, 127, 127, 5)
+  -- goal zone (red, no-build)
+  rectfill(120, 0, 127, 127, 8)
+
+  -- spawn zone (left no-build area - darker)
+  rectfill(0, 0, 15, 127, 5)
 
   -- towers
   for t in all(towers) do
-    -- draw tower sprite (0=basic, 1=spread, 2=slow)
+    -- draw tower sprite (0=basic, 1=spread, 2=slow, 3=ranger)
     spr(t.type-1, t.x*8, t.y*8)
 
     -- draw upgrade level as small number
     local upgrades = t.dmg_lvl + t.rng_lvl + t.spd_lvl
     if upgrades > 0 then
-      print(upgrades, t.x*8+1, t.y*8+1, 7)
+      print(upgrades, t.x*8+1, t.y*8+1, 0)
     end
 
-    -- range indicator with upgraded range
+    -- range indicator with upgraded range (subtle at distance, bright nearby)
     local tower_range = get_tower_range(t)
     local col = 11
     if t.type == 2 then col = 9
     elseif t.type == 3 then col = 8
+    elseif t.type == 4 then col = 12
     end
     circ(t.x*8+4, t.y*8+4, tower_range*8, col)
   end
 
-  -- cursor (improved visibility)
+  -- cursor with placement validation feedback
   local cx = cursor.x*8
   local cy = cursor.y*8
-  rect(cx, cy, cx+7, cy+7, 15)
+  local cursor_col = 7
+  if can_place_tower(cursor.x, cursor.y) and gold >= t_cost[tower_type] then
+    cursor_col = 11 -- green for valid placement
+  else
+    cursor_col = 8 -- red for invalid placement
+  end
+  rect(cx, cy, cx+7, cy+7, cursor_col)
   rect(cx+1, cy+1, cx+6, cy+6, 7)
 
   -- draw beams (tower attack animations) with variety by tower type
@@ -567,13 +617,20 @@ function draw_play()
         line(b.x0+1, b.y0, b.x1+1, b.y1, col)
         line(b.x0-1, b.y0, b.x1-1, b.y1, col)
       end
-    else
+    elseif b.type == 3 then
       -- slow: wavy line with pulsing color
       line(b.x0, b.y0, b.x1, b.y1, col)
       if b.age % 2 == 0 then
         -- pulsing glow
         local pc = col == 7 and 7 or 8
         line(b.x0+1, b.y0+1, b.x1+1, b.y1+1, pc)
+      end
+    else
+      -- ranger: bright sniper beam with scope effect
+      line(b.x0, b.y0, b.x1, b.y1, 12)
+      if b.age < 2 then
+        line(b.x0+1, b.y0, b.x1+1, b.y1, 12)
+        line(b.x0-1, b.y0, b.x1-1, b.y1, 12)
       end
     end
   end
@@ -593,7 +650,7 @@ function draw_play()
       local r2 = b.age * 1.5
       circ(b.x, b.y, r1, col)
       if b.age < 2 then circ(b.x, b.y, r2 + 1, 9) end
-    else
+    elseif b.type == 3 then
       -- slow: slow expanding rings
       local r1 = flr(b.age * 0.8) + 1
       local r2 = flr(b.age * 1.2) + 2
@@ -603,6 +660,12 @@ function draw_play()
         circ(b.x, b.y, r2, 8)
         circ(b.x, b.y, r3, 5)
       end
+    else
+      -- ranger: explosive bright burst
+      local r1 = b.age + 2
+      local r2 = b.age * 2
+      circ(b.x, b.y, r1, 12)
+      if b.age < 2 then circ(b.x, b.y, r2, 7) end
     end
   end
 
@@ -639,11 +702,13 @@ function draw_play()
   -- reset camera
   camera(0, 0)
 
-  -- tower selector (improved clarity)
+  -- tower selector with range info (improved clarity)
   local sname = t_names[tower_type]
-  local sel_str = sname.." ($"..t_cost[tower_type]..")"
-  rectfill(2, 2, 80, 10, 1)
-  print(sel_str, 5, 4, 7)
+  local sel_str = sname.." r:"..t_range[tower_type].." $"..t_cost[tower_type]
+  local sel_col = 7
+  if gold < t_cost[tower_type] then sel_col = 8 end
+  rectfill(2, 2, 90, 10, 1)
+  print(sel_str, 5, 4, sel_col)
 
   -- mode/difficulty display (top-right)
   if sandbox_mode then
@@ -738,14 +803,14 @@ function draw_upgrade_menu()
   print("gold: "..gold, menu_x+10, 105, 11)
 end
 __gfx__
-011111100999999008888880008888000055550000aaaaa0000000000000000000000000000000000000000000000000000000000000000000000000000000000
-1bbbbbb190999909800880080888888005555550000aa00aa00000000000000000000000000000000000000000000000000000000000000000000000000000000
-1bbbbbb199099099808080088888888855555555000a00a0a00000000000000000000000000000000000000000000000000000000000000000000000000000000
-1bbb0bb199990999880000888888888855555555000a0000a00000000000000000000000000000000000000000000000000000000000000000000000000000000
-1bbbbbb199990999880000888888888855555555000a0000a00000000000000000000000000000000000000000000000000000000000000000000000000000000
-1bbbbbb199099099808080088888888555555550000a00a0a00000000000000000000000000000000000000000000000000000000000000000000000000000000
-1bbbbbb190999909800880080888888005555550000aa00aa00000000000000000000000000000000000000000000000000000000000000000000000000000000
-011111100999999008888880008888000055550000aaaaa0000000000000000000000000000000000000000000000000000000000000000000000000000000000
+011111100999999008888880008888000055550000aaaaaa00000000000000000000000000000000000000000000000000000000000000000000000000000000
+1bbbbbb190999909800880080888888005555550a0aaaaaaa000000000000000000000000000000000000000000000000000000000000000000000000000000
+1bbbbbb199099099808080088888888855555555aa0a00a0aa0000000000000000000000000000000000000000000000000000000000000000000000000000
+1bbb0bb199990999880000888888888855555555aa0a0000aa0000000000000000000000000000000000000000000000000000000000000000000000000000
+1bbbbbb199990999880000888888888855555555aa0a0000aa0000000000000000000000000000000000000000000000000000000000000000000000000000
+1bbbbbb199099099808080088888888555555550aa0a00a0aa0000000000000000000000000000000000000000000000000000000000000000000000000000
+1bbbbbb190999909800880080888888005555550a0aaaaaaa000000000000000000000000000000000000000000000000000000000000000000000000000000
+011111100999999008888880008888000055550000aaaaaa00000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
 000100000e3610e36100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0001000009361000000d3610d36100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -758,6 +823,7 @@ __sfx__
 020100000e55117551a55122551e55100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 010200001a6602c6503c6501c6500a65000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0001000016360c3600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010200001d6501d6503c6502c6501d6500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
 00 00000000
 01 04050607
