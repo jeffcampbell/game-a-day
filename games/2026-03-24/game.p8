@@ -60,6 +60,11 @@ difficulty = 1  -- 1=easy, 2=normal, 3=hard
 score = 0
 difficulty_select = 2  -- currently selected difficulty in menu
 
+-- combat system
+attack_mode = 1  -- 1=normal (1 dmg), 2=power (2 dmg, costs 2 hp)
+combo_multiplier = 1.0
+turns_without_damage = 0
+
 -- animation and effects
 screen_shake = 0
 flash_timer = 0
@@ -85,18 +90,17 @@ end
 
 function init_enemies()
   local e = {}
-  if difficulty == 1 then  -- easy
-    add(e, {x=6, y=0, hp=1})
-    add(e, {x=7, y=3, hp=1})
-  elseif difficulty == 2 then  -- normal
-    add(e, {x=6, y=0, hp=1})
-    add(e, {x=7, y=3, hp=1})
-    add(e, {x=3, y=6, hp=1})
-  else  -- hard
-    add(e, {x=6, y=0, hp=2})
-    add(e, {x=7, y=3, hp=1})
-    add(e, {x=3, y=6, hp=1})
-    add(e, {x=2, y=1, hp=1})
+  if difficulty == 1 then  -- easy: 1 standard
+    add(e, {x=6, y=0, hp=1, type=1, move_counter=0})
+  elseif difficulty == 2 then  -- normal: 1 scout + 2 standard
+    add(e, {x=6, y=0, hp=1, type=2, move_counter=0})  -- scout
+    add(e, {x=7, y=3, hp=1, type=1, move_counter=0})  -- standard
+    add(e, {x=3, y=6, hp=1, type=1, move_counter=0})  -- standard
+  else  -- hard: 1 tank + 1 scout + 2 standard
+    add(e, {x=6, y=0, hp=3, type=3, move_counter=0})  -- tank
+    add(e, {x=7, y=3, hp=1, type=2, move_counter=0})  -- scout
+    add(e, {x=3, y=6, hp=1, type=1, move_counter=0})  -- standard
+    add(e, {x=2, y=1, hp=1, type=1, move_counter=0})  -- standard
   end
   return e
 end
@@ -131,6 +135,13 @@ function distance(x1, y1, x2, y2)
 end
 
 function move_towards_player(enemy, player, map)
+  -- tanks move every 2 turns
+  if enemy.type == 3 then
+    enemy.move_counter += 1
+    if enemy.move_counter < 2 then return end
+    enemy.move_counter = 0
+  end
+
   local best_dist = distance(enemy.x, enemy.y, player.x, player.y)
   local best_x, best_y = enemy.x, enemy.y
 
@@ -149,6 +160,24 @@ function move_towards_player(enemy, player, map)
 
   enemy.x = best_x
   enemy.y = best_y
+
+  -- scouts move twice per turn
+  if enemy.type == 2 then
+    local best_dist = distance(enemy.x, enemy.y, player.x, player.y)
+    local best_x, best_y = enemy.x, enemy.y
+    for m in all(moves) do
+      local nx, ny = enemy.x + m[1], enemy.y + m[2]
+      if is_walkable(nx, ny, map) then
+        local d = distance(nx, ny, player.x, player.y)
+        if d < best_dist then
+          best_dist = d
+          best_x, best_y = nx, ny
+        end
+      end
+    end
+    enemy.x = best_x
+    enemy.y = best_y
+  end
 end
 
 function update_menu()
@@ -174,6 +203,9 @@ function update_menu()
     turn_count = 0
     score = 0
     selected_x, selected_y = 1, 1
+    attack_mode = 1
+    combo_multiplier = 1.0
+    turns_without_damage = 0
   end
 end
 
@@ -202,7 +234,7 @@ function update_play()
     sfx(1)  -- movement sound
   end
 
-  -- attack adjacent enemy
+  -- attack mode toggle and attack
   if test_btnp(4) then  -- z button
     local target = nil
     for e in all(enemies) do
@@ -212,17 +244,32 @@ function update_play()
       end
     end
     if target then
-      target.hp -= 1
+      -- execute attack with current mode
+      local damage = 1
+      local attack_type = "normal"
+      if attack_mode == 2 then
+        -- power attack costs 2 hp and does 2 damage
+        if player.hp >= 2 then
+          player.hp -= 2
+          damage = 2
+          attack_type = "power"
+        end
+      end
+
+      target.hp -= damage
       sfx(2)  -- attack sound
       screen_shake = 3
       flash_timer = 4
       flash_color = 8
-      _log("attack:"..target.x..","..target.y)
+      _log("attack:"..attack_type)
       if target.hp <= 0 then
         del(enemies, target)
         _log("enemy_defeated")
         sfx(4)  -- damage/defeat sound
       end
+    else
+      -- no target adjacent - toggle attack mode
+      attack_mode = 3 - attack_mode  -- toggle between 1 and 2
     end
   end
 
@@ -230,11 +277,15 @@ function update_play()
     _log("move:"..player.x..","..player.y)
   end
 
+  -- track damage before enemy turn
+  local took_damage = false
+
   -- enemy turn
   for e in all(enemies) do
     if distance(e.x, e.y, player.x, player.y) == 1 then
       -- attack player
       player.hp -= 1
+      took_damage = true
       sfx(3)  -- enemy attack sound
       flash_timer = 6
       flash_color = 8
@@ -246,13 +297,30 @@ function update_play()
     end
   end
 
+  -- update combo multiplier
+  if took_damage then
+    turns_without_damage = 0
+    combo_multiplier = 1.0
+  else
+    turns_without_damage += 1
+    if turns_without_damage >= 3 then
+      combo_multiplier = 2.0
+    elseif turns_without_damage >= 1 then
+      combo_multiplier = 1.5
+    else
+      combo_multiplier = 1.0
+    end
+  end
+
   turn_count += 1
 
   -- check win/lose
   if #enemies == 0 then
     _log("gameover:win")
-    score = 100 + (player.hp * 50) + (300 / max(1, turn_count))
+    local base_score = 100 + (player.hp * 50) + (300 / max(1, turn_count))
+    score = base_score * combo_multiplier
     _log("score:"..flr(score))
+    _log("combo:"..combo_multiplier)
     sfx(5)  -- victory sound
     music()  -- stop music
     state = "gameover"
@@ -382,20 +450,33 @@ function draw_units(offset_x, offset_y, tile_size)
     end
   end
 
-  -- enemies with enhanced effects
+  -- enemies with enhanced effects and type indicators
   for e in all(enemies) do
     local ex = offset_x + e.x * tile_size
     local ey = offset_y + e.y * tile_size
 
-    -- alternate enemy sprites
+    -- select sprite based on enemy type
     local enemy_sprite = 1 + ((e.x + e.y) % 2)
 
     -- enemy glow with threat pulse
     local threat = distance(e.x, e.y, player.x, player.y) == 1
     local glow_col = threat and 8 or 9
+
+    -- glow color varies by enemy type
+    if e.type == 2 then glow_col = threat and 7 or 10  -- scout: yellow
+    elseif e.type == 3 then glow_col = threat and 8 or 5  -- tank: dark colors
+    end
+
     local glow_r = threat and (5 + (animation_frame % 4 > 2 and 1 or 0)) or 5
     circfill(ex + 4, ey + 4, glow_r, glow_col)
     spr(enemy_sprite, ex, ey)
+
+    -- type indicator below sprite
+    if e.type == 2 then
+      print("s", ex + 1, ey + 7, 7)  -- scout indicator
+    elseif e.type == 3 then
+      print("t", ex + 1, ey + 7, 5)  -- tank indicator
+    end
 
     -- enemy hp indicator with styled background
     if e.hp > 0 then
@@ -451,7 +532,9 @@ function draw_play()
 
   -- draw ui elements with separators
   print("arrows:move", 2, 109, 7)
-  print("z:attack", 60, 109, 11)
+  local mode_text = attack_mode == 1 and "z:nrm" or "z:pow"
+  local mode_col = attack_mode == 1 and 11 or 8
+  print(mode_text, 60, 109, mode_col)
 
   print("turn:", 2, 119, 5)
   print(turn_count, 20, 119, 5)
@@ -459,7 +542,14 @@ function draw_play()
   print(player.hp, 40, 119, 11)
   print("foes:", 48, 119, 8)
   print(#enemies, 65, 119, 8)
-  print("d"..difficulty, 75, 119, diff_col)
+
+  -- combo display
+  local combo_text = "cx"..flr(combo_multiplier*10)/10
+  local combo_col = 11
+  if combo_multiplier >= 2.0 then combo_col = 3
+  elseif combo_multiplier >= 1.5 then combo_col = 7
+  end
+  print(combo_text, 85, 119, combo_col)
 end
 
 function draw_gameover()
