@@ -60,6 +60,12 @@ difficulty = 1  -- 1=easy, 2=normal, 3=hard
 score = 0
 difficulty_select = 2  -- currently selected difficulty in menu
 
+-- level progression
+current_level = 1
+max_level = 3
+level_score = 0  -- score accumulated before this level
+game_map_width = 8  -- dynamically set per level
+
 -- combat system
 attack_mode = 1  -- 1=normal (1 dmg), 2=power (2 dmg, costs 2 hp)
 combo_multiplier = 1.0
@@ -72,41 +78,91 @@ flash_color = 0
 animation_frame = 0
 
 -- map: 0=walkable, 1=obstacle
-function init_map()
+function init_map(level)
+  local map_width = 8
+  if level == 2 then map_width = 10
+  elseif level == 3 then map_width = 12
+  end
+
   local m = {}
   for y=0,7 do
     m[y] = {}
-    for x=0,7 do
+    for x=0,map_width-1 do
       m[y][x] = 0
     end
   end
-  -- add some obstacles
+
+  -- add some obstacles (more obstacles on higher levels)
   m[2][2] = 1
   m[2][3] = 1
   m[5][5] = 1
   m[5][6] = 1
-  return m
+
+  if level >= 2 then
+    m[3][7] = 1
+    m[3][8] = 1
+  end
+
+  if level >= 3 then
+    m[1][6] = 1
+    m[6][4] = 1
+    m[6][5] = 1
+  end
+
+  return m, map_width
 end
 
-function init_enemies()
+function init_enemies(level)
   local e = {}
-  if difficulty == 1 then  -- easy: 1 standard
-    add(e, {x=6, y=0, hp=1, type=1, move_counter=0})
-  elseif difficulty == 2 then  -- normal: 1 scout + 2 standard
-    add(e, {x=6, y=0, hp=1, type=2, move_counter=0})  -- scout
-    add(e, {x=7, y=3, hp=1, type=1, move_counter=0})  -- standard
-    add(e, {x=3, y=6, hp=1, type=1, move_counter=0})  -- standard
-  else  -- hard: 1 tank + 1 scout + 2 standard
-    add(e, {x=6, y=0, hp=3, type=3, move_counter=0})  -- tank
-    add(e, {x=7, y=3, hp=1, type=2, move_counter=0})  -- scout
-    add(e, {x=3, y=6, hp=1, type=1, move_counter=0})  -- standard
-    add(e, {x=2, y=1, hp=1, type=1, move_counter=0})  -- standard
+  local enemy_count = 3  -- easy baseline
+  local map_width = 8
+  if level == 2 then map_width = 10
+  elseif level == 3 then map_width = 12
   end
+
+  -- scale enemy count by difficulty
+  if difficulty == 2 then enemy_count = 5
+  elseif difficulty == 3 then enemy_count = 7
+  end
+
+  -- add more enemies on higher levels
+  if level == 2 then enemy_count = min(8, enemy_count + 1)
+  elseif level == 3 then enemy_count = min(9, enemy_count + 2)
+  end
+
+  -- spawn enemies with variety based on level
+  local spawn_positions = {
+    {x=map_width-2, y=0}, {x=map_width-1, y=3}, {x=map_width/2, y=7},
+    {x=map_width-3, y=1}, {x=map_width/2+1, y=6}, {x=2, y=7},
+    {x=map_width-1, y=5}, {x=1, y=6}, {x=map_width-4, y=4}
+  }
+
+  for i=1,min(enemy_count, #spawn_positions) do
+    local pos = spawn_positions[i]
+    local etype = 1  -- standard by default
+    local ehp = 1
+
+    -- introduce more variety at higher levels
+    if level == 3 then
+      -- level 3: more variety
+      if i % 4 == 2 then etype = 2; ehp = 1
+      elseif i % 4 == 0 or i % 4 == 3 then etype = 3; ehp = 3
+      end
+    elseif level == 2 then
+      -- level 2: some variety
+      if i % 3 == 2 then etype = 2; ehp = 1
+      elseif i % 3 == 0 then etype = 3; ehp = 3
+      end
+    end
+
+    add(e, {x=pos.x, y=pos.y, hp=ehp, type=etype, move_counter=0})
+  end
+
   return e
 end
 
 function is_walkable(x, y, map)
-  if x < 0 or x > 7 or y < 0 or y > 7 then
+  if x < 0 or x >= game_map_width or y < 0 or y > 7 then
     return false
   end
   if map[y][x] == 1 then
@@ -198,14 +254,17 @@ function update_menu()
     state = "play"
     difficulty = difficulty_select
     player = {x=1, y=1, hp=3}
-    game_map = init_map()
-    enemies = init_enemies()
+    current_level = 1
+    level_score = 0
+    game_map, game_map_width = init_map(1)
+    enemies = init_enemies(1)
     turn_count = 0
     score = 0
     selected_x, selected_y = 1, 1
     attack_mode = 1
     combo_multiplier = 1.0
     turns_without_damage = 0
+    _log("level:"..current_level)
   end
 end
 
@@ -316,21 +375,56 @@ function update_play()
 
   -- check win/lose
   if #enemies == 0 then
-    _log("gameover:win")
+    -- level cleared
     local base_score = 100 + (player.hp * 50) + (300 / max(1, turn_count))
-    score = base_score * combo_multiplier
-    _log("score:"..flr(score))
-    _log("combo:"..combo_multiplier)
-    sfx(5)  -- victory sound
-    music()  -- stop music
-    state = "gameover"
-    message = "victory!"
+    local level_pts = base_score * combo_multiplier
+    level_score += level_pts
+    _log("level_clear:"..current_level)
+    _log("level_score:"..flr(level_pts))
+
+    if current_level < max_level then
+      -- advance to next level
+      _log("state:levelup")
+      sfx(5)  -- victory sound
+      state = "levelup"
+      message_timer = 120
+    else
+      -- final level defeated - game won
+      _log("gameover:win")
+      score = level_score
+      _log("score:"..flr(score))
+      sfx(5)  -- victory sound
+      music()  -- stop music
+      state = "gameover"
+      message = "victory!"
+    end
   elseif player.hp <= 0 then
     _log("gameover:lose")
     sfx(5)  -- defeat sound
     music()  -- stop music
     state = "gameover"
     message = "defeated!"
+  end
+end
+
+function update_levelup()
+  message_timer -= 1
+  if message_timer <= 0 or test_btnp(4) then
+    -- advance to next level
+    current_level += 1
+    _log("state:play")
+    _log("level:"..current_level)
+
+    -- keep player hp and score, reset turn counter and enemies
+    game_map, game_map_width = init_map(current_level)
+    enemies = init_enemies(current_level)
+    turn_count = 0
+    selected_x, selected_y = 1, 1
+    attack_mode = 1
+    combo_multiplier = 1.0
+    turns_without_damage = 0
+
+    state = "play"
   end
 end
 
@@ -346,6 +440,7 @@ function _update()
   read_input()
   if state == "menu" then update_menu()
   elseif state == "play" then update_play()
+  elseif state == "levelup" then update_levelup()
   elseif state == "gameover" then update_gameover()
   end
 end
@@ -386,7 +481,7 @@ end
 
 function draw_grid(offset_x, offset_y, tile_size)
   for y=0,7 do
-    for x=0,7 do
+    for x=0,game_map_width-1 do
       local px = offset_x + x * tile_size
       local py = offset_y + y * tile_size
 
@@ -415,7 +510,7 @@ end
 function draw_attack_range(offset_x, offset_y, tile_size)
   -- show valid attack tiles with enhanced pulse effect
   for y=0,7 do
-    for x=0,7 do
+    for x=0,game_map_width-1 do
       if distance(player.x, player.y, x, y) == 1 then
         local px = offset_x + x * tile_size
         local py = offset_y + y * tile_size
@@ -532,7 +627,10 @@ function draw_play()
   print("arrows:move", 2, 109, 7)
   local mode_text = attack_mode == 1 and "z:nrm" or "z:pow"
   local mode_col = attack_mode == 1 and 11 or 8
-  print(mode_text, 60, 109, mode_col)
+  print(mode_text, 50, 109, mode_col)
+
+  -- level indicator
+  print("lvl:"..current_level.."/"..max_level, 85, 109, 11)
 
   print("turn:", 2, 119, 5)
   print(turn_count, 20, 119, 5)
@@ -550,6 +648,35 @@ function draw_play()
   print(combo_text, 85, 119, combo_col)
 end
 
+function draw_levelup()
+  cls(0)
+
+  -- title
+  print("=============", 34, 15, 5)
+  print("  level clear!", 32, 23, 3)
+  print("=============", 34, 31, 5)
+
+  -- level progression
+  print("completed: level "..current_level, 26, 50, 7)
+
+  -- next level info
+  local next_lvl = current_level + 1
+  print("next: level "..next_lvl, 34, 70, 11)
+
+  -- score and hp bonus
+  rectfill(20, 80, 107, 100, 1)
+  rect(20, 80, 107, 100, 3)
+  print("accumulated:", 30, 85, 11)
+  print(flr(level_score).." pts", 35, 93, 11)
+
+  -- auto-advance or press to continue
+  if message_timer > 30 then
+    print("continuing...", 36, 115, 5)
+  else
+    print("press z for next level", 21, 115, 11)
+  end
+end
+
 function draw_gameover()
   cls(0)
 
@@ -560,28 +687,33 @@ function draw_gameover()
 
   if message == "victory!" then
     print("*** victory! ***", 32, 45, 3)
-    rectfill(25, 60, 102, 80, 1)
-    rect(25, 60, 102, 80, 3)
-    print("score:", 35, 65, 11)
-    print(flr(score), 65, 65, 11)
+    rectfill(15, 60, 112, 100, 1)
+    rect(15, 60, 112, 100, 3)
+    print("survived:"..current_level.." levels", 24, 65, 11)
+    print("final score:", 28, 75, 11)
+    print(flr(score), 40, 85, 11)
 
     -- bonus display
-    local bonus_text = "+"..max(50, player.hp * 50).." for hp"
-    print(bonus_text, 30, 75, 3)
+    local bonus_text = "+"..max(50, player.hp * 50).." final bonus"
+    print(bonus_text, 22, 95, 3)
   else
     print("*** defeated! ***", 31, 45, 8)
-    rectfill(20, 60, 107, 80, 1)
-    rect(20, 60, 107, 80, 8)
-    print("enemies remaining:", 25, 70, 8)
-    print(#enemies, 85, 70, 8)
+    rectfill(15, 60, 112, 100, 1)
+    rect(15, 60, 112, 100, 8)
+    print("level reached:"..current_level, 24, 65, 8)
+    print("accumulated:", 30, 75, 8)
+    print(flr(level_score).." pts", 35, 85, 8)
+    print("enemies remaining:", 22, 95, 8)
+    print(#enemies, 85, 95, 8)
   end
 
-  print("press z to menu", 30, 110, 5)
+  print("press z to menu", 30, 115, 5)
 end
 
 function _draw()
   if state == "menu" then draw_menu()
   elseif state == "play" then draw_play()
+  elseif state == "levelup" then draw_levelup()
   elseif state == "gameover" then draw_gameover()
   end
 end
