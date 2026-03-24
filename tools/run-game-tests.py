@@ -202,6 +202,17 @@ def run_test_on_game(game_dir, date):
     if not log_valid:
         return 'FAIL', analysis, log_errors
 
+    # Check for test infrastructure issues
+    # Diagnostic check: verify testmode initialization
+    testmode_has_default = 'testmode = false' in lua_code or 'testmode=false' in lua_code
+    if testmode_has_default:
+        analysis['diagnostic_note'] = 'testmode initialized to false - will need to be set to true at runtime for log capture'
+
+    # Check for custom read_input functions that rely on testmode
+    has_custom_read_input = 'function read_input' in lua_code
+    if has_custom_read_input and testmode_has_default:
+        analysis['diagnostic_note'] = 'Uses custom read_input() - requires testmode=true for test infrastructure; run-interactive-test.py now initializes testmode'
+
     return 'PASS', analysis, []
 
 
@@ -269,7 +280,8 @@ def generate_test_report(game_dir, date, status, analysis, errors):
                 'game_events': analysis.get('game_events', 0),
                 'gameover_events': len(analysis.get('gameover_conditions', []))
             },
-            'exit_state': session_data.get('exit_state', 'recorded')
+            'exit_state': session_data.get('exit_state', 'recorded'),
+            'diagnostic_note': 'Session recorded via run-interactive-test.py with testmode enabled'
         }
     else:
         # Use static analysis
@@ -288,6 +300,10 @@ def generate_test_report(game_dir, date, status, analysis, errors):
             },
             'exit_state': 'analysis_complete'
         }
+
+    # Add diagnostic notes if available
+    if analysis.get('diagnostic_note'):
+        report['diagnostic_note'] = analysis['diagnostic_note']
 
     # Add metadata if available
     if metadata:

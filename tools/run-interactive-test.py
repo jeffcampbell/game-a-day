@@ -444,6 +444,23 @@ class GameTestHandler(SimpleHTTPRequestHandler):
         iframe.onload = function() {{
             gameFrame = iframe.contentWindow;
             console.log('Game frame loaded');
+
+            // Enable test mode and initialize test infrastructure
+            if (gameFrame) {{
+                gameFrame.testmode = true;
+                // Initialize test_log if it doesn't exist
+                if (!gameFrame.test_log) {{
+                    gameFrame.test_log = [];
+                }}
+                // Initialize test_inputs if it doesn't exist
+                if (!gameFrame.test_inputs) {{
+                    gameFrame.test_inputs = [];
+                }}
+                // Reset test_input_idx to 0
+                gameFrame.test_input_idx = 0;
+                console.log('Test mode enabled: testmode=' + gameFrame.testmode);
+            }}
+
             statusMessage('Game loaded. Use arrow keys or buttons to interact.', 'success');
             startUpdateLoop();
         }};
@@ -495,6 +512,9 @@ class GameTestHandler(SimpleHTTPRequestHandler):
                             }}
                         }}
                     }});
+                }} else if (frameCount === 1) {{
+                    // Log diagnostic info on first frame
+                    console.log('testmode=' + gameFrame.testmode + ', test_log length=' + (testLog ? testLog.length : 'undefined'));
                 }}
             }} catch (e) {{
                 console.warn('test_log not accessible:', e);
