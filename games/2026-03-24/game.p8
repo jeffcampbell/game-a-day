@@ -223,9 +223,16 @@ end
 
 function init_endless_wave(w)
   local e = {}
-  -- wave-based enemy scaling
+  -- wave-based enemy scaling with difficulty adjustment
   local base_enemies = 3
-  local enemy_count = base_enemies + flr(w / 2)
+  local enemy_count = base_enemies + flr(w * 0.75)
+
+  -- apply difficulty scaling
+  if difficulty == 2 then
+    enemy_count = flr(enemy_count * 1.3)
+  elseif difficulty == 3 then
+    enemy_count = flr(enemy_count * 1.6)
+  end
   enemy_count = min(12, enemy_count)
 
   local spawn_positions = {
@@ -240,17 +247,24 @@ function init_endless_wave(w)
     local etype = 1
     local ehp = 1
 
-    -- increase variety and hp at higher waves
-    if w >= 3 then
-      if i % 5 == 2 then etype = 2; ehp = 1
-      elseif i % 5 == 3 then etype = 3; ehp = 1 + flr(w/4)
-      elseif i % 5 == 4 then etype = 4; ehp = 1 + flr(w/5)
-      elseif i % 5 == 0 then etype = 5; ehp = 1
+    -- introduce variety earlier and scale faster
+    if w >= 2 then
+      if i % 4 == 2 then etype = 2; ehp = 1
+      elseif i % 4 == 3 then etype = 3; ehp = 1 + flr(w/3)
+      elseif i % 4 == 0 then etype = 4; ehp = 1 + flr(w/4)
       end
-    elseif w == 2 then
-      if i % 3 == 2 then etype = 2; ehp = 1
-      elseif i % 3 == 0 then etype = 3; ehp = 1
-      end
+    end
+
+    -- add healers at wave 5+
+    if w >= 5 and i % 6 == 0 then
+      etype = 5; ehp = 1
+    end
+
+    -- increase hp for hard difficulty
+    if difficulty == 3 then
+      ehp = flr(ehp * 1.2)
+    elseif difficulty == 2 then
+      ehp = flr(ehp * 1.1)
     end
 
     add(e, {x=pos.x, y=pos.y, hp=ehp, type=etype, move_counter=0})
@@ -392,8 +406,13 @@ function update_menu()
       _log("difficulty:"..difficulty_select)
       state = "endless_play"
       game_mode = "endless"
-      endless_player_hp = 3
-      player = {x=1, y=1, hp=3}
+      -- difficulty affects starting HP
+      local start_hp = 3
+      if difficulty == 1 then start_hp = 4
+      elseif difficulty == 3 then start_hp = 2
+      end
+      endless_player_hp = start_hp
+      player = {x=1, y=1, hp=start_hp}
       wave = 1
       score_endless = 0
       game_map, game_map_width = init_map(1)
@@ -719,7 +738,13 @@ function update_endless_play()
   -- check wave clear or lose
   if #enemies == 0 then
     -- wave cleared
-    local wave_bonus = 100 + wave * 20
+    local wave_bonus = 100 + wave * 30
+    -- scale bonus by difficulty
+    if difficulty == 2 then
+      wave_bonus = flr(wave_bonus * 1.2)
+    elseif difficulty == 3 then
+      wave_bonus = flr(wave_bonus * 1.5)
+    end
     score_endless += wave_bonus
     _log("wave_clear:"..wave)
     _log("score:"..score_endless)
