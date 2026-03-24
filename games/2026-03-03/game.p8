@@ -4,25 +4,47 @@ __lua__
 -- Untitled Game
 -- 2026-03-03
 
-testmode=false
-test_log={}
-test_inputs={}
-test_input_idx=0
+testmode = false
+test_log = {}
+test_inputs = {}
+test_input_idx = 0
+testmode_curr_input = 0
+testmode_prev_input = 0
 
 function _log(msg)
- if testmode then add(test_log,msg) end
+ if testmode then add(test_log, msg) end
 end
 
 function _capture()
- if testmode then add(test_log,"SCREEN:"..tostr(stat(0))) end
+ if testmode then add(test_log, "SCREEN:"..tostr(stat(0))) end
 end
 
 function test_input(b)
- if testmode and test_input_idx<#test_inputs then
-  test_input_idx+=1
+ if testmode and test_input_idx < #test_inputs then
+  test_input_idx += 1
   return test_inputs[test_input_idx] or 0
  end
  return btn()
+end
+
+function read_input()
+ testmode_prev_input = testmode_curr_input
+ if testmode and test_input_idx < #test_inputs then
+  test_input_idx += 1
+  testmode_curr_input = test_inputs[test_input_idx] or 0
+ else
+  testmode_curr_input = btn()
+ end
+end
+
+function test_btn(b)
+ return (testmode_curr_input & (1 << b)) ~= 0
+end
+
+function test_btnp(b)
+ local curr = test_btn(b)
+ local prev = (testmode_prev_input & (1 << b)) ~= 0
+ return curr and not prev
 end
 
 -- Dodge Game
@@ -45,6 +67,8 @@ function init_obstacles()
 end
 
 function _update()
+ read_input()
+
  if state=="menu" then update_menu()
  elseif state=="play" then update_play()
  elseif state=="gameover" then update_gameover()
@@ -60,7 +84,7 @@ function _draw()
 end
 
 function update_menu()
- if btnp(4) or btnp(5) then
+ if test_btnp(4) or test_btnp(5) then
   state="play"
   _log("state:play")
   score=0
@@ -77,8 +101,8 @@ end
 
 function update_play()
  -- player movement
- if test_input(0) and px>4 then px-=2
- elseif test_input(1) and px<124 then px+=2
+ if test_btn(0) and px>4 then px-=2
+ elseif test_btn(1) and px<124 then px+=2
  end
 
  -- spawn obstacles
@@ -139,7 +163,7 @@ function draw_play()
 end
 
 function update_gameover()
- if btnp(4) or btnp(5) then
+ if test_btnp(4) or test_btnp(5) then
   state="menu"
   _log("state:menu")
  end
