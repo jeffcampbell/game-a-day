@@ -834,9 +834,9 @@ function update_endless_play()
     -- calculate speed bonus based on clear time
     local speed_bonus = 0
     if wave_timer <= 1200 then  -- 20 seconds at 60fps
-      speed_bonus = 15
-    elseif wave_timer <= 1800 then  -- 30 seconds at 60fps
       speed_bonus = 30
+    elseif wave_timer <= 1800 then  -- 30 seconds at 60fps
+      speed_bonus = 15
     end
     -- apply combo multiplier to reward sustained play
     local final_bonus = flr((wave_bonus + speed_bonus) * combo_multiplier)
