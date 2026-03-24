@@ -178,6 +178,9 @@ function update_menu()
 end
 
 function update_play()
+  -- update animations
+  animation_frame = (animation_frame + 1) % 16
+
   -- decay effects
   if screen_shake > 0 then screen_shake -= 1 end
   if flash_timer > 0 then flash_timer -= 1 end
@@ -281,23 +284,32 @@ end
 
 function draw_menu()
   cls(0)
-  print("tile tactics", 40, 20, 7)
-  print("turn-based strategy", 28, 35, 7)
-  print("", 0, 50, 0)
-  print("defeat all enemies", 25, 55, 3)
 
-  -- difficulty selection
-  local diff_colors = {8, 7, 8}
+  -- title with styling
+  print("========", 40, 10, 5)
+  print("tile tactics", 38, 18, 11)
+  print("========", 40, 26, 5)
+
+  -- subtitle
+  print("turn-based strategy", 28, 35, 7)
+  print("defeat all enemies to win", 19, 45, 3)
+
+  -- difficulty selection with styling
+  local diff_colors = {3, 7, 8}
   local diff_names = {"easy", "normal", "hard"}
-  local y_pos = 75
+  local y_pos = 65
+
+  print("select difficulty:", 26, 55, 7)
 
   for i=1,3 do
     local col = diff_colors[i]
     if i == difficulty_select then
       col = 11  -- highlight selected
-      print(">", 35, y_pos, col)
+      print("[>]", 33, y_pos, col)
+    else
+      print("[ ]", 33, y_pos, col)
     end
-    print(diff_names[i], 42, y_pos, col)
+    print(diff_names[i], 46, y_pos, col)
     y_pos += 8
   end
 
@@ -310,41 +322,54 @@ function draw_grid(offset_x, offset_y, tile_size)
       local px = offset_x + x * tile_size
       local py = offset_y + y * tile_size
 
+      -- draw tile background with checkerboard pattern
+      local tile_color = 1
+      if (x + y) % 2 == 0 then
+        tile_color = 2
+      end
+      rectfill(px, py, px+tile_size-1, py+tile_size-1, tile_color)
+
       -- draw tile
       if game_map[y][x] == 1 then
-        -- obstacle sprite
+        -- obstacle sprite with shading
         spr(3, px, py)
+        rectfill(px, py, px+tile_size-1, py+tile_size-1, 0)
       else
-        -- walkable tile with border
-        rect(px, py, px+tile_size-1, py+tile_size-1, 8)
+        -- walkable tile border
+        rect(px, py, px+tile_size-1, py+tile_size-1, 5)
       end
     end
   end
 end
 
 function draw_attack_range(offset_x, offset_y, tile_size)
-  -- show valid attack tiles
+  -- show valid attack tiles with pulse effect
   for y=0,7 do
     for x=0,7 do
       if distance(player.x, player.y, x, y) == 1 then
         local px = offset_x + x * tile_size
         local py = offset_y + y * tile_size
-        -- draw attack range indicator
-        rect(px+1, py+1, px+tile_size-2, py+tile_size-2, 11)
+        -- draw attack range indicator with alternating visibility for pulse
+        local pulse = (animation_frame / 4) % 2 < 1 and 11 or 5
+        rect(px+1, py+1, px+tile_size-2, py+tile_size-2, pulse)
       end
     end
   end
 end
 
 function draw_units(offset_x, offset_y, tile_size)
-  -- player with sprite
+  -- player with sprite and glow effect
   local px = offset_x + player.x * tile_size
   local py = offset_y + player.y * tile_size
+
+  -- player glow
+  circfill(px + 4, py + 4, 6, 5)
   spr(0, px, py)
 
-  -- player hp indicator
+  -- player hp indicator with background
   if player.hp > 0 then
-    print(player.hp, px + 6, py - 2, 7)
+    rectfill(px + 4, py - 4, px + 10, py, 0)
+    print(player.hp, px + 5, py - 3, 11)
   end
 
   -- enemies
@@ -354,17 +379,22 @@ function draw_units(offset_x, offset_y, tile_size)
 
     -- alternate enemy sprites
     local enemy_sprite = 1 + ((e.x + e.y) % 2)
+
+    -- enemy glow
+    circfill(ex + 4, ey + 4, 5, 8)
     spr(enemy_sprite, ex, ey)
 
-    -- enemy hp indicator
+    -- enemy hp indicator with background
     if e.hp > 0 then
-      print(e.hp, ex + 6, ey - 2, 8)
+      rectfill(ex + 4, ey - 4, ex + 10, ey, 0)
+      print(e.hp, ex + 5, ey - 3, 8)
     end
 
-    -- show threat range (where enemies can attack)
+    -- show threat range (where enemies can attack) with animation
     if distance(e.x, e.y, player.x, player.y) == 1 then
       local tx = offset_x + e.x * tile_size
       local ty = offset_y + e.y * tile_size
+      rect(tx, ty, tx+tile_size-1, ty+tile_size-1, 8)
       rect(tx+1, ty+1, tx+tile_size-2, ty+tile_size-2, 8)
     end
   end
@@ -389,32 +419,59 @@ function draw_play()
 
   -- flash effect
   if flash_timer > 0 then
+    local alpha = max(1, flash_timer / 3)
     rectfill(0, 0, 127, 127, flash_color)
   end
 
-  -- ui panel
+  -- ui background panel
+  rectfill(0, 104, 127, 127, 1)
+  rect(0, 103, 127, 127, 5)
+
+  -- ui panel with better visuals
   local diff_col = 7
   if difficulty == 1 then diff_col = 3
   elseif difficulty == 3 then diff_col = 8 end
 
-  print("turn: "..turn_count, 2, 110, 7)
-  print("hp: "..player.hp, 30, 110, 11)
-  print("enemies: "..#enemies, 55, 110, 8)
-  print("d"..difficulty, 85, 110, diff_col)
+  -- draw ui elements with separators
+  print("arrows:move", 2, 109, 7)
+  print("z:attack", 60, 109, 11)
 
-  print("arrows:move  z:attack", 2, 120, 5)
+  print("turn:", 2, 119, 5)
+  print(turn_count, 20, 119, 5)
+  print("hp:", 30, 119, 11)
+  print(player.hp, 40, 119, 11)
+  print("foes:", 48, 119, 8)
+  print(#enemies, 65, 119, 8)
+  print("d"..difficulty, 75, 119, diff_col)
 end
 
 function draw_gameover()
   cls(0)
-  print("game over", 45, 40, 7)
+
+  -- game over title
+  print("=============", 34, 15, 5)
+  print("   game over   ", 33, 23, 7)
+  print("=============", 34, 31, 5)
+
   if message == "victory!" then
-    print(message, 48, 55, 3)
-    print("score: "..flr(score), 35, 70, 11)
+    print("*** victory! ***", 32, 45, 3)
+    rectfill(25, 60, 102, 80, 1)
+    rect(25, 60, 102, 80, 3)
+    print("score:", 35, 65, 11)
+    print(flr(score), 65, 65, 11)
+
+    -- bonus display
+    local bonus_text = "+"..max(50, player.hp * 50).." for hp"
+    print(bonus_text, 30, 75, 3)
   else
-    print(message, 48, 55, 8)
+    print("*** defeated! ***", 31, 45, 8)
+    rectfill(20, 60, 107, 80, 1)
+    rect(20, 60, 107, 80, 8)
+    print("enemies remaining:", 25, 70, 8)
+    print(#enemies, 85, 70, 8)
   end
-  print("press z to menu", 30, 90, 7)
+
+  print("press z to menu", 30, 110, 5)
 end
 
 function _draw()
@@ -425,22 +482,22 @@ function _draw()
 end
 
 __gfx__
-00033000000880000088800000550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00333300008888000888880005555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-03333330088888008888888055555550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-03333330088888008888888055555555000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00333300088888008888888055555555000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00030300008880008888880055555550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00010100000000000088800005555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00033000007700000055500001111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00333300077777005555550011111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+03333330777777755555555111111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+03333330777777755555555111111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00333300077777705555555011111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00030300007700000055500001111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00010100000000000000000000111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __sfx__
-000500000c5000c500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00050000135501355000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0002000009350083500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000200000b3500b3500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0005000007350063500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0008000012350f3350d3350b3350935000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000e000012350f3350123400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00080000153501335010350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000600000c3500b35003350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00060000093500833006350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000071a3500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001e0007183501c3501535010350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __music__
 00 00000000
 
