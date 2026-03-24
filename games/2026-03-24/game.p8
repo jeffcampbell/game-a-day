@@ -65,7 +65,6 @@ current_level = 1
 max_level = 7
 level_score = 0  -- score accumulated before this level
 game_map_width = 8  -- dynamically set per level
-level_turn_count = 0  -- turns used in current level for speed bonus
 
 -- combat system
 attack_mode = 1  -- 1=normal (1 dmg), 2=power (2 dmg, costs 2 hp)
