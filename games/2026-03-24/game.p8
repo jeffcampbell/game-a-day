@@ -322,20 +322,22 @@ function draw_grid(offset_x, offset_y, tile_size)
       local px = offset_x + x * tile_size
       local py = offset_y + y * tile_size
 
-      -- draw tile background with checkerboard pattern
+      -- draw tile background with enhanced checkerboard pattern
       local tile_color = 1
       if (x + y) % 2 == 0 then
         tile_color = 2
       end
       rectfill(px, py, px+tile_size-1, py+tile_size-1, tile_color)
 
-      -- draw tile
+      -- draw tile borders and effects
       if game_map[y][x] == 1 then
-        -- obstacle sprite with shading
+        -- obstacle sprite with depth shading
         spr(3, px, py)
-        rectfill(px, py, px+tile_size-1, py+tile_size-1, 0)
+        -- add subtle shadow
+        line(px, py+tile_size-1, px+tile_size-1, py+tile_size-1, 0)
+        line(px+tile_size-1, py, px+tile_size-1, py+tile_size-1, 0)
       else
-        -- walkable tile border
+        -- walkable tile border with subtle gradient
         rect(px, py, px+tile_size-1, py+tile_size-1, 5)
       end
     end
@@ -343,36 +345,44 @@ function draw_grid(offset_x, offset_y, tile_size)
 end
 
 function draw_attack_range(offset_x, offset_y, tile_size)
-  -- show valid attack tiles with pulse effect
+  -- show valid attack tiles with enhanced pulse effect
   for y=0,7 do
     for x=0,7 do
       if distance(player.x, player.y, x, y) == 1 then
         local px = offset_x + x * tile_size
         local py = offset_y + y * tile_size
-        -- draw attack range indicator with alternating visibility for pulse
-        local pulse = (animation_frame / 4) % 2 < 1 and 11 or 5
-        rect(px+1, py+1, px+tile_size-2, py+tile_size-2, pulse)
+        -- draw attack range indicator with double border pulse
+        local pulse_phase = (animation_frame / 3) % 2
+        local outer_col = pulse_phase < 1 and 11 or 7
+        local inner_col = pulse_phase < 1 and 7 or 11
+        rect(px, py, px+tile_size-1, py+tile_size-1, outer_col)
+        rect(px+1, py+1, px+tile_size-2, py+tile_size-2, inner_col)
       end
     end
   end
 end
 
 function draw_units(offset_x, offset_y, tile_size)
-  -- player with sprite and glow effect
+  -- player with enhanced sprite and glow effect
   local px = offset_x + player.x * tile_size
   local py = offset_y + player.y * tile_size
 
-  -- player glow
-  circfill(px + 4, py + 4, 6, 5)
+  -- player enhanced glow with pulse
+  local glow_size = 6 + (animation_frame % 8 > 4 and 1 or 0)
+  circfill(px + 4, py + 4, glow_size, 13)
+  circfill(px + 4, py + 4, glow_size - 1, 14)
   spr(0, px, py)
 
-  -- player hp indicator with background
+  -- player hp indicator with styled background
   if player.hp > 0 then
-    rectfill(px + 4, py - 4, px + 10, py, 0)
-    print(player.hp, px + 5, py - 3, 11)
+    rectfill(px + 2, py - 5, px + 13, py - 1, 0)
+    rect(px + 1, py - 6, px + 14, py, 11)
+    for i=1,player.hp do
+      rectfill(px + 2 + (i-1)*3, py - 4, px + 3 + (i-1)*3, py - 2, 11)
+    end
   end
 
-  -- enemies
+  -- enemies with enhanced effects
   for e in all(enemies) do
     local ex = offset_x + e.x * tile_size
     local ey = offset_y + e.y * tile_size
@@ -380,22 +390,29 @@ function draw_units(offset_x, offset_y, tile_size)
     -- alternate enemy sprites
     local enemy_sprite = 1 + ((e.x + e.y) % 2)
 
-    -- enemy glow
-    circfill(ex + 4, ey + 4, 5, 8)
+    -- enemy glow with threat pulse
+    local threat = distance(e.x, e.y, player.x, player.y) == 1
+    local glow_col = threat and 8 or 9
+    local glow_r = threat and (5 + (animation_frame % 4 > 2 and 1 or 0)) or 5
+    circfill(ex + 4, ey + 4, glow_r, glow_col)
     spr(enemy_sprite, ex, ey)
 
-    -- enemy hp indicator with background
+    -- enemy hp indicator with styled background
     if e.hp > 0 then
-      rectfill(ex + 4, ey - 4, ex + 10, ey, 0)
-      print(e.hp, ex + 5, ey - 3, 8)
+      rectfill(ex + 2, ey - 5, ex + 13, ey - 1, 0)
+      rect(ex + 1, ey - 6, ex + 14, ey, 8)
+      for i=1,e.hp do
+        rectfill(ex + 2 + (i-1)*3, ey - 4, ex + 3 + (i-1)*3, ey - 2, 8)
+      end
     end
 
     -- show threat range (where enemies can attack) with animation
-    if distance(e.x, e.y, player.x, player.y) == 1 then
+    if threat then
       local tx = offset_x + e.x * tile_size
       local ty = offset_y + e.y * tile_size
-      rect(tx, ty, tx+tile_size-1, ty+tile_size-1, 8)
-      rect(tx+1, ty+1, tx+tile_size-2, ty+tile_size-2, 8)
+      local pulse = (animation_frame / 3) % 2 < 1 and 8 or 9
+      rect(tx, ty, tx+tile_size-1, ty+tile_size-1, pulse)
+      rect(tx+1, ty+1, tx+tile_size-2, ty+tile_size-2, pulse)
     end
   end
 end
@@ -482,14 +499,14 @@ function _draw()
 end
 
 __gfx__
-00033000007700000055500001111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00333300077777005555550011111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-03333330777777755555555111111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-03333330777777755555555111111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00333300077777705555555011111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00030300007700000055500001111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00010100000000000000000000111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+003bbb00008cc800009aa900077777770000000000000000000f0ff0f0000000000000000000000000000000000000000000000000000000000000000000000
+033bb330088cc880099aa9907755555770000000f0ffff0f00000000000000000000000000000000000000000000000000000000000000000000000000000000
+33bbbb3388cccc8899aaaa9975333357000ffbbff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+3bb33bb38cc88cc89aa99aa9975333357ffbbbbff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+33bbbb3388cccc8899aaaa9975333357000ffbbff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+033bb330088cc880099aa9907755555770000f0ffff0f00000000000000000000000000000000000000000000000000000000000000000000000000000000000
+003bbb00008cc80000099900077555557000f0ff0f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00033300008880000099990077777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __sfx__
 000e000012350f3350123400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
