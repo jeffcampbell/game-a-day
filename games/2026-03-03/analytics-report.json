@@ -13,10 +13,10 @@
       "play",
       "gameover"
     ],
-    "logs_captured": 11,
+    "logs_captured": 13,
     "events": {
       "state_transitions": 3,
-      "game_events": 6,
+      "game_events": 8,
       "gameover_events": 2
     },
     "exit_state": "analysis_complete",

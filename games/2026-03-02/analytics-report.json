@@ -10,14 +10,16 @@
     "errors": [],
     "state_transitions": [
       "menu",
+      "levelselect",
       "play",
+      "levelclear",
       "gameover"
     ],
-    "logs_captured": 8,
+    "logs_captured": 28,
     "events": {
-      "state_transitions": 3,
-      "game_events": 4,
-      "gameover_events": 1
+      "state_transitions": 5,
+      "game_events": 20,
+      "gameover_events": 2
     },
     "exit_state": "analysis_complete",
     "metadata": {

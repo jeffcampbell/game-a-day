@@ -13,10 +13,10 @@
       "play",
       "menu"
     ],
-    "logs_captured": 7,
+    "logs_captured": 9,
     "events": {
       "state_transitions": 3,
-      "game_events": 2,
+      "game_events": 4,
       "gameover_events": 2
     },
     "exit_state": "analysis_complete",
