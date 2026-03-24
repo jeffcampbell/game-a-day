@@ -73,6 +73,7 @@ wave = 1
 score_endless = 0
 high_score_endless = 0
 endless_player_hp = 3
+wave_timer = 0  -- frames elapsed in current wave
 
 -- combat system
 attack_mode = 1  -- 1=normal (1 dmg), 2=power (2 dmg, costs 2 hp)
@@ -430,6 +431,7 @@ function update_menu()
       game_map, game_map_width = init_map(1)
       enemies = init_endless_wave(1)
       turn_count = 0
+      wave_timer = 0
       selected_x, selected_y = 1, 1
       attack_mode = 1
       combo_multiplier = 1.0
@@ -816,6 +818,7 @@ function update_endless_play()
   end
 
   turn_count += 1
+  wave_timer += 1
 
   -- check wave clear or lose
   if #enemies == 0 then
@@ -828,14 +831,23 @@ function update_endless_play()
     elseif difficulty == 3 then
       wave_bonus = flr(wave_bonus * 1.5)
     end
+    -- calculate speed bonus based on clear time
+    local speed_bonus = 0
+    if wave_timer <= 1200 then  -- 20 seconds at 60fps
+      speed_bonus = 30
+    elseif wave_timer <= 1800 then  -- 30 seconds at 60fps
+      speed_bonus = 15
+    end
     -- apply combo multiplier to reward sustained play
-    wave_bonus = flr(wave_bonus * combo_multiplier)
-    score_endless += wave_bonus
+    local final_bonus = flr((wave_bonus + speed_bonus) * combo_multiplier)
+    score_endless += final_bonus
     _log("wave_clear:"..wave)
     _log("wave_bonus:"..wave_bonus)
+    _log("speed_bonus:"..speed_bonus)
     _log("score:"..score_endless)
     wave += 1
     turn_count = 0
+    wave_timer = 0
     enemies = init_endless_wave(wave)
     selected_x, selected_y = 1, 1
     attack_mode = 1
