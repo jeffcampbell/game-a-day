@@ -746,8 +746,11 @@ function update_endless_play()
     elseif difficulty == 3 then
       wave_bonus = flr(wave_bonus * 1.5)
     end
+    -- apply combo multiplier to reward sustained play
+    wave_bonus = flr(wave_bonus * combo_multiplier)
     score_endless += wave_bonus
     _log("wave_clear:"..wave)
+    _log("wave_bonus:"..wave_bonus)
     _log("score:"..score_endless)
     wave += 1
     turn_count = 0
