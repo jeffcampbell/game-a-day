@@ -62,7 +62,7 @@ difficulty_select = 2  -- currently selected difficulty in menu
 
 -- level progression
 current_level = 1
-max_level = 3
+max_level = 7
 level_score = 0  -- score accumulated before this level
 game_map_width = 8  -- dynamically set per level
 
@@ -82,6 +82,10 @@ function init_map(level)
   local map_width = 8
   if level == 2 then map_width = 10
   elseif level == 3 then map_width = 12
+  elseif level == 4 then map_width = 13
+  elseif level == 5 then map_width = 14
+  elseif level == 6 then map_width = 15
+  elseif level == 7 then map_width = 16
   end
 
   local m = {}
@@ -109,6 +113,37 @@ function init_map(level)
     m[6][5] = 1
   end
 
+  if level >= 4 then
+    -- more obstacles for level 4
+    m[4][4] = 1
+    m[4][5] = 1
+    m[0][10] = 1
+    m[1][11] = 1
+    m[7][9] = 1
+  end
+
+  if level >= 5 then
+    -- even more obstacles for level 5
+    m[3][2] = 1
+    m[2][11] = 1
+    m[5][12] = 1
+    m[6][10] = 1
+  end
+
+  if level >= 6 then
+    -- obstacles for level 6
+    m[4][0] = 1
+    m[1][14] = 1
+    m[6][13] = 1
+  end
+
+  if level >= 7 then
+    -- obstacles for level 7
+    m[0][7] = 1
+    m[3][13] = 1
+    m[5][2] = 1
+  end
+
   return m, map_width
 end
 
@@ -118,6 +153,10 @@ function init_enemies(level)
   local map_width = 8
   if level == 2 then map_width = 10
   elseif level == 3 then map_width = 12
+  elseif level == 4 then map_width = 13
+  elseif level == 5 then map_width = 14
+  elseif level == 6 then map_width = 15
+  elseif level == 7 then map_width = 16
   end
 
   -- scale enemy count by difficulty
@@ -126,15 +165,21 @@ function init_enemies(level)
   end
 
   -- add more enemies on higher levels
-  if level == 2 then enemy_count = min(8, enemy_count + 1)
-  elseif level == 3 then enemy_count = min(9, enemy_count + 2)
+  if level == 2 then enemy_count = min(9, enemy_count + 1)
+  elseif level == 3 then enemy_count = min(10, enemy_count + 2)
+  elseif level == 4 then enemy_count = min(11, enemy_count + 3)
+  elseif level == 5 then enemy_count = min(12, enemy_count + 4)
+  elseif level == 6 then enemy_count = min(13, enemy_count + 5)
+  elseif level == 7 then enemy_count = min(14, enemy_count + 6)
   end
 
   -- spawn enemies with variety based on level
   local spawn_positions = {
     {x=map_width-2, y=0}, {x=map_width-1, y=3}, {x=map_width/2, y=7},
     {x=map_width-3, y=1}, {x=map_width/2+1, y=6}, {x=2, y=7},
-    {x=map_width-1, y=5}, {x=1, y=6}, {x=map_width-4, y=4}
+    {x=map_width-1, y=5}, {x=1, y=6}, {x=map_width-4, y=4},
+    {x=map_width-2, y=7}, {x=map_width-5, y=2}, {x=3, y=1},
+    {x=map_width/3, y=0}, {x=map_width-1, y=1}
   }
 
   for i=1,min(enemy_count, #spawn_positions) do
@@ -143,7 +188,14 @@ function init_enemies(level)
     local ehp = 1
 
     -- introduce more variety at higher levels
-    if level == 3 then
+    if level >= 4 then
+      -- levels 4+: full variety with berserkers and healers
+      if i % 5 == 2 then etype = 2; ehp = 1
+      elseif i % 5 == 3 then etype = 3; ehp = 3
+      elseif i % 5 == 4 then etype = 4; ehp = 2  -- berserker
+      elseif i % 5 == 0 then etype = 5; ehp = 1  -- healer
+      end
+    elseif level == 3 then
       -- level 3: more variety
       if i % 4 == 2 then etype = 2; ehp = 1
       elseif i % 4 == 0 or i % 4 == 3 then etype = 3; ehp = 3
@@ -217,8 +269,8 @@ function move_towards_player(enemy, player, map)
   enemy.x = best_x
   enemy.y = best_y
 
-  -- scouts move twice per turn
-  if enemy.type == 2 then
+  -- scouts and berserkers move twice per turn
+  if enemy.type == 2 or enemy.type == 4 then
     local best_dist = distance(enemy.x, enemy.y, player.x, player.y)
     local best_x, best_y = enemy.x, enemy.y
     for m in all(moves) do
@@ -233,6 +285,14 @@ function move_towards_player(enemy, player, map)
     end
     enemy.x = best_x
     enemy.y = best_y
+  end
+
+  -- healers move towards allies instead of player (very simple: stay near center)
+  if enemy.type == 5 then
+    -- healers stay near other enemies, move randomly slower
+    enemy.move_counter += 1
+    if enemy.move_counter < 3 then return end
+    enemy.move_counter = 0
   end
 end
 
@@ -341,9 +401,31 @@ function update_play()
 
   -- enemy turn
   for e in all(enemies) do
-    if distance(e.x, e.y, player.x, player.y) == 1 then
+    if e.type == 5 then
+      -- healer: restore nearby allies' hp
+      if distance(e.x, e.y, player.x, player.y) == 1 then
+        -- no action adjacent to player (too risky)
+        move_towards_player(e, player, game_map)
+      else
+        -- heal nearby allies
+        for ally in all(enemies) do
+          if ally ~= e and distance(e.x, e.y, ally.x, ally.y) <= 2 then
+            if ally.hp < 3 then
+              ally.hp = min(3, ally.hp + 1)
+              _log("healed")
+            end
+          end
+        end
+        move_towards_player(e, player, game_map)
+      end
+    elseif distance(e.x, e.y, player.x, player.y) == 1 then
       -- attack player
-      player.hp -= 1
+      local damage = 1
+      if e.type == 4 then
+        -- berserker does 2 damage
+        damage = 2
+      end
+      player.hp -= damage
       took_damage = true
       sfx(3)  -- enemy attack sound
       flash_timer = 6
@@ -377,10 +459,22 @@ function update_play()
   if #enemies == 0 then
     -- level cleared
     local base_score = 100 + (player.hp * 50) + (300 / max(1, turn_count))
-    local level_pts = base_score * combo_multiplier
+    local speed_bonus = 0
+    -- speed bonus: beat level in <= 10 turns
+    if turn_count <= 10 then
+      speed_bonus = 50
+    elseif turn_count <= 15 then
+      speed_bonus = 25
+    end
+    local diff_mult = 1
+    if difficulty == 2 then diff_mult = 1.5
+    elseif difficulty == 3 then diff_mult = 2.0
+    end
+    local level_pts = (base_score + speed_bonus) * combo_multiplier * diff_mult
     level_score += level_pts
     _log("level_clear:"..current_level)
     _log("level_score:"..flr(level_pts))
+    _log("speed_bonus:"..speed_bonus)
 
     if current_level < max_level then
       -- advance to next level
@@ -556,6 +650,10 @@ function draw_units(offset_x, offset_y, tile_size)
       enemy_sprite = 2  -- scout: smaller/faster
     elseif e.type == 3 then
       enemy_sprite = 4  -- tank: heavier/stronger
+    elseif e.type == 4 then
+      enemy_sprite = 5  -- berserker: aggressive
+    elseif e.type == 5 then
+      enemy_sprite = 6  -- healer: supportive
     end
 
     -- enemy glow with threat pulse
@@ -565,6 +663,8 @@ function draw_units(offset_x, offset_y, tile_size)
     -- glow color varies by enemy type
     if e.type == 2 then glow_col = threat and 7 or 10  -- scout: yellow
     elseif e.type == 3 then glow_col = threat and 8 or 5  -- tank: dark colors
+    elseif e.type == 4 then glow_col = threat and 11 or 14  -- berserker: bright red
+    elseif e.type == 5 then glow_col = threat and 3 or 2  -- healer: bright green
     end
 
     local glow_r = threat and (5 + (animation_frame % 4 > 2 and 1 or 0)) or 5
@@ -719,14 +819,14 @@ function _draw()
 end
 
 __gfx__
-003bbb00008cc800009aa9000777777705555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-033bb330088cc880099aa9907755555755555550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-33bbbb3388cccc8899aaaa9975333357588888500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-3bb33bb38cc88cc89aa99aa9975333357588558500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-33bbbb3388cccc8899aaaa9975333357588888500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-033bb330088cc880099aa9907755555755555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-003bbb00008cc80000099900077555557058008500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00033300008880000099990077777777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+003bbb00008cc800009aa900077777770555550000a88a0003ee3000000000000000000000000000000000000000000000000000000000000000000000000000000
+033bb330088cc880099aa99075555557555555500aa88aa033eee330000000000000000000000000000000000000000000000000000000000000000000000000000000
+33bbbb3388cccc8899aaaa9975333357588888500a8aaa8333eeee3300000000000000000000000000000000000000000000000000000000000000000000000000000
+3bb33bb38cc88cc89aa99aa9975333357588558500aa8aaa33e3e3e300000000000000000000000000000000000000000000000000000000000000000000000000000
+33bbbb3388cccc8899aaaa9975333357588888500a8aaa8333eeee3300000000000000000000000000000000000000000000000000000000000000000000000000
+033bb330088cc880099aa9907755555755555550aa88aa033eee330000000000000000000000000000000000000000000000000000000000000000000000000000000
+003bbb00008cc80000099900077555557058008500a88a0003ee3000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00033300008880000099990077777777000000000003330000033000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __sfx__
 000e000012350f3350123400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
