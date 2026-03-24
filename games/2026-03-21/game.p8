@@ -85,6 +85,7 @@ boss_projectiles = {}
 powerups = {}
 shield_count = 0
 rapid_fire_timer = 0
+mega_shot_timer = 0
 
 -- difficulty
 enemies_killed = 0
@@ -120,6 +121,7 @@ function _init()
   score_multiplier = 1
   shield_count = 0
   rapid_fire_timer = 0
+  mega_shot_timer = 0
   combo = 0
   combo_multiplier = 1.0
   multiplier_flash_timer = 0
@@ -148,6 +150,7 @@ function init_wave(wv)
   wave_complete_timer = 0
   shield_count = 0
   rapid_fire_timer = 0
+  mega_shot_timer = 0
 
   -- determine if this is a boss wave
   local is_boss_wave = wv >= 5
@@ -322,6 +325,7 @@ function update_difficulty()
     player = {x=64, y=110, w=4, h=4}
     shield_count = 0
     rapid_fire_timer = 0
+    mega_shot_timer = 0
 
     _log("difficulty:"..difficulty_names[difficulty])
     init_wave(1)
@@ -381,6 +385,7 @@ function update_play()
 
   -- update active power-up timers
   if rapid_fire_timer > 0 then rapid_fire_timer -= 1 end
+  if mega_shot_timer > 0 then mega_shot_timer -= 1 end
 
   -- player movement
   if test_input(0) == 1 then
@@ -395,7 +400,16 @@ function update_play()
     -- rapid fire doubles fire rate (cooldown halved from 5 to 2.5≈2)
     local cooldown = rapid_fire_timer > 0 and 2 or 5
     if fire_cooldown <= 0 then
-      add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true, age=0})
+      -- mega-shot fires 3 projectiles spread
+      if mega_shot_timer > 0 then
+        add(projectiles, {x=player.x-4, y=player.y-4, w=1, h=3, alive=true, age=0})
+        add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true, age=0})
+        add(projectiles, {x=player.x+4, y=player.y-4, w=1, h=3, alive=true, age=0})
+        cooldown = 8  -- slower fire rate for mega-shot
+        _log("megashot:3x")
+      else
+        add(projectiles, {x=player.x, y=player.y-4, w=1, h=3, alive=true, age=0})
+      end
       fire_cooldown = cooldown
       sfx(0)
       _log("shoot")
@@ -618,12 +632,14 @@ function update_play()
       sfx(3)  -- wave start cue
     end
 
+    -- difficulty-based spawn rates with progressive scaling
     local spawn_rate = 30 - (wave_count - 1) * 2
     if difficulty == 1 then
-      spawn_rate = 40 - wave_count
+      spawn_rate = 45 - flr(wave_count * 1.5)  -- easier: slower spawns
     elseif difficulty == 3 then
-      spawn_rate = 20 - wave_count
+      spawn_rate = 18 - wave_count  -- harder: faster spawns
     end
+    spawn_rate = max(5, spawn_rate)  -- clamp minimum
 
     if enemy_spawn_timer <= 0 then
       -- spawn enemy based on difficulty
@@ -897,12 +913,23 @@ function spawn_enemy_with_fade(x, y, etype, spd, health)
 end
 
 function spawn_powerup(x, y, enemy_type)
-  -- drop chance: 15% for small enemies, 25% for large enemies
-  local drop_chance = enemy_type == 1 and 0.15 or 0.25
+  -- drop chance varies by difficulty: give more help on easy mode
+  local base_chance = enemy_type == 1 and 0.15 or 0.25
+  local drop_chance = base_chance
+  if difficulty == 1 then
+    drop_chance = base_chance * 1.3  -- 20% to 33% on easy
+  elseif difficulty == 3 then
+    drop_chance = base_chance * 0.7  -- 10% to 17% on hard
+  end
 
   if rnd(1) < drop_chance then
-    -- pick random powerup: 1=shield, 2=rapid-fire, 3=health
-    local pu_type = flr(rnd(3)) + 1
+    -- pick random powerup: 1=shield, 2=rapid-fire, 3=health, 4=mega-shot (rare)
+    local r = rnd(100)
+    local pu_type = 1
+    if r < 60 then pu_type = 1
+    elseif r < 80 then pu_type = 2
+    elseif r < 95 then pu_type = 3
+    else pu_type = 4 end  -- 5% chance for mega-shot
     add(powerups, {x=x, y=y, type=pu_type, age=0, alive=true})
     _log("powerup:spawn:"..pu_type)
   end
@@ -938,6 +965,11 @@ function apply_powerup(pu_type)
     else
       _log("health_full")
     end
+  elseif pu_type == 4 then
+    -- mega-shot: triple fire for 3 seconds (180 frames)
+    mega_shot_timer = 180
+    sfx(6)  -- distinctive sound for rare power-up
+    _log("megashot_pickup:3s")
   end
   _log("powerup_score:"..earned_points..",combo:"..combo.."x")
 end
@@ -1110,7 +1142,12 @@ function draw_boss_defeated()
 end
 
 function draw_play()
-  cls(0)
+  -- background color changes by wave for visual progression
+  local bg_color = 0
+  if wave_count >= 5 then
+    bg_color = 1  -- darker for boss waves
+  end
+  cls(bg_color)
 
   -- draw starfield background
   for star in all(starfield) do
@@ -1133,6 +1170,11 @@ function draw_play()
 
   -- draw player using sprite
   spr(0, player.x-4, player.y-4)
+
+  -- draw shield aura when shield is active
+  if shield_count > 0 then
+    circ(player.x, player.y, 6 + sin(enemy_anim_frame / 30) * 1, 3)  -- cyan shield ring
+  end
 
   -- draw projectiles using sprite with glow
   for p in all(projectiles) do
@@ -1191,6 +1233,12 @@ function draw_play()
       else spr(6, flr(pu.x)-4, flr(pu.y)-4) end
     elseif pu.type == 3 then
       spr(7, flr(pu.x)-4, flr(pu.y)-4)  -- health
+    elseif pu.type == 4 then
+      spr(4, flr(pu.x)-4, flr(pu.y)-4)  -- mega-shot (reuse projectile sprite)
+      -- add bright glow for rare power-up
+      if pu.age % 3 == 0 then
+        circ(flr(pu.x), flr(pu.y), 5, 12)
+      end
     end
   end
 
@@ -1336,6 +1384,11 @@ function draw_play()
   if rapid_fire_timer > 0 then
     local sec = flr(rapid_fire_timer / 60) + 1
     print("rapid "..sec.."s", 5, pu_y, 10)
+    pu_y += 7
+  end
+  if mega_shot_timer > 0 then
+    local sec = flr(mega_shot_timer / 60) + 1
+    print("mega x3", 5, pu_y, 11)
   end
 
   -- draw boss health if in boss wave
