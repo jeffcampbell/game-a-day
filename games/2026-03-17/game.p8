@@ -1,760 +1,505 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
-__lua__
--- platformer: reach the top!
--- test infrastructure
-testmode = false
-test_log = {}
-test_inputs = {}
-test_input_idx = 0
-
+__lua__testmode = false test_log = {}
+test_inputs = {} test_input_idx = 0
 function _log(msg)
   if testmode then add(test_log, msg) end
 end
-
 function _capture()
   if testmode then add(test_log, "SCREEN:"..tostr(stat(0))) end
 end
-
 function test_input(b)
   if testmode and test_input_idx < #test_inputs then
-    test_input_idx += 1
-    return test_inputs[test_input_idx] or 0
+    test_input_idx += 1 return test_inputs[test_input_idx] or 0
   end
   return btn()
 end
-
--- game state
-state="menu" score=0 lives=3 level=1 max_levels=8 game_won=false
-music_playing=-1 combo_count=0 combo_window=0
-
--- visual effects
-particles={} max_particles=32 shake_intensity=0 shake_timer=0
-flash_color=-1 flash_timer=0
-
--- leaderboard
-leaderboard_scores={} leaderboard_levels={} high_score_rank=-1
-lb_anim_timer=0 menu_option=1
-
--- time-attack mode
-time_attack_mode=false time_attack_level=1 level_timer=0
-time_attack_times={} ta_selected_level=1 ta_menu_option=1
-
--- secret levels
-secret_levels_unlocked=false
-
--- player
-player={x=64,y=100,w=8,h=8,vx=0,vy=0,jumping=false,coyote_frames=0,color=3}
-
--- physics
-gravity=0.2 jump_power=5 max_fall=4 max_coyote=6 move_speed=1.5
-
--- platforms
-platforms = {}
-enemies = {}
-collectibles = {}
-boss = nil  -- boss enemy for level 8
-
--- leaderboard management functions
+state="menu" score=0 lives=3 level=1 ml=8 gw=false mpl=-1 cc=0 cw=0
+pa={} mp=32 si=0 st=0 fc=-1 ft=0
+ls={} ll={} hsr=-1 lat=0 mo=1
+tam=false tal=1 lt=0 tat={} tsl=1 tmo=1
+slu=false pl={x=64,y=100,w=8,h=8,vx=0,vy=0,j=false,cf=0}
+g=0.2 jp=5 mf=4 mc=6 ms=1.5 plat={}
+en={} col={}
+b=nil
 function load_leaderboard()
-  leaderboard_scores = {}
-  leaderboard_levels = {}
+  ls = {} ll = {}
   for i=0,4 do
-    -- decode 2-byte score
-    local s_low = dget(i*2)
-    local s_high = dget(i*2+1)
-    local s = s_low + s_high * 256
-    -- decode 2-byte level
-    local l_low = dget(20 + i*2)
-    local l_high = dget(20 + i*2+1)
-    local l = l_low + l_high * 256
+    local s_low = dget(i*2) local s_high = dget(i*2+1)
+    local s = s_low + s_high * 256 local l_low = dget(20 + i*2)
+    local l_high = dget(20 + i*2+1) local l = l_low + l_high * 256
     if s > 0 then
-      add(leaderboard_scores, s)
-      add(leaderboard_levels, l)
+      add(ls, s) add(ll, l)
     end
   end
   _log("leaderboard:loaded")
 end
-
 function save_score(sc, lvl)
-  high_score_rank = -1  -- reset before checking
-  -- check if score is in top 5
-  for i=1,#leaderboard_scores do
-    if sc > leaderboard_scores[i] then
-      high_score_rank = i
-      -- insert at position
-      if #leaderboard_scores < 5 then
-        add(leaderboard_scores, 0)
-        add(leaderboard_levels, 0)
+  hsr = -1
+  for i=1,#ls do
+    if sc > ls[i] then
+      hsr = i
+      if #ls < 5 then
+  add(ls, 0) add(ll, 0)
       end
-      -- shift scores down
-      for j=#leaderboard_scores,i+1,-1 do
-        leaderboard_scores[j] = leaderboard_scores[j-1]
-        leaderboard_levels[j] = leaderboard_levels[j-1]
+      for j=#ls,i+1,-1 do
+  ls[j] = ls[j-1] ll[j] = ll[j-1]
       end
-      leaderboard_scores[i] = sc
-      leaderboard_levels[i] = lvl
-      -- keep only top 5
-      if #leaderboard_scores > 5 then
-        del(leaderboard_scores, leaderboard_scores[6])
-        del(leaderboard_levels, leaderboard_levels[6])
+      ls[i] = sc ll[i] = lvl
+      if #ls > 5 then
+  del(ls, ls[6]) del(ll, ll[6])
       end
       break
     end
   end
-
-  if #leaderboard_scores < 5 and high_score_rank == -1 then
-    add(leaderboard_scores, sc)
-    add(leaderboard_levels, lvl)
-    high_score_rank = #leaderboard_scores
+  if #ls < 5 and hsr == -1 then
+    add(ls, sc) add(ll, lvl)
+    hsr = #ls
   end
-
-  -- persist to cartridge (2-byte encoding)
   for i=0,4 do
-    if i < #leaderboard_scores then
-      local sc_val = leaderboard_scores[i+1]
-      local lv_val = leaderboard_levels[i+1]
-      -- encode score as 2 bytes
-      dset(i*2, sc_val % 256)        -- low byte
-      dset(i*2+1, flr(sc_val / 256)) -- high byte
-      -- encode level as 2 bytes
-      dset(20 + i*2, lv_val % 256)        -- low byte
-      dset(20 + i*2+1, flr(lv_val / 256)) -- high byte
+    if i < #ls then
+      local sv = ls[i+1] local lv = ll[i+1]
+      dset(i*2, sv % 256) dset(i*2+1, flr(sv / 256))
+      dset(20 + i*2, lv % 256) dset(20 + i*2+1, flr(lv / 256))
     else
-      dset(i*2, 0)
-      dset(i*2+1, 0)
-      dset(20 + i*2, 0)
-      dset(20 + i*2+1, 0)
+      dset(i*2, 0) dset(i*2+1, 0)
+      dset(20 + i*2, 0) dset(20 + i*2+1, 0)
     end
   end
   _log("score:saved:"..sc)
 end
-
 function clear_leaderboard()
-  leaderboard_scores = {}
-  leaderboard_levels = {}
-  high_score_rank = -1
-  -- clear all cartridge slots (0-9 for scores, 20-29 for levels)
-  for i=0,9 do
-    dset(i, 0)
-  end
-  for i=20,29 do
-    dset(i, 0)
+  ls = {} ll = {}
+  hsr = -1
+  for i=0,29 do
+    if i<10 or i>=20 then dset(i, 0) end
   end
   _log("leaderboard:cleared")
 end
-
--- time-attack persistence (cartridge slots 30-77: 3 times per level * 8 levels)
 function load_time_attack_times()
-  time_attack_times = {}
+  tat = {}
   for lvl=1,10 do
-    time_attack_times[lvl] = {}
+    tat[lvl] = {}
     for rank=1,3 do
-      local slot = 30 + (lvl-1)*6 + (rank-1)*2
-      local lo = dget(slot)
-      local hi = dget(slot+1)
-      local time_val = lo + hi * 256
+      local slot = 30 + (lvl-1)*6 + (rank-1)*2 local lo = dget(slot)
+      local hi = dget(slot+1) local time_val = lo + hi * 256
       if time_val > 0 then
-        add(time_attack_times[lvl], time_val)
+  add(tat[lvl], time_val)
       end
     end
   end
-  -- load secret unlock flag (slot 102)
-  secret_levels_unlocked = (dget(102) > 0)
-  _log("time_attack:loaded")
+  slu = (dget(102) > 0) _log("time_attack:loaded")
 end
-
 function save_time_attack(lvl, time_frames)
-  -- insert into top 3 for this level
-  if not time_attack_times[lvl] then
-    time_attack_times[lvl] = {}
+  if not tat[lvl] then
+    tat[lvl] = {}
   end
-  local times = time_attack_times[lvl]
-
-  -- find insertion position
-  local insert_pos = #times + 1
+  local times = tat[lvl] local insert_pos = #times + 1
   for i=1,#times do
     if time_frames < times[i] then
-      insert_pos = i
-      break
+      insert_pos = i break
     end
   end
-
   if insert_pos <= 3 then
-    -- insert at position
     if #times < 3 then
       add(times, 0)
     end
-    -- shift times down
     for i=#times,insert_pos+1,-1 do
       times[i] = times[i-1]
     end
     times[insert_pos] = time_frames
-    -- keep only top 3
     if #times > 3 then
       del(times, times[4])
     end
   end
-
-  -- persist to cartridge
   for rank=1,3 do
+    local slot = 30 + (lvl-1)*6 + (rank-1)*2
     if rank <= #times then
-      local slot = 30 + (lvl-1)*6 + (rank-1)*2
-      local t = times[rank]
-      dset(slot, t % 256)
+      local t = times[rank] dset(slot, t % 256)
       dset(slot+1, flr(t / 256))
     else
-      local slot = 30 + (lvl-1)*6 + (rank-1)*2
-      dset(slot, 0)
-      dset(slot+1, 0)
+      dset(slot, 0) dset(slot+1, 0)
     end
   end
   _log("time_attack:saved:"..lvl..":"..time_frames)
 end
-
 function create_level(lvl)
-  platforms = {}
-  enemies = {}
-  collectibles = {}
-  boss = nil
-
+  plat = {} en = {}
+  col = {} b = nil
   if lvl == 1 then
-    -- create platforms
-    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=10, y=105, w=30, h=8, moving=false})
-    add(platforms, {x=50, y=90, w=30, h=8, moving=false})
-    add(platforms, {x=85, y=75, w=35, h=8, moving=false})
-    add(platforms, {x=20, y=60, w=35, h=8, moving=true, vy=-0.5, ymin=50, ymax=70})
-    add(platforms, {x=70, y=45, w=40, h=8, moving=false})
-    add(platforms, {x=15, y=30, w=40, h=8, moving=false})
-    add(platforms, {x=60, y=15, w=50, h=8, moving=false})
-
-    -- create enemies (3 slow enemies)
-    add(enemies, {x=50, y=85, w=8, h=8, vx=0.8, xmin=40, xmax=70, type="patrol", color=8})
-    add(enemies, {x=80, y=70, w=8, h=8, vx=-0.8, xmin=75, xmax=100, type="patrol", color=8})
-    add(enemies, {x=30, y=55, w=8, h=8, vx=0.8, xmin=20, xmax=50, type="patrol", color=8})
-
-    -- create collectibles
-    add(collectibles, {x=35, y=95, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=75, y=40, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=40, y=20, w=8, h=8, collected=false, color=11})
-
-  -- level 2: tighter spacing, 2 moving platforms + vertical patrol enemy
+    add(plat, {x=0, y=120, w=128, h=8})
+    add(plat, {x=10, y=105, w=30, h=8})
+    add(plat, {x=50, y=90, w=30, h=8})
+    add(plat, {x=85, y=75, w=35, h=8})
+    add(plat, {x=20, y=60, w=35, h=8, moving=true, vy=-0.5, ymin=50, ymax=70})
+    add(plat, {x=70, y=45, w=40, h=8})
+    add(plat, {x=15, y=30, w=40, h=8})
+    add(plat, {x=60, y=15, w=50, h=8})
+    add(en,{x=50, y=85, w=8, h=8, vx=0.8, xmin=40, xmax=70, type="patrol"})
+    add(en,{x=80, y=70, w=8, h=8, vx=-0.8, xmin=75, xmax=100, type="patrol"})
+    add(en,{x=30, y=55, w=8, h=8, vx=0.8, xmin=20, xmax=50, type="patrol"}) add(col,{x=35, y=95})
+    add(col,{x=75, y=40}) add(col,{x=40, y=20})
   elseif lvl == 2 then
-    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=5, y=108, w=25, h=8, moving=false})
-    add(platforms, {x=50, y=95, w=25, h=8, moving=true, vy=0.5, ymin=88, ymax=102})
-    add(platforms, {x=90, y=82, w=30, h=8, moving=false})
-    add(platforms, {x=15, y=70, w=30, h=8, moving=false})
-    add(platforms, {x=70, y=57, w=35, h=8, moving=true, vy=-0.4, ymin=48, ymax=65})
-    add(platforms, {x=25, y=42, w=35, h=8, moving=false})
-    add(platforms, {x=75, y=28, w=40, h=8, moving=false})
-    add(platforms, {x=20, y=12, w=35, h=8, moving=false})
-
-    -- 4 enemies: 3 horizontal + 1 vertical patrol
-    add(enemies, {x=45, y=90, w=8, h=8, vx=1.2, xmin=35, xmax=60, type="patrol", color=8})
-    add(enemies, {x=85, y=77, w=8, h=8, vx=-1.2, xmin=70, xmax=100, type="patrol", color=8})
-    add(enemies, {x=25, y=65, w=8, h=8, vx=1.2, xmin=15, xmax=45, type="patrol", color=8})
-    add(enemies, {x=60, y=50, w=8, h=8, vy=0.6, ymin=42, ymax=65, type="vertical", color=7})
-
-    -- more collectibles
-    add(collectibles, {x=30, y=100, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=70, y=87, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=35, y=62, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=80, y=37, w=8, h=8, collected=false, color=11})
-
-  -- level 3: complex layout, moving platform + jumping enemy + fast zapper enemies
+    add(plat, {x=0, y=120, w=128, h=8})
+    add(plat, {x=5, y=108, w=25, h=8})
+    add(plat, {x=50, y=95, w=25, h=8, moving=true, vy=0.5, ymin=88, ymax=102})
+    add(plat, {x=90, y=82, w=30, h=8})
+    add(plat, {x=15, y=70, w=30, h=8})
+    add(plat, {x=70, y=57, w=35, h=8, moving=true, vy=-0.4, ymin=48, ymax=65})
+    add(plat, {x=25, y=42, w=35, h=8})
+    add(plat, {x=75, y=28, w=40, h=8})
+    add(plat, {x=20, y=12, w=35, h=8})
+    add(en,{x=45, y=90, w=8, h=8, vx=1.2, xmin=35, xmax=60, type="patrol"})
+    add(en,{x=85, y=77, w=8, h=8, vx=-1.2, xmin=70, xmax=100, type="patrol"})
+    add(en,{x=25, y=65, w=8, h=8, vx=1.2, xmin=15, xmax=45, type="patrol"})
+    add(en,{x=60, y=50, w=8, h=8, vy=0.6, ymin=42, ymax=65, type="vertical"}) add(col,{x=30, y=100})
+    add(col,{x=70, y=87}) add(col,{x=35, y=62})
+    add(col,{x=80, y=37})
   elseif lvl == 3 then
-    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=8, y=110, w=20, h=8, moving=false})
-    add(platforms, {x=45, y=100, w=20, h=8, moving=true, vy=-0.6, ymin=90, ymax=108})
-    add(platforms, {x=85, y=90, w=28, h=8, moving=false})
-    add(platforms, {x=10, y=78, w=25, h=8, moving=false})
-    add(platforms, {x=55, y=68, w=30, h=8, moving=false})
-    add(platforms, {x=25, y=55, w=25, h=8, moving=false})
-    add(platforms, {x=70, y=42, w=35, h=8, moving=false})
-    add(platforms, {x=15, y=28, w=30, h=8, moving=false})
-    add(platforms, {x=65, y=15, w=40, h=8, moving=false})
-
-    -- 5 enemies: 4 fast + 1 jumping
-    add(enemies, {x=50, y=95, w=8, h=8, vx=2.5, xmin=40, xmax=65, type="patrol", color=8})
-    add(enemies, {x=85, y=85, w=8, h=8, vx=-2.5, xmin=70, xmax=100, type="patrol", color=8})
-    add(enemies, {x=20, y=73, w=8, h=8, vx=1.5, xmin=10, xmax=35, type="jumping", jump_freq=40, ground_y=73, color=10})
-    add(enemies, {x=65, y=63, w=8, h=8, vx=-1.5, xmin=50, xmax=80, type="patrol", color=8})
-    add(enemies, {x=35, y=50, w=8, h=8, vx=2.5, xmin=25, xmax=45, type="patrol", color=8})
-
-    -- many collectibles
-    add(collectibles, {x=30, y=102, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=75, y=92, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=25, y=70, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=65, y=60, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=35, y=37, w=8, h=8, collected=false, color=11})
-
-  -- level 4: final challenge - moving platforms + mixed enemy types
+    add(plat, {x=0, y=120, w=128, h=8})
+    add(plat, {x=8, y=110, w=20, h=8})
+    add(plat, {x=45, y=100, w=20, h=8, moving=true, vy=-0.6, ymin=90, ymax=108})
+    add(plat, {x=85, y=90, w=28, h=8})
+    add(plat, {x=10, y=78, w=25, h=8})
+    add(plat, {x=55, y=68, w=30, h=8})
+    add(plat, {x=25, y=55, w=25, h=8})
+    add(plat, {x=70, y=42, w=35, h=8})
+    add(plat, {x=15, y=28, w=30, h=8})
+    add(plat, {x=65, y=15, w=40, h=8})
+    add(en,{x=50, y=95, w=8, h=8, vx=2.5, xmin=40, xmax=65, type="patrol"})
+    add(en,{x=85, y=85, w=8, h=8, vx=-2.5, xmin=70, xmax=100, type="patrol"})
+    add(en,{x=20, y=73, w=8, h=8, vx=1.5, xmin=10, xmax=35, type="jumping", jump_freq=40, ground_y=73})
+    add(en,{x=65, y=63, w=8, h=8, vx=-1.5, xmin=50, xmax=80, type="patrol"})
+    add(en,{x=35, y=50, w=8, h=8, vx=2.5, xmin=25, xmax=45, type="patrol"}) add(col,{x=30, y=102})
+    add(col,{x=75, y=92}) add(col,{x=25, y=70})
+    add(col,{x=65, y=60}) add(col,{x=35, y=37})
   elseif lvl == 4 then
-    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=12, y=108, w=18, h=8, moving=true, vx=0.8, xmin=5, xmax=25})
-    add(platforms, {x=50, y=98, w=18, h=8, moving=false})
-    add(platforms, {x=88, y=88, w=26, h=8, moving=true, vy=-0.7, ymin=78, ymax=95})
-    add(platforms, {x=8, y=76, w=22, h=8, moving=false})
-    add(platforms, {x=58, y=64, w=28, h=8, moving=true, vx=-0.9, xmin=45, xmax=70})
-    add(platforms, {x=28, y=50, w=20, h=8, moving=false})
-    add(platforms, {x=75, y=38, w=30, h=8, moving=false})
-    add(platforms, {x=18, y=24, w=25, h=8, moving=false})
-    add(platforms, {x=70, y=10, w=35, h=8, moving=false})
-
-    -- 6 mixed enemies: 3 very fast + 2 jumping + 1 vertical
-    add(enemies, {x=48, y=93, w=8, h=8, vx=2.8, xmin=38, xmax=62, type="patrol", color=8})
-    add(enemies, {x=88, y=83, w=8, h=8, vx=-2.8, xmin=72, xmax=102, type="patrol", color=8})
-    add(enemies, {x=15, y=71, w=8, h=8, vx=1.8, xmin=5, xmax=35, type="jumping", jump_freq=35, ground_y=71, color=10})
-    add(enemies, {x=70, y=59, w=8, h=8, vy=-0.8, ymin=50, ymax=68, type="vertical", color=7})
-    add(enemies, {x=35, y=45, w=8, h=8, vx=2.8, xmin=25, xmax=50, type="jumping", jump_freq=45, ground_y=45, color=10})
-    add(enemies, {x=80, y=33, w=8, h=8, vx=-2.5, xmin=65, xmax=95, type="patrol", color=8})
-
-    -- many collectibles
-    add(collectibles, {x=32, y=100, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=72, y=90, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=20, y=68, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=65, y=56, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=40, y=42, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=28, y=16, w=8, h=8, collected=false, color=11})
-
-  -- level 5: narrow chains, fast vertical enemies
+    add(plat, {x=0, y=120, w=128, h=8})
+    add(plat, {x=12, y=108, w=18, h=8, moving=true, vx=0.8, xmin=5, xmax=25})
+    add(plat, {x=50, y=98, w=18, h=8})
+    add(plat, {x=88, y=88, w=26, h=8, moving=true, vy=-0.7, ymin=78, ymax=95})
+    add(plat, {x=8, y=76, w=22, h=8})
+    add(plat, {x=58, y=64, w=28, h=8, moving=true, vx=-0.9, xmin=45, xmax=70})
+    add(plat, {x=28, y=50, w=20, h=8})
+    add(plat, {x=75, y=38, w=30, h=8})
+    add(plat, {x=18, y=24, w=25, h=8})
+    add(plat, {x=70, y=10, w=35, h=8})
+    add(en,{x=48, y=93, w=8, h=8, vx=2.8, xmin=38, xmax=62, type="patrol"})
+    add(en,{x=88, y=83, w=8, h=8, vx=-2.8, xmin=72, xmax=102, type="patrol"})
+    add(en,{x=15, y=71, w=8, h=8, vx=1.8, xmin=5, xmax=35, type="jumping", jump_freq=35, ground_y=71})
+    add(en,{x=70, y=59, w=8, h=8, vy=-0.8, ymin=50, ymax=68, type="vertical"})
+    add(en,{x=35, y=45, w=8, h=8, vx=2.8, xmin=25, xmax=50, type="jumping", jump_freq=45, ground_y=45})
+    add(en,{x=80, y=33, w=8, h=8, vx=-2.5, xmin=65, xmax=95, type="patrol"}) add(col,{x=32, y=100})
+    add(col,{x=72, y=90}) add(col,{x=20, y=68})
+    add(col,{x=65, y=56}) add(col,{x=40, y=42})
+    add(col,{x=28, y=16})
   elseif lvl == 5 then
-    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=10, y=110, w=16, h=8, moving=false})
-    add(platforms, {x=42, y=100, w=18, h=8, moving=false})
-    add(platforms, {x=78, y=90, w=16, h=8, moving=true, vy=-0.7, ymin=80, ymax=98})
-    add(platforms, {x=15, y=78, w=18, h=8, moving=false})
-    add(platforms, {x=55, y=66, w=16, h=8, moving=false})
-    add(platforms, {x=88, y=54, w=20, h=8, moving=true, vx=-1.0, xmin=75, xmax=95})
-    add(platforms, {x=25, y=42, w=16, h=8, moving=false})
-    add(platforms, {x=68, y=30, w=18, h=8, moving=false})
-    add(platforms, {x=12, y=18, w=20, h=8, moving=true, vy=-0.7, ymin=8, ymax=25})
-
-    -- 6 enemies: fast + multiple vertical (reduced from 7 for balance)
-    add(enemies, {x=50, y=95, w=8, h=8, vx=2.8, xmin=40, xmax=65, type="patrol", color=8})
-    add(enemies, {x=85, y=85, w=8, h=8, vy=-0.9, ymin=75, ymax=95, type="vertical", color=7})
-    add(enemies, {x=25, y=73, w=8, h=8, vx=2.2, xmin=15, xmax=40, type="jumping", jump_freq=38, ground_y=73, color=10})
-    add(enemies, {x=70, y=61, w=8, h=8, vy=0.9, ymin=52, ymax=70, type="vertical", color=7})
-    add(enemies, {x=35, y=50, w=8, h=8, vx=-2.8, xmin=20, xmax=50, type="patrol", color=8})
-    add(enemies, {x=80, y=37, w=8, h=8, vy=-1.0, ymin=27, ymax=45, type="vertical", color=7})
-
-    -- many collectibles on narrow platforms
-    add(collectibles, {x=28, y=102, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=60, y=92, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=92, y=82, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=32, y=70, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=70, y=58, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=40, y=44, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=75, y=32, w=8, h=8, collected=false, color=11})
-
-  -- level 6: tight navigation, synchronized moving platforms
+    add(plat, {x=0, y=120, w=128, h=8})
+    add(plat, {x=10, y=110, w=16, h=8})
+    add(plat, {x=42, y=100, w=18, h=8})
+    add(plat, {x=78, y=90, w=16, h=8, moving=true, vy=-0.7, ymin=80, ymax=98})
+    add(plat, {x=15, y=78, w=18, h=8})
+    add(plat, {x=55, y=66, w=16, h=8})
+    add(plat, {x=88, y=54, w=20, h=8, moving=true, vx=-1.0, xmin=75, xmax=95})
+    add(plat, {x=25, y=42, w=16, h=8})
+    add(plat, {x=68, y=30, w=18, h=8})
+    add(plat, {x=12, y=18, w=20, h=8, moving=true, vy=-0.7, ymin=8, ymax=25})
+    add(en,{x=50, y=95, w=8, h=8, vx=2.8, xmin=40, xmax=65, type="patrol"})
+    add(en,{x=85, y=85, w=8, h=8, vy=-0.9, ymin=75, ymax=95, type="vertical"})
+    add(en,{x=25, y=73, w=8, h=8, vx=2.2, xmin=15, xmax=40, type="jumping", jump_freq=38, ground_y=73})
+    add(en,{x=70, y=61, w=8, h=8, vy=0.9, ymin=52, ymax=70, type="vertical"})
+    add(en,{x=35, y=50, w=8, h=8, vx=-2.8, xmin=20, xmax=50, type="patrol"})
+    add(en,{x=80, y=37, w=8, h=8, vy=-1.0, ymin=27, ymax=45, type="vertical"})
+    add(col,{x=28, y=102}) add(col,{x=60, y=92})
+    add(col,{x=92, y=82}) add(col,{x=32, y=70})
+    add(col,{x=70, y=58}) add(col,{x=40, y=44})
+    add(col,{x=75, y=32})
   elseif lvl == 6 then
-    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=8, y=108, w=16, h=8, moving=true, vx=0.9, xmin=5, xmax=25})
-    add(platforms, {x=48, y=96, w=16, h=8, moving=false})
-    add(platforms, {x=80, y=84, w=16, h=8, moving=true, vx=-0.9, xmin=65, xmax=90})
-    add(platforms, {x=20, y=72, w=16, h=8, moving=false})
-    add(platforms, {x=65, y=60, w=16, h=8, moving=true, vy=-0.8, ymin=50, ymax=68})
-    add(platforms, {x=35, y=48, w=16, h=8, moving=false})
-    add(platforms, {x=75, y=36, w=16, h=8, moving=true, vx=1.0, xmin=60, xmax=85})
-    add(platforms, {x=15, y=24, w=16, h=8, moving=false})
-    add(platforms, {x=55, y=12, w=18, h=8, moving=true, vy=-0.9, ymin=2, ymax=20})
-
-    -- 7 very fast enemies mixed types (reduced from 8 for balance)
-    add(enemies, {x=45, y=91, w=8, h=8, vx=3.0, xmin=35, xmax=60, type="patrol", color=8})
-    add(enemies, {x=85, y=79, w=8, h=8, vx=-3.0, xmin=70, xmax=95, type="patrol", color=8})
-    add(enemies, {x=25, y=67, w=8, h=8, vx=2.5, xmin=15, xmax=40, type="jumping", jump_freq=36, ground_y=67, color=10})
-    add(enemies, {x=70, y=55, w=8, h=8, vy=-1.1, ymin=45, ymax=65, type="vertical", color=7})
-    add(enemies, {x=40, y=43, w=8, h=8, vx=-2.8, xmin=25, xmax=55, type="patrol", color=8})
-    add(enemies, {x=80, y=31, w=8, h=8, vy=1.1, ymin=21, ymax=40, type="vertical", color=7})
-    add(enemies, {x=30, y=37, w=8, h=8, vx=2.8, xmin=20, xmax=45, type="jumping", jump_freq=35, ground_y=37, color=10})
-
-    -- fewer collectibles on tight platforms
-    add(collectibles, {x=24, y=100, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=58, y=88, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=88, y=76, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=38, y=64, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=78, y=52, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=45, y=40, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=25, y=28, w=8, h=8, collected=false, color=11})
-
-  -- level 7: precision platforming, dense enemies
+    add(plat, {x=0, y=120, w=128, h=8})
+    add(plat, {x=8, y=108, w=16, h=8, moving=true, vx=0.9, xmin=5, xmax=25})
+    add(plat, {x=48, y=96, w=16, h=8})
+    add(plat, {x=80, y=84, w=16, h=8, moving=true, vx=-0.9, xmin=65, xmax=90})
+    add(plat, {x=20, y=72, w=16, h=8})
+    add(plat, {x=65, y=60, w=16, h=8, moving=true, vy=-0.8, ymin=50, ymax=68})
+    add(plat, {x=35, y=48, w=16, h=8})
+    add(plat, {x=75, y=36, w=16, h=8, moving=true, vx=1.0, xmin=60, xmax=85})
+    add(plat, {x=15, y=24, w=16, h=8})
+    add(plat, {x=55, y=12, w=18, h=8, moving=true, vy=-0.9, ymin=2, ymax=20})
+    add(en,{x=45, y=91, w=8, h=8, vx=3.0, xmin=35, xmax=60, type="patrol"})
+    add(en,{x=85, y=79, w=8, h=8, vx=-3.0, xmin=70, xmax=95, type="patrol"})
+    add(en,{x=25, y=67, w=8, h=8, vx=2.5, xmin=15, xmax=40, type="jumping", jump_freq=36, ground_y=67})
+    add(en,{x=70, y=55, w=8, h=8, vy=-1.1, ymin=45, ymax=65, type="vertical"})
+    add(en,{x=40, y=43, w=8, h=8, vx=-2.8, xmin=25, xmax=55, type="patrol"})
+    add(en,{x=80, y=31, w=8, h=8, vy=1.1, ymin=21, ymax=40, type="vertical"})
+    add(en,{x=30, y=37, w=8, h=8, vx=2.8, xmin=20, xmax=45, type="jumping", jump_freq=35, ground_y=37})
+    add(col,{x=24, y=100}) add(col,{x=58, y=88})
+    add(col,{x=88, y=76}) add(col,{x=38, y=64})
+    add(col,{x=78, y=52}) add(col,{x=45, y=40})
+    add(col,{x=25, y=28})
   elseif lvl == 7 then
-    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=5, y=110, w=18, h=8, moving=false})
-    add(platforms, {x=50, y=100, w=18, h=8, moving=true, vy=0.6, ymin=92, ymax=106})
-    add(platforms, {x=85, y=90, w=16, h=8, moving=false})
-    add(platforms, {x=20, y=78, w=18, h=8, moving=false})
-    add(platforms, {x=60, y=66, w=16, h=8, moving=true, vx=-1.0, xmin=45, xmax=68})
-    add(platforms, {x=35, y=54, w=18, h=8, moving=false})
-    add(platforms, {x=75, y=42, w=18, h=8, moving=true, vx=1.0, xmin=62, xmax=85})
-    add(platforms, {x=12, y=30, w=16, h=8, moving=false})
-    add(platforms, {x=55, y=18, w=18, h=8, moving=false})
-    add(platforms, {x=28, y=6, w=16, h=8, moving=false})
-
-    -- 8 enemies: high density, all fast (reduced from 9 for balance)
-    add(enemies, {x=48, y=95, w=8, h=8, vx=3.2, xmin=38, xmax=62, type="patrol", color=8})
-    add(enemies, {x=88, y=85, w=8, h=8, vx=-3.2, xmin=72, xmax=100, type="patrol", color=8})
-    add(enemies, {x=25, y=73, w=8, h=8, vx=2.8, xmin=15, xmax=40, type="jumping", jump_freq=33, ground_y=73, color=10})
-    add(enemies, {x=68, y=61, w=8, h=8, vy=-1.2, ymin=51, ymax=70, type="vertical", color=7})
-    add(enemies, {x=40, y=49, w=8, h=8, vx=-3.0, xmin=25, xmax=55, type="patrol", color=8})
-    add(enemies, {x=80, y=37, w=8, h=8, vy=1.2, ymin=27, ymax=47, type="vertical", color=7})
-    add(enemies, {x=32, y=47, w=8, h=8, vx=2.8, xmin=22, xmax=48, type="jumping", jump_freq=34, ground_y=47, color=10})
-    add(enemies, {x=62, y=25, w=8, h=8, vx=-2.8, xmin=47, xmax=77, type="patrol", color=8})
-
-    -- limited collectibles for high challenge
-    add(collectibles, {x=28, y=102, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=62, y=92, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=92, y=82, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=40, y=70, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=75, y=58, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=50, y=44, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=30, y=22, w=8, h=8, collected=false, color=11})
-
-  -- level 8: ultimate challenge - boss encounter!
+    add(plat, {x=0, y=120, w=128, h=8})
+    add(plat, {x=5, y=110, w=18, h=8})
+    add(plat, {x=50, y=100, w=18, h=8, moving=true, vy=0.6, ymin=92, ymax=106})
+    add(plat, {x=85, y=90, w=16, h=8})
+    add(plat, {x=20, y=78, w=18, h=8})
+    add(plat, {x=60, y=66, w=16, h=8, moving=true, vx=-1.0, xmin=45, xmax=68})
+    add(plat, {x=35, y=54, w=18, h=8})
+    add(plat, {x=75, y=42, w=18, h=8, moving=true, vx=1.0, xmin=62, xmax=85})
+    add(plat, {x=12, y=30, w=16, h=8})
+    add(plat, {x=55, y=18, w=18, h=8}) add(plat, {x=28, y=6, w=16, h=8})
+    add(en,{x=48, y=95, w=8, h=8, vx=3.2, xmin=38, xmax=62, type="patrol"})
+    add(en,{x=88, y=85, w=8, h=8, vx=-3.2, xmin=72, xmax=100, type="patrol"})
+    add(en,{x=25, y=73, w=8, h=8, vx=2.8, xmin=15, xmax=40, type="jumping", jump_freq=33, ground_y=73})
+    add(en,{x=68, y=61, w=8, h=8, vy=-1.2, ymin=51, ymax=70, type="vertical"})
+    add(en,{x=40, y=49, w=8, h=8, vx=-3.0, xmin=25, xmax=55, type="patrol"})
+    add(en,{x=80, y=37, w=8, h=8, vy=1.2, ymin=27, ymax=47, type="vertical"})
+    add(en,{x=32, y=47, w=8, h=8, vx=2.8, xmin=22, xmax=48, type="jumping", jump_freq=34, ground_y=47})
+    add(en,{x=62, y=25, w=8, h=8, vx=-2.8, xmin=47, xmax=77, type="patrol"}) add(col,{x=28, y=102})
+    add(col,{x=62, y=92}) add(col,{x=92, y=82})
+    add(col,{x=40, y=70}) add(col,{x=75, y=58})
+    add(col,{x=50, y=44}) add(col,{x=30, y=22})
   elseif lvl == 8 then
-    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=8, y=108, w=14, h=8, moving=true, vx=1.2, xmin=4, xmax=24})
-    add(platforms, {x=45, y=98, w=12, h=8, moving=false})
-    add(platforms, {x=82, y=86, w=14, h=8, moving=true, vx=-1.2, xmin=67, xmax=88})
-    add(platforms, {x=22, y=74, w=12, h=8, moving=false})
-    add(platforms, {x=62, y=62, w=12, h=8, moving=true, vy=-1.0, ymin=52, ymax=70})
-    add(platforms, {x=38, y=50, w=12, h=8, moving=false})
-    add(platforms, {x=75, y=38, w=12, h=8, moving=true, vx=1.3, xmin=60, xmax=85})
-    add(platforms, {x=18, y=26, w=12, h=8, moving=false})
-    add(platforms, {x=55, y=14, w=14, h=8, moving=true, vy=-1.1, ymin=4, ymax=22})
-    add(platforms, {x=32, y=6, w=10, h=8, moving=false})
-
-    -- 9 regular enemies + 1 boss
-    add(enemies, {x=50, y=93, w=8, h=8, vx=3.8, xmin=40, xmax=65, type="patrol", color=8})
-    add(enemies, {x=85, y=81, w=8, h=8, vx=-3.8, xmin=70, xmax=100, type="patrol", color=8})
-    add(enemies, {x=28, y=69, w=8, h=8, vx=3.2, xmin=18, xmax=42, type="jumping", jump_freq=28, ground_y=69, color=10})
-    add(enemies, {x=70, y=57, w=8, h=8, vy=-1.5, ymin=47, ymax=67, type="vertical", color=7})
-    add(enemies, {x=42, y=45, w=8, h=8, vx=-3.5, xmin=27, xmax=57, type="patrol", color=8})
-    add(enemies, {x=82, y=33, w=8, h=8, vy=1.5, ymin=23, ymax=43, type="vertical", color=7})
-    add(enemies, {x=35, y=57, w=8, h=8, vx=3.2, xmin=25, xmax=50, type="jumping", jump_freq=26, ground_y=57, color=10})
-    add(enemies, {x=62, y=21, w=8, h=8, vx=-3.5, xmin=47, xmax=77, type="patrol", color=8})
-    add(enemies, {x=48, y=73, w=8, h=8, vx=3.0, xmin=38, xmax=63, type="patrol", color=8})
-
-    -- spawn boss enemy (replaces one of the 10)
-    boss = {
-      x=60, y=40, w=8, h=8,
-      health=3, max_health=3,
-      phase=1, phase_timer=0,
-      wave_time=0,
-      bounce_vy=0,
-      color=9,
-      type="boss"
-    }
-    _log("boss:spawned")
-
-    -- very few collectibles - high risk/reward
-    add(collectibles, {x=26, y=100, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=60, y=90, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=88, y=78, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=45, y=66, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=75, y=54, w=8, h=8, collected=false, color=11})
-    add(collectibles, {x=28, y=32, w=8, h=8, collected=false, color=11})
-
-  -- secret level 1: fast bonus
+    add(plat, {x=0, y=120, w=128, h=8})
+    add(plat, {x=8, y=108, w=14, h=8, moving=true, vx=1.2, xmin=4, xmax=24})
+    add(plat, {x=45, y=98, w=12, h=8})
+    add(plat, {x=82, y=86, w=14, h=8, moving=true, vx=-1.2, xmin=67, xmax=88})
+    add(plat, {x=22, y=74, w=12, h=8})
+    add(plat, {x=62, y=62, w=12, h=8, moving=true, vy=-1.0, ymin=52, ymax=70})
+    add(plat, {x=38, y=50, w=12, h=8})
+    add(plat, {x=75, y=38, w=12, h=8, moving=true, vx=1.3, xmin=60, xmax=85})
+    add(plat, {x=18, y=26, w=12, h=8})
+    add(plat, {x=55, y=14, w=14, h=8, moving=true, vy=-1.1, ymin=4, ymax=22})
+    add(plat, {x=32, y=6, w=10, h=8})
+    add(en,{x=50, y=93, w=8, h=8, vx=3.8, xmin=40, xmax=65, type="patrol"})
+    add(en,{x=85, y=81, w=8, h=8, vx=-3.8, xmin=70, xmax=100, type="patrol"})
+    add(en,{x=28, y=69, w=8, h=8, vx=3.2, xmin=18, xmax=42, type="jumping", jump_freq=28, ground_y=69})
+    add(en,{x=70, y=57, w=8, h=8, vy=-1.5, ymin=47, ymax=67, type="vertical"})
+    add(en,{x=42, y=45, w=8, h=8, vx=-3.5, xmin=27, xmax=57, type="patrol"})
+    add(en,{x=82, y=33, w=8, h=8, vy=1.5, ymin=23, ymax=43, type="vertical"})
+    add(en,{x=35, y=57, w=8, h=8, vx=3.2, xmin=25, xmax=50, type="jumping", jump_freq=26, ground_y=57})
+    add(en,{x=62, y=21, w=8, h=8, vx=-3.5, xmin=47, xmax=77, type="patrol"})
+    add(en,{x=48, y=73, w=8, h=8, vx=3.0, xmin=38, xmax=63, type="patrol"}) b = {
+      x=60, y=40,      health=3, mh=3, phase=1,
+      wave_time=0, type="boss"
+    } _log("boss:spawned")
+    add(col,{x=26, y=100}) add(col,{x=60, y=90})
+    add(col,{x=88, y=78}) add(col,{x=45, y=66})
+    add(col,{x=75, y=54}) add(col,{x=28, y=32})
   elseif lvl == 9 then
-    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=10, y=95, w=35, h=8, moving=false})
-    add(platforms, {x=70, y=70, w=35, h=8, moving=false})
-    add(platforms, {x=15, y=45, w=35, h=8, moving=false})
-    add(platforms, {x=65, y=20, w=40, h=8, moving=false})
-    add(enemies, {x=45, y=90, w=8, h=8, vx=3.0, xmin=35, xmax=65, type="patrol", color=8})
-    add(enemies, {x=80, y=65, w=8, h=8, vx=-3.0, xmin=65, xmax=95, type="patrol", color=8})
-    add(collectibles, {x=32, y=87, w=8, h=8, collected=false, color=11})
-
-  -- secret level 2: vertical bonus
+    add(plat, {x=0, y=120, w=128, h=8})
+    add(plat, {x=10, y=95, w=35, h=8})
+    add(plat, {x=70, y=70, w=35, h=8})
+    add(plat, {x=15, y=45, w=35, h=8})
+    add(plat, {x=65, y=20, w=40, h=8})
+    add(en,{x=45, y=90, w=8, h=8, vx=3.0, xmin=35, xmax=65, type="patrol"})
+    add(en,{x=80, y=65, w=8, h=8, vx=-3.0, xmin=65, xmax=95, type="patrol"}) add(col,{x=32, y=87})
   elseif lvl == 10 then
-    add(platforms, {x=0, y=120, w=128, h=8, moving=false})
-    add(platforms, {x=20, y=100, w=80, h=8, moving=false})
-    add(platforms, {x=30, y=75, w=70, h=8, moving=false})
-    add(platforms, {x=15, y=50, w=90, h=8, moving=false})
-    add(platforms, {x=35, y=25, w=60, h=8, moving=false})
-    add(enemies, {x=64, y=95, w=8, h=8, vy=-1.5, ymin=85, ymax=105, type="vertical", color=7})
-    add(enemies, {x=64, y=70, w=8, h=8, vy=1.5, ymin=60, ymax=80, type="vertical", color=7})
-    add(collectibles, {x=64, y=92, w=8, h=8, collected=false, color=11})
+    add(plat, {x=0, y=120, w=128, h=8})
+    add(plat, {x=20, y=100, w=80, h=8})
+    add(plat, {x=30, y=75, w=70, h=8})
+    add(plat, {x=15, y=50, w=90, h=8})
+    add(plat, {x=35, y=25, w=60, h=8})
+    add(en,{x=64, y=95, w=8, h=8, vy=-1.5, ymin=85, ymax=105, type="vertical"})
+    add(en,{x=64, y=70, w=8, h=8, vy=1.5, ymin=60, ymax=80, type="vertical"}) add(col,{x=64, y=92})
   end
 end
-
 function init_game(mode)
-  time_attack_mode = (mode == "time_attack")
-  if time_attack_mode then
-    level = ta_selected_level
-    lives = 1  -- time-attack: single life (no retry penalty)
+  tam = (mode == "time_attack")
+  if tam then
+    level = tsl lives = 1
   else
-    level = 1
-    lives = 3
+    level = 1 lives = 3
   end
-  score = 0
-  game_won = false
-  level_timer = 0
-  start_level(level)
+  score = 0 gw = false
+  lt = 0 start_level(level)
 end
-
 function start_level(lvl)
-  player.x = 64
-  player.y = 100
-  player.vx = 0
-  player.vy = 0
-  player.jumping = false
-  player.coyote_frames = 0
-  create_level(lvl)
-  _log("level:"..lvl)
-  state = "play"
-
-  -- play level-specific music
-  local music_pat = (lvl == 1 and 1 or (lvl <= 3 and 2 or 3))
-
-  music(music_pat)
-  music_playing = music_pat
-  _log("music:level"..lvl)
-
-  -- play level intro sound
-  sfx(5)
+  pl.x = 64 pl.y = 100
+  pl.vx = 0 pl.vy = 0
+  pl.j = false pl.cf = 0
+  create_level(lvl) _log("level:"..lvl)
+  state = "play" local music_pat = (lvl == 1 and 1 or (lvl <= 3 and 2 or 3))
+  music(music_pat) mpl = music_pat
+  _log("music:level"..lvl) sfx(5)
 end
-
 function update_menu()
-  if #leaderboard_scores == 0 then load_leaderboard() load_time_attack_times() end
-  if music_playing ~= 0 then music(0) music_playing = 0 _log("music:menu") end
-  if btnp(2) then menu_option = max(1, menu_option-1) end
-  if btnp(3) then menu_option = min(4, menu_option+1) end
-
-  -- menu selection
+  if #ls == 0 then load_leaderboard() load_time_attack_times() end
+  if mpl ~= 0 then music(0) mpl = 0 _log("music:menu") end
+  if btnp(2) then mo = max(1, mo-1) end
+  if btnp(3) then mo = min(4, mo+1) end
   if btnp(4) or btnp(5) then
-    if menu_option == 1 then
-      _log("action:start_game")
-      init_game("normal")
-    elseif menu_option == 2 then
-      _log("action:view_leaderboard")
-      state = "leaderboard"
-    elseif menu_option == 3 then
-      _log("action:clear_leaderboard")
-      clear_leaderboard()
-      menu_option = 1
-    elseif menu_option == 4 then
-      _log("action:time_attack")
-      state = "ta_select"
-      ta_selected_level = 1
+    if mo == 1 then
+      _log("action:start_game") init_game("normal")
+    elseif mo == 2 then
+      _log("action:view_leaderboard") state = "leaderboard"
+    elseif mo == 3 then
+      _log("action:clear_leaderboard") clear_leaderboard()
+      mo = 1
+    elseif mo == 4 then
+      _log("action:time_attack") state = "ta_select"
+      tsl = 1
     end
   end
 end
-
 function update_leaderboard()
   if btnp(4) or btnp(5) then
-    _log("state:menu")
-    menu_option = 1
+    _log("state:menu") mo = 1
     state = "menu"
   end
 end
-
 function update_ta_select()
-  -- level selection for time-attack
   local max_lvl = 8
-  if secret_levels_unlocked then max_lvl = 10 end
-  if btnp(2) then  -- up
-    ta_selected_level = max(1, ta_selected_level - 1)
+  if slu then max_lvl = 10 end
+  if btnp(2) then
+    tsl = max(1, tsl - 1)
   end
-  if btnp(3) then  -- down
-    ta_selected_level = min(max_lvl, ta_selected_level + 1)
+  if btnp(3) then
+    tsl = min(max_lvl, tsl + 1)
   end
-
-  -- select or cancel
   if btnp(4) then
-    _log("ta:selected_level:"..ta_selected_level)
-    init_game("time_attack")
+    _log("ta:selected_level:"..tsl) init_game("time_attack")
   elseif btnp(5) then
-    -- x button: view times for this level
-    _log("ta:view_times:"..ta_selected_level)
-    state = "ta_leaderboard"
+    _log("ta:view_times:"..tsl) state = "ta_leaderboard"
   end
 end
-
 function update_ta_leaderboard()
-  local m=8+(secret_levels_unlocked and 2 or 0)
-  if btnp(2) then ta_selected_level = max(1, ta_selected_level-1)
-  elseif btnp(3) then ta_selected_level = min(m, ta_selected_level+1)
+  local m=8+(slu and 2 or 0)
+  if btnp(2) then tsl = max(1, tsl-1)
+  elseif btnp(3) then tsl = min(m, tsl+1)
   elseif btnp(4) or btnp(5) then _log("state:ta_select") state = "ta_select" end
 end
-
 function update_play()
-  if time_attack_mode then level_timer += 1 end
+  if tam then lt += 1 end
   update_particles() update_shake() update_flash()
-
-  -- update combo window
-  if combo_window > 0 then combo_window -= 1 else combo_count = 0 end
-  -- update coyote window
-  if not player.jumping and player.coyote_frames > 0 then player.coyote_frames -= 1 end
-  if test_input(0) then player.vx = -move_speed
-  elseif test_input(1) then player.vx = move_speed
-  else player.vx = 0 end
-  if test_input(4) and (not player.jumping or player.coyote_frames > 0) then
-    player.vy = -jump_power
-    player.jumping = true
-    player.coyote_frames = 0
-    sfx(0)
+  if cw > 0 then cw -= 1 else cc = 0 end
+  if not pl.j and pl.cf > 0 then pl.cf -= 1 end
+  if test_input(0) then pl.vx = -ms
+  elseif test_input(1) then pl.vx = ms
+  else pl.vx = 0 end
+  if test_input(4) and (not pl.j or pl.cf > 0) then
+    pl.vy = -jp pl.j = true
+    pl.cf = 0 sfx(0)
     _log("action:jump")
   end
-
-  player.vy = min(player.vy+gravity, max_fall)
-  player.x += player.vx player.y += player.vy
-  if player.x < 0 then player.x = 0 elseif player.x+player.w > 128 then player.x = 128-player.w end
-
-  for plat in all(platforms) do
-    if plat.moving then
-      if plat.vy then
-        plat.y += plat.vy
-        if plat.y < plat.ymin or plat.y > plat.ymax then plat.vy *= -1 end
-      elseif plat.vx then
-        plat.x += plat.vx
-        if plat.x < plat.xmin or plat.x > plat.xmax then plat.vx *= -1 end
+  pl.vy = min(pl.vy+g, mf) pl.x += pl.vx pl.y += pl.vy
+  if pl.x < 0 then pl.x = 0 elseif pl.x+pl.w > 128 then pl.x = 128-pl.w end
+  for p in all(plat) do
+    if p.moving then
+      if p.vy then
+  p.y += p.vy
+  if p.y < p.ymin or p.y > p.ymax then p.vy *= -1 end
+      elseif p.vx then
+  p.x += p.vx
+  if p.x < p.xmin or p.x > p.xmax then p.vx *= -1 end
       end
     end
   end
-
-  local w=player.jumping
-  for plat in all(platforms) do
-    if collide_rect(player.x, player.y+player.h, player.w, 1,
-                    plat.x, plat.y, plat.w, plat.h) and player.vy >= 0 then
-      player.y = plat.y - player.h
-      player.vy = 0
-      player.jumping = false
-      player.coyote_frames = max_coyote
+  local w=pl.j
+  for p in all(plat) do
+    if collide_rect(pl.x, pl.y+pl.h, pl.w, 1,
+  p.x, p.y, p.w, p.h) and pl.vy >= 0 then pl.y = p.y - pl.h
+      pl.vy = 0 pl.j = false
+      pl.cf = mc
       if w then apply_shake(1, 4) _log("action:land") end
-      if plat.moving then
-        if plat.vy then player.y += plat.vy end
-        if plat.vx then player.x += plat.vx end
+      if p.moving then
+  if p.vy then pl.y += p.vy end
+  if p.vx then pl.x += p.vx end
       end
     end
   end
-
-  for enemy in all(enemies) do
-    if collide_rect(player.x, player.y, player.w, player.h,
-                    enemy.x, enemy.y, enemy.w, enemy.h) then
-      lives -= 1 combo_count = 0 combo_window = 0
-      _log("action:hit_enemy")
-      hit_effect(player.x, player.y, 2, 8, 8, 6, 3, 1.5)
+  for e in all(en) do
+    if collide_rect(pl.x, pl.y, pl.w, pl.h,
+  e.x, e.y, 8, 8) then lives -= 1 cc = 0 cw = 0
+      _log("action:hit_enemy") hit_effect(pl.x, pl.y, 2, 8, 8, 6, 3, 1.5)
       if lives <= 0 then _log("gameover:lose") state = "gameover"
-      else player.x = 64 player.y = 100 player.vy = 0 player.coyote_frames = max_coyote end
+      else pl.x = 64 pl.y = 100 pl.vy = 0 pl.cf = mc end
     end
   end
-
-  if boss and collide_rect(player.x, player.y, player.w, player.h,
-                           boss.x, boss.y, boss.w, boss.h) then
-    boss.health -= 1 _log("action:hit_boss:"..boss.health)
-    hit_effect(boss.x, boss.y, 3, 9, 10, 8, 4, 1.8)
-    player.x -= 3 player.vy = -4
-    if boss.health <= 0 then
-      local m=min(combo_count+1, 5)
-      score += 50*m combo_count = m combo_window = 300
+  if b and collide_rect(pl.x, pl.y, pl.w, pl.h,
+  b.x, b.y, 8, 8) then b.health -= 1 _log("action:hit_boss:"..b.health)
+    hit_effect(b.x, b.y, 3, 9, 10, 8, 4, 1.8) pl.x -= 3 pl.vy = -4
+    if b.health <= 0 then
+      local m=min(cc+1, 5) score += 50*m cc = m cw = 300
       _log("action:boss_defeated:combo:"..m.."x")
-      boss = nil sfx(3) sfx(0) apply_shake(2, 12) set_flash(11, 25) spawn_particles(64, 50, 20, 9, 2.5)
+      b = nil sfx(3) sfx(0) apply_shake(2, 12) set_flash(11, 25) spawn_particles(64, 50, 20, 9, 2.5)
     end
   end
-
-  for coll in all(collectibles) do
-    if not coll.collected and collide_rect(player.x, player.y, player.w, player.h,
-                    coll.x, coll.y, coll.w, coll.h) then
-      coll.collected = true score += 10
-      sfx(1) spawn_particles(coll.x+4, coll.y+4, 10, 11, 1.5) set_flash(11, 3)
-      _log("action:collect")
+  for x in all(col) do
+    if not x.collected and collide_rect(pl.x, pl.y, pl.w, pl.h,
+  x.x, x.y, 8, 8) then x.collected = true score += 10
+      sfx(1) spawn_particles(x.x+4, x.y+4, 10, 11, 1.5) set_flash(11, 3) _log("action:collect")
     end
   end
-
-  -- update enemies
-  for enemy in all(enemies) do
-    if enemy.type == "vertical" then
-      -- vertical patrol enemy
-      enemy.y += enemy.vy
-      if enemy.y < enemy.ymin or enemy.y > enemy.ymax then
-        enemy.vy *= -1
+  for e in all(en) do
+    if e.type == "vertical" then
+      e.y += e.vy
+      if e.y < e.ymin or e.y > e.ymax then
+  e.vy *= -1
       end
-    elseif enemy.type == "jumping" then
-      -- jumping enemy: patrol horizontally + jump periodically
-      enemy.x += enemy.vx
-      if enemy.x < enemy.xmin or enemy.x > enemy.xmax then
-        enemy.vx *= -1
+    elseif e.type == "jumping" then
+      e.x += e.vx
+      if e.x < e.xmin or e.x > e.xmax then
+  e.vx *= -1
       end
-      enemy.jump_timer = (enemy.jump_timer or 0) + 1
-      if enemy.jump_timer > enemy.jump_freq then
-        enemy.y -= 3
-        enemy.jump_timer = 0
-        _log("action:enemy_jump")
+      e.jump_timer = (e.jump_timer or 0) + 1
+      if e.jump_timer > e.jump_freq then
+  e.y -= 3 e.jump_timer = 0
+  _log("action:enemy_jump")
       else
-        enemy.y = min(enemy.y + 0.15, enemy.ground_y)
+  e.y = min(e.y + 0.15, e.ground_y)
       end
     else
-      -- default horizontal patrol
-      enemy.x += enemy.vx
-      if enemy.x < enemy.xmin or enemy.x > enemy.xmax then
-        enemy.vx *= -1
+      e.x += e.vx
+      if e.x < e.xmin or e.x > e.xmax then
+  e.vx *= -1
       end
     end
   end
-
-  if boss then
-    boss.wave_time += 1
-    if boss.health <= boss.max_health * 0.5 then
-      boss.phase = 2
-      boss.x += cos(boss.wave_time/25)*2.2 boss.y += sin(boss.wave_time/20)*1.5
-      boss.x = max(20, min(boss.x, 100)) boss.y = max(20, min(boss.y, 80))
+  if b then
+    b.wave_time += 1
+    if b.health <= b.mh * 0.5 then
+      b.phase = 2 b.x += cos(b.wave_time/25)*2.2 b.y += sin(b.wave_time/20)*1.5
+      b.x = max(20, min(b.x, 100)) b.y = max(20, min(b.y, 80))
     else
-      boss.phase = 1
-      boss.x = 40 + sin(boss.wave_time/40)*25 boss.y = 45 + cos(boss.wave_time/50)*10
+      b.phase = 1 b.x = 40 + sin(b.wave_time/40)*25 b.y = 45 + cos(b.wave_time/50)*10
     end
   end
-
-  if player.y < 5 or (level == 8 and not boss) then
+  if pl.y < 5 or (level == 8 and not b) then
     sfx(3) apply_shake(1, 8) set_flash(11, 20) spawn_particles(64, 32, 12, 11, 2.5)
-    if time_attack_mode then save_time_attack(level, level_timer) end
-    if level >= max_levels then
-      game_won = true secret_levels_unlocked = true dset(102, 1)
-      sfx(8) music(-1) music_playing = -1 _log("gameover:win") state = "gameover"
+    if tam then save_time_attack(level, lt) end
+    if level >= ml then
+      gw = true slu = true dset(102, 1)
+      sfx(8) music(-1) mpl = -1 _log("gameover:win") state = "gameover"
     else
-      if not time_attack_mode then
-        level += 1
-        _log("action:level_complete")
-        start_level(level)
+      if not tam then
+  level += 1 _log("action:level_complete")
+  start_level(level)
       else
-        _log("ta:level_complete:"..level_timer)
-        state = "gameover"
+  _log("ta:level_complete:"..lt) state = "gameover"
       end
     end
   end
-
-  -- fall off bottom
-  if player.y > 128 then
-    lives -= 1
-    _log("action:fell_off")
+  if pl.y > 128 then
+    lives -= 1 _log("action:fell_off")
     if lives <= 0 then
-      _log("gameover:lose")
-      state = "gameover"
+      _log("gameover:lose") state = "gameover"
     else
-      player.x = 64
-      player.y = 100
-      player.vy = 0
+      pl.x = 64 pl.y = 100
+      pl.vy = 0
     end
   end
 end
-
 function update_gameover()
-  if lb_anim_timer == 0 then
-    if not time_attack_mode then save_score(score, level) end
-    lb_anim_timer = 1
+  if lat == 0 then
+    if not tam then save_score(score, level) end
+    lat = 1
   end
   if btnp(4) or btnp(5) then
-    _log("state:menu") music(0) music_playing = 0
-    state = (time_attack_mode and "ta_select" or "menu")
-    if not time_attack_mode then menu_option = 1 end
-    high_score_rank = -1 lb_anim_timer = 0
+    _log("state:menu") music(0) mpl = 0 state = (tam and "ta_select" or "menu")
+    if not tam then mo = 1 end
+    hsr = -1 lat = 0
   end
 end
-
 function _update()
   if state == "menu" then update_menu()
   elseif state == "leaderboard" then update_leaderboard()
@@ -764,233 +509,167 @@ function _update()
   elseif state == "gameover" then update_gameover()
   end
 end
-
 function collide_rect(x1, y1, w1, h1, x2, y2, w2, h2)
   return x1 < x2 + w2 and x1 + w1 > x2 and
-         y1 < y2 + h2 and y1 + h1 > y2
+  y1 < y2 + h2 and y1 + h1 > y2
 end
-
--- particle system
 function spawn_particles(x, y, count, color, speed)
-  if #particles >= max_particles then return end
+  if #pa >= mp then return end
   for i=1,count do
-    if #particles < max_particles then
-      local angle = rnd(1)
-      local vel = speed * (0.5 + rnd(0.5))
-      add(particles, {
-        x = x + rnd(4) - 2,
-        y = y + rnd(4) - 2,
-        vx = cos(angle) * vel,
-        vy = sin(angle) * vel,
-        life = 30,
-        max_life = 30,
-        color = color
-      })
+    if #pa < mp then
+      local angle = rnd(1) local vel = speed * (0.5 + rnd(0.5))
+      add(pa, { x = x + rnd(4) - 2,
+  y = y + rnd(4) - 2, vx = cos(angle) * vel,
+  vy = sin(angle) * vel,
+  life = 30,
+  max_life = 30,
+  color = color })
     end
   end
 end
-
 function update_particles()
-  for p in all(particles) do
-    p.x += p.vx
-    p.y += p.vy
-    p.vy += 0.15  -- gravity
+  for p in all(pa) do
+    p.x += p.vx p.y += p.vy
+    p.vy += 0.15
     p.life -= 1
     if p.life <= 0 then
-      del(particles, p)
+      del(pa, p)
     end
   end
 end
-
 function draw_particles()
-  for p in all(particles) do
+  for p in all(pa) do
     local brightness = flr(p.life / p.max_life * 3)
     if brightness > 0 then
       pset(flr(p.x), flr(p.y), p.color)
     end
   end
 end
-
--- screen shake
 function apply_shake(intensity, duration)
-  shake_intensity = max(shake_intensity, intensity)
-  shake_timer = max(shake_timer, duration)
+  si = max(si, intensity) st = max(st, duration)
 end
-
 function update_shake()
-  if shake_timer > 0 then
-    shake_timer -= 1
+  if st > 0 then
+    st -= 1
   else
-    shake_intensity = 0
+    si = 0
   end
 end
-
 function set_flash(color, duration)
-  flash_color = color
-  flash_timer = duration
+  fc = color ft = duration
 end
-
 function update_flash()
-  if flash_timer > 0 then
-    flash_timer -= 1
+  if ft > 0 then
+    ft -= 1
   else
-    flash_color = -1
+    fc = -1
   end
 end
-
 function get_camera_offset()
-  if shake_intensity > 0 then
-    return rnd(shake_intensity * 2) - shake_intensity,
-           rnd(shake_intensity * 2) - shake_intensity
+  if si > 0 then
+    return rnd(si * 2) - si,
+  rnd(si * 2) - si
   end
   return 0, 0
 end
-
 function hit_effect(x,y,s,c,p,sd,fd,ps)
   sfx(2) sfx(6) apply_shake(s,sd) spawn_particles(x+4,y+4,p,c,ps) set_flash(c,fd)
 end
-
 function draw_menu()
   cls(1)
   print("platformer", 50, 40, 7)
-  print("8 levels!", 38, 50, 3)
-  local o={40,38,38,40}
+  print("8 levels!", 38, 50, 3) local o={40,38,38,40}
   local t={"start game","leaderboard","clear scores","time attack"}
   for i=1,4 do
-    local c=(menu_option==i and 11 or 3)
-    print(t[i], o[i], 55+i*10, c)
+    local c=(mo==i and 11 or 3) print(t[i], o[i], 55+i*10, c)
   end
   print("up/down: select, z: pick", 15, 110, 6)
 end
-
 function draw_play()
-  cls(1)
-
-  -- apply camera shake
-  local shake_x, shake_y = get_camera_offset()
+  cls(1) local shake_x, shake_y = get_camera_offset()
   camera(shake_x, shake_y)
-
-  -- draw platforms
-  for plat in all(platforms) do
-    -- draw platform sprite (sprite 2) tiled across platform
-    for px = plat.x, plat.x + plat.w - 1, 8 do
-      spr(2, px, plat.y)
+  for p in all(plat) do
+    for px = p.x, p.x + p.w - 1, 8 do
+      spr(2, px, p.y)
     end
   end
-
-  -- draw collectibles
-  for coll in all(collectibles) do
-    if not coll.collected then
-      spr(3, coll.x, coll.y)
+  for x in all(col) do
+    if not x.collected then
+      spr(3, x.x, x.y)
     end
   end
-
-  -- draw enemies
-  for enemy in all(enemies) do
-    spr(1, enemy.x, enemy.y)
+  for e in all(en) do
+    spr(1, e.x, e.y)
   end
-
-  -- draw boss
-  if boss then
-    spr(1, boss.x, boss.y)
+  if b then
+    spr(1, b.x, b.y)
   end
-
-  -- draw player
-  spr(0, player.x, player.y)
-
-  -- draw particles
-  draw_particles()
-
-  -- reset camera
+  spr(0, pl.x, pl.y) draw_particles()
   camera(0, 0)
-
-  -- draw flash overlay
-  if flash_timer > 0 then
-    rectfill(0, 0, 127, 127, flash_color)
+  if ft > 0 then
+    rectfill(0, 0, 127, 127, fc)
   end
-
-  if time_attack_mode then
-    print(fmt(level_timer), 5, 5, 7)
+  if tam then
+    print(fmt(lt), 5, 5, 7)
   else
     print("score: "..score, 5, 5, 7)
   end
   print("lives: "..lives, 5, 12, 7) print("lvl "..level, 110, 5, 7)
 end
-
 function draw_gameover()
   cls(1)
-  if time_attack_mode then
-    print("time attack complete!", 25, 40, 11) print("level "..level, 50, 55, 3) print("time: "..fmt(level_timer), 40, 70, 7)
-  elseif game_won then
+  if tam then
+    print("time attack complete!", 25, 40, 11) print("level "..level, 50, 55, 3) print("time: "..fmt(lt), 40, 70, 7)
+  elseif gw then
     print("you win!", 50, 40, 11) print("victory!", 50, 55, 3)
   else
     print("game over", 45, 40, 8) print("reached level "..level, 35, 55, 7)
   end
-  if not time_attack_mode then
+  if not tam then
     print("score: "..score, 50, 70, 7)
-    if high_score_rank > 0 then print("#"..high_score_rank.." high score!", 30, 80, 11) end
+    if hsr > 0 then print("#"..hsr.." high score!", 30, 80, 11) end
   end
   print("press z to menu", 35, 95, 6)
 end
-
 function fmt(f)
-  local s=flr(f/60)
-  local m=flr(s/60)
-  s=s%60
-  return m..":"..((s<10 and "0" or "")..s)
+  local s=flr(f/60) local m=flr(s/60)
+  s=s%60 return m..":"..((s<10 and "0" or "")..s)
 end
-
 function draw_leaderboard()
-  cls(1)
-  print("leaderboard", 45, 10, 7)
+  cls(1) print("leaderboard", 45, 10, 7)
   print("top 5 scores", 40, 20, 3)
-
-  if #leaderboard_scores == 0 then
+  if #ls == 0 then
     print("no scores yet!", 35, 50, 8)
   else
-    for i=1,#leaderboard_scores do
-      local y = 35 + (i-1) * 10
-      print("#"..i, 20, y, 3)
-      print(leaderboard_scores[i], 45, y, 7)
-      print("l"..leaderboard_levels[i], 70, y, 6)
+    for i=1,#ls do
+      local y = 35 + (i-1) * 10 print("#"..i, 20, y, 3)
+      print(ls[i], 45, y, 7) print("l"..ll[i], 70, y, 6)
     end
   end
-
   print("z to menu", 40, 110, 6)
 end
-
 function draw_ta_select()
-  cls(1)
-  print("time attack", 45, 20, 7)
-  print("level:", 45, 35, 3)
-  local m=8+(secret_levels_unlocked and 2 or 0)
+  cls(1) print("time attack", 45, 20, 7)
+  print("level:", 45, 35, 3) local m=8+(slu and 2 or 0)
   for i=1,m do
-    local c=(i==ta_selected_level and 11 or 3)
-    local l=(i<9 and "l"..i or (i==9 and "s1" or "s2"))
+    local c=(i==tsl and 11 or 3) local l=(i<9 and "l"..i or (i==9 and "s1" or "s2"))
     print(l, 40+((i-1)%4)*20, 50+flr((i-1)/4)*15, c)
   end
   print("z:play x:times", 30, 110, 6)
 end
-
 function draw_ta_leaderboard()
-  cls(1)
-  print("best times - level "..ta_selected_level, 20, 10, 7)
-
-  if not time_attack_times[ta_selected_level] or
-     #time_attack_times[ta_selected_level] == 0 then
-    print("no times yet!", 50, 50, 8)
+  cls(1) print("best times - level "..tsl, 20, 10, 7)
+  if not tat[tsl] or
+     #tat[tsl] == 0 then print("no times yet!", 50, 50, 8)
   else
-    local times = time_attack_times[ta_selected_level]
+    local times = tat[tsl]
     for i=1,#times do
-      local y = 35 + (i-1) * 15
-      print("#"..i, 20, y, 3)
+      local y = 35 + (i-1) * 15 print("#"..i, 20, y, 3)
       print(fmt(times[i]), 50, y, 7)
     end
   end
-
   print("z to back", 40, 110, 6)
 end
-
 function _draw()
   if state == "menu" then draw_menu()
   elseif state == "leaderboard" then draw_leaderboard()
