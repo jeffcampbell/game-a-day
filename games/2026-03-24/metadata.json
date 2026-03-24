@@ -1,12 +1,12 @@
 {
   "title": "Tile Tactics",
-  "description": "An enhanced turn-based strategy game with dynamic combat mechanics. Control a single unit on an 8x8 grid to defeat varied enemy types (Scouts, Tanks, Standard) with different movement speeds and HP. Master the combo multiplier system by surviving consecutive turns without damage, and toggle between Normal and Power attacks for tactical depth. Features three difficulty levels with balanced enemy compositions.",
-  "genres": ["strategy"],
-  "difficulty": 3,
-  "playtime_minutes": 5,
-  "completion_status": "complete",
+  "description": "An expanded turn-based strategy game with 7 levels and 5 enemy types. Control a single unit on progressively larger grids (8x8→16x16) to defeat varied enemies: Scouts (fast), Tanks (slow+tanky), Berserkers (aggressive), Healers (supportive), and Standard enemies. Master the combo multiplier by dodging damage, beat levels quickly for speed bonuses, and adjust difficulty for score multipliers (1.5x normal, 2x hard). Features three difficulty levels with balanced enemy compositions and progressive difficulty scaling.",
+  "genres": ["strategy", "tactical"],
+  "difficulty": 4,
+  "playtime_minutes": 8,
+  "completion_status": "polished",
   "target_audience": "general",
-  "token_count": 2406,
-  "sprite_count": 0,
+  "token_count": 3364,
+  "sprite_count": 6,
   "sound_count": 6
 }
