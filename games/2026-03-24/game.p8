@@ -59,12 +59,20 @@ message_timer = 0
 difficulty = 1  -- 1=easy, 2=normal, 3=hard
 score = 0
 difficulty_select = 2  -- currently selected difficulty in menu
+game_mode = "campaign"  -- "campaign" or "endless"
+mode_select = 1  -- 1=campaign, 2=endless
 
 -- level progression
 current_level = 1
 max_level = 7
 level_score = 0  -- score accumulated before this level
 game_map_width = 8  -- dynamically set per level
+
+-- endless mode
+wave = 1
+score_endless = 0
+high_score_endless = 0
+endless_player_hp = 3
 
 -- combat system
 attack_mode = 1  -- 1=normal (1 dmg), 2=power (2 dmg, costs 2 hp)
@@ -213,6 +221,44 @@ function init_enemies(level)
   return e
 end
 
+function init_endless_wave(w)
+  local e = {}
+  -- wave-based enemy scaling
+  local base_enemies = 3
+  local enemy_count = base_enemies + flr(w / 2)
+  enemy_count = min(12, enemy_count)
+
+  local spawn_positions = {
+    {x=6, y=0}, {x=7, y=3}, {x=4, y=7},
+    {x=5, y=1}, {x=4, y=6}, {x=2, y=7},
+    {x=7, y=5}, {x=1, y=6}, {x=5, y=4},
+    {x=6, y=7}, {x=3, y=2}, {x=3, y=1}
+  }
+
+  for i=1,min(enemy_count, #spawn_positions) do
+    local pos = spawn_positions[i]
+    local etype = 1
+    local ehp = 1
+
+    -- increase variety and hp at higher waves
+    if w >= 3 then
+      if i % 5 == 2 then etype = 2; ehp = 1
+      elseif i % 5 == 3 then etype = 3; ehp = 1 + flr(w/4)
+      elseif i % 5 == 4 then etype = 4; ehp = 1 + flr(w/5)
+      elseif i % 5 == 0 then etype = 5; ehp = 1
+      end
+    elseif w == 2 then
+      if i % 3 == 2 then etype = 2; ehp = 1
+      elseif i % 3 == 0 then etype = 3; ehp = 1
+      end
+    end
+
+    add(e, {x=pos.x, y=pos.y, hp=ehp, type=etype, move_counter=0})
+  end
+
+  return e
+end
+
 function is_walkable(x, y, map)
   if x < 0 or x >= game_map_width or y < 0 or y > 7 then
     return false
@@ -297,34 +343,68 @@ function move_towards_player(enemy, player, map)
 end
 
 function update_menu()
-  -- difficulty selection
+  -- mode selection
   if test_btnp(0) then
-    difficulty_select = max(1, difficulty_select - 1)
+    mode_select = max(1, mode_select - 1)
     sfx(1)
   elseif test_btnp(1) then
+    mode_select = min(2, mode_select + 1)
+    sfx(1)
+  end
+
+  -- difficulty selection (left/right arrows also adjust difficulty)
+  if test_btnp(2) then
+    difficulty_select = max(1, difficulty_select - 1)
+    sfx(1)
+  elseif test_btnp(3) then
     difficulty_select = min(3, difficulty_select + 1)
     sfx(1)
   end
 
   if test_btnp(4) then  -- z button to start
-    _log("state:play")
-    _log("difficulty:"..difficulty_select)
     sfx(0)  -- menu confirm sound
     music(0)  -- start background music
-    state = "play"
     difficulty = difficulty_select
-    player = {x=1, y=1, hp=3}
-    current_level = 1
-    level_score = 0
-    game_map, game_map_width = init_map(1)
-    enemies = init_enemies(1)
-    turn_count = 0
-    score = 0
-    selected_x, selected_y = 1, 1
-    attack_mode = 1
-    combo_multiplier = 1.0
-    turns_without_damage = 0
-    _log("level:"..current_level)
+
+    if mode_select == 1 then
+      -- campaign mode
+      _log("state:play")
+      _log("mode:campaign")
+      _log("difficulty:"..difficulty_select)
+      state = "play"
+      game_mode = "campaign"
+      player = {x=1, y=1, hp=3}
+      current_level = 1
+      level_score = 0
+      game_map, game_map_width = init_map(1)
+      enemies = init_enemies(1)
+      turn_count = 0
+      score = 0
+      selected_x, selected_y = 1, 1
+      attack_mode = 1
+      combo_multiplier = 1.0
+      turns_without_damage = 0
+      _log("level:"..current_level)
+    else
+      -- endless mode
+      _log("state:play")
+      _log("mode:endless")
+      _log("difficulty:"..difficulty_select)
+      state = "endless_play"
+      game_mode = "endless"
+      endless_player_hp = 3
+      player = {x=1, y=1, hp=3}
+      wave = 1
+      score_endless = 0
+      game_map, game_map_width = init_map(1)
+      enemies = init_endless_wave(1)
+      turn_count = 0
+      selected_x, selected_y = 1, 1
+      attack_mode = 1
+      combo_multiplier = 1.0
+      turns_without_damage = 0
+      _log("wave:"..wave)
+    end
   end
 end
 
@@ -522,10 +602,158 @@ function update_levelup()
   end
 end
 
+function update_endless_play()
+  -- update animations
+  animation_frame = (animation_frame + 1) % 16
+
+  -- decay effects
+  if screen_shake > 0 then screen_shake -= 1 end
+  if flash_timer > 0 then flash_timer -= 1 end
+
+  -- player movement
+  local old_x, old_y = player.x, player.y
+
+  if test_btnp(0) and is_walkable(player.x-1, player.y, game_map) then
+    player.x -= 1
+    sfx(1)
+  elseif test_btnp(1) and is_walkable(player.x+1, player.y, game_map) then
+    player.x += 1
+    sfx(1)
+  elseif test_btnp(2) and is_walkable(player.x, player.y-1, game_map) then
+    player.y -= 1
+    sfx(1)
+  elseif test_btnp(3) and is_walkable(player.x, player.y+1, game_map) then
+    player.y += 1
+    sfx(1)
+  end
+
+  -- attack
+  if test_btnp(4) then
+    local target = nil
+    for e in all(enemies) do
+      if distance(player.x, player.y, e.x, e.y) == 1 then
+        target = e
+        break
+      end
+    end
+    if target then
+      local damage = 1
+      if attack_mode == 2 then
+        if player.hp >= 2 then
+          player.hp -= 2
+          damage = 2
+        end
+      end
+
+      target.hp -= damage
+      sfx(2)
+      screen_shake = 3
+      flash_timer = 4
+      flash_color = 8
+      _log("attack")
+      if target.hp <= 0 then
+        del(enemies, target)
+        _log("enemy_defeated")
+        sfx(4)
+        score_endless += 50
+      end
+    else
+      attack_mode = 3 - attack_mode
+    end
+  end
+
+  if player.x ~= old_x or player.y ~= old_y then
+    _log("move")
+  end
+
+  -- enemy turn
+  local took_damage = false
+  for e in all(enemies) do
+    if e.type == 5 then
+      if distance(e.x, e.y, player.x, player.y) == 1 then
+        move_towards_player(e, player, game_map)
+      else
+        for ally in all(enemies) do
+          if ally ~= e and distance(e.x, e.y, ally.x, ally.y) <= 2 then
+            if ally.hp < 3 then
+              ally.hp = min(3, ally.hp + 1)
+            end
+          end
+        end
+        move_towards_player(e, player, game_map)
+      end
+    elseif distance(e.x, e.y, player.x, player.y) == 1 then
+      local damage = 1
+      if e.type == 4 then
+        damage = 2
+      end
+      player.hp -= damage
+      took_damage = true
+      sfx(3)
+      flash_timer = 6
+      flash_color = 8
+      screen_shake = 4
+      _log("enemy_hit")
+    else
+      move_towards_player(e, player, game_map)
+    end
+  end
+
+  -- update combo
+  if took_damage then
+    turns_without_damage = 0
+    combo_multiplier = 1.0
+  else
+    turns_without_damage += 1
+    if turns_without_damage >= 3 then
+      combo_multiplier = 2.0
+    elseif turns_without_damage >= 1 then
+      combo_multiplier = 1.5
+    else
+      combo_multiplier = 1.0
+    end
+  end
+
+  turn_count += 1
+
+  -- check wave clear or lose
+  if #enemies == 0 then
+    -- wave cleared
+    local wave_bonus = 100 + wave * 20
+    score_endless += wave_bonus
+    _log("wave_clear:"..wave)
+    _log("score:"..score_endless)
+    wave += 1
+    turn_count = 0
+    enemies = init_endless_wave(wave)
+    selected_x, selected_y = 1, 1
+    attack_mode = 1
+    combo_multiplier = 1.0
+    turns_without_damage = 0
+    _log("wave:"..wave)
+  elseif player.hp <= 0 then
+    _log("gameover:lose")
+    sfx(5)
+    music()
+    state = "endless_gameover"
+    if score_endless > high_score_endless then
+      high_score_endless = score_endless
+    end
+  end
+end
+
 function update_gameover()
   if test_btnp(4) then  -- z to restart
     _log("state:menu")
     music()  -- stop music
+    state = "menu"
+  end
+end
+
+function update_endless_gameover()
+  if test_btnp(4) then  -- z to restart
+    _log("state:menu")
+    music()
     state = "menu"
   end
 end
@@ -536,6 +764,8 @@ function _update()
   elseif state == "play" then update_play()
   elseif state == "levelup" then update_levelup()
   elseif state == "gameover" then update_gameover()
+  elseif state == "endless_play" then update_endless_play()
+  elseif state == "endless_gameover" then update_endless_gameover()
   end
 end
 
@@ -547,21 +777,33 @@ function draw_menu()
   print("tile tactics", 38, 18, 11)
   print("========", 40, 26, 5)
 
-  -- subtitle
-  print("turn-based strategy", 28, 35, 7)
-  print("defeat all enemies to win", 19, 45, 3)
+  -- mode selection
+  print("select game mode:", 26, 38, 7)
+  local mode_names = {"campaign", "endless"}
+  local mode_y = 48
+  for i=1,2 do
+    local col = 7
+    if i == mode_select then
+      col = 11
+      print("[>]", 35, mode_y, col)
+    else
+      print("[ ]", 35, mode_y, col)
+    end
+    print(mode_names[i], 50, mode_y, col)
+    mode_y += 8
+  end
 
-  -- difficulty selection with styling
+  -- difficulty selection
   local diff_colors = {3, 7, 8}
   local diff_names = {"easy", "normal", "hard"}
-  local y_pos = 65
+  local y_pos = 75
 
-  print("select difficulty:", 26, 55, 7)
+  print("select difficulty:", 24, 67, 7)
 
   for i=1,3 do
     local col = diff_colors[i]
     if i == difficulty_select then
-      col = 11  -- highlight selected
+      col = 11
       print("[>]", 33, y_pos, col)
     else
       print("[ ]", 33, y_pos, col)
@@ -570,7 +812,12 @@ function draw_menu()
     y_pos += 8
   end
 
-  print("press z to start", 28, 110, 5)
+  -- show high score for endless
+  if high_score_endless > 0 then
+    print("endless best: "..flr(high_score_endless), 20, 105, 3)
+  end
+
+  print("press z to start", 28, 118, 5)
 end
 
 function draw_grid(offset_x, offset_y, tile_size)
@@ -810,11 +1057,82 @@ function draw_gameover()
   print("press z to menu", 30, 115, 5)
 end
 
+function draw_endless_play()
+  cls(0)
+
+  local tile_size = 10
+  local offset_x = 8
+  local offset_y = 8
+
+  if screen_shake > 0 then
+    offset_x += rnd(3) - 1
+    offset_y += rnd(3) - 1
+  end
+
+  draw_grid(offset_x, offset_y, tile_size)
+  draw_attack_range(offset_x, offset_y, tile_size)
+  draw_units(offset_x, offset_y, tile_size)
+
+  if flash_timer > 0 then
+    local alpha = max(1, flash_timer / 3)
+    rectfill(0, 0, 127, 127, flash_color)
+  end
+
+  -- ui background panel
+  rectfill(0, 104, 127, 127, 1)
+  rect(0, 103, 127, 127, 5)
+
+  -- draw ui elements
+  print("arrows:move", 2, 109, 7)
+  local mode_text = attack_mode == 1 and "z:nrm" or "z:pow"
+  local mode_col = attack_mode == 1 and 11 or 8
+  print(mode_text, 50, 109, mode_col)
+
+  -- wave indicator
+  print("wave:"..wave, 85, 109, 11)
+
+  print("turn:", 2, 119, 5)
+  print(turn_count, 20, 119, 5)
+  print("hp:", 30, 119, 11)
+  print(player.hp, 40, 119, 11)
+  print("foes:", 48, 119, 8)
+  print(#enemies, 65, 119, 8)
+
+  -- score display
+  print("score:"..flr(score_endless), 75, 119, 3)
+end
+
+function draw_endless_gameover()
+  cls(0)
+
+  -- game over title
+  print("=============", 34, 15, 5)
+  print("   game over   ", 33, 23, 7)
+  print("=============", 34, 31, 5)
+
+  print("*** wave "..wave.." ***", 38, 45, 8)
+
+  rectfill(15, 60, 112, 100, 1)
+  rect(15, 60, 112, 100, 8)
+  print("waves survived:", 26, 65, 8)
+  print(wave - 1, 80, 65, 8)
+  print("score:", 38, 75, 8)
+  print(flr(score_endless), 60, 75, 8)
+
+  if high_score_endless > 0 then
+    print("best: "..flr(high_score_endless), 35, 85, 3)
+  end
+
+  print("press z to menu", 30, 115, 5)
+end
+
 function _draw()
   if state == "menu" then draw_menu()
   elseif state == "play" then draw_play()
   elseif state == "levelup" then draw_levelup()
   elseif state == "gameover" then draw_gameover()
+  elseif state == "endless_play" then draw_endless_play()
+  elseif state == "endless_gameover" then draw_endless_gameover()
   end
 end
 
