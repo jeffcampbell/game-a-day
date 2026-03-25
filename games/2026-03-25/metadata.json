@@ -1,0 +1,12 @@
+{
+  "title": "Sliding Puzzle",
+  "description": "A classic sliding tile puzzle game. Arrange the numbered tiles 1-8 in order to solve the puzzle. Use arrow keys to slide tiles into the empty space. Features a move counter and timer. Supports multiple difficulty levels with different shuffle depths.",
+  "genres": ["puzzle"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "in-progress",
+  "target_audience": "general",
+  "token_count": 778,
+  "sprite_count": 0,
+  "sound_count": 0
+}
