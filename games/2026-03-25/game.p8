@@ -24,6 +24,19 @@ function test_input(b)
   return btn()
 end
 
+test_current_buttons = 0
+test_prev_buttons = 0
+
+function test_inputp(b)
+  if testmode then
+    local btn_bit = 1 << b
+    local is_now = (test_current_buttons & btn_bit) != 0
+    local is_before = (test_prev_buttons & btn_bit) != 0
+    return is_now and not is_before
+  end
+  return btnp(b)
+end
+
 -- game state
 state = "menu"
 tiles = {}
@@ -88,7 +101,7 @@ function is_solved()
 end
 
 function update_menu()
-  if btnp(4) or btnp(5) then
+  if test_inputp(4) or test_inputp(5) then
     _log("state:play")
     state = "play"
     randomize_puzzle()
@@ -100,25 +113,25 @@ function update_play()
 
   -- handle arrow keys for moving tiles
   local moved = false
-  if btnp(0) then -- left
+  if test_inputp(0) then -- left
     if empty_x < 3 then
       swap_tiles(empty_x, empty_y, empty_x+1, empty_y)
       empty_x += 1
       moved = true
     end
-  elseif btnp(1) then -- right
+  elseif test_inputp(1) then -- right
     if empty_x > 1 then
       swap_tiles(empty_x, empty_y, empty_x-1, empty_y)
       empty_x -= 1
       moved = true
     end
-  elseif btnp(2) then -- up
+  elseif test_inputp(2) then -- up
     if empty_y < 3 then
       swap_tiles(empty_x, empty_y, empty_x, empty_y+1)
       empty_y += 1
       moved = true
     end
-  elseif btnp(3) then -- down
+  elseif test_inputp(3) then -- down
     if empty_y > 1 then
       swap_tiles(empty_x, empty_y, empty_x, empty_y-1)
       empty_y -= 1
@@ -139,20 +152,25 @@ function update_play()
   end
 
   -- press x to quit
-  if btnp(5) then
+  if test_inputp(5) then
     _log("state:menu")
     state = "menu"
   end
 end
 
 function update_gameover()
-  if btnp(4) or btnp(5) then
+  if test_inputp(4) or test_inputp(5) then
     _log("state:menu")
     state = "menu"
   end
 end
 
 function _update()
+  if testmode then
+    test_prev_buttons = test_current_buttons
+    test_current_buttons = test_input()
+  end
+
   if state == "menu" then update_menu()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
