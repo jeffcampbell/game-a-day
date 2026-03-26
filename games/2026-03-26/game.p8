@@ -35,6 +35,13 @@ gravity_speed = 20
 falling_block = nil
 game_over_timer = 0
 
+-- difficulty settings
+difficulty = nil  -- "easy", "normal", or "hard"
+difficulty_cursor = 2  -- 1=easy, 2=normal, 3=hard
+difficulty_names = {"easy", "normal", "hard"}
+difficulty_speeds = {30, 20, 15}  -- gravity speed per difficulty
+difficulty_delays = {40, 30, 20}  -- block spawn delay per difficulty
+
 -- colors: 1=red, 2=blue, 3=green, 4=yellow, 5=purple
 colors = {8, 12, 3, 7, 14}
 
@@ -61,6 +68,8 @@ end
 function _update()
   if state == "menu" then
     update_menu()
+  elseif state == "difficulty_select" then
+    update_difficulty_select()
   elseif state == "play" then
     update_play()
   elseif state == "gameover" then
@@ -71,6 +80,27 @@ end
 function update_menu()
   if test_input(4) > 0 then  -- O button
     sfx(0)  -- menu select
+    state = "difficulty_select"
+    difficulty_cursor = 2  -- default to normal
+    _log("state:difficulty_select")
+  end
+end
+
+function update_difficulty_select()
+  -- navigate difficulty
+  if test_input(2) > 0 and difficulty_cursor > 1 then
+    difficulty_cursor -= 1
+  end
+  if test_input(3) > 0 and difficulty_cursor < 3 then
+    difficulty_cursor += 1
+  end
+
+  -- select difficulty
+  if test_input(4) > 0 then  -- O button
+    sfx(0)  -- menu select
+    difficulty = difficulty_names[difficulty_cursor]
+    gravity_speed = difficulty_speeds[difficulty_cursor]
+    next_block_delay = difficulty_delays[difficulty_cursor]
     state = "play"
     init_grid()
     score = 0
@@ -79,6 +109,7 @@ function update_menu()
     gravity_timer = 0
     falling_block = nil
     _log("state:play")
+    _log("difficulty:"..difficulty)
   end
 end
 
@@ -219,6 +250,7 @@ function update_gameover()
   game_over_timer += 1
   if test_input(4) > 0 then
     state = "menu"
+    difficulty = nil
     _log("state:menu")
   end
 end
@@ -227,6 +259,8 @@ function _draw()
   cls(0)
   if state == "menu" then
     draw_menu()
+  elseif state == "difficulty_select" then
+    draw_difficulty_select()
   elseif state == "play" then
     draw_play()
   elseif state == "gameover" then
@@ -239,6 +273,29 @@ function draw_menu()
   print("match 3+ blocks", 35, 50, 6)
   print("to clear", 48, 60, 6)
   print("press o to start", 30, 85, 5)
+end
+
+function draw_difficulty_select()
+  print("select difficulty", 35, 25, 7)
+
+  -- easy option
+  local easy_col = 7
+  if difficulty_cursor == 1 then easy_col = 15 end
+  print("easy", 50, 50, easy_col)
+
+  -- normal option
+  local normal_col = 7
+  if difficulty_cursor == 2 then normal_col = 15 end
+  print("normal", 46, 65, normal_col)
+
+  -- hard option
+  local hard_col = 7
+  if difficulty_cursor == 3 then hard_col = 15 end
+  print("hard", 50, 80, hard_col)
+
+  -- cursor
+  local cursor_y = 50 + (difficulty_cursor - 1) * 15
+  print(">", 38, cursor_y, 15)
 end
 
 function draw_play()
