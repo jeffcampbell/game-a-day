@@ -110,13 +110,14 @@ function update_play()
       if falling_block.y > grid_h or grid[falling_block.y][falling_block.x] > 0 then
         falling_block.y -= 1
         grid[falling_block.y][falling_block.x] = falling_block.type
+        local landed_x = falling_block.x
         falling_block = nil
 
         -- check for matches and clears
         clear_matches()
 
         -- check game over
-        if grid[1][falling_block.x] > 0 then
+        if grid[1][landed_x] > 0 then
           state = "gameover"
           game_over_timer = 0
           _log("state:gameover")
