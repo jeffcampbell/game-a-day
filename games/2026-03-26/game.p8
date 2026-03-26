@@ -34,6 +34,7 @@ gravity_timer = 0
 gravity_speed = 20
 falling_block = nil
 game_over_timer = 0
+chain_count = 0  -- track cascading matches
 
 -- animation settings
 anim_duration = 18  -- frames for smooth drop (0.3 seconds at 60fps)
@@ -196,6 +197,7 @@ function update_difficulty_select()
     next_block_type = flr(rnd(5)) + 1
     gravity_timer = 0
     falling_block = nil
+    chain_count = 0
     particles = {}
     score_popups = {}
     shake_intensity = 0
@@ -277,97 +279,130 @@ function update_play()
 end
 
 function clear_matches()
-  local cleared = {}
+  chain_count = 0
+  local total_score_gain = 0
 
-  -- check horizontal matches
-  for y = 1, grid_h do
-    for x = 1, grid_w do
-      if grid[y][x] > 0 then
-        local match_count = 1
-        local match_type = grid[y][x]
+  -- keep checking for matches until none found (cascading)
+  while true do
+    local cleared = {}
 
-        -- count right
-        local cx = x + 1
-        while cx <= grid_w and grid[y][cx] == match_type do
-          match_count += 1
-          cx += 1
-        end
-
-        if match_count >= 3 then
-          for i = 0, match_count - 1 do
-            cleared[y * 100 + (x + i)] = true
-          end
-        end
-      end
-    end
-  end
-
-  -- check vertical matches
-  for x = 1, grid_w do
+    -- check horizontal matches
     for y = 1, grid_h do
-      if grid[y][x] > 0 then
-        local match_count = 1
-        local match_type = grid[y][x]
+      for x = 1, grid_w do
+        if grid[y][x] > 0 then
+          local match_count = 1
+          local match_type = grid[y][x]
 
-        -- count down
-        local cy = y + 1
-        while cy <= grid_h and grid[cy][x] == match_type do
-          match_count += 1
-          cy += 1
-        end
+          -- count right
+          local cx = x + 1
+          while cx <= grid_w and grid[y][cx] == match_type do
+            match_count += 1
+            cx += 1
+          end
 
-        if match_count >= 3 then
-          for i = 0, match_count - 1 do
-            cleared[(y + i) * 100 + x] = true
+          if match_count >= 3 then
+            for i = 0, match_count - 1 do
+              cleared[y * 100 + (x + i)] = true
+            end
           end
         end
       end
     end
-  end
 
-  -- remove cleared blocks
-  local clear_count = 0
-  local center_x, center_y = 0, 0
-  local block_type_cleared = 0
-  for key, _ in pairs(cleared) do
-    local y = flr(key / 100)
-    local x = key % 100
-    if grid[y][x] > 0 then
-      block_type_cleared = grid[y][x]
-      grid[y][x] = 0
-      clear_count += 1
-      center_x += x
-      center_y += y
+    -- check vertical matches
+    for x = 1, grid_w do
+      for y = 1, grid_h do
+        if grid[y][x] > 0 then
+          local match_count = 1
+          local match_type = grid[y][x]
+
+          -- count down
+          local cy = y + 1
+          while cy <= grid_h and grid[cy][x] == match_type do
+            match_count += 1
+            cy += 1
+          end
+
+          if match_count >= 3 then
+            for i = 0, match_count - 1 do
+              cleared[(y + i) * 100 + x] = true
+            end
+          end
+        end
+      end
+    end
+
+    -- if no matches found, end cascade
+    if not next(cleared) then
+      break
+    end
+
+    -- remove cleared blocks and process cascade
+    local clear_count = 0
+    local center_x, center_y = 0, 0
+    local block_type_cleared = 0
+    for key, _ in pairs(cleared) do
+      local y = flr(key / 100)
+      local x = key % 100
+      if grid[y][x] > 0 then
+        block_type_cleared = grid[y][x]
+        grid[y][x] = 0
+        clear_count += 1
+        center_x += x
+        center_y += y
+      end
+    end
+
+    if clear_count > 0 then
+      chain_count += 1
+      local chain_multiplier = chain_count
+
+      -- calculate score for this cascade with multiplier
+      local cascade_score = clear_count * 10 * chain_multiplier
+      score += cascade_score
+      total_score_gain += cascade_score
+
+      sfx(2)  -- match clear
+
+      -- emit particles and screen shake - scale by chain depth
+      center_x = center_x / clear_count
+      center_y = center_y / clear_count
+      local start_x = 32
+      local start_y = 16
+      local px = start_x + (center_x - 1) * block_size + block_size / 2
+      local py = start_y + (center_y - 1) * block_size + block_size / 2
+
+      local particle_count = min(clear_count + chain_count * 2, 30)
+      emit_particles(px, py, colors[block_type_cleared], particle_count)
+
+      -- scale screen shake intensity with chain depth
+      local shake_intensity_val = 1 + flr(clear_count / 3) + chain_count
+      local shake_duration_val = 6 + flr(clear_count / 5) + chain_count * 2
+      apply_screen_shake(shake_intensity_val, shake_duration_val)
+
+      -- add score popup with chain indicator
+      local popup_value = cascade_score
+      if chain_count > 1 then
+        popup_value = cascade_score  -- already includes multiplier
+      end
+      add(score_popups, {
+        x = px,
+        y = py,
+        value = popup_value,
+        life = 30,
+        life_max = 30,
+        color = colors[block_type_cleared]
+      })
+
+      _log("chain:"..chain_count.." cleared:"..clear_count)
+
+      apply_gravity()
     end
   end
 
-  if clear_count > 0 then
-    sfx(2)  -- match clear
-    _log("match_cleared:"..clear_count)
-    score += clear_count * 10
-
-    -- emit particles and screen shake
-    center_x = center_x / clear_count
-    center_y = center_y / clear_count
-    local start_x = 32
-    local start_y = 16
-    local px = start_x + (center_x - 1) * block_size + block_size / 2
-    local py = start_y + (center_y - 1) * block_size + block_size / 2
-
-    emit_particles(px, py, colors[block_type_cleared], min(clear_count, 20))
-    apply_screen_shake(1 + flr(clear_count / 3), 6 + flr(clear_count / 5))
-
-    -- add score popup
-    add(score_popups, {
-      x = px,
-      y = py,
-      value = clear_count * 10,
-      life = 30,
-      life_max = 30,
-      color = colors[block_type_cleared]
-    })
-
-    apply_gravity()
+  -- log final chain summary
+  if chain_count > 0 then
+    _log("chain_complete:"..chain_count)
   end
 end
 
