@@ -1,0 +1,12 @@
+{
+  "title": "Gravity Puzzle",
+  "description": "A gravity-based match-3 puzzle game where colored blocks fall from the top of the screen. Position your cursor to place blocks and match 3 or more of the same color horizontally or vertically to clear them and score points. The game ends when blocks fill the grid. Features progressive gameplay and strategic block placement.",
+  "genres": ["puzzle"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "in-progress",
+  "target_audience": "general",
+  "token_count": 951,
+  "sprite_count": 0,
+  "sound_count": 0
+}
