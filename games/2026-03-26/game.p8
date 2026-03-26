@@ -116,7 +116,7 @@ function update_play()
         clear_matches()
 
         -- check game over
-        if grid[1][cursor_x] > 0 then
+        if grid[1][falling_block.x] > 0 then
           state = "gameover"
           game_over_timer = 0
           _log("state:gameover")
