@@ -35,6 +35,9 @@ gravity_speed = 20
 falling_block = nil
 game_over_timer = 0
 
+-- animation settings
+anim_duration = 18  -- frames for smooth drop (0.3 seconds at 60fps)
+
 -- difficulty settings
 difficulty = nil  -- "easy", "normal", or "hard"
 difficulty_cursor = 2  -- 1=easy, 2=normal, 3=hard
@@ -125,23 +128,43 @@ function update_play()
   -- drop block
   if test_input(4) > 0 then
     if falling_block == nil then
-      falling_block = {x = cursor_x, y = 1, type = next_block_type}
+      local landing_y = find_landing_y(cursor_x)
+      falling_block = {
+        x = cursor_x,
+        y = 1,
+        type = next_block_type,
+        anim_timer = 0,
+        landing_y = landing_y
+      }
       next_block_type = flr(rnd(5)) + 1
       _log("block_dropped")
     end
   end
 
-  -- update falling block
+  -- update falling block animation
   if falling_block then
-    gravity_timer += 1
-    if gravity_timer >= gravity_speed then
-      gravity_timer = 0
-      falling_block.y += 1
+    falling_block.anim_timer += 1
 
-      -- check collision
-      if falling_block.y > grid_h or grid[falling_block.y][falling_block.x] > 0 then
-        falling_block.y -= 1
-        grid[falling_block.y][falling_block.x] = falling_block.type
+    -- animation complete - place block in grid
+    if falling_block.anim_timer >= anim_duration then
+      local landed_y = falling_block.landing_y
+
+      -- clamp to valid grid
+      if landed_y < 1 then landed_y = 1 end
+      if landed_y > grid_h then landed_y = grid_h end
+
+      -- check if landing cell is occupied (column full)
+      if grid[landed_y][falling_block.x] > 0 then
+        -- column full - game over immediately
+        sfx(3)  -- game over sound
+        state = "gameover"
+        game_over_timer = 0
+        _log("state:gameover")
+        _log("gameover:lose")
+        falling_block = nil
+      else
+        -- cell empty - place block normally
+        grid[landed_y][falling_block.x] = falling_block.type
         sfx(1)  -- block land
         local landed_x = falling_block.x
         falling_block = nil
@@ -149,7 +172,7 @@ function update_play()
         -- check for matches and clears
         clear_matches()
 
-        -- check game over
+        -- check game over (also catches top row overflow from clears)
         if grid[1][landed_x] > 0 then
           sfx(3)  -- game over
           state = "gameover"
@@ -246,6 +269,16 @@ function apply_gravity()
   end
 end
 
+function find_landing_y(col)
+  -- find where block will land in this column
+  for y = 1, grid_h do
+    if grid[y][col] > 0 then
+      return y - 1
+    end
+  end
+  return grid_h
+end
+
 function update_gameover()
   game_over_timer += 1
   if test_input(4) > 0 then
@@ -322,7 +355,22 @@ function draw_play()
   -- draw falling block
   if falling_block then
     local px = start_x + (falling_block.x - 1) * block_size
-    local py = start_y + (falling_block.y - 1) * block_size
+
+    -- interpolate y position during animation
+    local progress = falling_block.anim_timer / anim_duration
+    if progress > 1 then progress = 1 end
+
+    -- smooth easing (quadratic ease-in-out)
+    if progress < 0.5 then
+      progress = 2 * progress * progress
+    else
+      progress = 1 - 2 * (1 - progress) * (1 - progress)
+    end
+
+    local start_y_pixel = start_y + (falling_block.y - 1) * block_size
+    local end_y_pixel = start_y + (falling_block.landing_y - 1) * block_size
+    local py = start_y_pixel + (end_y_pixel - start_y_pixel) * progress
+
     rectfill(px + 1, py + 1, px + block_size - 2, py + block_size - 2, colors[falling_block.type])
     rect(px, py, px + block_size - 1, py + block_size - 1, 15)
   end
