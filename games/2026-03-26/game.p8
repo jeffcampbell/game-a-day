@@ -48,6 +48,18 @@ difficulty_delays = {40, 30, 20}  -- block spawn delay per difficulty
 -- colors: 1=red, 2=blue, 3=green, 4=yellow, 5=purple
 colors = {8, 12, 3, 7, 14}
 
+-- particle effects
+particles = {}
+max_particles = 30
+
+-- screen shake
+shake_intensity = 0
+shake_duration = 0
+shake_frames_left = 0
+
+-- score popups
+score_popups = {}  -- {x, y, value, life_max, life, color}
+
 function _init()
   testmode = false
   test_log = {}
@@ -64,6 +76,77 @@ function init_grid()
     grid[y] = {}
     for x = 1, grid_w do
       grid[y][x] = 0
+    end
+  end
+end
+
+function emit_particles(x, y, col, count)
+  count = count or 8
+  for i = 1, count do
+    if #particles < max_particles then
+      local angle = (i / count) * 1  -- full rotation in pico-8 units
+      local speed = 1 + rnd(1.5)
+      local vx = cos(angle) * speed
+      local vy = sin(angle) * speed
+      add(particles, {
+        x = x,
+        y = y,
+        vx = vx,
+        vy = vy,
+        life = 20,
+        life_max = 20,
+        col = col
+      })
+    end
+  end
+end
+
+function update_particles()
+  for i = #particles, 1, -1 do
+    local p = particles[i]
+    p.x += p.vx
+    p.y += p.vy
+    p.vy += 0.1  -- gravity
+    p.life -= 1
+    if p.life <= 0 then
+      deli(particles, i)
+    end
+  end
+
+  -- update shake
+  if shake_frames_left > 0 then
+    shake_frames_left -= 1
+  else
+    shake_intensity = 0
+  end
+end
+
+function draw_particles()
+  for p in all(particles) do
+    local alpha = p.life / p.life_max
+    local size = 1 + flr(alpha * 1.5)
+    local fade_col = p.col
+    pset(flr(p.x), flr(p.y), fade_col)
+  end
+end
+
+function apply_screen_shake(intensity, frames)
+  shake_intensity = intensity
+  shake_frames_left = frames
+  shake_duration = frames
+end
+
+function draw_score_popups()
+  for i = #score_popups, 1, -1 do
+    local pop = score_popups[i]
+    pop.life -= 1
+    if pop.life <= 0 then
+      deli(score_popups, i)
+    else
+      local alpha = pop.life / pop.life_max
+      pop.y -= 0.5  -- drift upward
+      local offset = flr((1 - alpha) * 10)
+      print("+"..pop.value, flr(pop.x) - offset, flr(pop.y), pop.color)
     end
   end
 end
@@ -85,6 +168,8 @@ function update_menu()
     sfx(0)  -- menu select
     state = "difficulty_select"
     difficulty_cursor = 2  -- default to normal
+    particles = {}
+    score_popups = {}
     _log("state:difficulty_select")
   end
 end
@@ -111,12 +196,18 @@ function update_difficulty_select()
     next_block_type = flr(rnd(5)) + 1
     gravity_timer = 0
     falling_block = nil
+    particles = {}
+    score_popups = {}
+    shake_intensity = 0
+    shake_frames_left = 0
     _log("state:play")
     _log("difficulty:"..difficulty)
   end
 end
 
 function update_play()
+  update_particles()
+
   -- cursor movement
   if test_input(0) > 0 and cursor_x > 1 then
     cursor_x -= 1
@@ -236,12 +327,17 @@ function clear_matches()
 
   -- remove cleared blocks
   local clear_count = 0
+  local center_x, center_y = 0, 0
+  local block_type_cleared = 0
   for key, _ in pairs(cleared) do
     local y = flr(key / 100)
     local x = key % 100
     if grid[y][x] > 0 then
+      block_type_cleared = grid[y][x]
       grid[y][x] = 0
       clear_count += 1
+      center_x += x
+      center_y += y
     end
   end
 
@@ -249,6 +345,28 @@ function clear_matches()
     sfx(2)  -- match clear
     _log("match_cleared:"..clear_count)
     score += clear_count * 10
+
+    -- emit particles and screen shake
+    center_x = center_x / clear_count
+    center_y = center_y / clear_count
+    local start_x = 32
+    local start_y = 16
+    local px = start_x + (center_x - 1) * block_size + block_size / 2
+    local py = start_y + (center_y - 1) * block_size + block_size / 2
+
+    emit_particles(px, py, colors[block_type_cleared], min(clear_count, 20))
+    apply_screen_shake(1 + flr(clear_count / 3), 6 + flr(clear_count / 5))
+
+    -- add score popup
+    add(score_popups, {
+      x = px,
+      y = py,
+      value = clear_count * 10,
+      life = 30,
+      life_max = 30,
+      color = colors[block_type_cleared]
+    })
+
     apply_gravity()
   end
 end
@@ -332,6 +450,15 @@ function draw_difficulty_select()
 end
 
 function draw_play()
+  -- apply screen shake via camera
+  local shake_x = 0
+  local shake_y = 0
+  if shake_frames_left > 0 then
+    shake_x = rnd(shake_intensity * 2) - shake_intensity
+    shake_y = rnd(shake_intensity * 2) - shake_intensity
+  end
+  camera(shake_x, shake_y)
+
   -- draw grid
   local start_x = 32
   local start_y = 16
@@ -375,6 +502,9 @@ function draw_play()
     rect(px, py, px + block_size - 1, py + block_size - 1, 15)
   end
 
+  -- draw particles
+  draw_particles()
+
   -- draw cursor
   local cursor_px = start_x + (cursor_x - 1) * block_size
   line(cursor_px, start_y - 4, cursor_px + block_size - 1, start_y - 4, 15)
@@ -386,6 +516,12 @@ function draw_play()
 
   -- draw score
   print("score:"..score, 5, 25, 7)
+
+  -- draw score popups
+  draw_score_popups()
+
+  -- reset camera
+  camera(0, 0)
 end
 
 function draw_gameover()
