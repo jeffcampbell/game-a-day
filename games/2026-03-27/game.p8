@@ -263,12 +263,7 @@ function _draw()
 end
 
 function draw_menu()
-  -- flash effect when transitioning from menu
-  if state_transition_timer > 0 and (flr(state_transition_timer / 3) % 2) == 0 then
-    cls(7)
-  else
-    cls(1)
-  end
+  cls(1)
 
   print("mini quest", 40, 20, 7)
   print("explore dungeon", 20, 40, 7)
@@ -310,7 +305,7 @@ function draw_play()
     print("*", 8 + 13*8 + 1, 8 + 13*8, key_col)
   end
 
-  -- draw enemy (with damage flash)
+  -- draw enemy (with damage flash and combat entrance flash)
   local enemy_col = 8
   if damage_flash_timer > 0 then
     enemy_col = 10
@@ -320,6 +315,10 @@ function draw_play()
       circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 4, 10)
     else
       circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 4, 8)
+    end
+    -- flash border when combat starts
+    if combat_flash_timer > 0 and (flr(combat_flash_timer / 3) % 2) == 0 then
+      circ(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 5, 8)
     end
   end
   circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 2, enemy_col)
@@ -354,21 +353,25 @@ function draw_play()
 end
 
 function draw_gameover()
-  -- flash effect on gameover
+  local text_col = 7
+  local bg_col = 0
+
+  -- flash effect on gameover with proper text contrast
   if state_transition_timer > 0 and (flr(state_transition_timer / 2) % 2) == 0 then
-    cls(10)
-  else
-    cls(0)
+    bg_col = 10
+    text_col = 0  -- black text on light blue background
   end
 
+  cls(bg_col)
+
   if score > 50 then
-    print("you won!", 50, 30, 10)
-    print("final score: "..score, 30, 50, 7)
+    print("you won!", 50, 30, text_col)
+    print("final score: "..score, 30, 50, text_col)
   else
-    print("game over", 45, 30, 8)
-    print("final score: "..score, 30, 50, 7)
+    print("game over", 45, 30, text_col)
+    print("final score: "..score, 30, 50, text_col)
   end
-  print("press z to return", 20, 100, 7)
+  print("press z to return", 20, 100, text_col)
 end
 
 __gfx__
