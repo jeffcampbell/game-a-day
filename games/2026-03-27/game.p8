@@ -50,6 +50,10 @@ message = ""
 message_timer = 0
 current_width = 14
 current_height = 14
+respawn_x = 3
+respawn_y = 12
+exit_x = 12
+exit_y = 12
 
 -- visual effects
 shake_x = 0
@@ -189,14 +193,22 @@ function setup_level(lv)
     enemy_x = 5
     enemy_y = 4
     enemy_hp = 3
+    exit_x = 12
+    exit_y = 12
+    respawn_x = 3
+    respawn_y = 12
   elseif lv == 2 then
     current_width = 16
     current_height = 16
     player_x = 2
     player_y = 2
-    enemy_x = 14
-    enemy_y = 14
+    enemy_x = 13
+    enemy_y = 2
     enemy_hp = 5
+    exit_x = 13
+    exit_y = 14
+    respawn_x = 2
+    respawn_y = 12
   else
     current_width = 16
     current_height = 16
@@ -205,6 +217,10 @@ function setup_level(lv)
     enemy_x = 12
     enemy_y = 12
     enemy_hp = 4
+    exit_x = 13
+    exit_y = 14
+    respawn_x = 2
+    respawn_y = 12
   end
 end
 
@@ -262,8 +278,8 @@ function update_play()
         message = "victory!"
         message_timer = 60
         score += 10
-        enemy_x = 3
-        enemy_y = 12
+        enemy_x = respawn_x
+        enemy_y = respawn_y
         enemy_hp = 3
         combat_active = false
         has_key = true
@@ -289,9 +305,7 @@ function update_play()
     end
   end
 
-  -- check exit (at bottom-right area)
-  local exit_x = current_width - 2
-  local exit_y = current_height - 2
+  -- check exit
   if has_key and player_x == exit_x and player_y == exit_y then
     sfx(6)  -- exit/level transition sound
     score += 50
@@ -404,8 +418,6 @@ function draw_play()
   end
 
   -- draw exit marker
-  local exit_x = current_width - 2
-  local exit_y = current_height - 2
   local exit_sx = 8 + exit_x * tile_size + tile_size/2
   local exit_sy = 8 + exit_y * tile_size + tile_size/2
   if has_key then

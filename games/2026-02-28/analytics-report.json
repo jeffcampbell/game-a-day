@@ -23,6 +23,7 @@
       "gameover_events": 1
     },
     "exit_state": "analysis_complete",
+    "diagnostic_note": "testmode initialized to false - will need to be set to true at runtime for log capture",
     "metadata": {
       "title": "Game 2026-02-28",
       "description": "A action, sports PICO-8 game. Face enemies, earn points, and collect power-ups.",

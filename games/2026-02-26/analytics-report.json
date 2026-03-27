@@ -22,6 +22,7 @@
       "gameover_events": 2
     },
     "exit_state": "analysis_complete",
+    "diagnostic_note": "testmode initialized to false - will need to be set to true at runtime for log capture",
     "metadata": {
       "title": "meteor dodge",
       "description": "A sports, rhythm PICO-8 game. Control a character, earn points, and collect power-ups.",

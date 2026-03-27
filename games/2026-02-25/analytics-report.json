@@ -19,6 +19,7 @@
       "gameover_events": 1
     },
     "exit_state": "analysis_complete",
+    "diagnostic_note": "testmode initialized to false - will need to be set to true at runtime for log capture",
     "metadata": {
       "title": "star dodge",
       "description": "A sports, action PICO-8 game. Control a character, earn points, and collect power-ups.",
