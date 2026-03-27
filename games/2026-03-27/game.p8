@@ -9,7 +9,8 @@ __lua__
 testmode = false
 test_log = {}
 test_inputs = {}
-test_input_idx = -1
+test_input_idx = 0
+test_frame_advanced = false
 
 function _log(msg)
   if testmode then add(test_log, msg) end
@@ -19,14 +20,12 @@ function _capture()
   if testmode then add(test_log, "SCREEN:"..tostr(stat(0))) end
 end
 
-function advance_test_frame()
-  if testmode and test_input_idx < #test_inputs then
-    test_input_idx += 1
-  end
-end
-
 function test_input(b)
   if testmode then
+    if not test_frame_advanced and test_input_idx < #test_inputs then
+      test_input_idx += 1
+      test_frame_advanced = true
+    end
     local buttons = test_inputs[test_input_idx] or 0
     return band(buttons, shl(1, b)) and 1 or 0
   end
@@ -55,7 +54,7 @@ function _init()
 end
 
 function _update()
-  advance_test_frame()
+  test_frame_advanced = false
 
   if state == "menu" then update_menu()
   elseif state == "play" then update_play()
