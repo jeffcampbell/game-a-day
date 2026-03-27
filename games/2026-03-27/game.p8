@@ -49,6 +49,15 @@ combat_turn = 0
 message = ""
 message_timer = 0
 
+-- visual effects
+shake_x = 0
+shake_y = 0
+shake_timer = 0
+damage_flash_timer = 0
+combat_flash_timer = 0
+key_flash_timer = 0
+state_transition_timer = 0
+
 function _init()
   _log("init:start")
   music(0)  -- start background music
@@ -64,6 +73,32 @@ function _update()
 
   if message_timer > 0 then
     message_timer -= 1
+  end
+
+  -- update visual effects
+  if shake_timer > 0 then
+    shake_timer -= 1
+    shake_x = (rnd(2) - 1) * 2
+    shake_y = (rnd(2) - 1) * 2
+  else
+    shake_x = 0
+    shake_y = 0
+  end
+
+  if damage_flash_timer > 0 then
+    damage_flash_timer -= 1
+  end
+
+  if combat_flash_timer > 0 then
+    combat_flash_timer -= 1
+  end
+
+  if key_flash_timer > 0 then
+    key_flash_timer -= 1
+  end
+
+  if state_transition_timer > 0 then
+    state_transition_timer -= 1
   end
 end
 
@@ -83,6 +118,7 @@ function update_menu()
     combat_active = false
     message = "defeat the beast!"
     message_timer = 60
+    state_transition_timer = 15
   end
 end
 
@@ -115,6 +151,7 @@ function update_play()
       combat_turn = 0
       message = "enemy appears!"
       message_timer = 40
+      combat_flash_timer = 20
     end
   end
 
@@ -130,6 +167,8 @@ function update_play()
       _log("attack:"..dmg)
       message = "hit for "..dmg.."!"
       message_timer = 40
+      shake_timer = 5
+      damage_flash_timer = 8
 
       if enemy_hp <= 0 then
         sfx(4)  -- victory/enemy defeated sound
@@ -142,12 +181,15 @@ function update_play()
         enemy_hp = 3
         combat_active = false
         has_key = true
+        key_flash_timer = 30
       else
         -- enemy counter
         sfx(3)  -- enemy attack/player damage sound
         local enemy_dmg = 1 + rnd(2)
         player_hp -= enemy_dmg
         _log("enemy_attack:"..enemy_dmg)
+        shake_timer = 5
+        damage_flash_timer = 8
 
         if player_hp <= 0 then
           sfx(5)  -- gameover/lose sound
@@ -155,6 +197,7 @@ function update_play()
           state = "gameover"
           message = "you were defeated!"
           message_timer = 999
+          state_transition_timer = 15
         end
       end
     end
@@ -169,6 +212,7 @@ function update_play()
     score += 50
     message = "you escaped!"
     message_timer = 999
+    state_transition_timer = 15
   end
 end
 
@@ -176,6 +220,7 @@ function update_gameover()
   if test_input(4) > 0 or btnp(4) > 0 then
     _log("state:menu")
     state = "menu"
+    state_transition_timer = 15
   end
 end
 
@@ -185,6 +230,27 @@ function is_wall(x, y)
   if x == 7 and y >= 3 and y <= 8 then return true end
   if x == 9 and y >= 6 and y <= 11 then return true end
   return false
+end
+
+function draw_hp_bar(x, y)
+  local bar_width = 30
+  local hp_ratio = player_hp / player_maxhp
+  local bar_fill = flr(bar_width * hp_ratio)
+
+  -- background
+  rectfill(x, y, x + bar_width, y + 4, 1)
+
+  -- hp bar (with color based on health)
+  local bar_col = 11
+  if player_hp < player_maxhp / 3 then
+    bar_col = 8
+  elseif player_hp < player_maxhp / 2 then
+    bar_col = 9
+  end
+  rectfill(x + 1, y + 1, x + bar_fill, y + 3, bar_col)
+
+  -- border
+  rect(x, y, x + bar_width, y + 4, 7)
 end
 
 function _draw()
@@ -197,6 +263,8 @@ function _draw()
 end
 
 function draw_menu()
+  cls(1)
+
   print("mini quest", 40, 20, 7)
   print("explore dungeon", 20, 40, 7)
   print("defeat enemy", 25, 50, 7)
@@ -205,6 +273,9 @@ function draw_menu()
 end
 
 function draw_play()
+  -- apply screen shake
+  camera(shake_x, shake_y)
+
   -- draw dungeon
   for y = 1, 14 do
     for x = 1, 14 do
@@ -225,22 +296,46 @@ function draw_play()
     circfill(8 + 13*8 + 3, 8 + 13*8 + 3, 3, 6)
   end
 
-  -- draw key if found
+  -- draw key if found (with flash effect)
   if has_key then
-    print("*", 8 + 13*8 + 1, 8 + 13*8, 7)
+    local key_col = 7
+    if key_flash_timer > 0 and (flr(key_flash_timer / 3) % 2) == 0 then
+      key_col = 10
+    end
+    print("*", 8 + 13*8 + 1, 8 + 13*8, key_col)
   end
 
-  -- draw enemy
-  circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 2, 8)
-  if combat_active then
-    circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 4, 8)
+  -- draw enemy (with damage flash and combat entrance flash)
+  local enemy_col = 8
+  if damage_flash_timer > 0 then
+    enemy_col = 10
   end
+  if combat_active then
+    if damage_flash_timer > 0 then
+      circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 4, 10)
+    else
+      circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 4, 8)
+    end
+    -- flash border when combat starts
+    if combat_flash_timer > 0 and (flr(combat_flash_timer / 3) % 2) == 0 then
+      circ(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 5, 8)
+    end
+  end
+  circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 2, enemy_col)
 
   -- draw player
-  rectfill(8 + player_x*8 + 1, 8 + player_y*8 + 1, 8 + player_x*8 + 5, 8 + player_y*8 + 5, 11)
+  local player_col = 11
+  if damage_flash_timer > 0 then
+    player_col = 8
+  end
+  rectfill(8 + player_x*8 + 1, 8 + player_y*8 + 1, 8 + player_x*8 + 5, 8 + player_y*8 + 5, player_col)
+
+  -- reset camera
+  camera(0, 0)
 
   -- draw ui
   print("hp:"..player_hp.."/"..player_maxhp, 2, 2, 7)
+  draw_hp_bar(26, 2)
   print("score:"..score, 2, 10, 7)
   if has_key then
     print("key", 100, 2, 10)
@@ -250,18 +345,33 @@ function draw_play()
   if message_timer > 0 then
     print(message, 30, 120, 7)
   end
+
+  -- draw combat indicator
+  if combat_active and (flr(t() * 4) % 2) == 0 then
+    print("[combat]", 5, 120, 8)
+  end
 end
 
 function draw_gameover()
-  cls(0)
-  if score > 50 then
-    print("you won!", 50, 30, 10)
-    print("final score: "..score, 30, 50, 7)
-  else
-    print("game over", 45, 30, 8)
-    print("final score: "..score, 30, 50, 7)
+  local text_col = 7
+  local bg_col = 0
+
+  -- flash effect on gameover with proper text contrast
+  if state_transition_timer > 0 and (flr(state_transition_timer / 2) % 2) == 0 then
+    bg_col = 10
+    text_col = 0  -- black text on light blue background
   end
-  print("press z to return", 20, 100, 7)
+
+  cls(bg_col)
+
+  if score > 50 then
+    print("you won!", 50, 30, text_col)
+    print("final score: "..score, 30, 50, text_col)
+  else
+    print("game over", 45, 30, text_col)
+    print("final score: "..score, 30, 50, text_col)
+  end
+  print("press z to return", 20, 100, text_col)
 end
 
 __gfx__
