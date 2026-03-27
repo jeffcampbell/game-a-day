@@ -20,6 +20,7 @@
       "gameover_events": 2
     },
     "exit_state": "analysis_complete",
+    "diagnostic_note": "Uses custom read_input() - requires testmode=true for test infrastructure; run-interactive-test.py now initializes testmode",
     "metadata": {
       "title": "Dodge Master",
       "description": "An action arcade PICO-8 game where you dodge falling obstacles. Move left and right to avoid collisions, accumulate points, and survive the timer. Beat the clock to win!",

@@ -48,6 +48,12 @@ combat_active = false
 combat_turn = 0
 message = ""
 message_timer = 0
+current_width = 14
+current_height = 14
+respawn_x = 3
+respawn_y = 12
+exit_x = 12
+exit_y = 12
 
 -- visual effects
 shake_x = 0
@@ -57,6 +63,65 @@ damage_flash_timer = 0
 combat_flash_timer = 0
 key_flash_timer = 0
 state_transition_timer = 0
+
+-- level data: 0=floor, 1=wall
+-- level 1: maze (14x14)
+level_data = {
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+  {1,0,0,0,0,0,0,1,0,0,0,0,0,1},
+  {1,0,1,1,0,1,0,1,0,1,1,1,0,1},
+  {1,0,0,0,0,1,0,0,0,0,0,1,0,1},
+  {1,1,1,0,1,1,1,1,1,1,0,1,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,0,1,1,1,1,1,0,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,0,1,1,0,1,1,1,0,1,1,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,1,0,1,1,1,1,0,1,1},
+  {1,0,0,0,0,0,0,0,0,0,1,0,0,1},
+  {1,1,0,1,0,1,1,1,0,1,1,1,0,1},
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+}
+
+-- level 2: boss arena (16x16)
+level_data_2 = {
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,0,1,1,1,1,1,0,1,1,0,0,1},
+  {1,0,1,1,0,1,1,1,1,1,0,1,1,0,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,0,1,1,1,1,0,1,1,1,0,1},
+  {1,0,1,1,1,0,1,1,1,1,0,1,1,1,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,0,1,1,1,1,1,1,1,1,0,1,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,1,0,1,1,1,1,1,1,1,1,0,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+}
+
+-- level 3: treasure vault (16x16)
+level_data_3 = {
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+  {1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1},
+  {1,0,0,1,0,1,1,1,1,1,0,0,1,0,0,1},
+  {1,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1},
+  {1,0,1,1,0,1,0,1,0,1,0,1,1,1,0,1},
+  {1,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1},
+  {1,1,0,1,1,1,1,0,1,1,1,0,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,0,1,1,1,1,1,1,0,1,1,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,0,1,1,1,0,1,1,1,0,1,1,0,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,0,1,1,1,0,1,1,1,1,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,0,1,1,1,1,0,1,1,1,0,1,1,1,1},
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+}
 
 function _init()
   _log("init:start")
@@ -109,16 +174,53 @@ function update_menu()
     state = "play"
     score = 0
     player_hp = 10
+    has_key = false
+    combat_active = false
+    state_transition_timer = 15
+    setup_level(level)
+    message = "level "..level..": defeat the beast!"
+    message_timer = 60
+  end
+end
+
+function setup_level(lv)
+  _log("level:"..lv)
+  if lv == 1 then
+    current_width = 14
+    current_height = 14
     player_x = 2
     player_y = 2
     enemy_x = 5
     enemy_y = 4
     enemy_hp = 3
-    has_key = false
-    combat_active = false
-    message = "defeat the beast!"
-    message_timer = 60
-    state_transition_timer = 15
+    exit_x = 12
+    exit_y = 12
+    respawn_x = 3
+    respawn_y = 12
+  elseif lv == 2 then
+    current_width = 16
+    current_height = 16
+    player_x = 2
+    player_y = 2
+    enemy_x = 13
+    enemy_y = 2
+    enemy_hp = 5
+    exit_x = 13
+    exit_y = 14
+    respawn_x = 2
+    respawn_y = 12
+  else
+    current_width = 16
+    current_height = 16
+    player_x = 2
+    player_y = 2
+    enemy_x = 12
+    enemy_y = 12
+    enemy_hp = 4
+    exit_x = 13
+    exit_y = 14
+    respawn_x = 2
+    respawn_y = 12
   end
 end
 
@@ -133,8 +235,8 @@ function update_play()
   if test_input(3) > 0 or btn(3) > 0 then player_y += 1 end
 
   -- clamp to bounds
-  player_x = mid(1, player_x, 14)
-  player_y = mid(1, player_y, 14)
+  player_x = mid(1, player_x, current_width)
+  player_y = mid(1, player_y, current_height)
 
   -- check if moved into wall
   if is_wall(player_x, player_y) then
@@ -176,8 +278,8 @@ function update_play()
         message = "victory!"
         message_timer = 60
         score += 10
-        enemy_x = 3
-        enemy_y = 12
+        enemy_x = respawn_x
+        enemy_y = respawn_y
         enemy_hp = 3
         combat_active = false
         has_key = true
@@ -204,15 +306,24 @@ function update_play()
   end
 
   -- check exit
-  if has_key and player_x == 13 and player_y == 13 then
+  if has_key and player_x == exit_x and player_y == exit_y then
     sfx(6)  -- exit/level transition sound
-    _log("gameover:win")
-    _log("score:"..score)
-    state = "gameover"
     score += 50
-    message = "you escaped!"
-    message_timer = 999
-    state_transition_timer = 15
+    if level < 3 then
+      _log("level:complete")
+      level += 1
+      state = "menu"
+      message = "level complete!"
+      message_timer = 999
+      state_transition_timer = 15
+    else
+      _log("gameover:win")
+      _log("score:"..score)
+      state = "gameover"
+      message = "all levels cleared!"
+      message_timer = 999
+      state_transition_timer = 15
+    end
   end
 end
 
@@ -225,11 +336,22 @@ function update_gameover()
 end
 
 function is_wall(x, y)
-  -- simple walls around edges and a few interior
-  if x < 1 or x > 14 or y < 1 or y > 14 then return true end
-  if x == 7 and y >= 3 and y <= 8 then return true end
-  if x == 9 and y >= 6 and y <= 11 then return true end
-  return false
+  -- bounds check
+  if x < 1 or x > current_width or y < 1 or y > current_height then return true end
+
+  -- use level-specific data
+  local level_data_ptr = level_data
+  if level == 2 then
+    level_data_ptr = level_data_2
+  elseif level == 3 then
+    level_data_ptr = level_data_3
+  end
+
+  -- check tile (1-indexed in lua, table is 1-indexed)
+  if level_data_ptr[y] and level_data_ptr[y][x] then
+    return level_data_ptr[y][x] == 1
+  end
+  return true
 end
 
 function draw_hp_bar(x, y)
@@ -266,34 +388,42 @@ function draw_menu()
   cls(1)
 
   print("mini quest", 40, 20, 7)
-  print("explore dungeon", 20, 40, 7)
-  print("defeat enemy", 25, 50, 7)
-  print("find exit", 30, 60, 7)
-  print("press z to start", 18, 85, 7)
+  print("level "..level, 45, 35, 10)
+  print("explore dungeon", 20, 50, 7)
+  print("defeat enemy", 25, 60, 7)
+  print("find exit", 30, 70, 7)
+  print("press z to start", 18, 95, 7)
 end
 
 function draw_play()
   -- apply screen shake
   camera(shake_x, shake_y)
 
-  -- draw dungeon
-  for y = 1, 14 do
-    for x = 1, 14 do
-      local sx = 8 + x * 8
-      local sy = 8 + y * 8
+  -- draw dungeon based on current level size
+  local tile_size = 4  -- smaller tiles for larger dungeons
+  if current_width > 14 then
+    tile_size = 3
+  end
+
+  for y = 1, current_height do
+    for x = 1, current_width do
+      local sx = 8 + x * tile_size
+      local sy = 8 + y * tile_size
       if is_wall(x, y) then
-        rectfill(sx, sy, sx+6, sy+6, 5)
+        rectfill(sx, sy, sx+tile_size-2, sy+tile_size-2, 5)
       else
-        rectfill(sx, sy, sx+6, sy+6, 1)
+        rectfill(sx, sy, sx+tile_size-2, sy+tile_size-2, 1)
       end
     end
   end
 
   -- draw exit marker
+  local exit_sx = 8 + exit_x * tile_size + tile_size/2
+  local exit_sy = 8 + exit_y * tile_size + tile_size/2
   if has_key then
-    circfill(8 + 13*8 + 3, 8 + 13*8 + 3, 3, 10)
+    circfill(exit_sx, exit_sy, 2, 10)
   else
-    circfill(8 + 13*8 + 3, 8 + 13*8 + 3, 3, 6)
+    circfill(exit_sx, exit_sy, 2, 6)
   end
 
   -- draw key if found (with flash effect)
@@ -302,33 +432,38 @@ function draw_play()
     if key_flash_timer > 0 and (flr(key_flash_timer / 3) % 2) == 0 then
       key_col = 10
     end
-    print("*", 8 + 13*8 + 1, 8 + 13*8, key_col)
+    print("*", exit_sx-2, exit_sy-4, key_col)
   end
 
   -- draw enemy (with damage flash and combat entrance flash)
+  local enemy_sx = 8 + enemy_x * tile_size
+  local enemy_sy = 8 + enemy_y * tile_size
+  local player_sx = 8 + player_x * tile_size
+  local player_sy = 8 + player_y * tile_size
+
   local enemy_col = 8
   if damage_flash_timer > 0 then
     enemy_col = 10
   end
   if combat_active then
     if damage_flash_timer > 0 then
-      circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 4, 10)
+      circfill(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 2, 10)
     else
-      circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 4, 8)
+      circfill(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 2, 8)
     end
     -- flash border when combat starts
     if combat_flash_timer > 0 and (flr(combat_flash_timer / 3) % 2) == 0 then
-      circ(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 5, 8)
+      circ(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 3, 8)
     end
   end
-  circfill(8 + enemy_x*8 + 3, 8 + enemy_y*8 + 3, 2, enemy_col)
+  circfill(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 1, enemy_col)
 
   -- draw player
   local player_col = 11
   if damage_flash_timer > 0 then
     player_col = 8
   end
-  rectfill(8 + player_x*8 + 1, 8 + player_y*8 + 1, 8 + player_x*8 + 5, 8 + player_y*8 + 5, player_col)
+  rectfill(player_sx + 1, player_sy + 1, player_sx + tile_size - 2, player_sy + tile_size - 2, player_col)
 
   -- reset camera
   camera(0, 0)

@@ -22,6 +22,7 @@
       "gameover_events": 2
     },
     "exit_state": "analysis_complete",
+    "diagnostic_note": "Uses custom read_input() - requires testmode=true for test infrastructure; run-interactive-test.py now initializes testmode",
     "metadata": {
       "title": "Star Collector",
       "description": "An action arcade PICO-8 game where you collect falling stars while avoiding missing them. Move left and right to position your collector, score points, and survive the timer.",

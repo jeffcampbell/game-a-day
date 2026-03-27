@@ -20,6 +20,7 @@
       "gameover_events": 2
     },
     "exit_state": "analysis_complete",
+    "diagnostic_note": "testmode initialized to false - will need to be set to true at runtime for log capture",
     "metadata": {
       "title": "Tile Match",
       "description": "A tile-matching puzzle game. Select tiles of the same color and match 3 or more in a row (horizontal or vertical) to score points. Reach 100 points to win before the board fills up!",
