@@ -202,8 +202,8 @@ function setup_level(lv)
     current_height = 16
     player_x = 2
     player_y = 2
-    enemy_x = 13
-    enemy_y = 13
+    enemy_x = 12
+    enemy_y = 12
     enemy_hp = 4
   end
 end
@@ -290,8 +290,8 @@ function update_play()
   end
 
   -- check exit (at bottom-right area)
-  local exit_x = current_width - 1
-  local exit_y = current_height - 1
+  local exit_x = current_width - 2
+  local exit_y = current_height - 2
   if has_key and player_x == exit_x and player_y == exit_y then
     sfx(6)  -- exit/level transition sound
     score += 50
@@ -404,8 +404,8 @@ function draw_play()
   end
 
   -- draw exit marker
-  local exit_x = current_width - 1
-  local exit_y = current_height - 1
+  local exit_x = current_width - 2
+  local exit_y = current_height - 2
   local exit_sx = 8 + exit_x * tile_size + tile_size/2
   local exit_sy = 8 + exit_y * tile_size + tile_size/2
   if has_key then
@@ -424,11 +424,6 @@ function draw_play()
   end
 
   -- draw enemy (with damage flash and combat entrance flash)
-  local tile_size = 4
-  if current_width > 14 then
-    tile_size = 3
-  end
-
   local enemy_sx = 8 + enemy_x * tile_size
   local enemy_sy = 8 + enemy_y * tile_size
   local player_sx = 8 + player_x * tile_size
