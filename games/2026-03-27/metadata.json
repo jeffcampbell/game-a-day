@@ -1,0 +1,12 @@
+{
+  "title": "Mini Quest",
+  "description": "A simple dungeon exploration RPG where you navigate a maze, defeat an enemy in turn-based combat, find the key, and escape through the exit. Move with arrows, attack with Z/C. Explore, fight, and survive!",
+  "genres": ["adventure", "rpg"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general",
+  "token_count": 880,
+  "sprite_count": 0,
+  "sound_count": 0
+}
