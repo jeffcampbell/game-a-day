@@ -51,6 +51,7 @@ message_timer = 0
 
 function _init()
   _log("init:start")
+  music(0)  -- start background music
 end
 
 function _update()
@@ -68,6 +69,7 @@ end
 
 function update_menu()
   if test_input(4) > 0 or btnp(4) > 0 then
+    sfx(0)  -- menu select sound
     _log("state:play")
     state = "play"
     score = 0
@@ -107,6 +109,7 @@ function update_play()
   -- check enemy encounter
   if player_x == enemy_x and player_y == enemy_y then
     if not combat_active then
+      sfx(1)  -- enemy encounter sound
       _log("combat:start")
       combat_active = true
       combat_turn = 0
@@ -121,6 +124,7 @@ function update_play()
 
     -- player attack
     if test_input(4) > 0 or btnp(4) > 0 then
+      sfx(2)  -- attack hit sound
       local dmg = 2 + rnd(2)
       enemy_hp -= dmg
       _log("attack:"..dmg)
@@ -128,6 +132,7 @@ function update_play()
       message_timer = 40
 
       if enemy_hp <= 0 then
+        sfx(4)  -- victory/enemy defeated sound
         _log("enemy:defeated")
         message = "victory!"
         message_timer = 60
@@ -139,11 +144,13 @@ function update_play()
         has_key = true
       else
         -- enemy counter
+        sfx(3)  -- enemy attack/player damage sound
         local enemy_dmg = 1 + rnd(2)
         player_hp -= enemy_dmg
         _log("enemy_attack:"..enemy_dmg)
 
         if player_hp <= 0 then
+          sfx(5)  -- gameover/lose sound
           _log("gameover:lose")
           state = "gameover"
           message = "you were defeated!"
@@ -155,6 +162,7 @@ function update_play()
 
   -- check exit
   if has_key and player_x == 13 and player_y == 13 then
+    sfx(6)  -- exit/level transition sound
     _log("gameover:win")
     _log("score:"..score)
     state = "gameover"
@@ -273,6 +281,21 @@ __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
+__sfx__
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000001b5511b5311b5111b4f11b4d11b4b11b4911b4711b4511b4311b4111b3f11b3d00000000000000000000000000000000000000000000000000000000
+00100000355533555035550255502555015550055500555005550055500555005550055500555005550055500000000000000000000000000000000000000000000
+002000001d5401d5201d5001d4e01d4c01d4a01d4801d4601d4401d4201d4001d3e01d3c0000000000000000000000000000000000000000000000000000000000
+011000001e5101e4f01e4d01e4b01e4901e4701e4501e4301e4101e3f01e3d01e3b01e3901e3701e3501e3301e3101e2f01e2d01e2b01e2901e2701e2501e2301
+00100000155101550115511551015510155100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000002a5502a5402a5302a5202a5102a5002a4f02a4e02a4d02a4c02a4b02a4a0000000000000000000000000000000000000000000000000000000000000
+
+__music__
+00 00000000
+01 00000000
+02 00000000
+03 00000000
 
 __label__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
