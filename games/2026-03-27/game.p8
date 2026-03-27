@@ -9,7 +9,7 @@ __lua__
 testmode = false
 test_log = {}
 test_inputs = {}
-test_input_idx = 0
+test_input_idx = -1
 
 function _log(msg)
   if testmode then add(test_log, msg) end
