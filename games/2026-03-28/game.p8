@@ -69,7 +69,7 @@ function init_game()
 end
 
 function update_menu()
-  if btnp(4) then
+  if test_input(4) > 0 then
     state = "play"
     init_game()
   end
@@ -94,7 +94,7 @@ function update_play()
   end
 
   -- shooting
-  if btnp(4) then
+  if test_input(4) > 0 then
     add(projectiles, {x=player.x, y=player.y-4, speed=3})
     sfx(0)
     _log("shoot")
@@ -209,7 +209,7 @@ function update_play()
 end
 
 function update_gameover()
-  if btnp(4) then
+  if test_input(4) > 0 then
     state = "menu"
     _log("state:menu")
   end
