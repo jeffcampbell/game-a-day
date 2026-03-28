@@ -170,6 +170,7 @@ function update_play()
 
   if enemy_spawn_timer > spawn_threshold and not boss_active then
     -- spawn count increases at higher waves (density scaling)
+    -- uses cascading probability: 30% chance for 2nd enemy, then 20% chance for 3rd
     local spawn_count = 1
     if wave >= 5 and rnd() < 0.3 then spawn_count = 2 end
     if wave >= 8 and rnd() < 0.2 then spawn_count = 3 end
@@ -264,13 +265,9 @@ function update_play()
       wave_change_flash = 30
       _log("wave:"..wave)
 
-      -- log difficulty tier changes
+      -- log difficulty tier change at wave 3 (final wave before boss)
       if wave == 3 then
         _log("difficulty:medium")
-      elseif wave == 5 then
-        _log("difficulty:hard")
-      elseif wave == 8 then
-        _log("difficulty:intense")
       end
 
       sfx(3)
