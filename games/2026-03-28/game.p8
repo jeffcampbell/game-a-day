@@ -384,23 +384,6 @@ function draw_play()
     circfill(flr(p.x), flr(p.y), 2, 8)
   end
 
-  -- draw boss telegraph warning
-  if boss_active then
-    local attack_interval = max(60, boss_attack_interval - (wave - 3) * 12)
-    if boss_telegraph > attack_interval - 30 then
-      for e in all(enemies) do
-        if e.type == "boss" then
-          -- flash outline and telegraph text
-          local flash = flr((30 - (attack_interval - boss_telegraph)) / 5)
-          if flash % 2 == 0 then
-            rect(e.x-8, e.y-8, e.x+8, e.y+8, 8)
-            print("!", e.x-2, e.y-12, 8)
-          end
-        end
-      end
-    end
-  end
-
   -- draw enemies
   for e in all(enemies) do
     if e.type == "comet" then
@@ -411,11 +394,14 @@ function draw_play()
       -- draw boss with telegraph flash effect
       local attack_interval = max(60, boss_attack_interval - (wave - 3) * 12)
       if boss_telegraph > attack_interval - 30 then
-        -- flash the boss during telegraph (same rate as outline/exclamation at line 394)
+        -- flash the boss during telegraph
         local flash = flr((30 - (attack_interval - boss_telegraph)) / 5)
         if flash % 2 == 0 then
           -- draw boss with bright background
           rectfill(e.x-8, e.y-8, e.x+8, e.y+8, 8)
+          -- draw telegraph warning outline and text (on top of background)
+          rect(e.x-8, e.y-8, e.x+8, e.y+8, 8)
+          print("!", e.x-2, e.y-12, 8)
         end
       end
       spr(4, e.x-6, e.y-6)
