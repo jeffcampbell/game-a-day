@@ -169,11 +169,7 @@ function update_play()
   local spawn_threshold = max(8, enemy_spawn_rate - wave * 8)
 
   if enemy_spawn_timer > spawn_threshold and not boss_active then
-    -- spawn count increases at higher waves (density scaling)
-    -- uses cascading probability: 30% chance for 2nd enemy, then 20% chance for 3rd
     local spawn_count = 1
-    if wave >= 5 and rnd() < 0.3 then spawn_count = 2 end
-    if wave >= 8 and rnd() < 0.2 then spawn_count = 3 end
 
     for s=1,spawn_count do
       local enemy_type = rnd() > 0.5 and "comet" or "asteroid"
