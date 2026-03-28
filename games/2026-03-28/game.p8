@@ -79,7 +79,7 @@ end
 
 function create_explosion(x, y)
   for i=1,8 do
-    local angle = i / 8 * 6.28
+    local angle = i / 8
     add(particles, {
       x=x, y=y,
       vx=cos(angle)*0.5,
