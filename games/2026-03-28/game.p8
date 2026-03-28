@@ -93,7 +93,8 @@ function create_explosion(x, y)
       x=x, y=y,
       vx=cos(angle)*0.5,
       vy=sin(angle)*0.5,
-      life=30
+      life=30,
+      max_life=30
     })
   end
 end
@@ -141,7 +142,8 @@ function update_play()
       add(particles, {
         x=p.x, y=p.y,
         vx=0, vy=0,
-        life=10
+        life=10,
+        max_life=10
       })
       p.trail_counter = 0
     end
@@ -375,8 +377,8 @@ function draw_play()
 
   -- draw particles
   for pt in all(particles) do
-    -- fade color based on life remaining (works for both long and short particles)
-    local col = 8 + max(0, flr(pt.life / 5 - 2))
+    -- fade color based on life remaining, scaled to particle's max lifetime
+    local col = 8 + max(0, flr(pt.life / pt.max_life * 4))
     pset(flr(pt.x), flr(pt.y), col)
   end
 
