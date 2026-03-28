@@ -31,12 +31,16 @@ health = 3
 wave = 1
 boss_health = 0
 combo = 0
+combo_timer = 0
 
 -- player
 player = {x=64, y=110, w=6, h=6, speed=2, alive=true}
 
 -- projectiles
 projectiles = {}
+
+-- particles
+particles = {}
 
 -- enemies
 enemies = {}
@@ -47,6 +51,8 @@ enemy_spawn_rate = 30
 wave_timer = 0
 wave_duration = 300
 boss_active = false
+boss_telegraph = 0
+boss_attack_interval = 120
 
 -- functions
 function init_game()
@@ -55,17 +61,32 @@ function init_game()
   wave = 1
   boss_health = 0
   combo = 0
+  combo_timer = 0
   player.x = 64
   player.y = 110
   player.alive = true
   projectiles = {}
+  particles = {}
   enemies = {}
   enemy_spawn_timer = 0
   enemy_spawn_rate = 30
   wave_timer = 0
   boss_active = false
+  boss_telegraph = 0
   _log("state:play")
   _log("wave:1")
+end
+
+function create_explosion(x, y)
+  for i=1,8 do
+    local angle = i / 8 * 6.28
+    add(particles, {
+      x=x, y=y,
+      vx=cos(angle)*0.5,
+      vy=sin(angle)*0.5,
+      life=30
+    })
+  end
 end
 
 function update_menu()
@@ -109,6 +130,26 @@ function update_play()
     end
   end
 
+  -- update particles
+  for i=#particles,1,-1 do
+    local pt = particles[i]
+    pt.x += pt.vx
+    pt.y += pt.vy
+    pt.vy += 0.05
+    pt.life -= 1
+    if pt.life <= 0 then
+      deli(particles, i)
+    end
+  end
+
+  -- combo decay
+  if combo > 0 then
+    combo_timer -= 1
+    if combo_timer <= 0 then
+      combo = 0
+    end
+  end
+
   -- spawn enemies
   enemy_spawn_timer += 1
   local spawn_threshold = max(10, enemy_spawn_rate - wave * 3)
@@ -140,8 +181,10 @@ function update_play()
         sfx(1)
         score += 10 * wave
         combo += 1
+        combo_timer = 180
         _log("hit:"..e.type)
         if e.health <= 0 then
+          create_explosion(e.x, e.y)
           deli(enemies, i)
           _log("destroy:"..e.type)
         end
@@ -200,6 +243,14 @@ function update_play()
     end
   end
 
+  -- boss telegraph
+  if boss_active then
+    boss_telegraph += 1
+    if boss_telegraph > boss_attack_interval then
+      boss_telegraph = 0
+    end
+  end
+
   -- boss defeat
   if boss_active and #enemies == 0 then
     state = "gameover"
@@ -228,14 +279,33 @@ end
 function draw_play()
   cls(0)
 
+  -- draw particles
+  for pt in all(particles) do
+    local col = 8 + flr(pt.life / 30 * 4)
+    pset(flr(pt.x), flr(pt.y), col)
+  end
+
   -- draw player
   if player.alive then
     spr(0, player.x-3, player.y-3)
   end
 
-  -- draw projectiles
+  -- draw projectiles with trails
   for p in all(projectiles) do
+    pset(flr(p.x), flr(p.y-1), 7)
     spr(1, p.x-2, p.y-2)
+  end
+
+  -- draw boss telegraph warning
+  if boss_active and boss_telegraph > boss_attack_interval - 30 then
+    for e in all(enemies) do
+      if e.type == "boss" then
+        local flash = flr((30 - (boss_attack_interval - boss_telegraph)) / 5)
+        if flash % 2 == 0 then
+          rect(e.x-8, e.y-8, e.x+8, e.y+8, 8)
+        end
+      end
+    end
   end
 
   -- draw enemies
@@ -258,8 +328,24 @@ function draw_play()
   end
   print("health:"..health_str, 70, 2, 8)
 
+  -- draw combo multiplier prominently
+  if combo > 0 then
+    print("combo x"..combo, 45, 60, 11)
+  end
+
+  -- draw boss health bar
   if boss_active then
-    print("boss!", 55, 10, 10)
+    local boss_bar_width = 40
+    local boss_health_pct = 0
+    for e in all(enemies) do
+      if e.type == "boss" then
+        boss_health_pct = e.health / 5
+      end
+    end
+    rectfill(44, 115, 84, 120, 1)
+    rectfill(44, 115, 44 + flr(boss_bar_width * boss_health_pct), 120, 8)
+    rect(44, 115, 84, 120, 7)
+    print("boss", 50, 108, 10)
   end
 end
 
