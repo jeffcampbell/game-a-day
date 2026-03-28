@@ -390,9 +390,11 @@ function draw_play()
     if boss_telegraph > attack_interval - 30 then
       for e in all(enemies) do
         if e.type == "boss" then
+          -- flash outline and telegraph text
           local flash = flr((30 - (attack_interval - boss_telegraph)) / 5)
           if flash % 2 == 0 then
             rect(e.x-8, e.y-8, e.x+8, e.y+8, 8)
+            print("!", e.x-2, e.y-12, 8)
           end
         end
       end
@@ -406,6 +408,16 @@ function draw_play()
     elseif e.type == "asteroid" then
       spr(3, e.x-4, e.y-4)
     elseif e.type == "boss" then
+      -- draw boss with telegraph flash effect
+      local attack_interval = max(60, boss_attack_interval - (wave - 3) * 12)
+      if boss_telegraph > attack_interval - 30 then
+        -- flash the boss during telegraph
+        local flash = flr((30 - (attack_interval - boss_telegraph)) / 3)
+        if flash % 2 == 0 then
+          -- draw boss with bright background
+          rectfill(e.x-8, e.y-8, e.x+8, e.y+8, 8)
+        end
+      end
       spr(4, e.x-6, e.y-6)
     end
   end
@@ -430,7 +442,7 @@ function draw_play()
     print("combo x"..combo, 45, 60, 11)
   end
 
-  -- draw boss health bar
+  -- draw boss health bar at top
   if boss_active then
     local boss_bar_width = 40
     local boss_health_pct = 0
@@ -439,10 +451,10 @@ function draw_play()
         boss_health_pct = e.health / 5
       end
     end
-    rectfill(44, 115, 84, 120, 1)
-    rectfill(44, 115, 44 + flr(boss_bar_width * boss_health_pct), 120, 8)
-    rect(44, 115, 84, 120, 7)
-    print("boss", 50, 108, 10)
+    rectfill(44, 2, 84, 7, 1)
+    rectfill(44, 2, 44 + flr(boss_bar_width * boss_health_pct), 7, 8)
+    rect(44, 2, 84, 7, 7)
+    print("boss hp", 47, 10, 10)
   end
 end
 
