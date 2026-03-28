@@ -1,0 +1,13 @@
+{
+  "date": "2026-03-28",
+  "title": "Comet Clash",
+  "description": "Fast-paced action arcade game where you control a ship at the bottom of the screen, dodging incoming comets and asteroids while shooting projectiles to destroy threats. Survive escalating waves of enemies and defeat the final comet boss to win. Three lives to make it through.",
+  "genres": ["action", "arcade"],
+  "difficulty": 3,
+  "playtime_minutes": 4,
+  "token_count": 935,
+  "sprite_count": 5,
+  "sound_count": 4,
+  "completion_status": "complete",
+  "target_audience": "general"
+}
