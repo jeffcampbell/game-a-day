@@ -411,8 +411,8 @@ function draw_play()
       -- draw boss with telegraph flash effect
       local attack_interval = max(60, boss_attack_interval - (wave - 3) * 12)
       if boss_telegraph > attack_interval - 30 then
-        -- flash the boss during telegraph
-        local flash = flr((30 - (attack_interval - boss_telegraph)) / 3)
+        -- flash the boss during telegraph (same rate as outline/exclamation at line 394)
+        local flash = flr((30 - (attack_interval - boss_telegraph)) / 5)
         if flash % 2 == 0 then
           -- draw boss with bright background
           rectfill(e.x-8, e.y-8, e.x+8, e.y+8, 8)
