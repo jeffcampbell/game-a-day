@@ -1,5 +1,4 @@
-// Comet Clash - PICO-8 Game
-// Exported from PICO-8 (headless environment - JS stub)
-// This is a placeholder stub created in headless environment without X11 display.
-// Full HTML/JS export available when running on system with display server.
-console.log("Comet Clash - Fast-paced action arcade game");
+// PICO-8 Game: Comet Clash
+// This is a stub file. The game requires a proper PICO-8 runtime environment.
+// Game implementation is in game.p8 (Lua)
+console.log('Comet Clash - Fast-paced action arcade game');
