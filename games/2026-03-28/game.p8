@@ -49,10 +49,12 @@ enemy_spawn_rate = 30
 
 -- wave system
 wave_timer = 0
-wave_duration = 300
+wave_duration = 240
 boss_active = false
 boss_telegraph = 0
 boss_attack_interval = 120
+wave_just_changed = false
+wave_change_flash = 0
 
 -- functions
 function init_game()
@@ -73,8 +75,11 @@ function init_game()
   wave_timer = 0
   boss_active = false
   boss_telegraph = 0
+  wave_just_changed = false
+  wave_change_flash = 0
   _log("state:play")
   _log("wave:1")
+  _log("difficulty:easy")
 end
 
 function create_explosion(x, y)
@@ -150,20 +155,35 @@ function update_play()
     end
   end
 
-  -- spawn enemies
+  -- wave change flash animation
+  if wave_just_changed then
+    wave_change_flash -= 1
+    if wave_change_flash <= 0 then
+      wave_just_changed = false
+    end
+  end
+
+  -- spawn enemies with progressive difficulty
   enemy_spawn_timer += 1
-  local spawn_threshold = max(10, enemy_spawn_rate - wave * 3)
+  -- more aggressive spawn rate decrease: 8 per wave instead of 3-5
+  local spawn_threshold = max(8, enemy_spawn_rate - wave * 8)
 
   if enemy_spawn_timer > spawn_threshold and not boss_active then
-    local enemy_type = rnd() > 0.5 and "comet" or "asteroid"
-    add(enemies, {
-      x = rnd(120),
-      y = -8,
-      speed = 1 + wave * 0.3,
-      type = enemy_type,
-      health = enemy_type == "comet" and 2 or 1
-    })
-    _log("enemy_spawn:"..enemy_type)
+    local spawn_count = 1
+
+    for s=1,spawn_count do
+      local enemy_type = rnd() > 0.5 and "comet" or "asteroid"
+      -- more aggressive speed scaling: 0.4 per wave instead of 0.3
+      local enemy_speed = 1 + wave * 0.4
+      add(enemies, {
+        x = rnd(120),
+        y = -8,
+        speed = enemy_speed,
+        type = enemy_type,
+        health = enemy_type == "comet" and 2 or 1
+      })
+      _log("enemy_spawn:"..enemy_type)
+    end
     enemy_spawn_timer = 0
   end
 
@@ -179,10 +199,11 @@ function update_play()
         e.health -= 1
         deli(projectiles, j)
         sfx(1)
+        -- score scales with wave (difficulty multiplier)
         score += 10 * wave
         combo += 1
         combo_timer = 180
-        _log("hit:"..e.type)
+        _log("hit:"..e.type.."_wave"..wave)
         if e.health <= 0 then
           create_explosion(e.x, e.y)
           deli(enemies, i)
@@ -215,7 +236,7 @@ function update_play()
     end
   end
 
-  -- wave progression
+  -- wave progression with difficulty milestones
   wave_timer += 1
   if wave_timer > wave_duration then
     if wave >= 3 then
@@ -236,9 +257,17 @@ function update_play()
       end
     else
       wave += 1
+      wave_just_changed = true
+      wave_change_flash = 30
       _log("wave:"..wave)
+
+      -- log difficulty tier change at wave 3 (final wave before boss)
+      if wave == 3 then
+        _log("difficulty:medium")
+      end
+
       sfx(3)
-      enemy_spawn_rate -= 5
+      enemy_spawn_rate -= 8
       wave_timer = 0
     end
   end
@@ -279,6 +308,13 @@ end
 function draw_play()
   cls(0)
 
+  -- wave change flash effect
+  if wave_just_changed and wave_change_flash > 15 then
+    -- bright flash for the first half
+    local flash_col = 7
+    rectfill(0, 0, 128, 128, flash_col)
+  end
+
   -- draw particles
   for pt in all(particles) do
     local col = 8 + flr(pt.life / 30 * 4)
@@ -317,6 +353,12 @@ function draw_play()
     elseif e.type == "boss" then
       spr(4, e.x-6, e.y-6)
     end
+  end
+
+  -- draw wave transition message
+  if wave_just_changed and wave_change_flash > 0 then
+    local msg_y = 50 + flr(sin(1 - wave_change_flash/30) * 5)
+    print("wave "..wave, 40, msg_y, 11)
   end
 
   -- draw ui
