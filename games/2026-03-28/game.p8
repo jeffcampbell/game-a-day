@@ -38,6 +38,7 @@ player = {x=64, y=110, w=6, h=6, speed=2, alive=true}
 
 -- projectiles
 projectiles = {}
+boss_projectiles = {}
 
 -- particles
 particles = {}
@@ -53,6 +54,7 @@ wave_duration = 240
 boss_active = false
 boss_telegraph = 0
 boss_attack_interval = 120
+boss_last_attack = false
 wave_just_changed = false
 wave_change_flash = 0
 
@@ -68,6 +70,7 @@ function init_game()
   player.y = 110
   player.alive = true
   projectiles = {}
+  boss_projectiles = {}
   particles = {}
   enemies = {}
   enemy_spawn_timer = 0
@@ -75,6 +78,7 @@ function init_game()
   wave_timer = 0
   boss_active = false
   boss_telegraph = 0
+  boss_last_attack = false
   wave_just_changed = false
   wave_change_flash = 0
   _log("state:play")
@@ -132,6 +136,15 @@ function update_play()
     p.y -= p.speed
     if p.y < 0 then
       deli(projectiles, i)
+    end
+  end
+
+  -- update boss projectiles
+  for i=#boss_projectiles,1,-1 do
+    local p = boss_projectiles[i]
+    p.y += p.speed
+    if p.y > 128 then
+      deli(boss_projectiles, i)
     end
   end
 
@@ -229,6 +242,21 @@ function update_play()
     end
   end
 
+  -- check collision with boss projectiles
+  for i=#boss_projectiles,1,-1 do
+    local p = boss_projectiles[i]
+    if abs(p.x - player.x) < 6 and abs(p.y - player.y) < 6 then
+      health -= 1
+      deli(boss_projectiles, i)
+      sfx(2)
+      _log("boss_damage")
+      _log("health:"..health)
+      if health <= 0 then
+        player.alive = false
+      end
+    end
+  end
+
   -- remove off-screen enemies
   for i=#enemies,1,-1 do
     if enemies[i].y > 128 then
@@ -272,11 +300,29 @@ function update_play()
     end
   end
 
-  -- boss telegraph
+  -- boss attack timing with difficulty scaling
   if boss_active then
     boss_telegraph += 1
-    if boss_telegraph > boss_attack_interval then
+    -- scale attack frequency: faster attacks for higher waves
+    local attack_interval = max(60, boss_attack_interval - (wave - 3) * 12)
+
+    if boss_telegraph > attack_interval then
+      -- telegraph phase is over, fire attack if in active phase
+      if not boss_last_attack then
+        -- fire boss projectiles
+        for e in all(enemies) do
+          if e.type == "boss" then
+            add(boss_projectiles, {x=e.x, y=e.y+8, speed=1.5})
+            add(boss_projectiles, {x=e.x-6, y=e.y+8, speed=1.5})
+            add(boss_projectiles, {x=e.x+6, y=e.y+8, speed=1.5})
+            sfx(4)
+            _log("boss_attack")
+          end
+        end
+        boss_last_attack = true
+      end
       boss_telegraph = 0
+      boss_last_attack = false
     end
   end
 
@@ -332,13 +378,22 @@ function draw_play()
     spr(1, p.x-2, p.y-2)
   end
 
+  -- draw boss projectiles (red color, different from player)
+  for p in all(boss_projectiles) do
+    pset(flr(p.x), flr(p.y+1), 8)
+    circfill(flr(p.x), flr(p.y), 2, 8)
+  end
+
   -- draw boss telegraph warning
-  if boss_active and boss_telegraph > boss_attack_interval - 30 then
-    for e in all(enemies) do
-      if e.type == "boss" then
-        local flash = flr((30 - (boss_attack_interval - boss_telegraph)) / 5)
-        if flash % 2 == 0 then
-          rect(e.x-8, e.y-8, e.x+8, e.y+8, 8)
+  if boss_active then
+    local attack_interval = max(60, boss_attack_interval - (wave - 3) * 12)
+    if boss_telegraph > attack_interval - 30 then
+      for e in all(enemies) do
+        if e.type == "boss" then
+          local flash = flr((30 - (attack_interval - boss_telegraph)) / 5)
+          if flash % 2 == 0 then
+            rect(e.x-8, e.y-8, e.x+8, e.y+8, 8)
+          end
         end
       end
     end
@@ -462,6 +517,7 @@ __sfx__
 000100001c6321c6321c6301c6300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0001000026630266302663026630266302663000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100003c6333c6333c6303c6303c6300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200003c6333c6330c6303c6303c6300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __label__
 0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
