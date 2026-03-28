@@ -125,7 +125,7 @@ function update_play()
 
   -- shooting
   if test_input(4) > 0 then
-    add(projectiles, {x=player.x, y=player.y-4, speed=3})
+    add(projectiles, {x=player.x, y=player.y-4, speed=3, trail_counter=0})
     sfx(0)
     _log("shoot")
   end
@@ -134,6 +134,18 @@ function update_play()
   for i=#projectiles,1,-1 do
     local p = projectiles[i]
     p.y -= p.speed
+
+    -- spawn trail particles
+    p.trail_counter += 1
+    if p.trail_counter >= 3 then
+      add(particles, {
+        x=p.x, y=p.y,
+        vx=0, vy=0,
+        life=10
+      })
+      p.trail_counter = 0
+    end
+
     if p.y < 0 then
       deli(projectiles, i)
     end
@@ -363,7 +375,8 @@ function draw_play()
 
   -- draw particles
   for pt in all(particles) do
-    local col = 8 + flr(pt.life / 30 * 4)
+    -- fade color based on life remaining (works for both long and short particles)
+    local col = 8 + max(0, flr(pt.life / 5 - 2))
     pset(flr(pt.x), flr(pt.y), col)
   end
 
