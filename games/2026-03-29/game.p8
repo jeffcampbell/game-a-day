@@ -40,6 +40,10 @@ beat_speed = 1.5
 hit_zone_y = 110
 feedback_timer = 0
 feedback_text = ""
+difficulty = 1  -- 1=easy, 2=medium, 3=hard
+selected_difficulty = 1  -- persists between games
+difficulty_speeds = {1.5, 2.0, 2.5}  -- speed for each difficulty
+difficulty_names = {"easy", "medium", "hard"}
 
 -- constants
 colors = {8, 9, 10, 11, 12, 13, 14, 15}
@@ -52,11 +56,31 @@ function init_game()
   beat_index = 0
   beat_timer = 0
   beats = {}
+  beat_speed = difficulty_speeds[difficulty]
+  _log("difficulty:"..difficulty_names[difficulty])
   _log("state:play")
 end
 
 function update_menu()
   if test_input(4) ~= 0 then  -- o button
+    sfx(3)
+    state = "difficulty"
+    _log("state:difficulty")
+  end
+end
+
+function update_difficulty()
+  -- left/right to change difficulty
+  if test_input(0) ~= 0 then  -- left
+    difficulty = max(1, difficulty - 1)
+  end
+  if test_input(1) ~= 0 then  -- right
+    difficulty = min(3, difficulty + 1)
+  end
+
+  -- o to start game
+  if test_input(4) ~= 0 then  -- o button
+    selected_difficulty = difficulty
     sfx(3)
     state = "play"
     init_game()
@@ -134,13 +158,15 @@ end
 
 function update_gameover()
   if test_input(4) ~= 0 then  -- o button to restart
-    state = "menu"
-    _log("state:menu")
+    difficulty = selected_difficulty
+    state = "difficulty"
+    _log("state:difficulty")
   end
 end
 
 function _update()
   if state == "menu" then update_menu()
+  elseif state == "difficulty" then update_difficulty()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
   end
@@ -172,10 +198,32 @@ function draw_play()
   print("combo: "..combo, 2, 10, 12)
   print("lives: "..lives, 2, 18, 10)
 
+  -- draw difficulty indicator
+  local diff_text = difficulty_names[difficulty]
+  print(diff_text, 100, 2, 7)
+
   -- draw feedback
   if feedback_timer > 0 then
     print(feedback_text, 50, 90, 7)
   end
+end
+
+function draw_difficulty()
+  cls(0)
+  print("select difficulty", 30, 20, 7)
+
+  -- draw difficulty options
+  local y_offset = 50
+  for i = 1, 3 do
+    local col = 7
+    if i == difficulty then
+      col = 11
+    end
+    print(difficulty_names[i], 50, y_offset + (i-1)*12, col)
+  end
+
+  print("use arrow keys", 28, 90, 12)
+  print("press o to play", 35, 100, 12)
 end
 
 function draw_gameover()
@@ -192,6 +240,7 @@ end
 
 function _draw()
   if state == "menu" then draw_menu()
+  elseif state == "difficulty" then draw_difficulty()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
   end
