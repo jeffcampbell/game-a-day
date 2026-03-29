@@ -1,0 +1,13 @@
+{
+  "date": "2026-03-29",
+  "title": "Beat Runner",
+  "description": "Tap to the beat in this fast-paced rhythm game. Press the O button to hit falling notes and build your combo. Miss three beats and it's game over. Survive all eight rounds to win!",
+  "genres": ["rhythm"],
+  "difficulty": 2,
+  "playtime_minutes": 3,
+  "token_count": 750,
+  "sprite_count": 0,
+  "sound_count": 0,
+  "completion_status": "complete",
+  "target_audience": "general"
+}
