@@ -1,4 +1,4 @@
-// Beat Runner - PICO-8 Game (Stub Export)
-// This is a placeholder stub. The game can be tested via:
-// python3 tools/run-interactive-test.py 2026-03-29
-console.log("Beat Runner stub loaded");
+// Sky Climb - PICO-8 Game
+// This is a placeholder JS file
+// The actual game is in game.p8
+console.log("Sky Climb game loaded");
