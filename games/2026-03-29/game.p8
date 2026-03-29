@@ -38,8 +38,12 @@ beats = {}  -- active falling beats
 beat_y = 0
 beat_speed = 1.5
 hit_zone_y = 110
+hit_zone_perfect = 5  -- pixels from center for perfect
+hit_zone_good = 10  -- pixels from center for good
 feedback_timer = 0
 feedback_text = ""
+feedback_color = 7  -- color of feedback text
+perfect_effect_timer = 0  -- animation timer for perfect hit effect
 difficulty = 1  -- 1=easy, 2=medium, 3=hard
 selected_difficulty = 1  -- persists between games
 difficulty_speeds = {1.5, 2.0, 2.5}  -- speed for each difficulty
@@ -106,14 +110,15 @@ function update_play()
     beat.y += beat_speed
 
     -- check if beat passed hit zone
-    if beat.y > hit_zone_y + 12 and not beat.hit then
+    if beat.y > hit_zone_y + hit_zone_good and not beat.hit then
       beat.hit = true
       lives -= 1
       combo = 0
       feedback_text = "miss!"
+      feedback_color = 8  -- red
       feedback_timer = 20
       sfx(1)
-      _log("miss")
+      _log("hit:miss")
       if lives <= 0 then
         state = "gameover"
         _log("state:gameover")
@@ -132,15 +137,28 @@ function update_play()
   if button_pressed ~= 0 then
     for i = #beats, 1, -1 do
       local beat = beats[i]
-      if not beat.hit and abs(beat.y - hit_zone_y) < 12 then
+      local dist = abs(beat.y - hit_zone_y)
+      if not beat.hit and dist < hit_zone_good then
         beat.hit = true
-        score += 10 + combo
+        local hit_quality = "good"
+        local points = 10 + combo
+        if dist < hit_zone_perfect then
+          hit_quality = "perfect"
+          points = 15 + combo * 2
+          perfect_effect_timer = 8
+        end
+        score += points
         combo += 1
         if combo > max_combo then max_combo = combo end
-        feedback_text = "hit! +"..combo
+        feedback_text = hit_quality .. "! +"..combo
+        if hit_quality == "perfect" then
+          feedback_color = 11  -- green
+        else
+          feedback_color = 10  -- yellow
+        end
         feedback_timer = 15
         sfx(0)
-        _log("hit:score:"..score)
+        _log("hit:"..hit_quality)
         deli(beats, i)
         break
       end
@@ -149,6 +167,9 @@ function update_play()
 
   if feedback_timer > 0 then
     feedback_timer -= 1
+  end
+  if perfect_effect_timer > 0 then
+    perfect_effect_timer -= 1
   end
 
   -- win condition: survive 8 beats
@@ -186,14 +207,27 @@ end
 
 function draw_play()
   cls(0)
-  -- draw hit zone
+  -- draw hit zone with visual zones
+  -- good zone (outer band)
+  line(10, hit_zone_y - hit_zone_good, 118, hit_zone_y - hit_zone_good, 10)
+  line(10, hit_zone_y + hit_zone_good, 118, hit_zone_y + hit_zone_good, 10)
+
+  -- perfect zone (center line and inner band)
+  line(10, hit_zone_y - hit_zone_perfect, 118, hit_zone_y - hit_zone_perfect, 11)
   line(10, hit_zone_y, 118, hit_zone_y, 11)
-  line(10, hit_zone_y + 2, 118, hit_zone_y + 2, 11)
+  line(10, hit_zone_y + hit_zone_perfect, 118, hit_zone_y + hit_zone_perfect, 11)
 
   -- draw falling beats
   for beat in all(beats) do
     local col = colors[(beat.button % 8) + 1]
     circfill(64, beat.y, 4, col)
+  end
+
+  -- draw perfect hit effect (expanding ring)
+  if perfect_effect_timer > 0 then
+    local ring_radius = (8 - perfect_effect_timer) * 2
+    local effect_col = 11  -- green
+    circ(64, hit_zone_y, ring_radius, effect_col)
   end
 
   -- draw ui
@@ -205,9 +239,9 @@ function draw_play()
   local diff_text = difficulty_names[difficulty]
   print(diff_text, 100, 2, 7)
 
-  -- draw feedback
+  -- draw feedback with color coding
   if feedback_timer > 0 then
-    print(feedback_text, 50, 90, 7)
+    print(feedback_text, 50, 90, feedback_color)
   end
 end
 
