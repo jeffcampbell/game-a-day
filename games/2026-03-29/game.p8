@@ -32,7 +32,7 @@ max_combo = 0
 lives = 3
 beat_index = 0
 beat_timer = 0
-beat_interval = 15  -- frames between beats
+beat_interval = 30  -- frames between beats (difficulty-dependent)
 beat_pattern = {4, 4, 2, 2, 4, 4, 2, 2}  -- button pattern for beats (4=o, 2=up, etc)
 beats = {}  -- active falling beats
 beat_y = 0
@@ -43,6 +43,7 @@ feedback_text = ""
 difficulty = 1  -- 1=easy, 2=medium, 3=hard
 selected_difficulty = 1  -- persists between games
 difficulty_speeds = {1.5, 2.0, 2.5}  -- speed for each difficulty
+difficulty_intervals = {30, 25, 20}  -- spawn interval for each difficulty
 difficulty_names = {"easy", "medium", "hard"}
 
 -- constants
@@ -57,7 +58,9 @@ function init_game()
   beat_timer = 0
   beats = {}
   beat_speed = difficulty_speeds[difficulty]
+  beat_interval = difficulty_intervals[difficulty]
   _log("difficulty:"..difficulty_names[difficulty])
+  _log("spawn_interval:"..beat_interval)
   _log("state:play")
 end
 
