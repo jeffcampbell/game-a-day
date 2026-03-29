@@ -33,7 +33,7 @@ lives = 3
 beat_index = 0
 beat_timer = 0
 beat_interval = 30  -- frames between beats (difficulty-dependent)
-beat_pattern = {4, 4, 2, 2, 4, 4, 2, 2}  -- button pattern for beats (4=o, 2=up, etc)
+beat_pattern = {}  -- selected at game start based on difficulty
 beats = {}  -- active falling beats
 beat_y = 0
 beat_speed = 1.5
@@ -50,8 +50,39 @@ difficulty_speeds = {1.5, 2.0, 2.5}  -- speed for each difficulty
 difficulty_intervals = {30, 25, 20}  -- spawn interval for each difficulty
 difficulty_names = {"easy", "medium", "hard"}
 
+-- difficulty-specific beat pattern pools
+-- 0=left, 1=right, 2=up, 3=down, 4=o, 5=x
+beat_patterns_easy = {
+  {4, 4, 4, 2, 4, 4, 4, 2},
+  {4, 4, 2, 2, 4, 4, 2, 2},
+  {2, 4, 2, 4, 2, 4, 2, 4},
+  {4, 4, 4, 4, 2, 2, 2, 2},
+}
+
+beat_patterns_medium = {
+  {4, 0, 2, 3, 4, 1, 3, 2},
+  {2, 4, 1, 3, 0, 4, 2, 1},
+  {0, 2, 4, 3, 1, 2, 4, 0},
+  {4, 1, 2, 0, 3, 4, 1, 2},
+  {3, 4, 0, 2, 1, 4, 3, 2},
+}
+
+beat_patterns_hard = {
+  {0, 1, 2, 3, 4, 5, 2, 1, 0, 3, 4},
+  {4, 0, 1, 2, 3, 4, 5, 3, 2, 1, 0},
+  {5, 4, 3, 2, 1, 0, 4, 5, 3, 2, 1},
+  {1, 0, 5, 4, 3, 2, 1, 0, 5, 4, 3},
+  {2, 5, 1, 4, 0, 3, 2, 5, 1, 4, 0},
+}
+
 -- constants
 colors = {8, 9, 10, 11, 12, 13, 14, 15}
+
+function select_beat_pattern()
+  local pools = {beat_patterns_easy, beat_patterns_medium, beat_patterns_hard}
+  local pool = pools[difficulty]
+  return pool[flr(rnd(#pool)) + 1]
+end
 
 function init_game()
   score = 0
@@ -61,6 +92,7 @@ function init_game()
   beat_index = 0
   beat_timer = 0
   beats = {}
+  beat_pattern = select_beat_pattern()
   beat_speed = difficulty_speeds[difficulty]
   beat_interval = difficulty_intervals[difficulty]
   _log("difficulty:"..difficulty_names[difficulty])
@@ -132,35 +164,39 @@ function update_play()
     end
   end
 
-  -- check button presses
-  local button_pressed = test_input(4)  -- o button (up)
-  if button_pressed ~= 0 then
-    for i = #beats, 1, -1 do
-      local beat = beats[i]
-      local dist = abs(beat.y - hit_zone_y)
-      if not beat.hit and dist < hit_zone_good then
-        beat.hit = true
-        local hit_quality = "good"
-        local points = 10 + combo
-        if dist < hit_zone_perfect then
-          hit_quality = "perfect"
-          points = 15 + combo * 2
-          perfect_effect_timer = 8
+  -- check button presses for any button 0-5
+  for btn_idx = 0, 5 do
+    if test_input(btn_idx) ~= 0 then
+      for i = #beats, 1, -1 do
+        local beat = beats[i]
+        -- check if this button matches the beat requirement
+        if beat.button == btn_idx then
+          local dist = abs(beat.y - hit_zone_y)
+          if not beat.hit and dist < hit_zone_good then
+            beat.hit = true
+            local hit_quality = "good"
+            local points = 10 + combo
+            if dist < hit_zone_perfect then
+              hit_quality = "perfect"
+              points = 15 + combo * 2
+              perfect_effect_timer = 8
+            end
+            score += points
+            combo += 1
+            if combo > max_combo then max_combo = combo end
+            feedback_text = hit_quality .. "! +"..combo
+            if hit_quality == "perfect" then
+              feedback_color = 11  -- green
+            else
+              feedback_color = 10  -- yellow
+            end
+            feedback_timer = 15
+            sfx(0)
+            _log("hit:"..hit_quality)
+            deli(beats, i)
+            break
+          end
         end
-        score += points
-        combo += 1
-        if combo > max_combo then max_combo = combo end
-        feedback_text = hit_quality .. "! +"..combo
-        if hit_quality == "perfect" then
-          feedback_color = 11  -- green
-        else
-          feedback_color = 10  -- yellow
-        end
-        feedback_timer = 15
-        sfx(0)
-        _log("hit:"..hit_quality)
-        deli(beats, i)
-        break
       end
     end
   end
