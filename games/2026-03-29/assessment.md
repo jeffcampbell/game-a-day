@@ -20,7 +20,7 @@ A rhythm-based game where players tap buttons in sync with falling notes. Simple
 - State Machine: menu → difficulty → play → gameover
 - Test Infrastructure: Complete (_log, test_input, test_log)
 - Difficulty Logging: difficulty:(easy|medium|hard) on game start
-- Token Count: 628/8192 (efficient implementation)
+- Token Count: 797/8192 (efficient implementation)
 - Sprites: Minimal (circles for visual feedback)
 - Persistent Difficulty: Last selected difficulty remembered for next game
 
