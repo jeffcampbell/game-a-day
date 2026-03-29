@@ -78,7 +78,7 @@ function update_play()
     beat.y += beat_speed
 
     -- check if beat passed hit zone
-    if beat.y > hit_zone_y + 10 and not beat.hit then
+    if beat.y > hit_zone_y + 12 and not beat.hit then
       beat.hit = true
       lives -= 1
       combo = 0
