@@ -1,7 +1,9 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
--- beat runner: rhythm game where you tap buttons to the beat
+-- Sky Climb: A platformer where you jump up through platforms to reach the top
+-- Use arrow keys to move left/right, Z or C to jump
+
 -- test infrastructure
 testmode = false
 test_log = {}
@@ -12,280 +14,188 @@ function _log(msg)
   if testmode then add(test_log, msg) end
 end
 
-function _capture()
-  if testmode then add(test_log, "SCREEN:"..tostr(stat(0))) end
-end
-
 function test_input(b)
   if testmode and test_input_idx < #test_inputs then
     test_input_idx += 1
     return test_inputs[test_input_idx] or 0
   end
-  return btn()
+  return btn(b)
 end
 
--- game state
+-- Game state
 state = "menu"
 score = 0
-combo = 0
-max_combo = 0
-lives = 3
-beat_index = 0
-beat_timer = 0
-beat_interval = 30  -- frames between beats (difficulty-dependent)
-beat_pattern = {}  -- selected at game start based on difficulty
-beats = {}  -- active falling beats
-beat_y = 0
-beat_speed = 1.5
-hit_zone_y = 110
-hit_zone_perfect = 5  -- pixels from center for perfect
-hit_zone_good = 10  -- pixels from center for good
-feedback_timer = 0
-feedback_text = ""
-feedback_color = 7  -- color of feedback text
-perfect_effect_timer = 0  -- animation timer for perfect hit effect
-difficulty = 1  -- 1=easy, 2=medium, 3=hard
-selected_difficulty = 1  -- persists between games
-difficulty_speeds = {1.5, 2.0, 2.5}  -- speed for each difficulty
-difficulty_intervals = {30, 25, 20}  -- spawn interval for each difficulty
-difficulty_names = {"easy", "medium", "hard"}
+height = 0
+max_height = 0
 
--- game mode state
-game_mode = "standard"  -- "standard" or "endless"
-mode_selected = "standard"  -- persists between games
-endless_round = 0  -- current round in endless mode (0-indexed)
-round_beat_count = 0  -- beats beaten in current round
-beats_per_round = 8  -- beats needed to complete a round
-
--- difficulty-specific beat pattern pools
--- 0=left, 1=right, 2=up, 3=down, 4=o, 5=x
-beat_patterns_easy = {
-  {4, 4, 4, 2, 4, 4, 4, 2},
-  {4, 4, 2, 2, 4, 4, 2, 2},
-  {2, 4, 2, 4, 2, 4, 2, 4},
-  {4, 4, 4, 4, 2, 2, 2, 2},
+-- Player
+player = {
+  x = 64,
+  y = 100,
+  w = 4,
+  h = 6,
+  vx = 0,
+  vy = 0,
+  on_ground = false,
+  jump_power = 3
 }
 
-beat_patterns_medium = {
-  {4, 0, 2, 3, 4, 1, 3, 2},
-  {2, 4, 1, 3, 0, 4, 2, 1},
-  {0, 2, 4, 3, 1, 2, 4, 0},
-  {4, 1, 2, 0, 3, 4, 1, 2},
-  {3, 4, 0, 2, 1, 4, 3, 2},
-}
+-- Platforms
+platforms = {}
+function init_platforms()
+  platforms = {}
+  -- Static starting platform
+  add(platforms, {x=56, y=110, w=16, h=2, color=3})
 
-beat_patterns_hard = {
-  {0, 1, 2, 3, 4, 5, 2, 1, 0, 3, 4},
-  {4, 0, 1, 2, 3, 4, 5, 3, 2, 1, 0},
-  {5, 4, 3, 2, 1, 0, 4, 5, 3, 2, 1},
-  {1, 0, 5, 4, 3, 2, 1, 0, 5, 4, 3},
-  {2, 5, 1, 4, 0, 3, 2, 5, 1, 4, 0},
-}
-
--- constants
-colors = {8, 9, 10, 11, 12, 13, 14, 15}
-
-function select_beat_pattern()
-  local pools = {beat_patterns_easy, beat_patterns_medium, beat_patterns_hard}
-  local pool = pools[difficulty]
-  return pool[flr(rnd(#pool)) + 1]
+  -- Generate scrolling platforms
+  for i = 1, 20 do
+    local py = 110 - i * 12
+    local px = 20 + flr(rnd(70))
+    local pw = 8 + flr(rnd(10))
+    add(platforms, {x=px, y=py, w=pw, h=2, color=2})
+  end
 end
 
-function init_game()
-  score = 0
-  combo = 0
-  max_combo = 0
-  lives = 3
-  beat_index = 0
-  beat_timer = 0
-  beats = {}
-  beat_pattern = select_beat_pattern()
-  beat_speed = difficulty_speeds[difficulty]
-  beat_interval = difficulty_intervals[difficulty]
-  endless_round = 0
-  round_beat_count = 0
-  _log("mode:"..game_mode)
-  _log("difficulty:"..difficulty_names[difficulty])
-  _log("spawn_interval:"..beat_interval)
-  _log("state:play")
+-- Enemies (spikes)
+spikes = {}
+function init_spikes()
+  spikes = {}
+  for i = 1, 8 do
+    local sy = 60 - i * 18
+    local sx = 15 + flr(rnd(98))
+    add(spikes, {x=sx, y=sy, w=6, h=4, color=8})
+  end
+end
+
+function _init()
+  _log("game:init")
+  init_platforms()
+  init_spikes()
 end
 
 function update_menu()
-  if test_input(4) ~= 0 then  -- o button
-    sfx(3)
-    game_mode = mode_selected
-    state = "mode_select"
-    _log("state:mode_select")
-  end
-end
-
-function update_mode_select()
-  -- left/right to change mode
-  if test_input(0) ~= 0 then  -- left
-    game_mode = "standard"
-  end
-  if test_input(1) ~= 0 then  -- right
-    game_mode = "endless"
-  end
-
-  -- o to proceed to difficulty
-  if test_input(4) ~= 0 then  -- o button
-    mode_selected = game_mode
-    sfx(3)
-    state = "difficulty"
-    _log("state:difficulty")
-  end
-end
-
-function update_difficulty()
-  -- left/right to change difficulty
-  if test_input(0) ~= 0 then  -- left
-    difficulty = max(1, difficulty - 1)
-  end
-  if test_input(1) ~= 0 then  -- right
-    difficulty = min(3, difficulty + 1)
-  end
-
-  -- o to start game
-  if test_input(4) ~= 0 then  -- o button
-    selected_difficulty = difficulty
-    sfx(3)
+  if test_input(4) > 0 or btnp(4) > 0 then
+    _log("state:play")
     state = "play"
-    init_game()
+    score = 0
+    height = 0
+    max_height = 0
+    player.y = 100
+    player.vy = 0
   end
 end
 
 function update_play()
-  -- spawn new beats
-  beat_timer += 1
-  if beat_timer >= beat_interval then
-    beat_timer = 0
-    local beat_button = beat_pattern[(beat_index % #beat_pattern) + 1]
-    add(beats, {y = 0, button = beat_button, hit = false})
-    beat_index += 1
-  end
+  -- Horizontal movement
+  local move = 0
+  if test_input(0) > 0 or btn(0) > 0 then move = -1 end
+  if test_input(1) > 0 or btn(1) > 0 then move = 1 end
 
-  -- update falling beats
-  for i = #beats, 1, -1 do
-    local beat = beats[i]
-    beat.y += beat_speed
+  player.x += move * 1.5
+  if player.x < 2 then player.x = 2 end
+  if player.x > 122 then player.x = 122 end
 
-    -- check if beat passed hit zone
-    if beat.y > hit_zone_y + hit_zone_good and not beat.hit then
-      beat.hit = true
-      lives -= 1
-      combo = 0
-      feedback_text = "miss!"
-      feedback_color = 8  -- red
-      feedback_timer = 20
-      sfx(1)
-      _log("hit:miss")
-      if lives <= 0 then
-        state = "gameover"
-        _log("state:gameover")
-        _log("gameover:lose")
-      end
-    end
+  -- Gravity
+  player.vy += 0.2
+  player.y += player.vy
 
-    -- remove beats that are off screen
-    if beat.y > 128 then
-      deli(beats, i)
+  -- Platform collision
+  player.on_ground = false
+  for plat in all(platforms) do
+    if player.y + player.h <= plat.y + 2 and
+       player.vy >= 0 and
+       player.x + player.w > plat.x and
+       player.x < plat.x + plat.w then
+      player.y = plat.y - player.h
+      player.vy = 0
+      player.on_ground = true
+      _log("jump")
     end
   end
 
-  -- check button presses for any button 0-5
-  for btn_idx = 0, 5 do
-    if test_input(btn_idx) ~= 0 then
-      for i = #beats, 1, -1 do
-        local beat = beats[i]
-        -- check if this button matches the beat requirement
-        if beat.button == btn_idx then
-          local dist = abs(beat.y - hit_zone_y)
-          if not beat.hit and dist < hit_zone_good then
-            beat.hit = true
-            local hit_quality = "good"
-            local points = 10 + combo
-            if dist < hit_zone_perfect then
-              hit_quality = "perfect"
-              points = 15 + combo * 2
-              perfect_effect_timer = 8
-            end
-            -- apply score multiplier in endless mode
-            if game_mode == "endless" then
-              local multiplier = 1.0 + (endless_round * 0.1)
-              points = flr(points * multiplier)
-            end
-            score += points
-            combo += 1
-            round_beat_count += 1
-            if combo > max_combo then max_combo = combo end
-            feedback_text = hit_quality .. "! +"..combo
-            if hit_quality == "perfect" then
-              feedback_color = 11  -- green
-            else
-              feedback_color = 10  -- yellow
-            end
-            feedback_timer = 15
-            sfx(0)
-            _log("hit:"..hit_quality)
-            deli(beats, i)
-            break
-          end
-        end
-      end
-    end
+  -- Jump
+  if (test_input(4) > 0 or btnp(4) > 0) and player.on_ground then
+    player.vy = -player.jump_power
+    _log("jump_start")
   end
 
-  if feedback_timer > 0 then
-    feedback_timer -= 1
-  end
-  if perfect_effect_timer > 0 then
-    perfect_effect_timer -= 1
-  end
-
-  -- standard mode: win condition at 8 beats
-  if game_mode == "standard" then
-    if beat_index >= 8 and #beats == 0 then
+  -- Spike collision (death)
+  for spike in all(spikes) do
+    if player.x + player.w > spike.x and
+       player.x < spike.x + spike.w and
+       player.y + player.h > spike.y and
+       player.y < spike.y + spike.h then
+      _log("gameover:lose")
       state = "gameover"
-      _log("state:gameover")
-      _log("gameover:win")
+      return
     end
-  else
-    -- endless mode: progress rounds every 8 beats
-    if round_beat_count >= beats_per_round and #beats == 0 then
-      endless_round += 1
-      round_beat_count = 0
-      beat_index = 0
-      beat_pattern = select_beat_pattern()
-      _log("endless_round:"..endless_round)
-      -- increase difficulty every 3-4 rounds
-      if endless_round > 0 and endless_round % 3 == 0 then
-        local new_diff = min(3, difficulty + 1)
-        if new_diff > difficulty then
-          difficulty = new_diff
-          beat_speed = difficulty_speeds[difficulty]
-          beat_interval = difficulty_intervals[difficulty]
-          _log("difficulty:"..difficulty_names[difficulty])
-          _log("spawn_interval:"..beat_interval)
-        end
+  end
+
+  -- Fall off bottom (death)
+  if player.y > 128 then
+    _log("gameover:lose")
+    state = "gameover"
+    return
+  end
+
+  -- Height tracking and scrolling
+  if player.y < 80 then
+    local scroll = 80 - player.y
+    player.y = 80
+    height += scroll
+    max_height = max(max_height, height)
+    score = flr(height / 10)
+
+    -- Scroll platforms and spikes down
+    for plat in all(platforms) do
+      plat.y += scroll
+    end
+    for spike in all(spikes) do
+      spike.y += scroll
+    end
+
+    -- Remove off-screen platforms and add new ones
+    for i = #platforms, 1, -1 do
+      if platforms[i].y > 140 then
+        deli(platforms, i)
       end
     end
+    while #platforms < 15 do
+      local py = platforms[#platforms].y - 12
+      local px = 20 + flr(rnd(70))
+      local pw = 8 + flr(rnd(10))
+      add(platforms, {x=px, y=py, w=pw, h=2, color=2})
+    end
+
+    -- Remove off-screen spikes and add new ones
+    for i = #spikes, 1, -1 do
+      if spikes[i].y > 140 then
+        deli(spikes, i)
+      end
+    end
+    while #spikes < 8 do
+      local sy = spikes[#spikes].y - 18
+      local sx = 15 + flr(rnd(98))
+      add(spikes, {x=sx, y=sy, w=6, h=4, color=8})
+    end
+  end
+
+  -- Win condition (reach height)
+  if height >= 150 then
+    _log("gameover:win")
+    state = "gameover"
   end
 end
 
 function update_gameover()
-  if test_input(4) ~= 0 then  -- o button to restart
-    difficulty = selected_difficulty
-    game_mode = mode_selected
-    state = "mode_select"
-    _log("state:mode_select")
+  if test_input(4) > 0 or btnp(4) > 0 then
+    _log("state:menu")
+    state = "menu"
   end
 end
 
 function _update()
   if state == "menu" then update_menu()
-  elseif state == "mode_select" then update_mode_select()
-  elseif state == "difficulty" then update_difficulty()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
   end
@@ -293,132 +203,60 @@ end
 
 function draw_menu()
   cls(0)
-  print("beat runner", 40, 20, 7)
-  print("tap to the beat!", 35, 35, 11)
-  print("hit falling notes", 32, 50, 12)
-  print("don't miss!", 42, 60, 10)
-  print("press o to start", 35, 85, 7)
-end
-
-function draw_mode_select()
-  cls(0)
-  print("select mode", 42, 20, 7)
-
-  -- draw mode options
-  local y_offset = 50
-  local modes = {"standard", "endless"}
-  for i = 1, 2 do
-    local col = 7
-    if modes[i] == game_mode then
-      col = 11  -- highlight selected mode
-    end
-    local mode_text = modes[i]
-    if modes[i] == "standard" then
-      print("standard (8 beats)", 28, y_offset, col)
-    else
-      print("endless (∞ rounds)", 30, y_offset, col)
-    end
-    y_offset += 12
-  end
-
-  print("use arrow keys", 28, 90, 12)
-  print("press o to play", 32, 100, 12)
+  print("sky climb", 48, 20, 7)
+  print("jump up through platforms", 20, 40, 5)
+  print("reach the top to win!", 25, 50, 5)
+  print("", 64, 70, 0)
+  print("controls:", 45, 75, 3)
+  print("arrow keys to move", 25, 85, 5)
+  print("z or c to jump", 30, 95, 5)
+  print("press o to start", 30, 110, 7)
 end
 
 function draw_play()
-  -- endless mode: darker background for visual distinction
-  if game_mode == "endless" then
-    cls(1)  -- dark blue background
-  else
-    cls(0)  -- black background
-  end
-
-  -- draw hit zone with visual zones
-  -- good zone (outer band)
-  line(10, hit_zone_y - hit_zone_good, 118, hit_zone_y - hit_zone_good, 10)
-  line(10, hit_zone_y + hit_zone_good, 118, hit_zone_y + hit_zone_good, 10)
-
-  -- perfect zone (center line and inner band)
-  line(10, hit_zone_y - hit_zone_perfect, 118, hit_zone_y - hit_zone_perfect, 11)
-  line(10, hit_zone_y, 118, hit_zone_y, 11)
-  line(10, hit_zone_y + hit_zone_perfect, 118, hit_zone_y + hit_zone_perfect, 11)
-
-  -- draw falling beats
-  for beat in all(beats) do
-    local col = colors[(beat.button % 8) + 1]
-    circfill(64, beat.y, 4, col)
-  end
-
-  -- draw perfect hit effect (expanding ring)
-  if perfect_effect_timer > 0 then
-    local ring_radius = (8 - perfect_effect_timer) * 2
-    local effect_col = 11  -- green
-    circ(64, hit_zone_y, ring_radius, effect_col)
-  end
-
-  -- draw ui
-  print("score: "..score, 2, 2, 7)
-  print("combo: "..combo, 2, 10, 12)
-  print("lives: "..lives, 2, 18, 10)
-
-  -- draw difficulty indicator
-  local diff_text = difficulty_names[difficulty]
-  print(diff_text, 100, 2, 7)
-
-  -- draw round/level in endless mode
-  if game_mode == "endless" then
-    print("lvl: "..(endless_round + 1), 85, 10, 11)
-  end
-
-  -- draw feedback with color coding
-  if feedback_timer > 0 then
-    print(feedback_text, 50, 90, feedback_color)
-  end
-end
-
-function draw_difficulty()
   cls(0)
-  print("select difficulty", 30, 20, 7)
 
-  -- draw difficulty options
-  local y_offset = 50
-  for i = 1, 3 do
-    local col = 7
-    if i == difficulty then
-      col = 11
-    end
-    print(difficulty_names[i], 50, y_offset + (i-1)*12, col)
+  -- Draw platforms
+  for plat in all(platforms) do
+    rectfill(plat.x, plat.y, plat.x + plat.w - 1, plat.y + plat.h - 1, plat.color)
   end
 
-  print("use arrow keys", 28, 90, 12)
-  print("press o to play", 35, 100, 12)
+  -- Draw spikes
+  for spike in all(spikes) do
+    rectfill(spike.x, spike.y, spike.x + spike.w - 1, spike.y + spike.h - 1, spike.color)
+  end
+
+  -- Draw player
+  rectfill(player.x, player.y, player.x + player.w - 1, player.y + player.h - 1, 11)
+
+  -- Draw HUD
+  print("height: " .. score, 2, 2, 7)
 end
 
 function draw_gameover()
   cls(0)
-  if game_mode == "endless" then
-    print("game over", 45, 35, 8)
-    print("rounds: "..(endless_round + 1), 40, 50, 7)
-  else
-    if beat_index >= 8 and #beats == 0 then
-      print("you won!", 50, 40, 11)
+  print("game over", 45, 30, 8)
+  print("height: " .. score, 45, 50, 7)
+
+  if state == "gameover" then
+    -- Check if win or lose by checking max height
+    if height >= 150 then
+      print("you win!", 50, 65, 11)
     else
-      print("game over", 45, 40, 8)
+      print("you fell!", 48, 65, 8)
     end
   end
-  print("final score: "..score, 35, 55, 7)
-  print("max combo: "..max_combo, 38, 65, 12)
-  print("press o to continue", 30, 85, 7)
+
+  print("press o to continue", 20, 100, 5)
 end
 
 function _draw()
   if state == "menu" then draw_menu()
-  elseif state == "mode_select" then draw_mode_select()
-  elseif state == "difficulty" then draw_difficulty()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
   end
 end
+
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -436,56 +274,7 @@ __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-__gfx__
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-__sfx__
-000200003065306530653065306530653065300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000200001045104510451045104510451045100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000200005065506550655065506550655065500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100005045000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
 __label__
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -514,88 +303,8 @@ ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
