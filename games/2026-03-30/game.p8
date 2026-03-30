@@ -45,7 +45,7 @@ end
 state = "menu"
 score = 0
 level = 1
-final_level = 6
+final_level = 10
 tilt = 0  -- -1, 0, 1 for left, center, right
 marble_x = 64
 marble_y = 40
@@ -123,6 +123,82 @@ function init_level(lv)
     for x = 75, 100 do walls[x..":55"] = true end
     goal_x = 105
     goal_y = 110
+  elseif lv == 7 then
+    -- multi-chamber maze with narrow choke points
+    -- left chamber
+    for x = 20, 35 do walls[x..":30"] = true end
+    for y = 30, 100 do walls[35..":"..y] = true end
+    for x = 20, 35 do walls[x..":100"] = true end
+    -- center chamber
+    for x = 45, 60 do walls[x..":35"] = true end
+    for y = 35, 95 do walls[60..":"..y] = true end
+    for x = 45, 60 do walls[x..":95"] = true end
+    -- right chamber
+    for x = 70, 100 do walls[x..":30"] = true end
+    for y = 30, 100 do walls[70..":"..y] = true end
+    for x = 70, 100 do walls[x..":100"] = true end
+    -- narrow choke points connecting chambers
+    for y = 50, 80 do walls[35..":"..y] = false end
+    for y = 60, 75 do walls[60..":"..y] = false end
+    goal_x = 95
+    goal_y = 65
+  elseif lv == 8 then
+    -- dense spiral pattern
+    for x = 30, 100 do walls[x..":50"] = true end
+    for y = 30, 100 do walls[30..":"..y] = true end
+    for x = 30, 100 do walls[x..":100"] = true end
+    for y = 30, 100 do walls[100..":"..y] = true end
+    for x = 40, 90 do walls[x..":60"] = true end
+    for y = 40, 90 do walls[40..":"..y] = true end
+    for x = 40, 90 do walls[x..":90"] = true end
+    for y = 40, 90 do walls[90..":"..y] = true end
+    for x = 50, 80 do walls[x..":70"] = true end
+    for y = 50, 80 do walls[50..":"..y] = true end
+    -- gaps in spiral
+    for x = 50, 55 do walls[x..":60"] = false end
+    for y = 75, 80 do walls[40..":"..y] = false end
+    for x = 85, 90 do walls[x..":90"] = false end
+    goal_x = 65
+    goal_y = 80
+  elseif lv == 9 then
+    -- dense grid maze - precise control required
+    -- create tight grid corridors
+    for x = 20, 110, 20 do
+      for y = 20, 110, 10 do
+        for dx = 0, 5 do
+          walls[x + dx..":"..y] = true
+        end
+      end
+    end
+    for y = 20, 110, 20 do
+      for x = 20, 110, 10 do
+        for dy = 0, 5 do
+          walls[x..":"..y + dy] = true
+        end
+      end
+    end
+    -- open some passages
+    for x = 25, 105, 20 do walls[x..":25"] = false end
+    for y = 25, 105, 20 do walls[105..":"..y] = false end
+    goal_x = 110
+    goal_y = 65
+  elseif lv == 10 then
+    -- ultimate challenge - tight passages + complex routing
+    -- dense vertical walls
+    for y = 20, 110 do walls[35..":"..y] = true end
+    for y = 20, 110 do walls[65..":"..y] = true end
+    for y = 20, 110 do walls[95..":"..y] = true end
+    -- dense horizontal walls
+    for x = 20, 110 do walls[x..":40"] = true end
+    for x = 20, 110 do walls[x..":75"] = true end
+    for x = 20, 110 do walls[x..":110"] = true end
+    -- narrow gaps forcing specific paths
+    for y = 50, 60 do walls[35..":"..y] = false end
+    for x = 30, 40 do walls[x..":40"] = false end
+    for x = 60, 70 do walls[x..":75"] = false end
+    for y = 85, 100 do walls[95..":"..y] = false end
+    goal_x = 110
+    goal_y = 90
   end
 
   _log("level:"..lv)
