@@ -1,0 +1,12 @@
+{
+  "title": "Marble Maze",
+  "description": "Guide a rolling marble through a tilting maze to reach the goal. Use left and right arrow keys to tilt the maze and control the marble's movement. Avoid falling off the edges and navigate through walls to complete each level.",
+  "genres": ["puzzle", "physics"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "in-progress",
+  "target_audience": "general",
+  "token_count": 899,
+  "sprite_count": 0,
+  "sound_count": 1
+}
