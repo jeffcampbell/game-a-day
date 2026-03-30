@@ -11,7 +11,14 @@ test_input_idx = 0
 
 -- visual effect variables
 screen_shake = 0
+screen_shake_x = 0
+screen_shake_y = 0
 goal_flash = 0
+particles = {}
+level_complete_flash = 0
+game_over_flash = 0
+menu_slide_timer = 0
+level_counter_bounce = 0
 
 function _log(msg)
   if testmode then add(test_log, msg) end
@@ -39,6 +46,47 @@ function split(str, delim)
     start = pos + #delim
   end
   return result
+end
+
+-- particle system
+function spawn_particles(x, y, count, colors)
+  for i = 1, count do
+    local angle = (i / count) * 1  -- 0 to 1 rotation
+    local speed = 0.5 + rnd(1)
+    local vx = speed * cos(angle)
+    local vy = speed * sin(angle)
+    local col = colors[1 + flr(rnd(#colors))]
+    add(particles, {
+      x = x,
+      y = y,
+      vx = vx,
+      vy = vy,
+      life = 30,
+      col = col
+    })
+  end
+end
+
+function update_particles()
+  for i = #particles, 1, -1 do
+    local p = particles[i]
+    p.x += p.vx
+    p.y += p.vy
+    p.vy += 0.1  -- gravity
+    p.life -= 1
+    if p.life <= 0 then
+      deli(particles, i)
+    end
+  end
+end
+
+function draw_particles()
+  for p in all(particles) do
+    local alpha = flr(p.life / 30 * 7)
+    if alpha > 0 then
+      pset(p.x, p.y, p.col)
+    end
+  end
 end
 
 -- game state
@@ -205,6 +253,7 @@ function init_level(lv)
 end
 
 function update_menu()
+  menu_slide_timer = min(20, menu_slide_timer + 1)
   if btnp(4) or btnp(5) then
     sfx(3)  -- menu selection sound
     _log("state:play")
@@ -217,6 +266,8 @@ function update_play()
   -- update visual effects
   screen_shake = max(0, screen_shake - 1)
   goal_flash = max(0, goal_flash - 1)
+  level_complete_flash = max(0, level_complete_flash - 1)
+  update_particles()
 
   -- read tilt input
   if test_input(0) ~= 0 then  -- left
@@ -253,25 +304,29 @@ function update_play()
   if marble_x - marble_radius < 0 then
     marble_x = marble_radius
     marble_vx = 0
-    screen_shake = 3
+    screen_shake = 4
+    screen_shake_x = 2
     sfx(0)  -- wall collision sound
   end
   if marble_x + marble_radius > 128 then
     marble_x = 128 - marble_radius
     marble_vx = 0
-    screen_shake = 3
+    screen_shake = 4
+    screen_shake_x = -2
     sfx(0)  -- wall collision sound
   end
   if marble_y - marble_radius < 0 then
     marble_y = marble_radius
     marble_vy = 0
-    screen_shake = 3
+    screen_shake = 4
+    screen_shake_y = 2
     sfx(0)  -- wall collision sound
   end
 
   -- lose condition: fall off bottom
   if marble_y > 128 then
     sfx(2)  -- fall sound
+    game_over_flash = 15
     _log("gameover:lose")
     state = "gameover"
     return
@@ -282,7 +337,10 @@ function update_play()
   if dist_to_goal < 8 then
     sfx(1)  -- goal reached sound
     score += 100
-    goal_flash = 10
+    goal_flash = 15
+    level_complete_flash = 20
+    -- spawn sparkle particles at goal
+    spawn_particles(goal_x, goal_y, 12, {10, 11, 12, 13, 14, 15})
     _log("level_complete:"..level)
     _log("score:"..score)
 
@@ -292,6 +350,7 @@ function update_play()
       state = "level_transition"
     else
       _log("gameover:win")
+      game_over_flash = 15
       state = "gameover"
     end
     return
@@ -328,7 +387,9 @@ function update_play()
     end
   end
   if hit then
-    screen_shake = 2
+    screen_shake = 3
+    screen_shake_x = rnd(4) - 2
+    screen_shake_y = rnd(4) - 2
     sfx(0)  -- wall collision sound
   end
 
@@ -336,18 +397,22 @@ function update_play()
 end
 
 function update_level_transition()
+  level_counter_bounce = min(15, level_counter_bounce + 1)
   if btnp(4) or btnp(5) then
     _log("state:play")
     state = "play"
+    level_counter_bounce = 0
     init_level(level + 1)
   end
 end
 
 function update_gameover()
+  game_over_flash = max(0, game_over_flash - 1)
   if btnp(4) or btnp(5) then
     _log("state:menu")
     state = "menu"
     score = 0
+    menu_slide_timer = 0
   end
 end
 
@@ -361,25 +426,45 @@ end
 
 function draw_menu()
   cls(1)
-  print("marble maze", 30, 20, 7)
-  print("tilt left/right", 20, 40, 6)
-  print("to guide the marble", 15, 50, 6)
-  print("to the goal!", 30, 60, 6)
-  print("press z or x to start", 15, 80, 5)
+  -- menu slide-in animation
+  local slide_ease = menu_slide_timer / 20
+  local title_offset = flr((1 - slide_ease) * -30)
+  local text_offset = flr((1 - slide_ease) * 30)
+
+  print("marble maze", 30 + title_offset, 20, 7)
+  print("tilt left/right", 20 + text_offset, 40, 6)
+  print("to guide the marble", 15 + text_offset, 50, 6)
+  print("to the goal!", 30 + text_offset, 60, 6)
+
+  -- pulsing start prompt
+  local pulse = flr(t() * 2) % 2
+  local prompt_col = pulse == 0 and 5 or 10
+  print("press z or x to start", 15, 80, prompt_col)
 end
 
 function draw_play()
+  -- apply level complete flash
+  if level_complete_flash > 0 then
+    local flash_val = flr(level_complete_flash / 2) % 2
+    if flash_val == 0 then
+      pal(1, 11)
+      pal(7, 10)
+    end
+  end
+
   cls(1)
 
-  -- apply screen shake to camera
+  -- apply screen shake to camera with easing
   if screen_shake > 0 then
-    local shake_offset = rnd(3) - 1
-    camera(shake_offset, shake_offset)
+    local shake_ease = screen_shake / 4
+    local shake_x = screen_shake_x * shake_ease * rnd(1)
+    local shake_y = screen_shake_y * shake_ease * rnd(1)
+    camera(shake_x, shake_y)
   else
     camera(0, 0)
   end
 
-  -- draw score
+  -- draw score with level counter animation
   print("score:"..score, 5, 5, 7)
   print("level:"..level, 5, 12, 7)
 
@@ -412,37 +497,66 @@ function draw_play()
   -- draw marble
   spr(0, marble_x - 4, marble_y - 4)
 
+  -- draw particles
+  draw_particles()
+
   -- draw instruction
   print("arrows:tilt z/x:menu", 3, 120, 5)
 
-  -- reset camera
+  -- reset camera and palette
   camera(0, 0)
+  pal()
 end
 
 function draw_level_transition()
   cls(1)
   print("level "..level.." complete!", 20, 30, 10)
   print("score:"..score, 40, 50, 7)
-  print("get ready for level "..(level + 1), 10, 70, 6)
-  print("press z or x to continue", 10, 85, 5)
+
+  -- bouncing level counter animation
+  local bounce_ease = sin(level_counter_bounce / 15 * 0.5) * 3
+  print("get ready for level "..(level + 1), 10, 70 + bounce_ease, 6)
+
+  -- pulsing continue prompt
+  local pulse = flr(t() * 2) % 2
+  local prompt_col = pulse == 0 and 5 or 14
+  print("press z or x to continue", 10, 85, prompt_col)
 end
 
 function draw_gameover()
+  -- apply flash palette on game over
+  local flash_val = flr(game_over_flash / 3) % 2
+  if flash_val == 0 and score == 0 then
+    pal(1, 8)
+    pal(7, 2)
+  end
+
   cls(1)
 
   if score > 0 and marble_y <= 128 then
+    -- victory state
     print("all levels complete!", 15, 20, 10)
     print("final score:"..score, 25, 50, 7)
     print("you mastered", 25, 65, 6)
     print("the marble maze!", 20, 75, 6)
-    print("press z or x", 30, 100, 5)
-    print("for menu", 40, 110, 5)
+
+    -- pulsing menu prompt
+    local pulse = flr(t() * 2) % 2
+    local prompt_col = pulse == 0 and 5 or 14
+    print("press z or x", 30, 100, prompt_col)
+    print("for menu", 40, 110, prompt_col)
   else
+    -- failure state
     print("you fell!", 40, 30, 8)
     print("try again", 35, 50, 6)
-    print("press z or x", 30, 70, 6)
-    print("for menu", 40, 80, 6)
+
+    local pulse = flr(t() * 2) % 2
+    local prompt_col = pulse == 0 and 8 or 2
+    print("press z or x", 30, 70, prompt_col)
+    print("for menu", 40, 80, prompt_col)
   end
+
+  pal()
 end
 
 function _draw()
