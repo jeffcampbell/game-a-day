@@ -45,6 +45,7 @@ end
 state = "menu"
 score = 0
 level = 1
+final_level = 6
 tilt = 0  -- -1, 0, 1 for left, center, right
 marble_x = 64
 marble_y = 40
@@ -84,6 +85,44 @@ function init_level(lv)
     for y = 40, 80 do walls[30..":"..y] = true end
     for x = 30, 80 do walls[x..":40"] = true end
     for y = 60, 100 do walls[80..":"..y] = true end
+  elseif lv == 3 then
+    -- zigzag maze - medium difficulty
+    for x = 20, 40 do walls[x..":50"] = true end
+    for x = 50, 70 do walls[x..":60"] = true end
+    for x = 30, 60 do walls[x..":80"] = true end
+    for y = 30, 50 do walls[70..":"..y] = true end
+    for y = 60, 100 do walls[40..":"..y] = true end
+    goal_y = 105
+  elseif lv == 4 then
+    -- complex cross pattern
+    for y = 30, 100 do walls[40..":"..y] = true end
+    for y = 30, 100 do walls[80..":"..y] = true end
+    for x = 20, 100 do walls[x..":50"] = true end
+    for x = 20, 100 do walls[x..":80"] = true end
+    -- gaps in walls
+    for x = 40, 42 do walls[x..":50"] = false end
+    for x = 80, 82 do walls[x..":80"] = false end
+    goal_x = 110
+    goal_y = 110
+  elseif lv == 5 then
+    -- narrow passages - hard difficulty
+    for x = 20, 60 do walls[x..":45"] = true end
+    for x = 30, 80 do walls[x..":65"] = true end
+    for x = 40, 100 do walls[x..":85"] = true end
+    for y = 35, 65 do walls[25..":"..y] = true end
+    for y = 55, 95 do walls[75..":"..y] = true end
+    goal_x = 110
+    goal_y = 100
+  elseif lv == 6 then
+    -- extreme challenge - dense maze
+    for x = 20, 90 do walls[x..":40"] = true end
+    for x = 20, 90 do walls[x..":70"] = true end
+    for y = 30, 110 do walls[45..":"..y] = true end
+    for y = 30, 110 do walls[75..":"..y] = true end
+    for x = 20, 45 do walls[x..":55"] = true end
+    for x = 75, 100 do walls[x..":55"] = true end
+    goal_x = 105
+    goal_y = 110
   end
 
   _log("level:"..lv)
@@ -168,9 +207,17 @@ function update_play()
     sfx(1)  -- goal reached sound
     score += 100
     goal_flash = 10
-    _log("gameover:win")
+    _log("level_complete:"..level)
     _log("score:"..score)
-    state = "gameover"
+
+    -- advance to next level or end game
+    if level < final_level then
+      _log("state:level_transition")
+      state = "level_transition"
+    else
+      _log("gameover:win")
+      state = "gameover"
+    end
     return
   end
 
@@ -212,16 +259,26 @@ function update_play()
   _log("pos:"..flr(marble_x)..","..flr(marble_y))
 end
 
+function update_level_transition()
+  if btnp(4) or btnp(5) then
+    _log("state:play")
+    state = "play"
+    init_level(level + 1)
+  end
+end
+
 function update_gameover()
   if btnp(4) or btnp(5) then
     _log("state:menu")
     state = "menu"
+    score = 0
   end
 end
 
 function _update()
   if state == "menu" then update_menu()
   elseif state == "play" then update_play()
+  elseif state == "level_transition" then update_level_transition()
   elseif state == "gameover" then update_gameover()
   end
 end
@@ -286,14 +343,24 @@ function draw_play()
   camera(0, 0)
 end
 
+function draw_level_transition()
+  cls(1)
+  print("level "..level.." complete!", 20, 30, 10)
+  print("score:"..score, 40, 50, 7)
+  print("get ready for level "..(level + 1), 10, 70, 6)
+  print("press z or x to continue", 10, 85, 5)
+end
+
 function draw_gameover()
   cls(1)
 
   if score > 0 and marble_y <= 128 then
-    print("you won!", 45, 30, 10)
+    print("all levels complete!", 15, 20, 10)
     print("final score:"..score, 25, 50, 7)
-    print("press z or x", 30, 70, 6)
-    print("for menu", 40, 80, 6)
+    print("you mastered", 25, 65, 6)
+    print("the marble maze!", 20, 75, 6)
+    print("press z or x", 30, 100, 5)
+    print("for menu", 40, 110, 5)
   else
     print("you fell!", 40, 30, 8)
     print("try again", 35, 50, 6)
@@ -305,6 +372,7 @@ end
 function _draw()
   if state == "menu" then draw_menu()
   elseif state == "play" then draw_play()
+  elseif state == "level_transition" then draw_level_transition()
   elseif state == "gameover" then draw_gameover()
   end
 end
