@@ -21,6 +21,22 @@ function test_input(b)
   return btn(b)
 end
 
+-- utility functions
+function split(str, delim)
+  local result = {}
+  local start = 1
+  while true do
+    local pos = str:find(delim, start)
+    if not pos then
+      add(result, str:sub(start))
+      break
+    end
+    add(result, str:sub(start, pos - 1))
+    start = pos + #delim
+  end
+  return result
+end
+
 -- game state
 state = "menu"
 score = 0
@@ -137,7 +153,6 @@ function update_play()
     _log("gameover:win")
     _log("score:"..score)
     state = "gameover"
-    sfx(0)  -- win sound
     return
   end
 
@@ -252,14 +267,6 @@ function _draw()
   if state == "menu" then draw_menu()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
-  end
-end
-
--- sfx(n) simple beep generation
-function sfx(n)
-  -- n=0: win sound (high pitched)
-  if n == 0 then
-    poke(0x3100, 0)  -- note: c (simplified)
   end
 end
 
