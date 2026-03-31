@@ -57,7 +57,6 @@ fish1_spr = 2  -- small fish
 fish2_spr = 3  -- medium fish
 fish3_spr = 4  -- large fish
 bobber_spr = 5
-water_anim = 0
 
 function _init()
   state = "menu"
@@ -83,7 +82,6 @@ function update_menu()
 end
 
 function update_play()
-  water_anim = (water_anim + 1) % 8
   if screen_shake > 0 then screen_shake -= 1 end
 
   -- casting phase
@@ -302,7 +300,7 @@ function draw_gameover()
   end
 
   -- victory screen
-  print("🐠 you caught all 5 fish! 🐠", 14, 15, 10)
+  print("you caught all 5 fish!", 28, 15, 10)
   print("excellent work!", 32, 32, 7)
 
   print("final score:", 34, 50, 7)
