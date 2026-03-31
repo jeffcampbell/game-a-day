@@ -94,6 +94,7 @@ function update_menu()
     current_level = 1
     total_score = 0
     level_fish_caught = 0
+    score = 0
     _log("level:1")
     sfx(4) -- menu start sound
   end
