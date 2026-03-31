@@ -37,12 +37,16 @@ menu_flash = 0
 current_level = 1
 total_score = 0
 level_fish_caught = 0
+is_special_fish = false
 levels_data = {
   {target=5, spawn_mult=1.0, esc_mult=1.0},
   {target=6, spawn_mult=0.8, esc_mult=1.2},
   {target=7, spawn_mult=0.6, esc_mult=1.4},
   {target=8, spawn_mult=0.4, esc_mult=1.6},
-  {target=9, spawn_mult=0.2, esc_mult=2.0}
+  {target=9, spawn_mult=0.2, esc_mult=2.0},
+  {target=6, spawn_mult=0.15, esc_mult=2.2},
+  {target=7, spawn_mult=0.1, esc_mult=2.4},
+  {target=8, spawn_mult=0.05, esc_mult=2.6}
 }
 score_mult = 1.0
 
@@ -78,6 +82,7 @@ function _init()
   cast_dist = 0
   is_casting = false
   fish_ready = false
+  is_special_fish = false
   fish_timer = 0
   reel_power = 0
   current_level = 1
@@ -104,7 +109,11 @@ function update_play()
   if screen_shake > 0 then screen_shake -= 1 end
 
   local lvl_data = levels_data[current_level]
-  score_mult = 0.8 + current_level * 0.2
+  if current_level <= 5 then
+    score_mult = 0.8 + current_level * 0.2
+  else
+    score_mult = 1.8 + (current_level - 6) * 0.1
+  end
 
   -- casting phase
   if not is_casting then
@@ -138,7 +147,9 @@ function update_play()
     if fish_timer <= 0 then
       fish_ready = true
       fish_size = 5 + flr(rnd(15))
-      fish_type = flr(rnd(3))
+      -- 1 in 8 chance of special fish (rare type worth more)
+      is_special_fish = (flr(rnd(8)) == 0)
+      fish_type = is_special_fish and 3 or flr(rnd(3))
       sfx(1) -- bite sound
       _log("action:fish_biting")
     end
@@ -158,11 +169,14 @@ function update_play()
     if cast_dist <= 3 then
       -- caught the fish!
       level_fish_caught += 1
-      local fish_points = flr(fish_size * 10 * score_mult)
+      -- special fish worth 1.5x more points
+      local base_mult = is_special_fish and 15 or 10
+      local fish_points = flr(fish_size * base_mult * score_mult)
       score += fish_points
       total_score += fish_points
       cast_dist = 0
       fish_ready = false
+      is_special_fish = false
       reel_power = 0
       screen_shake = 4
       sfx(2) -- catch sound
@@ -171,7 +185,7 @@ function update_play()
 
       -- check if level is complete
       if level_fish_caught >= lvl_data.target then
-        if current_level >= 5 then
+        if current_level >= 8 then
           -- all levels complete!
           state = "gameover"
           _log("state:gameover:win")
@@ -234,7 +248,7 @@ function draw_menu()
   end
 
   -- instructions
-  print("5 levels of fishing", 30, 32, 7)
+  print("8 levels of fishing", 30, 32, 7)
   print("z to cast / x to reel", 21, 45, 6)
 
   -- best score
@@ -296,8 +310,14 @@ function draw_play()
         spr(fish1_spr, fx - 4, fy - 4)
       elseif fish_type == 1 then
         spr(fish2_spr, fx - 4, fy - 4)
-      else
+      elseif fish_type == 2 then
         spr(fish3_spr, fx - 4, fy - 4)
+      else
+        -- special fish: draw with shimmer effect
+        spr(fish3_spr, fx - 4, fy - 4)
+        if flr(t() * 10) % 2 == 0 then
+          rectfill(fx - 4, fy - 4, fx + 3, fy + 3, 5)
+        end
       end
     end
   end
@@ -337,7 +357,7 @@ function draw_gameover()
   end
 
   -- victory screen
-  print("all 5 levels complete!", 24, 10, 10)
+  print("all 8 levels complete!", 24, 10, 10)
   print("excellent work!", 32, 25, 7)
 
   print("total score:", 32, 45, 7)
