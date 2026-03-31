@@ -33,6 +33,19 @@ fish_caught = 0
 best_score = 0
 menu_flash = 0
 
+-- level progression
+current_level = 1
+total_score = 0
+level_fish_caught = 0
+levels_data = {
+  {target=5, spawn_mult=1.0, esc_mult=1.0},
+  {target=6, spawn_mult=0.8, esc_mult=1.2},
+  {target=7, spawn_mult=0.6, esc_mult=1.4},
+  {target=8, spawn_mult=0.4, esc_mult=1.6},
+  {target=9, spawn_mult=0.2, esc_mult=2.0}
+}
+score_mult = 1.0
+
 -- fishing mechanics
 cast_dist = 0
 cast_speed = 0
@@ -67,6 +80,9 @@ function _init()
   fish_ready = false
   fish_timer = 0
   reel_power = 0
+  current_level = 1
+  total_score = 0
+  level_fish_caught = 0
   _log("state:menu")
 end
 
@@ -75,14 +91,20 @@ function update_menu()
   if test_input(4) > 0 or test_input(5) > 0 then
     state = "play"
     _log("state:play")
+    current_level = 1
+    total_score = 0
+    level_fish_caught = 0
     score = 0
-    fish_caught = 0
+    _log("level:1")
     sfx(4) -- menu start sound
   end
 end
 
 function update_play()
   if screen_shake > 0 then screen_shake -= 1 end
+
+  local lvl_data = levels_data[current_level]
+  score_mult = 0.8 + current_level * 0.2
 
   -- casting phase
   if not is_casting then
@@ -102,7 +124,8 @@ function update_play()
       cast_dist = casting_power * 0.8
       line_x = boat_x
       line_y = boat_y
-      fish_timer = 25 + flr(cast_dist / 8)
+      -- adjust spawn time based on level
+      fish_timer = flr((25 + flr(cast_dist / 8)) * lvl_data.spawn_mult)
       is_casting = false
       sfx(0) -- cast sound
       _log("action:release_cast")
@@ -134,8 +157,10 @@ function update_play()
 
     if cast_dist <= 3 then
       -- caught the fish!
-      fish_caught += 1
-      score += fish_size * 10
+      level_fish_caught += 1
+      local fish_points = flr(fish_size * 10 * score_mult)
+      score += fish_points
+      total_score += fish_points
       cast_dist = 0
       fish_ready = false
       reel_power = 0
@@ -144,20 +169,30 @@ function update_play()
       _log("action:fish_caught")
       _log("score:"..score)
 
-      if fish_caught >= 5 then
-        state = "gameover"
-        _log("state:gameover:win")
+      -- check if level is complete
+      if level_fish_caught >= lvl_data.target then
+        if current_level >= 5 then
+          -- all levels complete!
+          state = "gameover"
+          _log("state:gameover:win")
+        else
+          -- advance to next level
+          current_level += 1
+          level_fish_caught = 0
+          _log("level:"..current_level)
+        end
       end
     end
   end
 
   -- fish escape (higher chance if not reeling hard)
   if cast_dist > 0 and fish_ready then
-    local escape_chance = 0.008
-    if reel_power < 20 then escape_chance = 0.015 end
-    if reel_power < 10 then escape_chance = 0.025 end
+    local base_esc = 0.008 * lvl_data.esc_mult
+    local esc_chance = base_esc
+    if reel_power < 20 then esc_chance = base_esc * 1.875 end
+    if reel_power < 10 then esc_chance = base_esc * 3.125 end
 
-    if rnd() < escape_chance then
+    if rnd() < esc_chance then
       cast_dist = 0
       fish_ready = false
       reel_power = 0
@@ -169,7 +204,7 @@ end
 
 function update_gameover()
   if test_input(4) > 0 or test_input(5) > 0 then
-    best_score = max(best_score, score)
+    best_score = max(best_score, total_score)
     state = "menu"
     sfx(4) -- menu sound
     _log("state:menu")
@@ -199,12 +234,12 @@ function draw_menu()
   end
 
   -- instructions
-  print("catch 5 fish", 37, 35, 7)
-  print("z to cast / x to reel", 21, 48, 6)
+  print("5 levels of fishing", 30, 32, 7)
+  print("z to cast / x to reel", 21, 45, 6)
 
   -- best score
   if best_score > 0 then
-    print("best: "..best_score, 39, 80, 5)
+    print("best: "..best_score, 39, 70, 5)
   end
 
   -- blinking start prompt
@@ -284,8 +319,10 @@ function draw_play()
   end
 
   -- score and progress
+  local lvl_data = levels_data[current_level]
+  local target = lvl_data.target
   print("score: "..score, 5, 40, 7)
-  print("caught: "..fish_caught.."/5", 5, 50, 7)
+  print("level "..current_level.." ("..level_fish_caught.."/"..target..")", 5, 50, 7)
 
   -- reset camera
   camera(0, 0)
@@ -300,14 +337,14 @@ function draw_gameover()
   end
 
   -- victory screen
-  print("you caught all 5 fish!", 28, 15, 10)
-  print("excellent work!", 32, 32, 7)
+  print("all 5 levels complete!", 24, 10, 10)
+  print("excellent work!", 32, 25, 7)
 
-  print("final score:", 34, 50, 7)
-  print(score, 52, 62, 10)
+  print("total score:", 32, 45, 7)
+  print(total_score, 52, 57, 10)
 
-  if score > best_score then
-    print("new best!", 39, 75, 8)
+  if total_score > best_score then
+    print("new best!", 39, 70, 8)
   end
 
   -- blinking prompt
