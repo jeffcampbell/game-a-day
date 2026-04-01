@@ -33,8 +33,8 @@ level = 1
 bricks_left = 0
 paused = false
 
--- paddle
-paddle = {x=60, y=116, w=8, h=2, speed=3, flash=0}
+-- paddle (width varies by level)
+paddle = {x=60, y=116, w=12, h=2, speed=3, flash=0}
 
 -- ball
 ball = {x=64, y=100, vx=1.5, vy=-2, r=1, active=false}
@@ -63,12 +63,30 @@ function init_game()
   level = 1
   paused = false
   ball.active = false
+  update_paddle_width()
   ball.x = paddle.x + paddle.w / 2
   ball.y = paddle.y - 4
-  ball.vx = (rnd() - 0.5) * 3
-  ball.vy = -2
+  ball.vx = (rnd() - 0.5) * 2  -- start slower at level 1
+  ball.vy = -1.5
   create_bricks()
   _log("state:play")
+end
+
+-- update paddle width based on level (wider = easier)
+function update_paddle_width()
+  if level == 1 then
+    paddle.w = 12  -- very wide for level 1
+  elseif level == 2 then
+    paddle.w = 10  -- medium-wide
+  elseif level == 3 then
+    paddle.w = 8   -- medium
+  elseif level == 4 then
+    paddle.w = 6   -- narrow
+  else  -- level 5+
+    paddle.w = 4   -- very narrow
+  end
+  -- keep paddle in bounds after width change
+  paddle.x = mid(0, paddle.x, 128 - paddle.w)
 end
 
 -- start next level (keep score/lives, advance level)
@@ -86,14 +104,15 @@ function next_level()
   -- advance to next level
   level += 1
   _log("level:"..level)
+  update_paddle_width()
   ball.active = false
   ball.x = paddle.x + paddle.w / 2
   ball.y = paddle.y - 4
 
-  -- smooth speed increase: 1.05x, 1.10x, 1.15x, 1.20x per level
-  local speed_mult = 1 + (level - 1) * 0.05
-  ball.vx = (rnd() - 0.5) * 3 * speed_mult
-  ball.vy = -2 * speed_mult
+  -- smooth speed increase: 1.1x, 1.2x, 1.35x, 1.5x (steeper but controlled)
+  local speed_mult = 1 + (level - 1) * 0.1 + (level - 1) * (level - 1) * 0.025
+  ball.vx = (rnd() - 0.5) * 2 * speed_mult
+  ball.vy = -1.5 * speed_mult
 
   trigger_flash(10, 12)  -- cyan flash on level up
   trigger_shake(8, 2)
@@ -179,22 +198,42 @@ function create_bricks()
   bricks = {}
   sparks = {}  -- clear sparks for new level
 
-  -- smooth difficulty curve: gradually increase from 3 to 5 rows
-  local rows = 3
-  if level >= 2 then rows = 3 end
-  if level >= 3 then rows = 4 end
-  if level >= 4 then rows = 4 end
-  if level >= 5 then rows = 5 end
+  -- smooth difficulty curve per level
+  local rows, cols
+  if level == 1 then
+    -- very easy: 2 rows, 6 columns (sparse layout)
+    rows = 2
+    cols = 6
+  elseif level == 2 then
+    -- easy: 3 rows, 7 columns (still forgiving)
+    rows = 3
+    cols = 7
+  elseif level == 3 then
+    -- medium: 3 rows, 8 columns (full width but not too tall)
+    rows = 3
+    cols = 8
+  elseif level == 4 then
+    -- hard: 4 rows, 8 columns (tall and full width)
+    rows = 4
+    cols = 8
+  else  -- level 5+
+    -- expert: 5 rows, 8 columns (maximum density)
+    rows = 5
+    cols = 8
+  end
 
-  local cols = 8
+  -- calculate brick width to fill screen (8 bricks fit in 128px)
+  local brick_w = 15
+  local brick_h = 6
+  local start_x = (128 - cols * brick_w) / 2  -- center bricks
 
   for row = 0, rows - 1 do
     for col = 0, cols - 1 do
       local brick = {
-        x = col * 16,
-        y = 20 + row * 8,
-        w = 15,
-        h = 6,
+        x = start_x + col * brick_w,
+        y = 20 + row * brick_h,
+        w = brick_w,
+        h = brick_h,
         alive = true,
         color = 8 + rnd(3)  -- randomize colors: 8, 9, 10
       }
