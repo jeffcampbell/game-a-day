@@ -33,13 +33,17 @@ level = 1
 bricks_left = 0
 
 -- paddle
-paddle = {x=60, y=116, w=8, h=2, speed=3}
+paddle = {x=60, y=116, w=8, h=2, speed=3, flash=0}
 
 -- ball
 ball = {x=64, y=100, vx=1.5, vy=-2, r=1, active=false}
 
 -- bricks
 bricks = {}
+
+-- flash effects
+hit_flash = 0
+flash_color = 0
 
 -- initialize game
 function init_game()
@@ -58,6 +62,7 @@ end
 function create_bricks()
   bricks = {}
   local cols, rows = 8, 3
+  local colors = {10, 9, 8}
   for row = 0, rows - 1 do
     for col = 0, cols - 1 do
       local brick = {
@@ -65,7 +70,8 @@ function create_bricks()
         y = 20 + row * 8,
         w = 15,
         h = 6,
-        alive = true
+        alive = true,
+        color = colors[row + 1]
       }
       add(bricks, brick)
     end
@@ -115,15 +121,18 @@ function update_play()
   -- check win
   if ball.active and bricks_left == 0 then
     state = "gameover"
+    sfx(4)
     _log("gameover:win")
   end
 
   -- check loss
   if ball.active and ball.y > 128 then
     lives -= 1
+    sfx(2)
     _log("life_lost")
     if lives <= 0 then
       state = "gameover"
+      sfx(3)
       _log("gameover:lose")
     else
       ball.active = false
@@ -159,6 +168,8 @@ function check_collisions()
     ball.vy = -abs(ball.vy)
     local hit_pos = (ball.x - paddle.x) / paddle.w
     ball.vx = (hit_pos - 0.5) * 4
+    paddle.flash = 3
+    sfx(0)
     _log("paddle_hit")
   end
 
@@ -174,6 +185,9 @@ function check_collisions()
       bricks_left -= 1
       ball.vy = -ball.vy
       score += 10
+      hit_flash = 4
+      flash_color = b.color
+      sfx(1)
       _log("brick_broken:score_"..score)
     end
   end
@@ -205,23 +219,41 @@ function draw_menu()
 end
 
 function draw_play()
-  -- bricks
+  -- bricks with flash effect
   for i = 1, #bricks do
     local b = bricks[i]
     if b.alive then
-      rectfill(b.x + 1, b.y + 1, b.x + b.w - 1, b.y + b.h - 1, 11)
+      local col = b.color
+      if hit_flash > 0 and hit_flash <= 2 and flash_color == b.color then
+        col = 7
+      end
+      rectfill(b.x + 1, b.y + 1, b.x + b.w - 1, b.y + b.h - 1, col)
+      rect(b.x, b.y, b.x + b.w, b.y + b.h, 0)
     end
   end
 
-  -- paddle
-  rectfill(paddle.x, paddle.y, paddle.x + paddle.w, paddle.y + paddle.h, 7)
+  -- paddle with flash effect
+  local paddle_col = 7
+  if paddle.flash > 0 then
+    paddle_col = 6
+    paddle.flash -= 1
+  end
+  rectfill(paddle.x, paddle.y, paddle.x + paddle.w, paddle.y + paddle.h, paddle_col)
+  rect(paddle.x, paddle.y, paddle.x + paddle.w, paddle.y + paddle.h, 5)
 
-  -- ball
-  circfill(ball.x, ball.y, ball.r, 8)
+  -- ball with slight glow
+  circfill(ball.x, ball.y, ball.r + 1, 8)
+  circfill(ball.x, ball.y, ball.r, 7)
+
+  -- flash effect decay
+  if hit_flash > 0 then
+    hit_flash -= 1
+  end
 
   -- ui
   print("score: "..score, 2, 2, 7)
   print("lives: "..lives, 90, 2, 7)
+  print("level "..level, 50, 2, 7)
 
   if not ball.active then
     print("press z to launch", 25, 108, 7)
@@ -240,10 +272,10 @@ function draw_gameover()
 end
 
 __gfx__
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0007700077777700000000007007700070077000700770007007700070077000700770007007700070077000000000000000000000000000000000000000000
+7700077700000007007700007007700070077000700770007007700070077000700770007007700070077000000000000000000000000000000000000000000
+7700077700000007000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0007700077777700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -361,3 +393,8 @@ ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 __sfx__
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0001000020653065306530653065306530653065300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0001000010551055105510551055105510551000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0001000030653045304530453045304530450000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0001000030453035302530353035302530350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
