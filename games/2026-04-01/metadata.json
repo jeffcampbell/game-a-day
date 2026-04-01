@@ -1,0 +1,9 @@
+{
+  "title": "Brick Breaker",
+  "description": "Break all the bricks to win. Use arrow keys to move the paddle and press Z to launch the ball.",
+  "genres": ["action", "arcade"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general"
+}
