@@ -287,10 +287,10 @@ function draw_play()
 end
 
 function draw_gameover()
-  if level > 5 then
+  if level >= 5 then
     print("completed all levels!", 25, 40, 11)
     print("final score: "..score, 35, 55, 7)
-    print("level: "..level - 1, 48, 65, 7)
+    print("level: "..(level - 1), 48, 65, 7)
   else
     print("game over", 48, 50, 8)
     print("final score: "..score, 35, 60, 7)
