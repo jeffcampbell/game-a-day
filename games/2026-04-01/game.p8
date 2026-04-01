@@ -59,10 +59,38 @@ function init_game()
   _log("state:play")
 end
 
+-- start next level (keep score/lives, advance level)
+function next_level()
+  if level >= 5 then
+    -- reached max level - game over with victory
+    state = "gameover"
+    sfx(4)
+    _log("gameover:win_level_5")
+    return
+  end
+
+  -- advance to next level
+  level += 1
+  _log("level:"..level)
+  ball.active = false
+  ball.x = paddle.x + paddle.w / 2
+  ball.y = paddle.y - 4
+
+  -- increase ball speed by ~10% per level
+  local speed_mult = 1 + (level - 1) * 0.1
+  ball.vx = (rnd() - 0.5) * 3 * speed_mult
+  ball.vy = -2 * speed_mult
+
+  create_bricks()
+end
+
 function create_bricks()
   bricks = {}
-  local cols, rows = 8, 3
-  local colors = {10, 9, 8}
+
+  -- calculate level difficulty
+  local cols = 8
+  local rows = 3 + flr((level - 1) / 2)  -- level 1-2: 3 rows, 3-4: 4 rows, 5: 4 rows
+
   for row = 0, rows - 1 do
     for col = 0, cols - 1 do
       local brick = {
@@ -71,7 +99,7 @@ function create_bricks()
         w = 15,
         h = 6,
         alive = true,
-        color = colors[row + 1]
+        color = 8 + rnd(3)  -- randomize colors: 8, 9, 10
       }
       add(bricks, brick)
     end
@@ -118,11 +146,9 @@ function update_play()
 
   check_collisions()
 
-  -- check win
+  -- check level complete
   if ball.active and bricks_left == 0 then
-    state = "gameover"
-    sfx(4)
-    _log("gameover:win")
+    next_level()
   end
 
   -- check loss
@@ -261,14 +287,16 @@ function draw_play()
 end
 
 function draw_gameover()
-  if bricks_left == 0 then
-    print("you won!", 52, 50, 11)
-    print("final score: "..score, 35, 60, 7)
+  if level > 5 then
+    print("completed all levels!", 25, 40, 11)
+    print("final score: "..score, 35, 55, 7)
+    print("level: "..level - 1, 48, 65, 7)
   else
     print("game over", 48, 50, 8)
     print("final score: "..score, 35, 60, 7)
+    print("level reached: "..level, 30, 70, 7)
   end
-  print("press z for menu", 30, 75, 7)
+  print("press z for menu", 30, 85, 7)
 end
 
 __gfx__
