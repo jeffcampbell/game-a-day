@@ -31,6 +31,7 @@ score = 0
 lives = 3
 level = 1
 bricks_left = 0
+paused = false
 
 -- paddle
 paddle = {x=60, y=116, w=8, h=2, speed=3, flash=0}
@@ -60,6 +61,7 @@ function init_game()
   score = 0
   lives = 3
   level = 1
+  paused = false
   ball.active = false
   ball.x = paddle.x + paddle.w / 2
   ball.y = paddle.y - 4
@@ -221,6 +223,21 @@ function update_menu()
 end
 
 function update_play()
+  -- toggle pause (use btnp for single press detection)
+  if btnp(5) then
+    paused = not paused
+    if paused then
+      _log("paused")
+      sfx(5)
+    else
+      _log("resumed")
+      sfx(5)
+    end
+  end
+
+  -- skip game updates when paused
+  if paused then return end
+
   -- paddle movement
   if test_input(0) then paddle.x = max(0, paddle.x - paddle.speed) end
   if test_input(1) then paddle.x = min(128 - paddle.w, paddle.x + paddle.speed) end
@@ -336,6 +353,7 @@ end
 function update_gameover()
   if test_input(4) then
     state = "menu"
+    paused = false
     _log("state:menu")
   end
 end
@@ -356,6 +374,7 @@ function draw_menu()
   print("press z to start", 30, 50, 7)
   print("arrows to move", 32, 60, 7)
   print("z to launch", 35, 70, 7)
+  print("x to pause", 38, 80, 7)
 end
 
 function draw_play()
@@ -412,6 +431,12 @@ function draw_play()
   if screen_flash > 0 then
     rectfill(0, 0, 128, 128, screen_flash_col)
     screen_flash -= 1
+  end
+
+  -- pause overlay
+  if paused then
+    rectfill(0, 50, 128, 78, 0)
+    print("paused", 52, 60, 7)
   end
 end
 
