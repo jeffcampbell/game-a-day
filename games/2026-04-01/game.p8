@@ -66,7 +66,6 @@ active_effects = {
   shield = false,
   multi_ball_pending = false
 }
-multi_ball_threshold = 150  -- balls to split on next collision
 
 -- initialize game
 function init_game()
@@ -507,12 +506,6 @@ function update_play()
         ball.x = paddle.x + paddle.w / 2
         ball.y = paddle.y - 4
       end
-    end
-
-    if not (active_effects.shield) then
-      ball.active = false
-      ball.x = paddle.x + paddle.w / 2
-      ball.y = paddle.y - 4
     end
   end
 end
