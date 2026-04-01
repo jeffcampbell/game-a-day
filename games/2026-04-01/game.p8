@@ -36,8 +36,9 @@ paused = false
 -- paddle (width varies by level)
 paddle = {x=60, y=116, w=12, h=2, speed=3, flash=0}
 
--- ball
+-- ball(s) - can have multiple with multi-ball powerup
 ball = {x=64, y=100, vx=1.5, vy=-2, r=1, active=false}
+balls = {}  -- array of additional balls when multi_ball active
 
 -- bricks
 bricks = {}
@@ -56,6 +57,17 @@ shake_time = 0
 -- spark effects (for brick hits)
 sparks = {}
 
+-- powerups system
+powerups = {}
+active_effects = {
+  wide_paddle = 0,
+  slow_mo = 0,
+  multiplier = 0,
+  shield = false,
+  multi_ball_pending = false
+}
+multi_ball_threshold = 150  -- balls to split on next collision
+
 -- initialize game
 function init_game()
   score = 0
@@ -63,6 +75,8 @@ function init_game()
   level = 1
   paused = false
   ball.active = false
+  balls = {}  -- clear extra balls
+  powerups = {}  -- clear powerups
   update_paddle_width()
   ball.x = paddle.x + paddle.w / 2
   ball.y = paddle.y - 4
@@ -74,17 +88,26 @@ end
 
 -- update paddle width based on level (wider = easier)
 function update_paddle_width()
+  local base_w
   if level == 1 then
-    paddle.w = 12  -- very wide for level 1
+    base_w = 12  -- very wide for level 1
   elseif level == 2 then
-    paddle.w = 10  -- medium-wide
+    base_w = 10  -- medium-wide
   elseif level == 3 then
-    paddle.w = 8   -- medium
+    base_w = 8   -- medium
   elseif level == 4 then
-    paddle.w = 6   -- narrow
+    base_w = 6   -- narrow
   else  -- level 5+
-    paddle.w = 4   -- very narrow
+    base_w = 4   -- very narrow
   end
+
+  -- apply wide paddle bonus if active
+  if active_effects.wide_paddle > 0 then
+    paddle.w = flr(base_w * 1.5)
+  else
+    paddle.w = base_w
+  end
+
   -- keep paddle in bounds after width change
   paddle.x = mid(0, paddle.x, 128 - paddle.w)
 end
@@ -106,6 +129,8 @@ function next_level()
   _log("level:"..level)
   update_paddle_width()
   ball.active = false
+  balls = {}  -- clear extra balls
+  powerups = {}  -- clear powerups
   ball.x = paddle.x + paddle.w / 2
   ball.y = paddle.y - 4
 
@@ -131,6 +156,22 @@ end
 function trigger_flash(color, duration)
   screen_flash = duration
   screen_flash_col = color
+end
+
+-- powerup types: 1=multi_ball, 2=wide_paddle, 3=slow_mo, 4=shield, 5=multiplier
+function spawn_powerup(x, y)
+  if rnd() < 0.25 then  -- 25% spawn rate
+    local ptype = flr(rnd(5)) + 1
+    local pu = {
+      x = x,
+      y = y,
+      vx = 0,
+      vy = 1.5,
+      type = ptype,
+      flash = 0
+    }
+    add(powerups, pu)
+  end
 end
 
 -- add spark at position
@@ -243,6 +284,115 @@ function create_bricks()
   bricks_left = #bricks
 end
 
+-- update powerup physics and check paddle collision
+function update_powerups()
+  for i = #powerups, 1, -1 do
+    local pu = powerups[i]
+    pu.y += pu.vy
+
+    -- check paddle collision (collect powerup)
+    if pu.y >= paddle.y - 4 and
+       pu.y <= paddle.y + paddle.h and
+       pu.x >= paddle.x and
+       pu.x <= paddle.x + paddle.w then
+      apply_powerup(pu.type)
+      deli(powerups, i)
+    elseif pu.y > 128 then
+      -- powerup fell off screen
+      deli(powerups, i)
+    end
+  end
+end
+
+-- apply powerup effect based on type
+function apply_powerup(ptype)
+  if ptype == 1 then  -- multi_ball
+    active_effects.multi_ball_pending = true
+    _log("powerup:multi_ball")
+    trigger_flash(12, 4)
+  elseif ptype == 2 then  -- wide_paddle
+    active_effects.wide_paddle = 180
+    update_paddle_width()
+    _log("powerup:wide_paddle")
+    trigger_flash(14, 4)
+  elseif ptype == 3 then  -- slow_mo
+    active_effects.slow_mo = 180
+    _log("powerup:slow_mo")
+    trigger_flash(13, 4)
+  elseif ptype == 4 then  -- shield
+    active_effects.shield = true
+    _log("powerup:shield")
+    trigger_flash(10, 4)
+  elseif ptype == 5 then  -- multiplier
+    active_effects.multiplier = 180
+    _log("powerup:multiplier")
+    trigger_flash(11, 4)
+  end
+  sfx(0)  -- collection sound
+end
+
+-- check extra ball brick collisions
+function check_extra_balls_collisions()
+  for bi = 1, #balls do
+    local b = balls[bi]
+    if not b.active then goto next_ball end
+
+    -- brick collisions for extra balls
+    for i = 1, #bricks do
+      local br = bricks[i]
+      if br.alive and
+         b.x >= br.x and
+         b.x <= br.x + br.w and
+         b.y >= br.y and
+         b.y <= br.y + br.h then
+        br.alive = false
+        bricks_left -= 1
+        b.vy = -b.vy
+
+        -- calculate score with multiplier
+        if active_effects.multiplier > 0 then
+          score += 20
+        else
+          score += 10
+        end
+
+        hit_flash = 4
+        flash_color = br.color
+
+        -- visual feedback
+        local brick_cx = br.x + br.w / 2
+        local brick_cy = br.y + br.h / 2
+        create_sparks(brick_cx, brick_cy, 4)
+        trigger_shake(2, 1)
+        trigger_flash(br.color, 2)
+
+        sfx(1)
+        _log("brick_broken:extra_ball:score_"..score)
+      end
+    end
+
+    ::next_ball::
+  end
+end
+
+-- update effect timers
+function update_effects()
+  if active_effects.wide_paddle > 0 then
+    active_effects.wide_paddle -= 1
+    if active_effects.wide_paddle == 0 then
+      update_paddle_width()
+    end
+  end
+
+  if active_effects.slow_mo > 0 then
+    active_effects.slow_mo -= 1
+  end
+
+  if active_effects.multiplier > 0 then
+    active_effects.multiplier -= 1
+  end
+end
+
 function _update()
   if state == "menu" then
     update_menu()
@@ -295,7 +445,34 @@ function update_play()
     ball.x = paddle.x + paddle.w / 2
   end
 
+  -- update extra balls
+  for i = #balls, 1, -1 do
+    local b = balls[i]
+    if b.active then
+      b.x += b.vx * (active_effects.slow_mo > 0 and 0.7 or 1.0)
+      b.y += b.vy * (active_effects.slow_mo > 0 and 0.7 or 1.0)
+
+      -- wall collisions for extra balls
+      if b.x - b.r <= 0 or b.x + b.r >= 128 then
+        b.vx = -b.vx
+        b.x = mid(b.r, b.x, 128 - b.r)
+      end
+      if b.y - b.r <= 0 then
+        b.vy = -b.vy
+        b.y = b.r
+      end
+
+      -- check if ball fell off
+      if b.y > 128 then
+        deli(balls, i)
+      end
+    end
+  end
+
   check_collisions()
+  check_extra_balls_collisions()
+  update_powerups()
+  update_effects()
   update_sparks()
   update_shake()
 
@@ -306,18 +483,33 @@ function update_play()
 
   -- check loss
   if ball.active and ball.y > 128 then
-    lives -= 1
-    sfx(2)
-    trigger_shake(10, 2)  -- shake on life loss
-    trigger_flash(8, 8)   -- red flash on damage
-    _log("life_lost")
-    if lives <= 0 then
-      state = "gameover"
-      sfx(3)
-      trigger_shake(20, 4)  -- heavy shake on game over
-      trigger_flash(8, 25)  -- long red flash
-      _log("gameover:lose")
+    -- check shield effect
+    if active_effects.shield then
+      active_effects.shield = false
+      _log("shield_used")
+      trigger_flash(10, 8)  -- cyan flash
+      trigger_shake(5, 1)
+      sfx(4)  -- use a victory-like sound for shield
     else
+      lives -= 1
+      sfx(2)
+      trigger_shake(10, 2)  -- shake on life loss
+      trigger_flash(8, 8)   -- red flash on damage
+      _log("life_lost")
+      if lives <= 0 then
+        state = "gameover"
+        sfx(3)
+        trigger_shake(20, 4)  -- heavy shake on game over
+        trigger_flash(8, 25)  -- long red flash
+        _log("gameover:lose")
+      else
+        ball.active = false
+        ball.x = paddle.x + paddle.w / 2
+        ball.y = paddle.y - 4
+      end
+    end
+
+    if not (active_effects.shield) then
       ball.active = false
       ball.x = paddle.x + paddle.w / 2
       ball.y = paddle.y - 4
@@ -326,8 +518,14 @@ function update_play()
 end
 
 function update_ball()
-  ball.x += ball.vx
-  ball.y += ball.vy
+  -- apply slow-mo effect: reduce speed by 30%
+  local speed_mult = 1.0
+  if active_effects.slow_mo > 0 then
+    speed_mult = 0.7
+  end
+
+  ball.x += ball.vx * speed_mult
+  ball.y += ball.vy * speed_mult
 
   -- wall collisions
   if ball.x - ball.r <= 0 or ball.x + ball.r >= 128 then
@@ -353,6 +551,32 @@ function check_collisions()
     ball.vx = (hit_pos - 0.5) * 4
     paddle.flash = 3
 
+    -- handle multi-ball effect
+    if active_effects.multi_ball_pending then
+      active_effects.multi_ball_pending = false
+      -- create 2 additional balls
+      local b1 = {
+        x = ball.x - 3,
+        y = ball.y,
+        vx = ball.vx - 1.5,
+        vy = -abs(ball.vy),
+        r = 1,
+        active = true
+      }
+      local b2 = {
+        x = ball.x + 3,
+        y = ball.y,
+        vx = ball.vx + 1.5,
+        vy = -abs(ball.vy),
+        r = 1,
+        active = true
+      }
+      add(balls, b1)
+      add(balls, b2)
+      _log("multi_ball_activated")
+      trigger_flash(12, 6)
+    end
+
     -- add responsive feedback
     trigger_shake(5, 1)
     trigger_flash(6, 2)
@@ -372,7 +596,15 @@ function check_collisions()
       b.alive = false
       bricks_left -= 1
       ball.vy = -ball.vy
-      score += 10
+
+      -- calculate score with multiplier effect
+      local base_score = 10
+      if active_effects.multiplier > 0 then
+        score += base_score * 2
+      else
+        score += base_score
+      end
+
       hit_flash = 4
       flash_color = b.color
 
@@ -382,6 +614,9 @@ function check_collisions()
       create_sparks(brick_cx, brick_cy, 6)
       trigger_shake(3, 1)
       trigger_flash(b.color, 3)
+
+      -- spawn powerup on brick destruction
+      spawn_powerup(brick_cx, brick_cy)
 
       sfx(1)
       _log("brick_broken:score_"..score)
@@ -446,6 +681,23 @@ function draw_play()
   circfill(ball.x, ball.y, ball.r + 1, 8)
   circfill(ball.x, ball.y, ball.r, 7)
 
+  -- draw extra balls
+  for i = 1, #balls do
+    local b = balls[i]
+    if b.active then
+      circfill(b.x, b.y, b.r + 1, 9)
+      circfill(b.x, b.y, b.r, 10)
+    end
+  end
+
+  -- draw powerups
+  for i = 1, #powerups do
+    local pu = powerups[i]
+    local col = 8 + (pu.type - 1)  -- different colors per type
+    circfill(pu.x, pu.y, 2, col)
+    circ(pu.x, pu.y, 2, 7)
+  end
+
   -- draw spark effects
   draw_sparks()
 
@@ -461,6 +713,24 @@ function draw_play()
   print("score: "..score, 2, 2, 7)
   print("lives: "..lives, 90, 2, 7)
   print("level "..level, 50, 2, 7)
+
+  -- show active powerups on HUD
+  local hud_y = 10
+  if active_effects.wide_paddle > 0 then
+    print("wide", 2, hud_y, 14)
+    hud_y += 7
+  end
+  if active_effects.slow_mo > 0 then
+    print("slow", 2, hud_y, 13)
+    hud_y += 7
+  end
+  if active_effects.multiplier > 0 then
+    print("2x pts", 2, hud_y, 11)
+    hud_y += 7
+  end
+  if active_effects.shield then
+    print("shield", 2, hud_y, 10)
+  end
 
   if not ball.active then
     print("press z to launch", 25, 108, 7)
