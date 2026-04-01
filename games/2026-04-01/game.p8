@@ -44,6 +44,16 @@ bricks = {}
 -- flash effects
 hit_flash = 0
 flash_color = 0
+screen_flash = 0
+screen_flash_col = 0
+
+-- screen shake
+shake_x = 0
+shake_y = 0
+shake_time = 0
+
+-- spark effects (for brick hits)
+sparks = {}
 
 -- initialize game
 function init_game()
@@ -65,6 +75,8 @@ function next_level()
     -- reached max level - game over with victory
     state = "gameover"
     sfx(4)
+    trigger_flash(11, 20)  -- yellow flash on victory
+    trigger_shake(15, 3)   -- satisfying shake
     _log("gameover:win_level_5")
     return
   end
@@ -76,20 +88,103 @@ function next_level()
   ball.x = paddle.x + paddle.w / 2
   ball.y = paddle.y - 4
 
-  -- increase ball speed by ~10% per level
-  local speed_mult = 1 + (level - 1) * 0.1
+  -- smooth speed increase: 1.05x, 1.10x, 1.15x, 1.20x per level
+  local speed_mult = 1 + (level - 1) * 0.05
   ball.vx = (rnd() - 0.5) * 3 * speed_mult
   ball.vy = -2 * speed_mult
+
+  trigger_flash(10, 12)  -- cyan flash on level up
+  trigger_shake(8, 2)
 
   create_bricks()
 end
 
+-- screen shake effect
+function trigger_shake(duration, intensity)
+  shake_time = duration
+  shake_x = (rnd() - 0.5) * intensity
+  shake_y = (rnd() - 0.5) * intensity
+end
+
+-- trigger full screen flash
+function trigger_flash(color, duration)
+  screen_flash = duration
+  screen_flash_col = color
+end
+
+-- add spark at position
+function add_spark(x, y, vx, vy)
+  local spark = {
+    x = x, y = y,
+    vx = vx, vy = vy,
+    life = 8
+  }
+  add(sparks, spark)
+end
+
+-- create sparks from impact
+function create_sparks(x, y, count)
+  for i = 1, count do
+    local angle = (i / count) * 1  -- 0 to 1 (full circle in pico-8 angles)
+    local speed = 1.5 + rnd(1)
+    local vx = cos(angle) * speed
+    local vy = sin(angle) * speed
+    add_spark(x, y, vx, vy)
+  end
+end
+
+-- update sparks
+function update_sparks()
+  for i = #sparks, 1, -1 do
+    local s = sparks[i]
+    s.life -= 1
+    s.x += s.vx
+    s.y += s.vy
+    s.vy += 0.1  -- gravity
+    if s.life <= 0 then
+      deli(sparks, i)
+    end
+  end
+end
+
+-- draw sparks
+function draw_sparks()
+  for i = 1, #sparks do
+    local s = sparks[i]
+    local col = 7
+    if s.life < 3 then
+      col = 6  -- fade to darker
+    end
+    pset(s.x, s.y, col)
+  end
+end
+
+-- update screen shake
+function update_shake()
+  if shake_time > 0 then
+    shake_time -= 1
+    if shake_time > 0 then
+      shake_x = (rnd() - 0.5) * 1
+      shake_y = (rnd() - 0.5) * 1
+    else
+      shake_x = 0
+      shake_y = 0
+    end
+  end
+end
+
 function create_bricks()
   bricks = {}
+  sparks = {}  -- clear sparks for new level
 
-  -- calculate level difficulty
+  -- smooth difficulty curve: gradually increase from 3 to 5 rows
+  local rows = 3
+  if level >= 2 then rows = 3 end
+  if level >= 3 then rows = 4 end
+  if level >= 4 then rows = 4 end
+  if level >= 5 then rows = 5 end
+
   local cols = 8
-  local rows = 3 + flr((level - 1) / 2)  -- level 1-2: 3 rows, 3-4: 4 rows, 5: 4 rows
 
   for row = 0, rows - 1 do
     for col = 0, cols - 1 do
@@ -145,6 +240,8 @@ function update_play()
   end
 
   check_collisions()
+  update_sparks()
+  update_shake()
 
   -- check level complete
   if ball.active and bricks_left == 0 then
@@ -155,10 +252,14 @@ function update_play()
   if ball.active and ball.y > 128 then
     lives -= 1
     sfx(2)
+    trigger_shake(10, 2)  -- shake on life loss
+    trigger_flash(8, 8)   -- red flash on damage
     _log("life_lost")
     if lives <= 0 then
       state = "gameover"
       sfx(3)
+      trigger_shake(20, 4)  -- heavy shake on game over
+      trigger_flash(8, 25)  -- long red flash
       _log("gameover:lose")
     else
       ball.active = false
@@ -195,6 +296,11 @@ function check_collisions()
     local hit_pos = (ball.x - paddle.x) / paddle.w
     ball.vx = (hit_pos - 0.5) * 4
     paddle.flash = 3
+
+    -- add responsive feedback
+    trigger_shake(5, 1)
+    trigger_flash(6, 2)
+
     sfx(0)
     _log("paddle_hit")
   end
@@ -213,6 +319,14 @@ function check_collisions()
       score += 10
       hit_flash = 4
       flash_color = b.color
+
+      -- visual feedback: sparks and screen effects
+      local brick_cx = b.x + b.w / 2
+      local brick_cy = b.y + b.h / 2
+      create_sparks(brick_cx, brick_cy, 6)
+      trigger_shake(3, 1)
+      trigger_flash(b.color, 3)
+
       sfx(1)
       _log("brick_broken:score_"..score)
     end
@@ -245,6 +359,9 @@ function draw_menu()
 end
 
 function draw_play()
+  -- apply screen shake offset
+  camera(shake_x, shake_y)
+
   -- bricks with flash effect
   for i = 1, #bricks do
     local b = bricks[i]
@@ -271,18 +388,30 @@ function draw_play()
   circfill(ball.x, ball.y, ball.r + 1, 8)
   circfill(ball.x, ball.y, ball.r, 7)
 
+  -- draw spark effects
+  draw_sparks()
+
   -- flash effect decay
   if hit_flash > 0 then
     hit_flash -= 1
   end
 
-  -- ui
+  -- reset camera
+  camera(0, 0)
+
+  -- ui (drawn after camera reset)
   print("score: "..score, 2, 2, 7)
   print("lives: "..lives, 90, 2, 7)
   print("level "..level, 50, 2, 7)
 
   if not ball.active then
     print("press z to launch", 25, 108, 7)
+  end
+
+  -- screen flash overlay
+  if screen_flash > 0 then
+    rectfill(0, 0, 128, 128, screen_flash_col)
+    screen_flash -= 1
   end
 end
 
