@@ -109,7 +109,7 @@ function next_level()
   ball.x = paddle.x + paddle.w / 2
   ball.y = paddle.y - 4
 
-  -- smooth speed increase: 1.1x, 1.2x, 1.35x, 1.5x (steeper but controlled)
+  -- smooth speed increase: 1.125x, 1.3x, 1.525x, 1.8x (quadratic curve)
   local speed_mult = 1 + (level - 1) * 0.1 + (level - 1) * (level - 1) * 0.025
   ball.vx = (rnd() - 0.5) * 2 * speed_mult
   ball.vy = -1.5 * speed_mult
