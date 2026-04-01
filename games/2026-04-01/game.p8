@@ -489,6 +489,10 @@ function update_play()
       trigger_flash(10, 8)  -- cyan flash
       trigger_shake(5, 1)
       sfx(4)  -- use a victory-like sound for shield
+      -- reset ball to paddle after shield saves it
+      ball.active = false
+      ball.x = paddle.x + paddle.w / 2
+      ball.y = paddle.y - 4
     else
       lives -= 1
       sfx(2)
