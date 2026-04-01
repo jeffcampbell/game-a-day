@@ -223,8 +223,8 @@ function update_menu()
 end
 
 function update_play()
-  -- toggle pause
-  if test_input(5) then
+  -- toggle pause (use btnp for single press detection)
+  if btnp(5) then
     paused = not paused
     if paused then
       _log("paused")
