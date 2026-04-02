@@ -51,6 +51,11 @@ dungeon = {
 -- enemies
 enemies = {}
 
+-- enemy type constants
+AGGRESSIVE = 1
+LUMBERER = 2
+BOUNCER = 3
+
 -- difficulty settings per level
 function get_enemy_count(lv)
   if lv == 1 then return 8
@@ -67,6 +72,53 @@ function get_enemy_ai_aggression(lv)
   elseif lv >= 3 then return 0.8
   end
   return 0.7
+end
+
+-- determine enemy type distribution per level
+-- level 1: mostly bouncers/balanced
+-- level 2: more aggressive
+-- level 3: very aggressive
+function get_enemy_type(lv)
+  local r = rnd()
+  if lv == 1 then
+    -- level 1: 40% aggressive, 30% lumberer, 30% bouncer
+    if r < 0.4 then return AGGRESSIVE end
+    if r < 0.7 then return LUMBERER end
+    return BOUNCER
+  elseif lv == 2 then
+    -- level 2: 50% aggressive, 25% lumberer, 25% bouncer
+    if r < 0.5 then return AGGRESSIVE end
+    if r < 0.75 then return LUMBERER end
+    return BOUNCER
+  else
+    -- level 3: 60% aggressive, 25% lumberer, 15% bouncer
+    if r < 0.6 then return AGGRESSIVE end
+    if r < 0.85 then return LUMBERER end
+    return BOUNCER
+  end
+end
+
+function get_enemy_color(typ)
+  if typ == AGGRESSIVE then return 8   -- red
+  elseif typ == LUMBERER then return 9 -- orange
+  else return 5 end                     -- purple (bouncer)
+end
+
+function get_enemy_aggression(typ, lv)
+  -- aggressive: standard aggression based on level
+  -- lumberer: lower, slower ramp
+  -- bouncer: random/erratic (we use special logic for this)
+  if typ == AGGRESSIVE then
+    return get_enemy_ai_aggression(lv)
+  elseif typ == LUMBERER then
+    -- lumberer moves slower, aggression ramps slower
+    if lv == 1 then return 0.3
+    elseif lv == 2 then return 0.35
+    else return 0.4 end
+  else
+    -- bouncer is random, doesn't follow normal aggression
+    return 0
+  end
 end
 
 -- init
@@ -95,7 +147,13 @@ function setup_level()
     while (ex < 1 or ey < 1) or (abs(ex - px) < 2 and abs(ey - py) < 2) do
       ex, ey = rnd(8), rnd(8)
     end
-    add(enemies, {x = flr(ex), y = flr(ey), alive = true})
+    local etype = get_enemy_type(level)
+    add(enemies, {x = flr(ex), y = flr(ey), alive = true, type = etype})
+    local type_name = "unknown"
+    if etype == AGGRESSIVE then type_name = "aggressive"
+    elseif etype == LUMBERER then type_name = "lumberer"
+    else type_name = "bouncer" end
+    _log("enemy:type:"..type_name)
   end
 
   _log("level:"..level)
@@ -157,16 +215,38 @@ function update_play()
     return
   end
 
-  -- enemy AI: random movement toward player
-  local aggression = get_enemy_ai_aggression(level)
+  -- enemy AI: type-specific movement
   for e in all(enemies) do
     if e.alive then
-      -- move toward player (AI difficulty scales with level)
-      if rnd() < aggression then
-        if e.x < px then e.x += 1 end
-        if e.x > px then e.x -= 1 end
-        if e.y < py then e.y += 1 end
-        if e.y > py then e.y -= 1 end
+      if e.type == AGGRESSIVE then
+        -- aggressive: chase player with level-scaled aggression
+        local agg = get_enemy_ai_aggression(level)
+        if rnd() < agg then
+          if e.x < px then e.x += 1 end
+          if e.x > px then e.x -= 1 end
+          if e.y < py then e.y += 1 end
+          if e.y > py then e.y -= 1 end
+        end
+      elseif e.type == LUMBERER then
+        -- lumberer: slow, methodical chase (lower aggression)
+        local agg = get_enemy_aggression(LUMBERER, level)
+        if rnd() < agg then
+          if e.x < px then e.x += 1 end
+          if e.x > px then e.x -= 1 end
+          if e.y < py then e.y += 1 end
+          if e.y > py then e.y -= 1 end
+        end
+      else
+        -- bouncer: erratic, random movement (ignores player position)
+        if rnd() < 0.6 then
+          -- random direction
+          local dx = rnd(3) - 1  -- -1, 0, or 1
+          local dy = rnd(3) - 1
+          if abs(dx) + abs(dy) > 0 then
+            e.x += sgn(dx)
+            e.y += sgn(dy)
+          end
+        end
       end
       e.x = mid(1, e.x, 8)
       e.y = mid(1, e.y, 8)
@@ -197,7 +277,13 @@ function update_play()
   if rnd() < 0.05 and #enemies < max_enemies then
     local ex = rnd(2) < 1 and 1 or 8
     local ey = flr(rnd(8)) + 1
-    add(enemies, {x = flr(ex), y = flr(ey), alive = true})
+    local etype = get_enemy_type(level)
+    add(enemies, {x = flr(ex), y = flr(ey), alive = true, type = etype})
+    local type_name = "unknown"
+    if etype == AGGRESSIVE then type_name = "aggressive"
+    elseif etype == LUMBERER then type_name = "lumberer"
+    else type_name = "bouncer" end
+    _log("enemy:type:"..type_name)
   end
 end
 
@@ -221,8 +307,9 @@ function draw_menu()
   print("dungeon escape", 35, 20, 7)
   print("navigate the dungeon", 20, 40, 7)
   print("reach the exit (bottom right)", 12, 55, 7)
-  print("avoid red enemies", 25, 70, 7)
-  print("z or x to start", 30, 85, 7)
+  print("avoid: red (aggressive)", 25, 68, 8)
+  print("orange (slow) purple (bouncy)", 12, 78, 5)
+  print("z or x to start", 30, 90, 7)
 end
 
 function draw_play()
@@ -241,10 +328,11 @@ function draw_play()
     end
   end
 
-  -- draw enemies
+  -- draw enemies (color based on type)
   for e in all(enemies) do
     if e.alive then
-      circfill((e.x-1)*16+8, (e.y-1)*16+8, 5, 8)
+      local col = get_enemy_color(e.type)
+      circfill((e.x-1)*16+8, (e.y-1)*16+8, 5, col)
     end
   end
 
