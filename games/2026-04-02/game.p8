@@ -131,7 +131,7 @@ function update_play()
   -- spawn new enemy occasionally
   if rnd() < 0.05 and #enemies < 12 then
     local ex = rnd(2) < 1 and 1 or 8
-    local ey = rnd(8)
+    local ey = flr(rnd(8)) + 1
     add(enemies, {x = flr(ex), y = flr(ey), alive = true})
   end
 end
