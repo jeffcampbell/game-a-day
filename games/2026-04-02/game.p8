@@ -28,6 +28,7 @@ end
 
 -- game state machine
 state = "menu"
+gameover_reason = ""
 
 -- player data
 px, py = 2, 2
@@ -90,6 +91,7 @@ function update_play()
   -- check win condition
   if px == 8 and py == 8 then
     _log("gameover:win")
+    gameover_reason = "win"
     state = "gameover"
     return
   end
@@ -119,6 +121,7 @@ function update_play()
       py = mid(1, py + rnd(3) - 1, 8)
       if health <= 0 then
         _log("gameover:lose")
+        gameover_reason = "lose"
         state = "gameover"
       end
       break
@@ -190,21 +193,12 @@ end
 
 function draw_gameover()
   cls(1)
-  if state == "gameover" then
-    -- check if last state was win or lose from log
-    local won = false
-    for msg in all(test_log) do
-      if msg == "gameover:win" then
-        won = true
-      end
-    end
-    if won then
-      print("you win!", 50, 30, 11)
-      print("escaped the dungeon!", 28, 45, 7)
-    else
-      print("you lose!", 50, 30, 8)
-      print("defeated by enemies", 28, 45, 7)
-    end
+  if gameover_reason == "win" then
+    print("you win!", 50, 30, 11)
+    print("escaped the dungeon!", 28, 45, 7)
+  else
+    print("you lose!", 50, 30, 8)
+    print("defeated by enemies", 28, 45, 7)
   end
   print("z or x to menu", 35, 70, 7)
 end
