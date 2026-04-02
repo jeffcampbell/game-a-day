@@ -583,6 +583,8 @@ function draw_play()
         rect(enemy_sx - 1, enemy_sy - 1, enemy_sx + tile_size, enemy_sy + tile_size, 8)
       end
     end
+    -- always draw boss, even outside combat
+    rectfill(enemy_sx, enemy_sy, enemy_sx + tile_size - 1, enemy_sy + tile_size - 1, 14)
   else
     -- draw normal enemy
     if combat_active then
