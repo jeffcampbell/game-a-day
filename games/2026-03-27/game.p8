@@ -582,9 +582,10 @@ function draw_play()
       if combat_flash_timer > 0 and (flr(combat_flash_timer / 3) % 2) == 0 then
         rect(enemy_sx - 1, enemy_sy - 1, enemy_sx + tile_size, enemy_sy + tile_size, 8)
       end
+    else
+      -- always draw boss, even outside combat
+      rectfill(enemy_sx, enemy_sy, enemy_sx + tile_size - 1, enemy_sy + tile_size - 1, 14)
     end
-    -- always draw boss, even outside combat
-    rectfill(enemy_sx, enemy_sy, enemy_sx + tile_size - 1, enemy_sy + tile_size - 1, 14)
   else
     -- draw normal enemy
     if combat_active then
