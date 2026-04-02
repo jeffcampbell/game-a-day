@@ -36,6 +36,7 @@ end
 state = "menu"
 score = 0
 level = 1
+max_levels = 5
 player_hp = 10
 player_maxhp = 10
 player_x = 2
@@ -43,6 +44,8 @@ player_y = 2
 enemy_x = 5
 enemy_y = 4
 enemy_hp = 3
+enemy_type = "normal"  -- "normal" or "boss"
+enemy_maxhp = 3
 has_key = false
 combat_active = false
 combat_turn = 0
@@ -54,6 +57,7 @@ respawn_x = 3
 respawn_y = 12
 exit_x = 12
 exit_y = 12
+boss_move_pattern = 0  -- telegraphic boss movement
 
 -- visual effects
 shake_x = 0
@@ -123,6 +127,46 @@ level_data_3 = {
   {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
 }
 
+-- level 4: deep dungeon (16x16) - multiple enemies, patrol patterns
+level_data_4 = {
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,0,1,0,1,0,1,1,1,0,0,1},
+  {1,0,1,0,0,0,1,0,1,0,1,0,0,0,0,1},
+  {1,0,1,0,1,1,1,0,1,0,1,0,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,0,1,1,1,1,1,1,0,1,1,1,0,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,0,1,1,1,0,1,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,0,1,1,0,1,0,1,1,1,0,1,0,1,1},
+  {1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,1,1,1,1,0,1,1,1,0,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,0,1,1,1,0,1,1,1,1,0,1},
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+}
+
+-- level 5: boss chamber (16x16) - arena with boss
+level_data_5 = {
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,0,1,1,0,0,0,1,1,0,1,0,0,1},
+  {1,0,1,0,1,1,0,0,0,1,1,0,1,0,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,0,1,1,1,1,1,1,1,1,1,0,1,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,1,0,1,1,0,1,1,1,1,0,1},
+  {1,0,1,1,1,1,0,1,1,0,1,1,1,1,0,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,0,1,0,1,1,1,1,1,1,0,1,1,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,0,1,1,1,1,0,0,0,1,1,1,1,0,1,1},
+  {1,0,1,1,1,1,0,0,0,1,1,1,1,0,1,1},
+  {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+  {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+}
+
 function _init()
   _log("init:start")
   music(0)  -- start background music
@@ -185,6 +229,7 @@ end
 
 function setup_level(lv)
   _log("level:"..lv)
+  boss_move_pattern = 0
   if lv == 1 then
     current_width = 14
     current_height = 14
@@ -193,6 +238,8 @@ function setup_level(lv)
     enemy_x = 5
     enemy_y = 4
     enemy_hp = 3
+    enemy_maxhp = 3
+    enemy_type = "normal"
     exit_x = 12
     exit_y = 12
     respawn_x = 3
@@ -205,11 +252,13 @@ function setup_level(lv)
     enemy_x = 13
     enemy_y = 2
     enemy_hp = 5
+    enemy_maxhp = 5
+    enemy_type = "normal"
     exit_x = 13
     exit_y = 14
     respawn_x = 2
     respawn_y = 12
-  else
+  elseif lv == 3 then
     current_width = 16
     current_height = 16
     player_x = 2
@@ -217,10 +266,42 @@ function setup_level(lv)
     enemy_x = 12
     enemy_y = 12
     enemy_hp = 4
+    enemy_maxhp = 4
+    enemy_type = "normal"
     exit_x = 13
     exit_y = 14
     respawn_x = 2
     respawn_y = 12
+  elseif lv == 4 then
+    current_width = 16
+    current_height = 16
+    player_x = 2
+    player_y = 2
+    enemy_x = 8
+    enemy_y = 5
+    enemy_hp = 6
+    enemy_maxhp = 6
+    enemy_type = "normal"
+    exit_x = 13
+    exit_y = 14
+    respawn_x = 2
+    respawn_y = 12
+    _log("enemies:aggressive")
+  else  -- lv == 5 (boss)
+    current_width = 16
+    current_height = 16
+    player_x = 2
+    player_y = 2
+    enemy_x = 8
+    enemy_y = 8
+    enemy_hp = 4
+    enemy_maxhp = 4
+    enemy_type = "boss"
+    exit_x = 13
+    exit_y = 14
+    respawn_x = 2
+    respawn_y = 12
+    _log("boss:encounter")
   end
 end
 
@@ -274,13 +355,24 @@ function update_play()
 
       if enemy_hp <= 0 then
         sfx(4)  -- victory/enemy defeated sound
-        _log("enemy:defeated")
-        message = "victory!"
-        message_timer = 60
-        score += 10
+        if enemy_type == "boss" then
+          _log("boss:defeated")
+          message = "boss defeated!"
+          message_timer = 80
+          score += 100
+          -- boss drops health powerup
+          player_hp = min(player_hp + 3, player_maxhp)
+          _log("powerup:health")
+          sfx(6)  -- special victory sound for boss
+        else
+          _log("enemy:defeated")
+          message = "victory!"
+          message_timer = 60
+          score += 10
+        end
         enemy_x = respawn_x
         enemy_y = respawn_y
-        enemy_hp = 3
+        enemy_hp = enemy_maxhp
         combat_active = false
         has_key = true
         key_flash_timer = 30
@@ -309,7 +401,7 @@ function update_play()
   if has_key and player_x == exit_x and player_y == exit_y then
     sfx(6)  -- exit/level transition sound
     score += 50
-    if level < 3 then
+    if level < max_levels then
       _log("level:complete")
       level += 1
       state = "menu"
@@ -323,6 +415,30 @@ function update_play()
       message = "all levels cleared!"
       message_timer = 999
       state_transition_timer = 15
+    end
+  end
+
+  -- boss movement pattern (telegraphic)
+  if enemy_type == "boss" and combat_active then
+    boss_move_pattern = (boss_move_pattern + 1) % 4
+    if boss_move_pattern == 0 then
+      enemy_y -= 1
+      _log("boss:move_up")
+    elseif boss_move_pattern == 1 then
+      enemy_x -= 1
+      _log("boss:move_left")
+    elseif boss_move_pattern == 2 then
+      enemy_y += 1
+      _log("boss:move_down")
+    else
+      enemy_x += 1
+      _log("boss:move_right")
+    end
+    -- keep boss in bounds
+    enemy_x = mid(1, enemy_x, current_width)
+    enemy_y = mid(1, enemy_y, current_height)
+    if is_wall(enemy_x, enemy_y) then
+      boss_move_pattern = (boss_move_pattern + 1) % 4
     end
   end
 end
@@ -345,6 +461,10 @@ function is_wall(x, y)
     level_data_ptr = level_data_2
   elseif level == 3 then
     level_data_ptr = level_data_3
+  elseif level == 4 then
+    level_data_ptr = level_data_4
+  elseif level == 5 then
+    level_data_ptr = level_data_5
   end
 
   -- check tile (1-indexed in lua, table is 1-indexed)
@@ -388,9 +508,13 @@ function draw_menu()
   cls(1)
 
   print("mini quest", 40, 20, 7)
-  print("level "..level, 45, 35, 10)
+  print("level "..level.." / "..max_levels, 38, 35, 10)
   print("explore dungeon", 20, 50, 7)
-  print("defeat enemy", 25, 60, 7)
+  if level == 5 then
+    print("defeat the boss!", 20, 60, 8)
+  else
+    print("defeat enemy", 25, 60, 7)
+  end
   print("find exit", 30, 70, 7)
   print("press z to start", 18, 95, 7)
 end
@@ -445,18 +569,38 @@ function draw_play()
   if damage_flash_timer > 0 then
     enemy_col = 10
   end
-  if combat_active then
-    if damage_flash_timer > 0 then
-      circfill(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 2, 10)
+
+  if enemy_type == "boss" then
+    -- draw boss as larger shape
+    if combat_active then
+      if damage_flash_timer > 0 then
+        rectfill(enemy_sx, enemy_sy, enemy_sx + tile_size - 1, enemy_sy + tile_size - 1, 10)
+      else
+        rectfill(enemy_sx, enemy_sy, enemy_sx + tile_size - 1, enemy_sy + tile_size - 1, 14)
+      end
+      -- boss aura
+      if combat_flash_timer > 0 and (flr(combat_flash_timer / 3) % 2) == 0 then
+        rect(enemy_sx - 1, enemy_sy - 1, enemy_sx + tile_size, enemy_sy + tile_size, 8)
+      end
     else
-      circfill(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 2, 8)
+      -- always draw boss, even outside combat
+      rectfill(enemy_sx, enemy_sy, enemy_sx + tile_size - 1, enemy_sy + tile_size - 1, 14)
     end
-    -- flash border when combat starts
-    if combat_flash_timer > 0 and (flr(combat_flash_timer / 3) % 2) == 0 then
-      circ(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 3, 8)
+  else
+    -- draw normal enemy
+    if combat_active then
+      if damage_flash_timer > 0 then
+        circfill(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 2, 10)
+      else
+        circfill(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 2, 8)
+      end
+      -- flash border when combat starts
+      if combat_flash_timer > 0 and (flr(combat_flash_timer / 3) % 2) == 0 then
+        circ(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 3, 8)
+      end
     end
+    circfill(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 1, enemy_col)
   end
-  circfill(enemy_sx + tile_size/2, enemy_sy + tile_size/2, 1, enemy_col)
 
   -- draw player
   local player_col = 11
