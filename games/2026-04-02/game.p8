@@ -30,6 +30,10 @@ end
 state = "menu"
 gameover_reason = ""
 
+-- difficulty settings
+difficulty = 2  -- 1=easy, 2=normal, 3=hard
+selected_difficulty = 2  -- for menu navigation
+
 -- level progression
 level = 1
 max_levels = 3
@@ -82,20 +86,32 @@ active_effects = {
 
 -- difficulty settings per level
 function get_enemy_count(lv)
-  if lv == 1 then return 8
-  elseif lv == 2 then return 10
-  elseif lv >= 3 then return 12
+  local base = 0
+  if lv == 1 then base = 8
+  elseif lv == 2 then base = 10
+  elseif lv >= 3 then base = 12
   end
-  return 8
+
+  -- apply difficulty multiplier
+  if difficulty == 1 then return flr(base * 0.75)  -- easy: 6-9 enemies
+  elseif difficulty == 3 then return flr(base * 1.2)  -- hard: 10-14 enemies
+  end
+  return base  -- normal: baseline
 end
 
 function get_enemy_ai_aggression(lv)
   -- higher level = more likely to move toward player
-  if lv == 1 then return 0.7
-  elseif lv == 2 then return 0.75
-  elseif lv >= 3 then return 0.8
+  local base = 0.7
+  if lv == 1 then base = 0.7
+  elseif lv == 2 then base = 0.75
+  elseif lv >= 3 then base = 0.8
   end
-  return 0.7
+
+  -- apply difficulty multiplier
+  if difficulty == 1 then return base * 0.5  -- easy: 0.35-0.4
+  elseif difficulty == 3 then return min(base * 1.2, 0.95)  -- hard: 0.84-0.95
+  end
+  return base  -- normal: baseline
 end
 
 -- determine enemy type distribution per level
@@ -192,9 +208,15 @@ function setup_level()
   end
 
   -- spawn power-ups (2-3 per level, fewer on level 1, more on level 3)
+  -- difficulty affects spawn rate: easy has more, hard has fewer
   local powerup_count = 2
   if level == 1 then powerup_count = 2
   elseif level == 3 then powerup_count = 3
+  end
+
+  -- apply difficulty multiplier
+  if difficulty == 1 then powerup_count = flr(powerup_count * 1.5)  -- easy: +50%
+  elseif difficulty == 3 then powerup_count = max(1, flr(powerup_count * 0.6))  -- hard: -40%
   end
 
   for i = 1, powerup_count do
@@ -301,7 +323,18 @@ function update_effects()
 end
 
 function update_menu()
-  if btnp(4) or btnp(5) then
+  -- navigate difficulty selection
+  if btnp(2) then  -- up
+    selected_difficulty = max(1, selected_difficulty - 1)
+  end
+  if btnp(3) then  -- down
+    selected_difficulty = min(3, selected_difficulty + 1)
+  end
+
+  -- confirm selection
+  if btnp(4) or btnp(5) then  -- z or x
+    difficulty = selected_difficulty
+    _log("difficulty:"..difficulty)
     _log("game:start")
     sfx(0)  -- menu beep
     reset_game()
@@ -468,11 +501,38 @@ end
 function draw_menu()
   cls(1)
   print("dungeon escape", 35, 20, 7)
-  print("navigate the dungeon", 20, 40, 7)
-  print("reach the exit (bottom right)", 12, 55, 7)
-  print("avoid: red (aggressive)", 25, 68, 8)
-  print("orange (slow) purple (bouncy)", 12, 78, 5)
-  print("z or x to start", 30, 90, 7)
+
+  -- draw difficulty selector
+  print("select difficulty:", 24, 38, 7)
+
+  -- easy
+  local easy_col = 8
+  if selected_difficulty == 1 then
+    easy_col = 11
+    print(">", 20, 52, 11)
+  end
+  print("easy", 28, 52, easy_col)
+  print("6-8 enemies, slow", 28, 59, 8)
+
+  -- normal
+  local norm_col = 8
+  if selected_difficulty == 2 then
+    norm_col = 11
+    print(">", 20, 70, 11)
+  end
+  print("normal", 28, 70, norm_col)
+  print("8-10 enemies, balanced", 24, 77, 8)
+
+  -- hard
+  local hard_col = 8
+  if selected_difficulty == 3 then
+    hard_col = 11
+    print(">", 20, 88, 11)
+  end
+  print("hard", 28, 88, hard_col)
+  print("10-14 enemies, fast", 24, 95, 8)
+
+  print("^/v to select, z/x to start", 12, 110, 7)
 end
 
 function draw_play()
