@@ -1,8 +1,8 @@
 pico-8 cartridge // http://www.pico-8.com
 version 42
 __lua__
--- dungeon escape: turn-based roguelike
--- navigate the dungeon, avoid enemies, reach the exit to win
+-- dungeon escape: turn-based roguelike with power-ups
+-- navigate the dungeon, avoid enemies, collect power-ups, reach the exit to win
 
 -- test infrastructure
 testmode = false
@@ -55,6 +55,30 @@ enemies = {}
 AGGRESSIVE = 1
 LUMBERER = 2
 BOUNCER = 3
+
+-- power-up type constants
+SHIELD = 1
+SPEED = 2
+HEALTH = 3
+SLOW = 4
+
+-- power-up colors
+function get_powerup_color(typ)
+  if typ == SHIELD then return 12  -- blue
+  elseif typ == SPEED then return 10  -- green
+  elseif typ == HEALTH then return 11  -- pink/magenta
+  else return 14 end  -- yellow (slow)
+end
+
+-- power-ups array
+powerups = {}
+
+-- active effects: {type, duration_turns, cooldown}
+active_effects = {
+  shield = {active = false, duration = 0},
+  speed = {active = false, duration = 0, cooldown = 0},
+  slow = {active = false, duration = 0}
+}
 
 -- difficulty settings per level
 function get_enemy_count(lv)
@@ -139,6 +163,17 @@ end
 
 function setup_level()
   enemies = {}
+  powerups = {}
+
+  -- reset active effects
+  active_effects.shield.active = false
+  active_effects.shield.duration = 0
+  active_effects.speed.active = false
+  active_effects.speed.duration = 0
+  active_effects.speed.cooldown = 0
+  active_effects.slow.active = false
+  active_effects.slow.duration = 0
+
   local enemy_count = get_enemy_count(level)
 
   -- place random enemies (not in starting area)
@@ -154,6 +189,40 @@ function setup_level()
     elseif etype == LUMBERER then type_name = "lumberer"
     else type_name = "bouncer" end
     _log("enemy:type:"..type_name)
+  end
+
+  -- spawn power-ups (2-3 per level, fewer on level 1, more on level 3)
+  local powerup_count = 2
+  if level == 1 then powerup_count = 2
+  elseif level == 3 then powerup_count = 3
+  end
+
+  for i = 1, powerup_count do
+    local px2, py2 = flr(rnd(8)) + 1, flr(rnd(8)) + 1
+    -- ensure powerup not in starting area and not on enemy
+    while (abs(px2 - 2) < 2 and abs(py2 - 2) < 2) or (px2 == 8 and py2 == 8) do
+      px2, py2 = flr(rnd(8)) + 1, flr(rnd(8)) + 1
+      local on_enemy = false
+      for e in all(enemies) do
+        if e.alive and e.x == px2 and e.y == py2 then
+          on_enemy = true
+          break
+        end
+      end
+      if on_enemy then
+        px2, py2 = flr(rnd(8)) + 1, flr(rnd(8)) + 1
+      end
+    end
+
+    -- pick random powerup type
+    local ptype = flr(rnd(4)) + 1
+    add(powerups, {x = px2, y = py2, type = ptype})
+    local ptype_name = "unknown"
+    if ptype == SHIELD then ptype_name = "shield"
+    elseif ptype == SPEED then ptype_name = "speed"
+    elseif ptype == HEALTH then ptype_name = "health"
+    else ptype_name = "slow" end
+    _log("powerup:spawn:"..ptype_name)
   end
 
   _log("level:"..level)
@@ -178,6 +247,61 @@ function advance_level()
   end
 end
 
+function apply_powerup(ptype)
+  sfx(5)  -- power-up collection sound
+  if ptype == SHIELD then
+    _log("powerup:shield")
+    active_effects.shield.active = true
+    active_effects.shield.duration = 4
+  elseif ptype == SPEED then
+    _log("powerup:speed")
+    if active_effects.speed.cooldown <= 0 then
+      active_effects.speed.active = true
+      active_effects.speed.duration = 5
+      active_effects.speed.cooldown = 3  -- cooldown after effect expires
+    end
+  elseif ptype == HEALTH then
+    _log("powerup:health")
+    if health < max_health then
+      health += 1
+      _log("health:"..health)
+    end
+  else  -- SLOW
+    _log("powerup:slow")
+    active_effects.slow.active = true
+    active_effects.slow.duration = 4
+  end
+end
+
+function update_effects()
+  -- decrement duration timers
+  if active_effects.shield.duration > 0 then
+    active_effects.shield.duration -= 1
+    if active_effects.shield.duration <= 0 then
+      active_effects.shield.active = false
+    end
+  end
+
+  if active_effects.speed.duration > 0 then
+    active_effects.speed.duration -= 1
+    if active_effects.speed.duration <= 0 then
+      active_effects.speed.active = false
+      active_effects.speed.cooldown = 3
+    end
+  end
+
+  if active_effects.speed.cooldown > 0 then
+    active_effects.speed.cooldown -= 1
+  end
+
+  if active_effects.slow.duration > 0 then
+    active_effects.slow.duration -= 1
+    if active_effects.slow.duration <= 0 then
+      active_effects.slow.active = false
+    end
+  end
+end
+
 function update_menu()
   if btnp(4) or btnp(5) then
     _log("game:start")
@@ -198,15 +322,27 @@ function update_play()
 
   local moved = false
 
-  -- player input
-  if btnp(0) then px = max(1, px - 1) moved = true end
-  if btnp(1) then px = min(8, px + 1) moved = true end
-  if btnp(2) then py = max(1, py - 1) moved = true end
-  if btnp(3) then py = min(8, py + 1) moved = true end
+  -- player input (with speed boost allowing 2 moves)
+  local moves = active_effects.speed.active and 2 or 1
+  for m = 1, moves do
+    if btnp(0) then px = max(1, px - 1) moved = true end
+    if btnp(1) then px = min(8, px + 1) moved = true end
+    if btnp(2) then py = max(1, py - 1) moved = true end
+    if btnp(3) then py = min(8, py + 1) moved = true end
+  end
 
   if moved then
     _log("player:move:"..px..","..py)
     sfx(1)  -- movement tick
+  end
+
+  -- check power-up collection
+  for i = #powerups, 1, -1 do
+    local p = powerups[i]
+    if p.x == px and p.y == py then
+      apply_powerup(p.type)
+      deli(powerups, i)
+    end
   end
 
   -- check exit condition
@@ -218,9 +354,15 @@ function update_play()
   -- enemy AI: type-specific movement
   for e in all(enemies) do
     if e.alive then
+      -- apply slowdown if slow effect is active
+      local slow_mult = 1
+      if active_effects.slow.active then
+        slow_mult = 0.3  -- 30% chance to move
+      end
+
       if e.type == AGGRESSIVE then
         -- aggressive: chase player with level-scaled aggression
-        local agg = get_enemy_ai_aggression(level)
+        local agg = get_enemy_ai_aggression(level) * slow_mult
         if rnd() < agg then
           if e.x < px then e.x += 1 end
           if e.x > px then e.x -= 1 end
@@ -229,7 +371,7 @@ function update_play()
         end
       elseif e.type == LUMBERER then
         -- lumberer: slow, methodical chase (lower aggression)
-        local agg = get_enemy_aggression(LUMBERER, level)
+        local agg = get_enemy_aggression(LUMBERER, level) * slow_mult
         if rnd() < agg then
           if e.x < px then e.x += 1 end
           if e.x > px then e.x -= 1 end
@@ -238,7 +380,8 @@ function update_play()
         end
       else
         -- bouncer: erratic, random movement (ignores player position)
-        if rnd() < 0.6 then
+        local bounce_chance = 0.6 * slow_mult
+        if rnd() < bounce_chance then
           -- random direction
           local dx = rnd(3) - 1  -- -1, 0, or 1
           local dy = rnd(3) - 1
@@ -256,21 +399,32 @@ function update_play()
   -- check collision with enemies
   for e in all(enemies) do
     if e.alive and e.x == px and e.y == py then
-      health -= 1
-      _log("player:hit")
-      sfx(2)  -- hit sound
-      -- move player back randomly
-      px = mid(1, px + rnd(3) - 1, 8)
-      py = mid(1, py + rnd(3) - 1, 8)
-      if health <= 0 then
-        _log("gameover:lose")
-        sfx(4)  -- lose sound
-        gameover_reason = "lose"
-        state = "gameover"
+      if active_effects.shield.active then
+        _log("player:shield_blocked")
+        sfx(6)  -- shield block sound
+        -- move player back randomly
+        px = mid(1, px + rnd(3) - 1, 8)
+        py = mid(1, py + rnd(3) - 1, 8)
+      else
+        health -= 1
+        _log("player:hit")
+        sfx(2)  -- hit sound
+        -- move player back randomly
+        px = mid(1, px + rnd(3) - 1, 8)
+        py = mid(1, py + rnd(3) - 1, 8)
+        if health <= 0 then
+          _log("gameover:lose")
+          sfx(4)  -- lose sound
+          gameover_reason = "lose"
+          state = "gameover"
+        end
       end
       break
     end
   end
+
+  -- update active effects
+  update_effects()
 
   -- spawn new enemy occasionally
   local max_enemies = get_enemy_count(level) + 4
@@ -329,6 +483,12 @@ function draw_play()
     end
   end
 
+  -- draw power-ups as colored circles
+  for p in all(powerups) do
+    local col = get_powerup_color(p.type)
+    circfill((p.x-1)*16 + 8, (p.y-1)*16 + 8, 4, col)
+  end
+
   -- draw enemies (sprite based on type)
   for e in all(enemies) do
     if e.alive then
@@ -344,6 +504,21 @@ function draw_play()
   print("level "..level.."/"..max_levels, 2, 2, 7)
   print("health: "..health.."/"..max_health, 2, 10, 7)
   print("reach: ("..8..","..8..")", 60, 2, 7)
+
+  -- draw active power-ups status
+  local hud_y = 20
+  if active_effects.shield.active then
+    print("shield:"..active_effects.shield.duration, 2, hud_y, 12)
+    hud_y += 8
+  end
+  if active_effects.speed.active then
+    print("speed:"..active_effects.speed.duration, 2, hud_y, 10)
+    hud_y += 8
+  end
+  if active_effects.slow.active then
+    print("slow enemies:"..active_effects.slow.duration, 2, hud_y, 14)
+    hud_y += 8
+  end
 
   -- draw level transition feedback
   if level_transition then
