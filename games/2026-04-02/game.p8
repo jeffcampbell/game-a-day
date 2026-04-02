@@ -163,7 +163,8 @@ end
 
 -- init
 function _init()
-  reset_game()
+  music(1)  -- start menu music
+  state = "menu"
 end
 
 function reset_game()
@@ -253,6 +254,7 @@ function advance_level()
   if level > max_levels then
     -- final level reached, player wins
     _log("gameover:win")
+    music(-1)  -- stop music
     sfx(3)  -- win chime
     gameover_reason = "win"
     state = "gameover"
@@ -337,6 +339,7 @@ function update_menu()
     _log("difficulty:"..difficulty)
     _log("game:start")
     sfx(0)  -- menu beep
+    music(0)  -- start gameplay music
     reset_game()
   end
 end
@@ -475,6 +478,7 @@ function update_play()
     local ey = flr(rnd(8)) + 1
     local etype = get_enemy_type(level)
     add(enemies, {x = flr(ex), y = flr(ey), alive = true, type = etype})
+    sfx(7)  -- enemy encounter sound
     local type_name = "unknown"
     if etype == AGGRESSIVE then type_name = "aggressive"
     elseif etype == LUMBERER then type_name = "lumberer"
@@ -486,6 +490,7 @@ end
 function update_gameover()
   if btnp(4) or btnp(5) then
     _log("state:menu")
+    music(1)  -- menu music
     state = "menu"
   end
 end
@@ -640,6 +645,13 @@ __sfx__
 0006000005750575057505750475047504750375037503750275027502750000000000000000000000000000000000000000000000000000000000000000000000
 00110000067f077f087f097f0a7f0a7f0a7f097f087f077f067f057f047f0000000000000000000000000000000000000000000000000000000000000000000000
 00110000097f087f077f067f057f047f037f027f017f007f0000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300000d4f00d4f00d4f00b4f00b4f00b4f009f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0004000007460764007440074400654006540064000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000600002a7f297f287f267f247f207f1e7f1c7f1a7f187f167f147f127f107f0e7f0c7f0a7f087f067f047f027f007f0000000000000000000000000000000000
+
+__music__
+000100000000000000000100020003000400050006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200000000010002000300040005000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __label__
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
