@@ -30,6 +30,12 @@ end
 state = "menu"
 gameover_reason = ""
 
+-- level progression
+level = 1
+max_levels = 3
+level_transition = false
+level_transition_timer = 0
+
 -- player data
 px, py = 2, 2
 health = 3
@@ -45,18 +51,46 @@ dungeon = {
 -- enemies
 enemies = {}
 
+-- difficulty settings per level
+function get_enemy_count(lv)
+  if lv == 1 then return 8
+  elseif lv == 2 then return 10
+  elseif lv >= 3 then return 12
+  end
+  return 8
+end
+
+function get_enemy_ai_aggression(lv)
+  -- higher level = more likely to move toward player
+  if lv == 1 then return 0.7
+  elseif lv == 2 then return 0.75
+  elseif lv >= 3 then return 0.8
+  end
+  return 0.7
+end
+
 -- init
 function _init()
   reset_game()
 end
 
 function reset_game()
+  level = 1
   px, py = 2, 2
   health = max_health
-  enemies = {}
+  level_transition = false
+  level_transition_timer = 0
+  setup_level()
+  _log("state:play")
+  state = "play"
+end
 
-  -- place random enemies (8 total, not in starting area)
-  for i = 1, 8 do
+function setup_level()
+  enemies = {}
+  local enemy_count = get_enemy_count(level)
+
+  -- place random enemies (not in starting area)
+  for i = 1, enemy_count do
     local ex, ey = rnd(8), rnd(8)
     while (ex < 1 or ey < 1) or (abs(ex - px) < 2 and abs(ey - py) < 2) do
       ex, ey = rnd(8), rnd(8)
@@ -64,8 +98,26 @@ function reset_game()
     add(enemies, {x = flr(ex), y = flr(ey), alive = true})
   end
 
-  _log("state:play")
-  state = "play"
+  _log("level:"..level)
+end
+
+function advance_level()
+  level += 1
+  if level > max_levels then
+    -- final level reached, player wins
+    _log("gameover:win")
+    sfx(3)  -- win chime
+    gameover_reason = "win"
+    state = "gameover"
+  else
+    -- advance to next level
+    _log("level_advance:"..level)
+    sfx(0)  -- level up sound
+    level_transition = true
+    level_transition_timer = 60  -- 1 second at 60fps
+    px, py = 2, 2  -- reset position
+    setup_level()
+  end
 end
 
 function update_menu()
@@ -77,6 +129,15 @@ function update_menu()
 end
 
 function update_play()
+  -- handle level transition
+  if level_transition then
+    level_transition_timer -= 1
+    if level_transition_timer <= 0 then
+      level_transition = false
+    end
+    return
+  end
+
   local moved = false
 
   -- player input
@@ -90,20 +151,18 @@ function update_play()
     sfx(1)  -- movement tick
   end
 
-  -- check win condition
+  -- check exit condition
   if px == 8 and py == 8 then
-    _log("gameover:win")
-    sfx(3)  -- win chime
-    gameover_reason = "win"
-    state = "gameover"
+    advance_level()
     return
   end
 
-  -- enemy AI: simple random movement toward player
+  -- enemy AI: random movement toward player
+  local aggression = get_enemy_ai_aggression(level)
   for e in all(enemies) do
     if e.alive then
-      -- move toward player (simple AI)
-      if rnd() < 0.7 then
+      -- move toward player (AI difficulty scales with level)
+      if rnd() < aggression then
         if e.x < px then e.x += 1 end
         if e.x > px then e.x -= 1 end
         if e.y < py then e.y += 1 end
@@ -134,7 +193,8 @@ function update_play()
   end
 
   -- spawn new enemy occasionally
-  if rnd() < 0.05 and #enemies < 12 then
+  local max_enemies = get_enemy_count(level) + 4
+  if rnd() < 0.05 and #enemies < max_enemies then
     local ex = rnd(2) < 1 and 1 or 8
     local ey = flr(rnd(8)) + 1
     add(enemies, {x = flr(ex), y = flr(ey), alive = true})
@@ -192,8 +252,14 @@ function draw_play()
   circfill((px-1)*16+8, (py-1)*16+8, 4, 3)
 
   -- draw UI
-  print("health: "..health.."/"..max_health, 2, 2, 7)
+  print("level "..level.."/"..max_levels, 2, 2, 7)
+  print("health: "..health.."/"..max_health, 2, 10, 7)
   print("reach: ("..8..","..8..")", 60, 2, 7)
+
+  -- draw level transition feedback
+  if level_transition then
+    print("level "..level.."!", 45, 60, 11)
+  end
 end
 
 function draw_gameover()
@@ -201,9 +267,11 @@ function draw_gameover()
   if gameover_reason == "win" then
     print("you win!", 50, 30, 11)
     print("escaped the dungeon!", 28, 45, 7)
+    print("level "..level.."/"..max_levels.." cleared", 25, 55, 11)
   else
     print("you lose!", 50, 30, 8)
     print("defeated by enemies", 28, 45, 7)
+    print("level "..level.." reached", 35, 55, 8)
   end
   print("z or x to menu", 35, 70, 7)
 end
