@@ -199,18 +199,16 @@ function setup_level()
 
   for i = 1, powerup_count do
     local px2, py2 = flr(rnd(8)) + 1, flr(rnd(8)) + 1
-    -- ensure powerup not in starting area and not on enemy
-    while (abs(px2 - 2) < 2 and abs(py2 - 2) < 2) or (px2 == 8 and py2 == 8) do
+    local on_enemy = true
+    -- ensure powerup not in starting area, not on enemy, and not at exit
+    while on_enemy or (abs(px2 - 2) < 2 and abs(py2 - 2) < 2) or (px2 == 8 and py2 == 8) do
       px2, py2 = flr(rnd(8)) + 1, flr(rnd(8)) + 1
-      local on_enemy = false
+      on_enemy = false
       for e in all(enemies) do
         if e.alive and e.x == px2 and e.y == py2 then
           on_enemy = true
           break
         end
-      end
-      if on_enemy then
-        px2, py2 = flr(rnd(8)) + 1, flr(rnd(8)) + 1
       end
     end
 
@@ -322,13 +320,24 @@ function update_play()
 
   local moved = false
 
-  -- player input (with speed boost allowing 2 moves)
-  local moves = active_effects.speed.active and 2 or 1
-  for m = 1, moves do
-    if btnp(0) then px = max(1, px - 1) moved = true end
-    if btnp(1) then px = min(8, px + 1) moved = true end
-    if btnp(2) then py = max(1, py - 1) moved = true end
-    if btnp(3) then py = min(8, py + 1) moved = true end
+  -- read button input once
+  local left = btnp(0)
+  local right = btnp(1)
+  local up = btnp(2)
+  local down = btnp(3)
+
+  -- first move
+  if left then px = max(1, px - 1) moved = true end
+  if right then px = min(8, px + 1) moved = true end
+  if up then py = max(1, py - 1) moved = true end
+  if down then py = min(8, py + 1) moved = true end
+
+  -- speed boost: allow second move this turn (same inputs)
+  if active_effects.speed.active and moved then
+    if left then px = max(1, px - 1) end
+    if right then px = min(8, px + 1) end
+    if up then py = max(1, py - 1) end
+    if down then py = min(8, py + 1) end
   end
 
   if moved then
