@@ -69,6 +69,7 @@ waves = {
 }
 
 function _init()
+  music(0)  -- start menu music
   _log("state:menu")
 end
 
@@ -92,6 +93,8 @@ end
 -- menu state
 function update_menu()
   if test_input(4) then
+    sfx(6)  -- ui selection sound
+    music(-1)  -- stop menu music
     state = "tower_placement"
     wave = 1
     _log("state:tower_placement")
@@ -123,6 +126,7 @@ function update_placement()
       if t.x == grid_x and t.y == grid_y then
         gold += tower_types[t.type].cost / 2  -- refund half
         del(towers, t)
+        sfx(7)  -- ui click sound
         found = true
         break
       end
@@ -130,6 +134,7 @@ function update_placement()
     if not found and gold >= tower_types[selected_tower].cost then
       add(towers, {x=grid_x, y=grid_y, type=selected_tower, cd=0})
       gold -= tower_types[selected_tower].cost
+      sfx(0)  -- tower placement confirmation
       _log("tower_placed:type"..selected_tower)
     end
   end
@@ -139,6 +144,8 @@ function update_placement()
 
   -- start wave
   if test_input(2) then
+    sfx(5)  -- wave start alert
+    music(1)  -- start game music
     state = "wave_in_progress"
     _log("state:wave_in_progress:wave"..wave)
     enemies = {}
@@ -256,6 +263,7 @@ function update_wave()
         e.hp -= p.dmg
         hit = true
         if e.hp <= 0 then
+          sfx(1)  -- enemy killed sound
           _log("enemy_defeated")
           gold += e.gld
           del(enemies, e)
@@ -272,17 +280,23 @@ function update_wave()
   -- check wave end
   if #enemies == 0 and wave < max_waves then
     wave += 1
+    sfx(2)  -- wave cleared sound
     _log("wave_complete:"..wave-1)
     state = "tower_placement"
+    music(-1)  -- stop game music
     _log("state:tower_placement")
   elseif #enemies == 0 and wave == max_waves then
     state = "gameover"
+    sfx(3)  -- victory fanfare
+    music(-1)  -- stop music
     _log("gameover:win")
   end
 
   -- check lose
   if lives <= 0 then
     state = "gameover"
+    sfx(4)  -- loss sound
+    music(-1)  -- stop music
     _log("gameover:lose")
   end
 end
@@ -348,6 +362,20 @@ function dist(x1, y1, x2, y2)
   local dx, dy = x2 - x1, y2 - y1
   return sqrt(dx*dx + dy*dy)
 end
+
+__sfx__
+000100000f7f00f6f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00050000047500575067500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000600002d5502d5502d5502d5500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001100000a6f0b6f0c6f0d6f0e6f0f6f0f6f0f6f0e6f0d6f0c6f0b6f0a6f000000000000000000000000000000000000000000000000000000000000000000000000
+00110000036f026f016f006f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001100000a7f0b7f0c7f0d7f0e7f0f7f0f7f0f7f0e7f0d7f0c7f0b7f0a7f000000000000000000000000000000000000000000000000000000000000000000000000
+000300000f5f00f5f00f5f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000300000d4f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
+__music__
+000100000000000100020003000400050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200000000000100020003000400050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
