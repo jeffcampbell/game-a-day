@@ -22,7 +22,7 @@ function test_input(b)
     test_input_idx += 1
     return test_inputs[test_input_idx] or 0
   end
-  return btn()
+  return btn(b)
 end
 
 -- game state
@@ -91,7 +91,7 @@ end
 
 -- menu state
 function update_menu()
-  if btnp(4) then
+  if test_input(4) then
     state = "tower_placement"
     wave = 1
     _log("state:tower_placement")
@@ -110,13 +110,13 @@ end
 -- tower placement state
 function update_placement()
   -- cursor movement
-  if btnp(0) then grid_x = max(1, grid_x-1) end
-  if btnp(1) then grid_x = min(14, grid_x+1) end
-  if btnp(2) then grid_y = max(1, grid_y-1) end
-  if btnp(3) then grid_y = min(14, grid_y+1) end
+  if test_input(0) then grid_x = max(1, grid_x-1) end
+  if test_input(1) then grid_x = min(14, grid_x+1) end
+  if test_input(2) then grid_y = max(1, grid_y-1) end
+  if test_input(3) then grid_y = min(14, grid_y+1) end
 
   -- tower selection
-  if btnp(4) then
+  if test_input(4) then
     -- place/remove tower
     local found = false
     for i, t in ipairs(towers) do
@@ -128,17 +128,17 @@ function update_placement()
       end
     end
     if not found and gold >= tower_types[selected_tower].cost then
-      add(towers, {x=grid_x, y=grid_y, type=selected_tower, cd=0, hp=tower_types[selected_tower].cd})
+      add(towers, {x=grid_x, y=grid_y, type=selected_tower, cd=0})
       gold -= tower_types[selected_tower].cost
       _log("tower_placed:type"..selected_tower)
     end
   end
-  if btnp(5) then
+  if test_input(5) then
     selected_tower = selected_tower % 4 + 1
   end
 
   -- start wave
-  if btn(2) then
+  if test_input(2) then
     state = "wave_in_progress"
     _log("state:wave_in_progress:wave"..wave)
     enemies = {}
@@ -206,7 +206,7 @@ function update_wave()
     if t.cd <= 0 then
       local tx, ty = (t.x-1)*8+12, (t.y-1)*8+12
       local tgt = nil
-      local min_dist = t.hp
+      local min_dist = tower_types[t.type].range
 
       for e in all(enemies) do
         local d = dist(tx, ty, e.x, e.y)
@@ -320,7 +320,7 @@ end
 
 -- gameover state
 function update_gameover()
-  if btnp(4) then
+  if test_input(4) then
     state = "menu"
     gold = 200
     lives = 3
@@ -333,7 +333,7 @@ function update_gameover()
 end
 
 function draw_gameover()
-  if wave == max_waves + 1 or (lives > 0 and wave == max_waves) then
+  if lives > 0 and wave == max_waves then
     print("victory!", 45, 40, 11)
     print("all waves defeated!", 25, 50, 7)
   else
