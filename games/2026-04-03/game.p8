@@ -35,6 +35,15 @@ selected_tower = 1
 grid_x, grid_y = 2, 2
 is_boss_wave = false
 
+-- difficulty system
+difficulty = "normal"  -- easy, normal, hard
+difficulty_idx = 2  -- 1=easy, 2=normal, 3=hard
+difficulty_gold_start = 200
+difficulty_lives = 3
+difficulty_enemy_hp_mult = 1.0
+difficulty_max_waves = 9
+difficulty_gold_mult = 1.0
+
 -- towers: id, x, y, type, cooldown
 towers = {}
 
@@ -91,6 +100,7 @@ end
 
 function _update()
   if state == "menu" then update_menu()
+  elseif state == "difficulty_select" then update_difficulty()
   elseif state == "tower_placement" then update_placement()
   elseif state == "wave_in_progress" then update_wave()
   elseif state == "gameover" then update_gameover()
@@ -100,6 +110,7 @@ end
 function _draw()
   cls(0)
   if state == "menu" then draw_menu()
+  elseif state == "difficulty_select" then draw_difficulty()
   elseif state == "tower_placement" then draw_placement()
   elseif state == "wave_in_progress" then draw_wave()
   elseif state == "gameover" then draw_gameover()
@@ -110,10 +121,9 @@ end
 function update_menu()
   if test_input(4) then
     sfx(6)  -- ui selection sound
-    music(-1)  -- stop menu music
-    state = "tower_placement"
-    wave = 1
-    _log("state:tower_placement")
+    state = "difficulty_select"
+    difficulty_idx = 2  -- reset to normal
+    _log("state:difficulty_select")
   end
 end
 
@@ -126,8 +136,92 @@ function draw_menu()
   print("z: start", 50, 85, 11)
 end
 
+-- difficulty selection state
+function update_difficulty()
+  -- left/right to select difficulty
+  if test_input(0) then difficulty_idx = max(1, difficulty_idx-1) end
+  if test_input(1) then difficulty_idx = min(3, difficulty_idx+1) end
+
+  -- z to confirm
+  if test_input(4) then
+    sfx(6)  -- ui selection sound
+    apply_difficulty()
+    music(-1)  -- stop menu music
+    state = "tower_placement"
+    wave = 1
+    _log("state:tower_placement")
+  end
+end
+
+function draw_difficulty()
+  print("select difficulty", 32, 30, 7)
+
+  -- draw difficulty options
+  local difficulties = {"easy", "normal", "hard"}
+  local y = 55
+  for i = 1, 3 do
+    local col = 2
+    if i == difficulty_idx then col = 11 end  -- highlight selected
+    print(difficulties[i], 50, y, col)
+    y += 12
+  end
+
+  -- show difficulty info
+  local info_y = 50
+  if difficulty_idx == 1 then
+    print("gold:300 lives:5", 15, info_y, 3)
+    print("easy enemies", 25, info_y+8, 3)
+  elseif difficulty_idx == 2 then
+    print("gold:200 lives:3", 15, info_y, 7)
+    print("balanced challenge", 20, info_y+8, 7)
+  else
+    print("gold:150 lives:2", 15, info_y, 8)
+    print("hard enemies", 25, info_y+8, 8)
+  end
+
+  print("arrows: choose, z: start", 15, 118, 2)
+end
+
+function apply_difficulty()
+  if difficulty_idx == 1 then
+    -- easy mode
+    difficulty = "easy"
+    difficulty_gold_start = 300
+    difficulty_lives = 5
+    difficulty_enemy_hp_mult = 0.8
+    difficulty_max_waves = 7
+    difficulty_gold_mult = 1.2
+    _log("difficulty:easy")
+  elseif difficulty_idx == 2 then
+    -- normal mode
+    difficulty = "normal"
+    difficulty_gold_start = 200
+    difficulty_lives = 3
+    difficulty_enemy_hp_mult = 1.0
+    difficulty_max_waves = 9
+    difficulty_gold_mult = 1.0
+    _log("difficulty:normal")
+  else
+    -- hard mode
+    difficulty = "hard"
+    difficulty_gold_start = 150
+    difficulty_lives = 2
+    difficulty_enemy_hp_mult = 1.3
+    difficulty_max_waves = 11
+    difficulty_gold_mult = 0.8
+    _log("difficulty:hard")
+  end
+end
+
 -- tower placement state
 function update_placement()
+  -- initialize game state on first entry
+  if wave == 1 and gold == 200 then
+    gold = difficulty_gold_start
+    lives = difficulty_lives
+    max_waves = difficulty_max_waves
+  end
+
   -- cursor movement
   if test_input(0) then grid_x = max(1, grid_x-1) end
   if test_input(1) then grid_x = min(14, grid_x+1) end
@@ -222,8 +316,8 @@ function update_wave()
       is_boss_wave = w.boss or false
       local et = enemy_types[w.etype or "normal"] or enemy_types.normal
       for i = 1, w.cnt do
-        local hp = flr(w.hp * et.hp_m)
-        local gld = flr(w.gld * et.gld_m)
+        local hp = flr(w.hp * et.hp_m * difficulty_enemy_hp_mult)
+        local gld = flr(w.gld * et.gld_m * difficulty_gold_mult)
         add(enemies, {x=8, y=8, hp=hp, idx=1, dmg=0, spd=w.spd*et.spd_m, gld=gld, boss=is_boss_wave, etype=w.etype or "normal", col=et.col})
       end
       if is_boss_wave then
@@ -423,6 +517,7 @@ function draw_wave()
   print(wave_display, 6, 118, wave_col)
   print("gold:"..gold, 40, 118, 7)
   print("lives:"..lives, 80, 118, 7)
+  print(difficulty, 105, 118, 6)
 end
 
 -- gameover state
@@ -432,9 +527,12 @@ function update_gameover()
     gold = 200
     lives = 3
     wave = 0
+    max_waves = 9
     towers = {}
     enemies = {}
     projectiles = {}
+    difficulty = "normal"
+    difficulty_idx = 2
     _log("state:menu")
   end
 end
