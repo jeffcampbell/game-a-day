@@ -49,7 +49,10 @@ tower_types = {
   {name="basic", cost=50, range=24, dmg=10, cd=15, desc="fast:attack"},
   {name="cannon", cost=100, range=40, dmg=30, cd=20, desc="high:damage"},
   {name="stun", cost=75, range=30, dmg=0, cd=25, desc="stun:slow"},
-  {name="multi", cost=80, range=28, dmg=8, cd=18, desc="spread:shots"}
+  {name="multi", cost=80, range=28, dmg=8, cd=18, desc="spread:shots"},
+  {name="splash", cost=90, range=32, dmg=12, cd=22, desc="aoe:damage"},
+  {name="slow", cost=70, range=28, dmg=2, cd=16, desc="crowd:control"},
+  {name="laser", cost=120, range=50, dmg=25, cd=25, desc="line:attack"}
 }
 
 -- enemy types: speed_mult, hp_mult, gold_mult, color
@@ -152,7 +155,7 @@ function update_placement()
     end
   end
   if test_input(5) then
-    selected_tower = selected_tower % 4 + 1
+    selected_tower = selected_tower % 7 + 1
   end
 
   -- start wave
@@ -179,6 +182,9 @@ function draw_placement()
   for t in all(towers) do
     local px, py = (t.x-1) * 8 + 8, (t.y-1) * 8 + 8
     local col = 2 + t.type
+    if t.type == 5 then col = 14 end  -- splash: yellow
+    if t.type == 6 then col = 12 end  -- slow: blue
+    if t.type == 7 then col = 9 end   -- laser: red
     circfill(px+2, py+2, 3, col)
   end
 
@@ -264,7 +270,7 @@ function update_wave()
       if tgt then
         t.cd = tower_types[t.type].cd
         if t.type == 1 or t.type == 2 then
-          -- basic or cannon
+          -- basic or cannon: shoot projectile
           local dx, dy = tgt.x - tx, tgt.y - ty
           local len = sqrt(dx*dx + dy*dy)
           if len > 0 then
@@ -272,10 +278,11 @@ function update_wave()
             add(projectiles, {x=tx, y=ty, dx=dx, dy=dy, dmg=tower_types[t.type].dmg, type=t.type})
           end
         elseif t.type == 3 then
-          -- stun
+          -- stun: apply stun effect
           tgt.dmg = 10
+          _log("tower_stun")
         elseif t.type == 4 then
-          -- multi
+          -- multi: spread shots
           for a = -0.3, 0.3, 0.3 do
             local dx, dy = tgt.x - tx, tgt.y - ty
             local len = sqrt(dx*dx + dy*dy)
@@ -284,6 +291,36 @@ function update_wave()
               dx, dy = cos(ang), sin(ang)
               add(projectiles, {x=tx, y=ty, dx=dx, dy=dy, dmg=tower_types[t.type].dmg, type=t.type})
             end
+          end
+        elseif t.type == 5 then
+          -- splash: damage area around target
+          local splash_rad = 12
+          for e in all(enemies) do
+            if dist(tgt.x, tgt.y, e.x, e.y) < splash_rad then
+              e.hp -= tower_types[t.type].dmg
+              if e.hp <= 0 then
+                sfx(1)
+                _log("enemy_defeated")
+                gold += e.gld
+                del(enemies, e)
+              else
+                e.dmg = 5
+              end
+            end
+          end
+          _log("tower_splash")
+        elseif t.type == 6 then
+          -- slow: reduce enemy speed
+          tgt.spd *= 0.5
+          tgt.dmg = 3
+          _log("tower_slow")
+        elseif t.type == 7 then
+          -- laser: high damage projectile
+          local dx, dy = tgt.x - tx, tgt.y - ty
+          local len = sqrt(dx*dx + dy*dy)
+          if len > 0 then
+            dx, dy = dx/len, dy/len
+            add(projectiles, {x=tx, y=ty, dx=dx, dy=dy, dmg=tower_types[t.type].dmg, type=t.type})
           end
         end
       end
@@ -349,6 +386,9 @@ function draw_wave()
   for t in all(towers) do
     local px, py = (t.x-1)*8+12, (t.y-1)*8+12
     local col = 2 + t.type
+    if t.type == 5 then col = 14 end  -- splash: yellow
+    if t.type == 6 then col = 12 end  -- slow: blue
+    if t.type == 7 then col = 9 end   -- laser: red
     circfill(px, py, 3, col)
   end
 
