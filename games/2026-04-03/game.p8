@@ -295,6 +295,7 @@ function update_wave()
         elseif t.type == 5 then
           -- splash: damage area around target
           local splash_rad = 12
+          local to_remove = {}
           for e in all(enemies) do
             if dist(tgt.x, tgt.y, e.x, e.y) < splash_rad then
               e.hp -= tower_types[t.type].dmg
@@ -302,11 +303,14 @@ function update_wave()
                 sfx(1)
                 _log("enemy_defeated")
                 gold += e.gld
-                del(enemies, e)
+                add(to_remove, e)
               else
                 e.dmg = 5
               end
             end
+          end
+          for e in all(to_remove) do
+            del(enemies, e)
           end
           _log("tower_splash")
         elseif t.type == 6 then
