@@ -46,10 +46,18 @@ projectiles = {}
 
 -- tower types: cost, fire_range, damage, cooldown, effect
 tower_types = {
-  {name="basic", cost=50, range=24, dmg=10, cd=15},
-  {name="cannon", cost=100, range=40, dmg=30, cd=20},
-  {name="stun", cost=75, range=30, dmg=0, cd=25},
-  {name="multi", cost=80, range=28, dmg=8, cd=18}
+  {name="basic", cost=50, range=24, dmg=10, cd=15, desc="fast:attack"},
+  {name="cannon", cost=100, range=40, dmg=30, cd=20, desc="high:damage"},
+  {name="stun", cost=75, range=30, dmg=0, cd=25, desc="stun:slow"},
+  {name="multi", cost=80, range=28, dmg=8, cd=18, desc="spread:shots"}
+}
+
+-- enemy types: speed_mult, hp_mult, gold_mult, color
+enemy_types = {
+  normal = {name="normal", spd_m=1.0, hp_m=1.0, gld_m=1.0, col=3},
+  scout = {name="scout", spd_m=2.0, hp_m=0.5, gld_m=1.0, col=1},
+  tank = {name="tank", spd_m=0.5, hp_m=2.0, gld_m=1.5, col=8},
+  swarm = {name="swarm", spd_m=1.0, hp_m=0.6, gld_m=1.0, col=10}
 }
 
 -- enemy path (clockwise around border)
@@ -60,17 +68,17 @@ enemy_path = {
   {8,112},{8,104},{8,96},{8,88},{8,80},{8,72},{8,64},{8,56},{8,48},{8,40},{8,32},{8,24},{8,16}
 }
 
--- wave definitions: cnt, hp, spd, gld, boss
+-- wave definitions: cnt, hp, spd, gld, boss, etype
 waves = {
-  {cnt=3, hp=10, spd=0.8, gld=20, boss=false},
-  {cnt=4, hp=12, spd=0.9, gld=25, boss=false},
-  {cnt=3, hp=14, spd=0.8, gld=30, boss=false},
-  {cnt=5, hp=18, spd=1.1, gld=35, boss=false},
-  {cnt=2, hp=35, spd=1.3, gld=50, boss=true},
-  {cnt=4, hp=20, spd=1.0, gld=40, boss=false},
-  {cnt=7, hp=25, spd=1.4, gld=45, boss=false},
-  {cnt=2, hp=45, spd=1.5, gld=60, boss=true},
-  {cnt=6, hp=30, spd=1.6, gld=55, boss=false}
+  {cnt=3, hp=10, spd=0.8, gld=20, boss=false, etype="normal"},
+  {cnt=4, hp=12, spd=0.9, gld=25, boss=false, etype="scout"},
+  {cnt=5, hp=8, spd=0.8, gld=15, boss=false, etype="swarm"},
+  {cnt=5, hp=18, spd=1.1, gld=35, boss=false, etype="normal"},
+  {cnt=2, hp=35, spd=1.3, gld=50, boss=true, etype="normal"},
+  {cnt=3, hp=40, spd=1.0, gld=60, boss=false, etype="tank"},
+  {cnt=8, hp=6, spd=1.4, gld=12, boss=false, etype="swarm"},
+  {cnt=2, hp=45, spd=1.5, gld=60, boss=true, etype="normal"},
+  {cnt=6, hp=30, spd=1.6, gld=55, boss=false, etype="normal"}
 }
 
 function _init()
@@ -174,8 +182,9 @@ function draw_placement()
     circfill(px+2, py+2, 3, col)
   end
 
-  -- draw cursor
+  -- draw cursor with tower selection highlight
   local cx, cy = (grid_x-1) * 8 + 8, (grid_y-1) * 8 + 8
+  rect(cx-1, cy-1, cx+8, cy+8, selected_tower+1)  -- highlight border
   rect(cx, cy, cx+7, cy+7, 7)
 
   -- draw ui
@@ -187,7 +196,15 @@ function draw_placement()
     wave_col = 9
   end
   print(wave_type, 10, 118, wave_col)
-  print("gold:"..gold.." sel:"..selected_tower, 10, 125, 7)
+
+  -- draw tower selection with description
+  local t = tower_types[selected_tower]
+  local cost_str = t.cost.."g"
+  print(selected_tower..":"..t.name, 10, 123, 3)
+  print(cost_str.." "..t.desc, 10, 128, 2)
+
+  print("gold:"..gold, 60, 123, 7)
+  print("x: switch tower", 60, 128, 2)
 end
 
 -- wave play state
@@ -197,14 +214,17 @@ function update_wave()
     local w = waves[wave]
     if w then
       is_boss_wave = w.boss or false
+      local et = enemy_types[w.etype or "normal"] or enemy_types.normal
       for i = 1, w.cnt do
-        add(enemies, {x=8, y=8, hp=w.hp, idx=1, dmg=0, spd=w.spd, gld=w.gld, boss=is_boss_wave})
+        local hp = flr(w.hp * et.hp_m)
+        local gld = flr(w.gld * et.gld_m)
+        add(enemies, {x=8, y=8, hp=hp, idx=1, dmg=0, spd=w.spd*et.spd_m, gld=gld, boss=is_boss_wave, etype=w.etype or "normal", col=et.col})
       end
       if is_boss_wave then
-        sfx(8)  -- boss alert sound (reusing slot 8)
+        sfx(8)  -- boss alert sound
         _log("boss_wave:"..wave)
       else
-        _log("wave_start:"..wave)
+        _log("wave_start:"..wave.." type:"..w.etype)
       end
     end
   end
@@ -334,8 +354,8 @@ function draw_wave()
 
   -- draw enemies
   for e in all(enemies) do
-    local c = 8
-    if e.dmg > 0 then c = 7 end
+    local c = e.col or 3
+    if e.dmg > 0 then c = 7 end  -- hit flash
     if e.boss then
       circfill(e.x, e.y, 4, 9)  -- boss: larger, red
       circfill(e.x, e.y, 3, c)
