@@ -30,9 +30,10 @@ state = "menu"
 gold = 200
 lives = 3
 wave = 0
-max_waves = 5
+max_waves = 9
 selected_tower = 1
 grid_x, grid_y = 2, 2
+is_boss_wave = false
 
 -- towers: id, x, y, type, cooldown
 towers = {}
@@ -59,13 +60,17 @@ enemy_path = {
   {8,112},{8,104},{8,96},{8,88},{8,80},{8,72},{8,64},{8,56},{8,48},{8,40},{8,32},{8,24},{8,16}
 }
 
--- wave definitions
+-- wave definitions: cnt, hp, spd, gld, boss
 waves = {
-  {cnt=3, hp=10, spd=0.8, gld=20},
-  {cnt=4, hp=15, spd=1.0, gld=25},
-  {cnt=5, hp=20, spd=1.2, gld=30},
-  {cnt=6, hp=25, spd=1.4, gld=35},
-  {cnt=8, hp=30, spd=1.6, gld=40}
+  {cnt=3, hp=10, spd=0.8, gld=20, boss=false},
+  {cnt=4, hp=12, spd=0.9, gld=25, boss=false},
+  {cnt=3, hp=14, spd=0.8, gld=30, boss=false},
+  {cnt=5, hp=18, spd=1.1, gld=35, boss=false},
+  {cnt=2, hp=35, spd=1.3, gld=50, boss=true},
+  {cnt=4, hp=20, spd=1.0, gld=40, boss=false},
+  {cnt=7, hp=25, spd=1.4, gld=45, boss=false},
+  {cnt=2, hp=45, spd=1.5, gld=60, boss=true},
+  {cnt=6, hp=30, spd=1.6, gld=55, boss=false}
 }
 
 function _init()
@@ -106,7 +111,7 @@ function draw_menu()
   print("place towers to stop", 20, 35, 7)
   print("enemy waves", 40, 43, 7)
   print("earn gold from kills", 20, 55, 7)
-  print("survive 5 waves!", 35, 63, 7)
+  print("survive 9 waves!", 35, 63, 7)
   print("z: start", 50, 85, 11)
 end
 
@@ -174,7 +179,14 @@ function draw_placement()
   rect(cx, cy, cx+7, cy+7, 7)
 
   -- draw ui
-  print("wave "..wave.." setup", 10, 118, 7)
+  local w = waves[wave]
+  local wave_type = "wave "..wave.." setup"
+  local wave_col = 7
+  if w and w.boss then
+    wave_type = "* boss wave! *"
+    wave_col = 9
+  end
+  print(wave_type, 10, 118, wave_col)
   print("gold:"..gold.." sel:"..selected_tower, 10, 125, 7)
 end
 
@@ -184,10 +196,16 @@ function update_wave()
   if #enemies == 0 and wave > 0 then
     local w = waves[wave]
     if w then
+      is_boss_wave = w.boss or false
       for i = 1, w.cnt do
-        add(enemies, {x=8, y=8, hp=w.hp, idx=1, dmg=0, spd=w.spd, gld=w.gld})
+        add(enemies, {x=8, y=8, hp=w.hp, idx=1, dmg=0, spd=w.spd, gld=w.gld, boss=is_boss_wave})
       end
-      _log("wave_start:"..wave)
+      if is_boss_wave then
+        sfx(8)  -- boss alert sound (reusing slot 8)
+        _log("boss_wave:"..wave)
+      else
+        _log("wave_start:"..wave)
+      end
     end
   end
 
@@ -318,7 +336,12 @@ function draw_wave()
   for e in all(enemies) do
     local c = 8
     if e.dmg > 0 then c = 7 end
-    circfill(e.x, e.y, 2, c)
+    if e.boss then
+      circfill(e.x, e.y, 4, 9)  -- boss: larger, red
+      circfill(e.x, e.y, 3, c)
+    else
+      circfill(e.x, e.y, 2, c)
+    end
   end
 
   -- draw projectiles
@@ -327,7 +350,13 @@ function draw_wave()
   end
 
   -- draw ui
-  print("wave:"..wave, 6, 118, 7)
+  local wave_display = "wave:"..wave
+  local wave_col = 7
+  if is_boss_wave then
+    wave_display = "boss:"..wave
+    wave_col = 9
+  end
+  print(wave_display, 6, 118, wave_col)
   print("gold:"..gold, 40, 118, 7)
   print("lives:"..lives, 80, 118, 7)
 end
@@ -372,6 +401,7 @@ __sfx__
 001100000a7f0b7f0c7f0d7f0e7f0f7f0f7f0f7f0e7f0d7f0c7f0b7f0a7f000000000000000000000000000000000000000000000000000000000000000000000000
 000300000f5f00f5f00f5f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000300000d4f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00110000000f011f022f033f044f055f066f077f088f099f0aaf0bbf0ccf0ddf0eef0ff000000000000000000000000000000000000000000000000000000000000
 
 __music__
 000100000000000100020003000400050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
