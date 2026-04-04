@@ -39,7 +39,6 @@ pspeed_x = 0
 pspeed_y = 0
 pgrounded = false
 pdir = 1  -- 1 = right, -1 = left
-panim_flip = false  -- animated sprite flipping
 
 -- visual polish
 shake_amt = 0  -- screenshake amount
@@ -324,8 +323,6 @@ function update_play()
   if input_x != 0 then pdir = input_x end
 
   px += pspeed_x
-  -- animated sprite flipping
-  panim_flip = (flr(t() * 8) % 2 == 0) and input_x != 0
 
   -- gravity
   pspeed_y += 0.3
