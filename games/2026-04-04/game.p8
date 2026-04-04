@@ -28,6 +28,7 @@ end
 -- game state machine
 state = "menu"
 score = 0
+high_score = 0  -- track high score across playthroughs
 lives = 3
 level = 1
 camera_x = 0
@@ -35,6 +36,10 @@ difficulty = 2  -- 1=easy, 2=medium, 3=hard
 difficulty_names = {"easy", "medium", "hard"}
 diff_speeds = {0.8, 1.0, 1.3}  -- obstacle speed multipliers
 max_levels = {3, 5, 7}  -- levels per difficulty
+
+-- timing
+level_start_time = 0  -- frame count when level starts
+total_playtime = 0  -- total frames played
 
 -- player
 px, py = 10, 100
@@ -407,6 +412,7 @@ function init_level(lv)
   pspeed_y = 0
   portal_pulse = 0
   particles = {}
+  level_start_time = stat(8)  -- frame count
 end
 
 function add_particle(x, y, vx, vy, col, life)
@@ -440,6 +446,13 @@ end
 function draw_particles()
   for p in all(particles) do
     pset(p.x, p.y, p.col)
+  end
+end
+
+function check_high_score()
+  if score > high_score then
+    high_score = score
+    _log("high_score:"..high_score)
   end
 end
 
@@ -562,6 +575,9 @@ function update_play()
         sfx(5)  -- lose sound
         _log("state:gameover")
         _log("result:lose")
+        -- track playtime and update high score on loss
+        total_playtime = stat(8) - level_start_time
+        check_high_score()
         state = "gameover"
       end
     end
@@ -594,6 +610,9 @@ function update_play()
       _log("result:win")
       -- win flash
       flash_amt = 20
+      -- track total playtime and update high score
+      total_playtime = stat(8) - level_start_time
+      check_high_score()
       state = "gameover"
     end
   end
@@ -613,6 +632,9 @@ function update_play()
       sfx(5)  -- lose sound
       _log("state:gameover")
       _log("result:lose")
+      -- track playtime and update high score on loss
+      total_playtime = stat(8) - level_start_time
+      check_high_score()
       state = "gameover"
     end
   end
@@ -701,7 +723,7 @@ function draw_play()
 
   -- draw level label
   print("level "..level, 2, 2, 7)
-  print("score: "..score, 70, 2, 7)
+  print("score: "..score, 65, 2, 7)
   print("lives: "..lives, 95, 2, 7)
 
   -- difficulty label
@@ -710,9 +732,10 @@ function draw_play()
   if difficulty == 3 then diff_col = 8 end
   print("["..difficulty_names[difficulty].."]", 2, 12, diff_col)
 
-  -- fish counter
+  -- fish counter and high score on HUD
   local total_fish = #fish
-  print("fish:"..fish_collected.."/"..total_fish, 50, 12, 12)
+  print("fish:"..fish_collected.."/"..total_fish, 45, 12, 12)
+  print("hi:"..high_score, 95, 12, 11)
 
   -- draw platforms
   for plat in all(platforms) do
@@ -768,12 +791,21 @@ function draw_gameover()
     end
 
     if win_state then
-      -- win screen with more visual feedback
-      print("★ you win! ★", 30, 25, 11)
-      print("all levels complete!", 20, 40, 7)
-      print("", 50, 50, 6)
-      print("final score: "..score, 30, 58, 7)
-      print("fish collected: "..fish_collected, 20, 68, 12)
+      -- win screen with comprehensive feedback
+      print("★ you win! ★", 30, 8, 11)
+      print("all levels complete!", 20, 20, 7)
+
+      -- score and collection stats
+      print("final score: "..score, 32, 33, 7)
+      print("fish collected: "..fish_collected, 24, 43, 12)
+
+      -- playtime
+      local playtime_sec = total_playtime / 60
+      print("time: "..flr(playtime_sec).."s", 44, 53, 6)
+
+      -- high score display
+      print("high score: "..high_score, 32, 63, 11)
+
       -- show stars based on score
       if score >= 500 then
         print("★★★ perfect! ★★★", 22, 85, 11)
@@ -784,10 +816,14 @@ function draw_gameover()
       end
     else
       -- game over screen
-      print("game over", 40, 30, 8)
-      print("score: "..score, 42, 45, 7)
-      print("level: "..level, 44, 55, 7)
-      print("fish: "..fish_collected, 46, 65, 12)
+      print("game over", 38, 15, 8)
+      print("score: "..score, 40, 28, 7)
+      print("level reached: "..level, 28, 38, 7)
+      print("fish collected: "..fish_collected, 24, 48, 12)
+      print("high score: "..high_score, 36, 58, 11)
+
+      -- difficulty info
+      print("["..difficulty_names[difficulty].."]", 48, 68, 6)
     end
   end
 
