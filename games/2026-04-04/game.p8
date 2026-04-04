@@ -259,6 +259,7 @@ function update_menu()
     score = 0
     lives = 3
     level = 1
+    sfx(3, 2)  -- level start sound
     init_level(level)
   end
 end
@@ -281,6 +282,7 @@ function update_play()
   -- jumping
   if pgrounded and test_input(4) then
     pspeed_y = -3
+    sfx(0)  -- jump sound
     _log("action:jump")
     pgrounded = false
   end
@@ -306,6 +308,7 @@ function update_play()
   -- collect fish
   for i, f in ipairs(fish) do
     if abs(px - f[1]) < 8 and abs(py - f[2]) < 8 then
+      sfx(1)  -- fish collected sound
       _log("action:fish_collected")
       score += 10
       f[1] = -100  -- move off screen
@@ -315,12 +318,14 @@ function update_play()
   -- collision with spikes
   for spike in all(spikes) do
     if abs(px - spike[1]) < 6 and abs(py - spike[2]) < 6 then
+      sfx(2)  -- spike hit sound
       _log("action:hit_spike")
       lives -= 1
       px = 5
       py = 115
       pspeed_y = 0
       if lives <= 0 then
+        sfx(5)  -- lose sound
         _log("state:gameover")
         _log("result:lose")
         state = "gameover"
@@ -333,11 +338,13 @@ function update_play()
      abs(px - exit_portal[1]) < 8 and
      abs(py - exit_portal[2]) < 8 then
     if level < 5 then
+      sfx(3)  -- level complete sound
       _log("action:level_up")
       level += 1
       score += 50
       init_level(level)
     else
+      sfx(4)  -- win sound
       _log("state:gameover")
       _log("result:win")
       state = "gameover"
@@ -346,12 +353,14 @@ function update_play()
 
   -- bounds check
   if py > 128 then
+    sfx(2)  -- spike hit sound (reuse for fall)
     _log("action:fell_off")
     lives -= 1
     px = 5
     py = 115
     pspeed_y = 0
     if lives <= 0 then
+      sfx(5)  -- lose sound
       _log("state:gameover")
       _log("result:lose")
       state = "gameover"
@@ -460,6 +469,13 @@ function _draw()
   end
 end
 
+__sfx__
+0:010444051045110451104511040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+1:021445054544505454454545045454545414535544505454405444044000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+2:061345054142514145041004100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+3:071545064644054544054434453445344504140414000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+4:081545074745074554753545045344534534450000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5:031544034544034443034333033323032210031100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __gfx__
 00000000007cc0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000776770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
