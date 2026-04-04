@@ -39,7 +39,6 @@ max_levels = {3, 5, 7}  -- levels per difficulty
 
 -- timing
 level_start_time = 0  -- frame count when level starts
-level_completion_time = 0  -- frames to complete current level
 total_playtime = 0  -- total frames played
 
 -- player
@@ -450,6 +449,13 @@ function draw_particles()
   end
 end
 
+function check_high_score()
+  if score > high_score then
+    high_score = score
+    _log("high_score:"..high_score)
+  end
+end
+
 function update_menu()
   if btnp(4) then  -- z button
     _log("state:difficulty_select")
@@ -570,10 +576,8 @@ function update_play()
         _log("state:gameover")
         _log("result:lose")
         -- track playtime and update high score on loss
-        total_playtime = stat(8)
-        if score > high_score then
-          high_score = score
-        end
+        total_playtime = stat(8) - level_start_time
+        check_high_score()
         state = "gameover"
       end
     end
@@ -607,11 +611,8 @@ function update_play()
       -- win flash
       flash_amt = 20
       -- track total playtime and update high score
-      total_playtime = stat(8)
-      if score > high_score then
-        high_score = score
-        _log("high_score:"..high_score)
-      end
+      total_playtime = stat(8) - level_start_time
+      check_high_score()
       state = "gameover"
     end
   end
@@ -632,10 +633,8 @@ function update_play()
       _log("state:gameover")
       _log("result:lose")
       -- track playtime and update high score on loss
-      total_playtime = stat(8)
-      if score > high_score then
-        high_score = score
-      end
+      total_playtime = stat(8) - level_start_time
+      check_high_score()
       state = "gameover"
     end
   end
