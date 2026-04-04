@@ -19,7 +19,8 @@ end
 function test_input(b)
   if testmode and test_input_idx < #test_inputs then
     test_input_idx += 1
-    return test_inputs[test_input_idx] or 0
+    local pressed = test_inputs[test_input_idx] or 0
+    return (pressed & (1 << b)) > 0
   end
   return btn(b)
 end
@@ -141,7 +142,7 @@ function update_play()
   end
 
   -- update enemies
-  for i=1,#enemies do
+  for i=#enemies,1,-1 do
     local e = enemies[i]
     e.y += enemy_speed
     e.x += e.vx
@@ -162,11 +163,11 @@ function update_play()
     end
 
     -- remove if off-screen
-    if e.y > 128 then e.y = -10 end
+    if e.y > 128 then del(enemies, e) end
   end
 
   -- update asteroids
-  for i=1,#asteroids do
+  for i=#asteroids,1,-1 do
     local a = asteroids[i]
     a.y += ast_speed
 
