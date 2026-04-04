@@ -21,7 +21,16 @@ function test_input(b)
     test_input_idx += 1
     return test_inputs[test_input_idx] or 0
   end
-  return btn()
+  return btn(b)
+end
+
+function test_btnp(b)
+  if testmode and test_input_idx < #test_inputs then
+    test_input_idx += 1
+    local pressed = test_inputs[test_input_idx] or 0
+    return (pressed & (1 << b)) > 0
+  end
+  return btnp(b)
 end
 
 -- game state machine
@@ -86,7 +95,7 @@ function _draw()
 end
 
 function update_menu()
-  if btnp(4) or btnp(5) then
+  if test_btnp(4) or test_btnp(5) then
     _log("state:play")
     state = "play"
     time_elapsed = 0
@@ -99,12 +108,12 @@ function update_play()
   time_elapsed += 1
 
   -- player movement
-  if btn(0) then player.x = max(0, player.x - player_speed) end
-  if btn(1) then player.x = min(128-player.w, player.x + player_speed) end
+  if test_input(0) then player.x = max(0, player.x - player_speed) end
+  if test_input(1) then player.x = min(128-player.w, player.x + player_speed) end
 
   -- shooting
-  if btnp(4) or btnp(5) then
-    add(bullets, {x=player.x+player.w/2, y=player.y, active=true})
+  if test_btnp(4) or test_btnp(5) then
+    add(bullets, {x=player.x+player.w/2, y=player.y, w=1, h=2, active=true})
     _log("shoot")
   end
 
@@ -234,7 +243,7 @@ function update_play()
 end
 
 function update_gameover()
-  if btnp(4) or btnp(5) then
+  if test_btnp(4) or test_btnp(5) then
     _log("state:menu")
     state = "menu"
   end
