@@ -1,8 +1,8 @@
 {
-  "title": "Penguin Slide",
-  "description": "Navigate icy platforms by sliding and jumping! Collect fish for points, avoid spikes, and reach the goal. Features two levels of increasing difficulty with responsive controls and engaging platformer action.",
-  "genres": ["platformer", "action"],
-  "difficulty": 2,
+  "title": "Space Shooter",
+  "description": "Pilot your spaceship through waves of enemies and asteroids. Move left and right to dodge incoming threats, shoot enemies and asteroids to earn points. Survive three waves to win!",
+  "genres": ["action", "arcade"],
+  "difficulty": 3,
   "playtime_minutes": 5,
   "completion_status": "complete",
   "target_audience": "general"
