@@ -303,7 +303,7 @@ function draw_gameover()
       if log == "result:win" then win_state = true end
     end
 
-    if score > 50 or (level >= 2) then
+    if win_state then
       print("you win!", 45, 40, 11)
       print("final score: "..score, 30, 60, 7)
     else
