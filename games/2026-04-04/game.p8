@@ -80,8 +80,8 @@ function init_level(lv)
 
     -- exit
     exit_portal = {110, 70, 10}
-  else
-    -- level 2: harder
+  elseif lv == 2 then
+    -- level 2: medium difficulty
     add(platforms, {0, 120, 128, 8})
     add(platforms, {5, 105, 18, 3})
     add(platforms, {28, 98, 15, 3})
@@ -106,6 +106,142 @@ function init_level(lv)
     add(spikes, {60, 95})
 
     exit_portal = {110, 55, 10}
+  elseif lv == 3 then
+    -- level 3: hard - tight platforms, many obstacles
+    add(platforms, {0, 120, 128, 8})
+    add(platforms, {3, 108, 16, 3})
+    add(platforms, {25, 103, 14, 3})
+    add(platforms, {45, 98, 12, 3})
+    add(platforms, {63, 93, 14, 3})
+    add(platforms, {85, 100, 16, 3})
+
+    add(platforms, {12, 80, 18, 3})
+    add(platforms, {38, 73, 15, 3})
+    add(platforms, {60, 68, 13, 3})
+    add(platforms, {82, 75, 16, 3})
+
+    add(platforms, {20, 55, 15, 3})
+    add(platforms, {50, 48, 14, 3})
+    add(platforms, {75, 58, 16, 3})
+
+    add(fish, {20, 75})
+    add(fish, {45, 68})
+    add(fish, {70, 53})
+    add(fish, {100, 95})
+    add(fish, {15, 50})
+    add(fish, {60, 43})
+
+    add(spikes, {20, 115})
+    add(spikes, {40, 115})
+    add(spikes, {60, 115})
+    add(spikes, {80, 115})
+    add(spikes, {35, 106})
+    add(spikes, {55, 101})
+    add(spikes, {75, 96})
+    add(spikes, {28, 85})
+
+    exit_portal = {110, 45, 10}
+  elseif lv == 4 then
+    -- level 4: very hard - cascading obstacles, complex jumps
+    add(platforms, {0, 120, 128, 8})
+    add(platforms, {2, 110, 14, 2})
+    add(platforms, {20, 105, 12, 2})
+    add(platforms, {38, 100, 11, 2})
+    add(platforms, {54, 95, 13, 2})
+    add(platforms, {75, 102, 14, 2})
+    add(platforms, {98, 108, 12, 2})
+
+    add(platforms, {10, 85, 16, 2})
+    add(platforms, {32, 78, 14, 2})
+    add(platforms, {55, 72, 12, 2})
+    add(platforms, {78, 80, 15, 2})
+
+    add(platforms, {18, 60, 13, 2})
+    add(platforms, {48, 52, 12, 2})
+    add(platforms, {75, 65, 14, 2})
+
+    add(platforms, {35, 40, 14, 2})
+    add(platforms, {70, 45, 13, 2})
+
+    add(fish, {15, 80})
+    add(fish, {40, 73})
+    add(fish, {60, 67})
+    add(fish, {90, 103})
+    add(fish, {25, 55})
+    add(fish, {55, 47})
+    add(fish, {80, 60})
+    add(fish, {42, 35})
+
+    add(spikes, {18, 115})
+    add(spikes, {38, 115})
+    add(spikes, {58, 115})
+    add(spikes, {78, 115})
+    add(spikes, {98, 115})
+    add(spikes, {30, 108})
+    add(spikes, {50, 103})
+    add(spikes, {70, 100})
+    add(spikes, {25, 90})
+    add(spikes, {45, 82})
+    add(spikes, {65, 77})
+
+    exit_portal = {110, 35, 10}
+  elseif lv == 5 then
+    -- level 5: expert - intense challenge, many precise jumps
+    add(platforms, {0, 120, 128, 8})
+    add(platforms, {1, 110, 12, 2})
+    add(platforms, {18, 106, 11, 2})
+    add(platforms, {35, 101, 10, 2})
+    add(platforms, {50, 96, 11, 2})
+    add(platforms, {68, 102, 12, 2})
+    add(platforms, {88, 107, 11, 2})
+    add(platforms, {105, 110, 10, 2})
+
+    add(platforms, {8, 87, 13, 2})
+    add(platforms, {28, 80, 11, 2})
+    add(platforms, {48, 74, 10, 2})
+    add(platforms, {68, 82, 12, 2})
+    add(platforms, {92, 88, 11, 2})
+
+    add(platforms, {15, 65, 12, 2})
+    add(platforms, {40, 58, 11, 2})
+    add(platforms, {62, 70, 13, 2})
+    add(platforms, {85, 62, 10, 2})
+
+    add(platforms, {25, 48, 10, 2})
+    add(platforms, {50, 42, 12, 2})
+    add(platforms, {75, 52, 11, 2})
+
+    add(platforms, {35, 30, 11, 2})
+    add(platforms, {70, 38, 12, 2})
+
+    add(fish, {12, 82})
+    add(fish, {35, 75})
+    add(fish, {55, 69})
+    add(fish, {75, 77})
+    add(fish, {100, 102})
+    add(fish, {20, 60})
+    add(fish, {48, 53})
+    add(fish, {70, 65})
+    add(fish, {40, 43})
+    add(fish, {60, 37})
+
+    add(spikes, {15, 115})
+    add(spikes, {35, 115})
+    add(spikes, {55, 115})
+    add(spikes, {75, 115})
+    add(spikes, {95, 115})
+    add(spikes, {28, 108})
+    add(spikes, {48, 104})
+    add(spikes, {68, 100})
+    add(spikes, {88, 105})
+    add(spikes, {20, 92})
+    add(spikes, {42, 85})
+    add(spikes, {62, 78})
+    add(spikes, {85, 87})
+    add(spikes, {32, 70})
+    add(spikes, {55, 64})
+
+    exit_portal = {110, 28, 10}
   end
 
   _log("init_level:done")
@@ -196,7 +332,7 @@ function update_play()
   if exit_portal and
      abs(px - exit_portal[1]) < 8 and
      abs(py - exit_portal[2]) < 8 then
-    if level < 2 then
+    if level < 5 then
       _log("action:level_up")
       level += 1
       score += 50
