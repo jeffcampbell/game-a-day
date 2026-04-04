@@ -117,6 +117,7 @@ end
 
 function update_menu()
   if btnp(4) then  -- z button
+    test_log = {}  -- clear previous game's logs
     _log("state:play")
     state = "play"
     score = 0
