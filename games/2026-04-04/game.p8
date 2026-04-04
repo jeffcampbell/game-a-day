@@ -731,6 +731,7 @@ function update_play()
       score += 75  -- larger bonus for portal
       level_complete_timer = 15
       gen_endless_platforms()
+      endless_escalation_step = 0  -- reset escalation counter when escalating via portal
       px = 5
       py = 115
       pspeed_x = 0
