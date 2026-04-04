@@ -31,6 +31,10 @@ score = 0
 lives = 3
 level = 1
 camera_x = 0
+difficulty = 2  -- 1=easy, 2=medium, 3=hard
+difficulty_names = {"easy", "medium", "hard"}
+diff_speeds = {0.8, 1.0, 1.3}  -- obstacle speed multipliers
+max_levels = {3, 5, 7}  -- levels per difficulty
 
 -- player
 px, py = 10, 100
@@ -68,11 +72,12 @@ function init_level(lv)
   if lv == 1 then
     -- ground
     add(platforms, {0, 120, 128, 8})
-    -- stepping stones
-    add(platforms, {10, 108, 20, 4})
-    add(platforms, {40, 100, 20, 4})
-    add(platforms, {70, 95, 20, 4})
-    add(platforms, {100, 100, 20, 4})
+    -- stepping stones - adjust width for difficulty
+    local pw1 = difficulty == 1 and 24 or (difficulty == 2 and 20 or 18)
+    add(platforms, {10, 108, pw1, 4})
+    add(platforms, {40, 100, pw1, 4})
+    add(platforms, {70, 95, pw1, 4})
+    add(platforms, {100, 100, pw1, 4})
     -- upper path
     add(platforms, {20, 80, 25, 4})
     add(platforms, {55, 70, 25, 4})
@@ -84,25 +89,35 @@ function init_level(lv)
     add(fish, {100, 65})
     add(fish, {35, 90})
 
-    -- obstacles
-    add(spikes, {30, 115})
-    add(spikes, {65, 108})
-    add(spikes, {90, 110})
+    -- obstacles - fewer for easy, more for hard
+    if difficulty <= 1 then
+      add(spikes, {30, 115})
+      add(spikes, {65, 108})
+    else
+      add(spikes, {30, 115})
+      add(spikes, {65, 108})
+      add(spikes, {90, 110})
+      if difficulty == 3 then
+        add(spikes, {45, 105})
+      end
+    end
 
     -- exit
     exit_portal = {110, 70, 10}
   elseif lv == 2 then
     -- level 2: medium difficulty
     add(platforms, {0, 120, 128, 8})
-    add(platforms, {5, 105, 18, 3})
-    add(platforms, {28, 98, 15, 3})
-    add(platforms, {48, 90, 15, 3})
-    add(platforms, {68, 85, 18, 3})
-    add(platforms, {90, 95, 20, 3})
+    -- adjust platform widths for difficulty
+    local pw2 = difficulty == 1 and 18 or (difficulty == 2 and 15 or 13)
+    add(platforms, {5, 105, pw2, 3})
+    add(platforms, {28, 98, pw2, 3})
+    add(platforms, {48, 90, pw2, 3})
+    add(platforms, {68, 85, pw2, 3})
+    add(platforms, {90, 95, pw2, 3})
 
-    add(platforms, {15, 70, 20, 3})
-    add(platforms, {40, 65, 18, 3})
-    add(platforms, {65, 60, 20, 3})
+    add(platforms, {15, 70, pw2, 3})
+    add(platforms, {40, 65, pw2, 3})
+    add(platforms, {65, 60, pw2, 3})
 
     add(fish, {20, 65})
     add(fish, {45, 58})
@@ -110,30 +125,41 @@ function init_level(lv)
     add(fish, {95, 90})
     add(fish, {12, 100})
 
-    add(spikes, {25, 115})
-    add(spikes, {50, 115})
-    add(spikes, {75, 115})
-    add(spikes, {38, 103})
-    add(spikes, {60, 95})
+    -- difficulty-based spikes
+    if difficulty <= 1 then
+      add(spikes, {25, 115})
+      add(spikes, {50, 115})
+    else
+      add(spikes, {25, 115})
+      add(spikes, {50, 115})
+      add(spikes, {75, 115})
+      add(spikes, {38, 103})
+      add(spikes, {60, 95})
+      if difficulty == 3 then
+        add(spikes, {18, 105})
+      end
+    end
 
     exit_portal = {110, 55, 10}
   elseif lv == 3 then
     -- level 3: hard - tight platforms, many obstacles
     add(platforms, {0, 120, 128, 8})
-    add(platforms, {3, 108, 16, 3})
-    add(platforms, {25, 103, 14, 3})
-    add(platforms, {45, 98, 12, 3})
-    add(platforms, {63, 93, 14, 3})
-    add(platforms, {85, 100, 16, 3})
+    -- difficulty-based widths
+    local pw3 = difficulty == 1 and 18 or (difficulty == 2 and 14 or 12)
+    add(platforms, {3, 108, pw3, 3})
+    add(platforms, {25, 103, pw3-2, 3})
+    add(platforms, {45, 98, pw3-4, 3})
+    add(platforms, {63, 93, pw3-2, 3})
+    add(platforms, {85, 100, pw3, 3})
 
-    add(platforms, {12, 80, 18, 3})
-    add(platforms, {38, 73, 15, 3})
-    add(platforms, {60, 68, 13, 3})
-    add(platforms, {82, 75, 16, 3})
+    add(platforms, {12, 80, pw3, 3})
+    add(platforms, {38, 73, pw3-2, 3})
+    add(platforms, {60, 68, pw3-3, 3})
+    add(platforms, {82, 75, pw3, 3})
 
-    add(platforms, {20, 55, 15, 3})
-    add(platforms, {50, 48, 14, 3})
-    add(platforms, {75, 58, 16, 3})
+    add(platforms, {20, 55, pw3-2, 3})
+    add(platforms, {50, 48, pw3-2, 3})
+    add(platforms, {75, 58, pw3, 3})
 
     add(fish, {20, 75})
     add(fish, {45, 68})
@@ -142,37 +168,50 @@ function init_level(lv)
     add(fish, {15, 50})
     add(fish, {60, 43})
 
-    add(spikes, {20, 115})
-    add(spikes, {40, 115})
-    add(spikes, {60, 115})
-    add(spikes, {80, 115})
-    add(spikes, {35, 106})
-    add(spikes, {55, 101})
-    add(spikes, {75, 96})
-    add(spikes, {28, 85})
+    -- difficulty-based spikes
+    if difficulty <= 1 then
+      add(spikes, {20, 115})
+      add(spikes, {40, 115})
+      add(spikes, {60, 115})
+    else
+      add(spikes, {20, 115})
+      add(spikes, {40, 115})
+      add(spikes, {60, 115})
+      add(spikes, {80, 115})
+      add(spikes, {35, 106})
+      add(spikes, {55, 101})
+      add(spikes, {75, 96})
+      if difficulty == 3 then
+        add(spikes, {28, 85})
+        add(spikes, {45, 95})
+      else
+        add(spikes, {28, 85})
+      end
+    end
 
     exit_portal = {110, 45, 10}
   elseif lv == 4 then
     -- level 4: very hard - cascading obstacles, complex jumps
     add(platforms, {0, 120, 128, 8})
-    add(platforms, {2, 110, 14, 2})
-    add(platforms, {20, 105, 12, 2})
-    add(platforms, {38, 100, 11, 2})
-    add(platforms, {54, 95, 13, 2})
-    add(platforms, {75, 102, 14, 2})
-    add(platforms, {98, 108, 12, 2})
+    local pw4 = difficulty == 1 and 14 or (difficulty == 2 and 12 or 10)
+    add(platforms, {2, 110, pw4, 2})
+    add(platforms, {20, 105, pw4-2, 2})
+    add(platforms, {38, 100, pw4-3, 2})
+    add(platforms, {54, 95, pw4-1, 2})
+    add(platforms, {75, 102, pw4, 2})
+    add(platforms, {98, 108, pw4-2, 2})
 
-    add(platforms, {10, 85, 16, 2})
-    add(platforms, {32, 78, 14, 2})
-    add(platforms, {55, 72, 12, 2})
-    add(platforms, {78, 80, 15, 2})
+    add(platforms, {10, 85, pw4+2, 2})
+    add(platforms, {32, 78, pw4, 2})
+    add(platforms, {55, 72, pw4-2, 2})
+    add(platforms, {78, 80, pw4+1, 2})
 
-    add(platforms, {18, 60, 13, 2})
-    add(platforms, {48, 52, 12, 2})
-    add(platforms, {75, 65, 14, 2})
+    add(platforms, {18, 60, pw4-1, 2})
+    add(platforms, {48, 52, pw4-2, 2})
+    add(platforms, {75, 65, pw4, 2})
 
-    add(platforms, {35, 40, 14, 2})
-    add(platforms, {70, 45, 13, 2})
+    add(platforms, {35, 40, pw4, 2})
+    add(platforms, {70, 45, pw4-1, 2})
 
     add(fish, {15, 80})
     add(fish, {40, 73})
@@ -183,47 +222,57 @@ function init_level(lv)
     add(fish, {80, 60})
     add(fish, {42, 35})
 
-    add(spikes, {18, 115})
-    add(spikes, {38, 115})
-    add(spikes, {58, 115})
-    add(spikes, {78, 115})
-    add(spikes, {98, 115})
-    add(spikes, {30, 108})
-    add(spikes, {50, 103})
-    add(spikes, {70, 100})
-    add(spikes, {25, 90})
-    add(spikes, {45, 82})
-    add(spikes, {65, 77})
+    -- difficulty-based spikes
+    if difficulty == 1 then
+      add(spikes, {18, 115})
+      add(spikes, {38, 115})
+      add(spikes, {58, 115})
+    else
+      add(spikes, {18, 115})
+      add(spikes, {38, 115})
+      add(spikes, {58, 115})
+      add(spikes, {78, 115})
+      add(spikes, {98, 115})
+      add(spikes, {30, 108})
+      add(spikes, {50, 103})
+      add(spikes, {70, 100})
+      if difficulty == 3 then
+        add(spikes, {25, 90})
+        add(spikes, {45, 82})
+        add(spikes, {65, 77})
+      end
+    end
 
     exit_portal = {110, 35, 10}
   elseif lv == 5 then
     -- level 5: expert - intense challenge, many precise jumps
     add(platforms, {0, 120, 128, 8})
-    add(platforms, {1, 110, 12, 2})
-    add(platforms, {18, 106, 11, 2})
-    add(platforms, {35, 101, 10, 2})
-    add(platforms, {50, 96, 11, 2})
-    add(platforms, {68, 102, 12, 2})
-    add(platforms, {88, 107, 11, 2})
-    add(platforms, {105, 110, 10, 2})
+    local pw5 = difficulty == 1 and 12 or (difficulty == 2 and 10 or 9)
+    add(platforms, {1, 110, pw5, 2})
+    add(platforms, {18, 106, pw5-1, 2})
+    add(platforms, {35, 101, pw5-2, 2})
+    add(platforms, {50, 96, pw5-1, 2})
+    add(platforms, {68, 102, pw5, 2})
+    add(platforms, {88, 107, pw5-1, 2})
+    add(platforms, {105, 110, pw5-2, 2})
 
-    add(platforms, {8, 87, 13, 2})
-    add(platforms, {28, 80, 11, 2})
-    add(platforms, {48, 74, 10, 2})
-    add(platforms, {68, 82, 12, 2})
-    add(platforms, {92, 88, 11, 2})
+    add(platforms, {8, 87, pw5+1, 2})
+    add(platforms, {28, 80, pw5-1, 2})
+    add(platforms, {48, 74, pw5-2, 2})
+    add(platforms, {68, 82, pw5, 2})
+    add(platforms, {92, 88, pw5-1, 2})
 
-    add(platforms, {15, 65, 12, 2})
-    add(platforms, {40, 58, 11, 2})
-    add(platforms, {62, 70, 13, 2})
-    add(platforms, {85, 62, 10, 2})
+    add(platforms, {15, 65, pw5, 2})
+    add(platforms, {40, 58, pw5-1, 2})
+    add(platforms, {62, 70, pw5+1, 2})
+    add(platforms, {85, 62, pw5-2, 2})
 
-    add(platforms, {25, 48, 10, 2})
-    add(platforms, {50, 42, 12, 2})
-    add(platforms, {75, 52, 11, 2})
+    add(platforms, {25, 48, pw5-2, 2})
+    add(platforms, {50, 42, pw5, 2})
+    add(platforms, {75, 52, pw5-1, 2})
 
-    add(platforms, {35, 30, 11, 2})
-    add(platforms, {70, 38, 12, 2})
+    add(platforms, {35, 30, pw5-1, 2})
+    add(platforms, {70, 38, pw5, 2})
 
     add(fish, {12, 82})
     add(fish, {35, 75})
@@ -236,23 +285,119 @@ function init_level(lv)
     add(fish, {40, 43})
     add(fish, {60, 37})
 
-    add(spikes, {15, 115})
-    add(spikes, {35, 115})
-    add(spikes, {55, 115})
-    add(spikes, {75, 115})
-    add(spikes, {95, 115})
-    add(spikes, {28, 108})
-    add(spikes, {48, 104})
-    add(spikes, {68, 100})
-    add(spikes, {88, 105})
-    add(spikes, {20, 92})
-    add(spikes, {42, 85})
-    add(spikes, {62, 78})
-    add(spikes, {85, 87})
-    add(spikes, {32, 70})
-    add(spikes, {55, 64})
+    -- difficulty-based spikes
+    if difficulty == 1 then
+      add(spikes, {15, 115})
+      add(spikes, {35, 115})
+      add(spikes, {55, 115})
+      add(spikes, {75, 115})
+    else
+      add(spikes, {15, 115})
+      add(spikes, {35, 115})
+      add(spikes, {55, 115})
+      add(spikes, {75, 115})
+      add(spikes, {95, 115})
+      add(spikes, {28, 108})
+      add(spikes, {48, 104})
+      add(spikes, {68, 100})
+      if difficulty == 3 then
+        add(spikes, {88, 105})
+        add(spikes, {20, 92})
+        add(spikes, {42, 85})
+        add(spikes, {62, 78})
+        add(spikes, {85, 87})
+        add(spikes, {32, 70})
+        add(spikes, {55, 64})
+      end
+    end
 
     exit_portal = {110, 28, 10}
+  elseif lv == 6 then
+    -- level 6: hard mode only - brutal platforming
+    add(platforms, {0, 120, 128, 8})
+    add(platforms, {5, 105, 10, 2})
+    add(platforms, {22, 100, 9, 2})
+    add(platforms, {40, 95, 9, 2})
+    add(platforms, {58, 90, 10, 2})
+    add(platforms, {76, 98, 9, 2})
+    add(platforms, {95, 103, 10, 2})
+
+    add(platforms, {12, 80, 10, 2})
+    add(platforms, {35, 73, 9, 2})
+    add(platforms, {55, 68, 10, 2})
+    add(platforms, {78, 76, 9, 2})
+
+    add(platforms, {18, 55, 9, 2})
+    add(platforms, {45, 48, 10, 2})
+    add(platforms, {70, 60, 9, 2})
+
+    add(fish, {18, 75})
+    add(fish, {40, 68})
+    add(fish, {60, 63})
+    add(fish, {85, 93})
+    add(fish, {28, 50})
+    add(fish, {50, 43})
+    add(fish, {75, 55})
+
+    add(spikes, {12, 115})
+    add(spikes, {28, 115})
+    add(spikes, {44, 115})
+    add(spikes, {60, 115})
+    add(spikes, {76, 115})
+    add(spikes, {92, 115})
+    add(spikes, {20, 108})
+    add(spikes, {40, 103})
+    add(spikes, {60, 98})
+    add(spikes, {30, 85})
+    add(spikes, {50, 78})
+
+    exit_portal = {110, 42, 10}
+  elseif lv == 7 then
+    -- level 7: hard mode final - extreme challenge
+    add(platforms, {0, 120, 128, 8})
+    add(platforms, {3, 108, 8, 2})
+    add(platforms, {18, 103, 8, 2})
+    add(platforms, {33, 98, 8, 2})
+    add(platforms, {50, 93, 9, 2})
+    add(platforms, {70, 100, 8, 2})
+    add(platforms, {88, 105, 8, 2})
+
+    add(platforms, {10, 82, 9, 2})
+    add(platforms, {30, 75, 8, 2})
+    add(platforms, {52, 70, 9, 2})
+    add(platforms, {75, 78, 8, 2})
+
+    add(platforms, {15, 58, 8, 2})
+    add(platforms, {42, 50, 9, 2})
+    add(platforms, {68, 62, 8, 2})
+
+    add(platforms, {28, 38, 8, 2})
+    add(platforms, {62, 45, 9, 2})
+
+    add(fish, {15, 78})
+    add(fish, {38, 70})
+    add(fish, {58, 65})
+    add(fish, {82, 95})
+    add(fish, {25, 53})
+    add(fish, {48, 45})
+    add(fish, {70, 57})
+    add(fish, {35, 33})
+
+    add(spikes, {10, 115})
+    add(spikes, {22, 115})
+    add(spikes, {34, 115})
+    add(spikes, {48, 115})
+    add(spikes, {62, 115})
+    add(spikes, {76, 115})
+    add(spikes, {90, 115})
+    add(spikes, {15, 108})
+    add(spikes, {35, 103})
+    add(spikes, {55, 98})
+    add(spikes, {25, 85})
+    add(spikes, {45, 77})
+    add(spikes, {65, 72})
+
+    exit_portal = {110, 32, 10}
   end
 
   _log("init_level:done")
@@ -300,8 +445,28 @@ end
 
 function update_menu()
   if btnp(4) then  -- z button
+    _log("state:difficulty_select")
+    state = "difficulty_select"
+    difficulty = 2  -- reset to medium
+  end
+end
+
+function update_difficulty_select()
+  -- left/right to select difficulty
+  if btnp(0) and difficulty > 1 then
+    difficulty -= 1
+    sfx(0)  -- use jump sound for selection
+  end
+  if btnp(1) and difficulty < 3 then
+    difficulty += 1
+    sfx(0)
+  end
+
+  -- z to start with selected difficulty
+  if btnp(4) then
     test_log = {}  -- clear previous game's logs
     _log("state:play")
+    _log("difficulty:"..difficulty_names[difficulty])
     state = "play"
     score = 0
     lives = 3
@@ -409,7 +574,8 @@ function update_play()
   if exit_portal and
      abs(px - exit_portal[1]) < 8 and
      abs(py - exit_portal[2]) < 8 then
-    if level < 5 then
+    local max_lv = max_levels[difficulty]
+    if level < max_lv then
       sfx(3)  -- level complete sound
       _log("action:level_up")
       -- level complete visual feedback
@@ -465,6 +631,7 @@ end
 
 function _update()
   if state == "menu" then update_menu()
+  elseif state == "difficulty_select" then update_difficulty_select()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
   end
@@ -494,6 +661,40 @@ function draw_menu()
   spr(1, 55, 30)
 end
 
+function draw_difficulty_select()
+  camera(0, 0)
+  cls(1)
+  print("select difficulty", 28, 20, 7)
+
+  -- draw difficulty options
+  local y_base = 50
+  for i = 1, 3 do
+    local col = 7
+    local mark = "  "
+    if i == difficulty then
+      col = 11
+      mark = "▶ "
+    end
+    print(mark..difficulty_names[i], 35, y_base + i*20, col)
+  end
+
+  -- show difficulty description
+  local desc = ""
+  if difficulty == 1 then
+    desc = "3 levels - relaxed"
+  elseif difficulty == 2 then
+    desc = "5 levels - balanced"
+  else
+    desc = "7 levels - expert!"
+  end
+  print(desc, 22, 105, 6)
+
+  if flr(t() * 2) % 2 == 0 then
+    print("z to start", 42, 118, 7)
+  end
+  camera(0, 0)
+end
+
 function draw_play()
   apply_screenshake()
   cls(1)
@@ -503,12 +704,11 @@ function draw_play()
   print("score: "..score, 70, 2, 7)
   print("lives: "..lives, 95, 2, 7)
 
-  -- difficulty indicator
-  local diff_str = "●●●●●"
-  if level <= 2 then diff_str = "●○○○○" end
-  if level == 3 then diff_str = "●●○○○" end
-  if level == 4 then diff_str = "●●●○○" end
-  print(diff_str, 100, 12, 3)
+  -- difficulty label
+  local diff_col = 6
+  if difficulty == 1 then diff_col = 3 end
+  if difficulty == 3 then diff_col = 8 end
+  print("["..difficulty_names[difficulty].."]", 2, 12, diff_col)
 
   -- fish counter
   local total_fish = #fish
@@ -608,6 +808,7 @@ end
 function _draw()
   cls()
   if state == "menu" then draw_menu()
+  elseif state == "difficulty_select" then draw_difficulty_select()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
   end
