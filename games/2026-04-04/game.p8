@@ -29,6 +29,7 @@ end
 state = "menu"
 score = 0
 high_score = 0  -- track high score across playthroughs
+high_score_endless = 0  -- separate high score for endless mode
 lives = 3
 level = 1
 camera_x = 0
@@ -36,6 +37,9 @@ difficulty = 2  -- 1=easy, 2=medium, 3=hard
 difficulty_names = {"easy", "medium", "hard"}
 diff_speeds = {0.8, 1.0, 1.3}  -- obstacle speed multipliers
 max_levels = {3, 5, 7}  -- levels per difficulty
+game_mode = "campaign"  -- "campaign" or "endless"
+endless_level = 0  -- escalation level in endless mode
+endless_escalation_step = 0  -- tracks fish collected for escalation
 
 -- timing
 level_start_time = 0  -- frame count when level starts
@@ -65,13 +69,89 @@ spikes = {}
 exit_portal = {}
 fish_collected = 0  -- track collected fish
 
--- platform structure: {x, y, w, h}
-function init_level(lv)
-  _log("level:"..lv)
+-- procedural endless mode platform generation
+function gen_endless_platforms()
+  local escalation = endless_level
+  local base_speed = diff_speeds[difficulty]
+
+  -- increase obstacle density every level
+  local spike_mult = 1 + escalation * 0.15
+  local plat_width_mult = 1 - escalation * 0.05
+
   platforms = {}
   fish = {}
   spikes = {}
-  fish_collected = 0  -- reset fish counter for new level
+  fish_collected = 0
+
+  -- ground
+  add(platforms, {0, 120, 128, 8})
+
+  -- generate 8-10 platforms with varying heights
+  local num_plats = 8 + flr(escalation * 0.3)
+  local prev_y = 100
+
+  for i = 1, num_plats do
+    local x = 5 + (i-1) * (120/num_plats) + rnd(15)
+    local w = max(8, min(20, 16 * plat_width_mult))
+    local y = prev_y - 5 - rnd(12)
+    y = max(20, min(110, y))
+
+    add(platforms, {flr(x), flr(y), flr(w), 3})
+
+    -- add fish periodically
+    if i % 2 == 0 then
+      add(fish, {flr(x + w/2), flr(y - 8)})
+    end
+
+    prev_y = y
+  end
+
+  -- add spikes based on escalation
+  local base_spikes = 3 + flr(escalation * 0.5)
+  for i = 1, base_spikes do
+    local sx = 10 + rnd(108)
+    local sy = 110 + rnd(5)
+    add(spikes, {flr(sx), flr(sy)})
+  end
+
+  -- add additional floating spikes at higher escalations
+  if escalation > 0 then
+    for i = 1, flr(escalation * 0.3) do
+      local sx = 20 + rnd(88)
+      local sy = 30 + rnd(70)
+      add(spikes, {flr(sx), flr(sy)})
+    end
+  end
+
+  -- exit portal at top right
+  exit_portal = {115, 20, 10}
+end
+
+-- platform structure: {x, y, w, h}
+function init_level(lv)
+  -- handle endless mode
+  if game_mode == "endless" then
+    gen_endless_platforms()
+    _log("endless_level:"..endless_level)
+  else
+    _log("level:"..lv)
+    platforms = {}
+    fish = {}
+    spikes = {}
+    fish_collected = 0
+  end
+
+  -- early return if endless (procedural gen handled above)
+  if game_mode == "endless" then
+    px = 5
+    py = 115
+    pspeed_x = 0
+    pspeed_y = 0
+    portal_pulse = 0
+    particles = {}
+    level_start_time = stat(8)
+    return
+  end  -- reset fish counter for new level
 
   -- level 1: basic tutorial level
   if lv == 1 then
@@ -450,14 +530,40 @@ function draw_particles()
 end
 
 function check_high_score()
-  if score > high_score then
-    high_score = score
-    _log("high_score:"..high_score)
+  if game_mode == "endless" then
+    if score > high_score_endless then
+      high_score_endless = score
+      _log("high_score_endless:"..high_score_endless)
+    end
+  else
+    if score > high_score then
+      high_score = score
+      _log("high_score:"..high_score)
+    end
   end
 end
 
 function update_menu()
-  if btnp(4) then  -- z button
+  -- transition to mode select on z button press
+  if btnp(4) then
+    _log("state:mode_select")
+    state = "mode_select"
+  end
+end
+
+function update_mode_select()
+  -- up/down to select mode
+  if btnp(2) and game_mode == "endless" then  -- up
+    game_mode = "campaign"
+    sfx(0)
+  end
+  if btnp(3) and game_mode == "campaign" then  -- down
+    game_mode = "endless"
+    sfx(0)
+  end
+
+  -- z to start selected mode
+  if btnp(4) then
     _log("state:difficulty_select")
     state = "difficulty_select"
     difficulty = 2  -- reset to medium
@@ -480,11 +586,19 @@ function update_difficulty_select()
     test_log = {}  -- clear previous game's logs
     _log("state:play")
     _log("difficulty:"..difficulty_names[difficulty])
+    _log("mode:"..game_mode)
     state = "play"
     score = 0
     lives = 3
-    level = 1
     sfx(3, 2)  -- level start sound
+
+    if game_mode == "endless" then
+      level = 1
+      endless_level = 0
+      endless_escalation_step = 0
+    else
+      level = 1
+    end
     init_level(level)
   end
 end
@@ -545,11 +659,24 @@ function update_play()
       _log("action:fish_collected")
       score += 10
       fish_collected += 1
+      endless_escalation_step += 1
+
       -- particle effects for collection
       for j = 1, 6 do
         local ang = j / 6
         add_particle(f[1], f[2], cos(ang)*1.5, sin(ang)*1.5, 12, 20)
       end
+
+      -- escalate every 5 fish in endless mode
+      if game_mode == "endless" and endless_escalation_step >= 5 then
+        endless_escalation_step = 0
+        endless_level += 1
+        _log("endless_escalation:"..endless_level)
+        score += 50  -- bonus for escalation
+        -- regenerate platforms with new escalation level
+        gen_endless_platforms()
+      end
+
       f[1] = -100  -- move off screen
     end
   end
@@ -590,8 +717,8 @@ function update_play()
   if exit_portal and
      abs(px - exit_portal[1]) < 8 and
      abs(py - exit_portal[2]) < 8 then
-    local max_lv = max_levels[difficulty]
-    if level < max_lv then
+    if game_mode == "endless" then
+      -- in endless mode, reaching portal escalates level
       sfx(3)  -- level complete sound
       _log("action:level_up")
       -- level complete visual feedback
@@ -600,20 +727,42 @@ function update_play()
         local ang = j / 8
         add_particle(exit_portal[1], exit_portal[2], cos(ang)*2, sin(ang)*2, 11, 25)
       end
-      level += 1
-      score += 50
+      endless_level += 1
+      score += 75  -- larger bonus for portal
       level_complete_timer = 15
-      init_level(level)
+      gen_endless_platforms()
+      endless_escalation_step = 0  -- reset escalation counter when escalating via portal
+      px = 5
+      py = 115
+      pspeed_x = 0
+      pspeed_y = 0
     else
-      sfx(4)  -- win sound
-      _log("state:gameover")
-      _log("result:win")
-      -- win flash
-      flash_amt = 20
-      -- track total playtime and update high score
-      total_playtime = stat(8) - level_start_time
-      check_high_score()
-      state = "gameover"
+      -- campaign mode: progress through levels
+      local max_lv = max_levels[difficulty]
+      if level < max_lv then
+        sfx(3)  -- level complete sound
+        _log("action:level_up")
+        -- level complete visual feedback
+        flash_amt = 15
+        for j = 1, 8 do
+          local ang = j / 8
+          add_particle(exit_portal[1], exit_portal[2], cos(ang)*2, sin(ang)*2, 11, 25)
+        end
+        level += 1
+        score += 50
+        level_complete_timer = 15
+        init_level(level)
+      else
+        sfx(4)  -- win sound
+        _log("state:gameover")
+        _log("result:win")
+        -- win flash
+        flash_amt = 20
+        -- track total playtime and update high score
+        total_playtime = stat(8) - level_start_time
+        check_high_score()
+        state = "gameover"
+      end
     end
   end
 
@@ -653,6 +802,7 @@ end
 
 function _update()
   if state == "menu" then update_menu()
+  elseif state == "mode_select" then update_mode_select()
   elseif state == "difficulty_select" then update_difficulty_select()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
@@ -681,6 +831,36 @@ function draw_menu()
 
   -- draw penguin sprite on menu
   spr(1, 55, 30)
+end
+
+function draw_mode_select()
+  camera(0, 0)
+  cls(1)
+  print("select game mode", 28, 20, 7)
+
+  -- draw mode options
+  local y_base = 50
+  local col_campaign = game_mode == "campaign" and 11 or 7
+  local col_endless = game_mode == "endless" and 11 or 7
+  local mark_campaign = game_mode == "campaign" and "▶ " or "  "
+  local mark_endless = game_mode == "endless" and "▶ " or "  "
+
+  print(mark_campaign.."campaign", 30, y_base, col_campaign)
+  print(mark_endless.."endless mode", 28, y_base + 20, col_endless)
+
+  -- show mode description
+  local desc = ""
+  if game_mode == "campaign" then
+    desc = "progress through levels"
+  else
+    desc = "infinite platforms!"
+  end
+  print(desc, 20, y_base + 45, 6)
+
+  if flr(t() * 2) % 2 == 0 then
+    print("z to continue", 38, 118, 7)
+  end
+  camera(0, 0)
 end
 
 function draw_difficulty_select()
@@ -721,8 +901,12 @@ function draw_play()
   apply_screenshake()
   cls(1)
 
-  -- draw level label
-  print("level "..level, 2, 2, 7)
+  -- draw level/endless label
+  if game_mode == "endless" then
+    print("endless "..endless_level, 2, 2, 7)
+  else
+    print("level "..level, 2, 2, 7)
+  end
   print("score: "..score, 65, 2, 7)
   print("lives: "..lives, 95, 2, 7)
 
@@ -735,7 +919,9 @@ function draw_play()
   -- fish counter and high score on HUD
   local total_fish = #fish
   print("fish:"..fish_collected.."/"..total_fish, 45, 12, 12)
-  print("hi:"..high_score, 95, 12, 11)
+  -- show appropriate high score
+  local hs = game_mode == "endless" and high_score_endless or high_score
+  print("hi:"..hs, 95, 12, 11)
 
   -- draw platforms
   for plat in all(platforms) do
@@ -792,35 +978,44 @@ function draw_gameover()
 
     if win_state then
       -- win screen with comprehensive feedback
-      print("★ you win! ★", 30, 8, 11)
-      print("all levels complete!", 20, 20, 7)
-
-      -- score and collection stats
-      print("final score: "..score, 32, 33, 7)
-      print("fish collected: "..fish_collected, 24, 43, 12)
-
-      -- playtime
-      local playtime_sec = total_playtime / 60
-      print("time: "..flr(playtime_sec).."s", 44, 53, 6)
-
-      -- high score display
-      print("high score: "..high_score, 32, 63, 11)
-
-      -- show stars based on score
-      if score >= 500 then
-        print("★★★ perfect! ★★★", 22, 85, 11)
-      elseif score >= 350 then
-        print("★★ excellent! ★★", 25, 85, 11)
+      if game_mode == "endless" then
+        -- endless mode win (should be rare - more of a quit state)
+        print("★ you quit! ★", 30, 8, 11)
+        print("endless level: "..endless_level, 24, 20, 7)
+        print("score: "..score, 40, 33, 7)
+        print("fish: "..fish_collected, 40, 43, 12)
+        local hs = high_score_endless
+        print("high score: "..hs, 32, 53, 11)
       else
-        print("★ great job! ★", 32, 85, 11)
+        -- campaign mode win
+        print("★ you win! ★", 30, 8, 11)
+        print("all levels complete!", 20, 20, 7)
+        print("final score: "..score, 32, 33, 7)
+        print("fish collected: "..fish_collected, 24, 43, 12)
+        local playtime_sec = total_playtime / 60
+        print("time: "..flr(playtime_sec).."s", 44, 53, 6)
+        print("high score: "..high_score, 32, 63, 11)
+
+        if score >= 500 then
+          print("★★★ perfect! ★★★", 22, 85, 11)
+        elseif score >= 350 then
+          print("★★ excellent! ★★", 25, 85, 11)
+        else
+          print("★ great job! ★", 32, 85, 11)
+        end
       end
     else
       -- game over screen
       print("game over", 38, 15, 8)
-      print("score: "..score, 40, 28, 7)
-      print("level reached: "..level, 28, 38, 7)
+      if game_mode == "endless" then
+        print("endless level: "..endless_level, 22, 28, 7)
+      else
+        print("level reached: "..level, 28, 28, 7)
+      end
+      print("score: "..score, 40, 38, 7)
       print("fish collected: "..fish_collected, 24, 48, 12)
-      print("high score: "..high_score, 36, 58, 11)
+      local hs = game_mode == "endless" and high_score_endless or high_score
+      print("high score: "..hs, 32, 58, 11)
 
       -- difficulty info
       print("["..difficulty_names[difficulty].."]", 48, 68, 6)
@@ -844,6 +1039,7 @@ end
 function _draw()
   cls()
   if state == "menu" then draw_menu()
+  elseif state == "mode_select" then draw_mode_select()
   elseif state == "difficulty_select" then draw_difficulty_select()
   elseif state == "play" then draw_play()
   elseif state == "gameover" then draw_gameover()
