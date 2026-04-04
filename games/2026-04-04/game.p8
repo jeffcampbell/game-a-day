@@ -225,7 +225,7 @@ function update_play()
   -- remove inactive bullets
   for i=#bullets,1,-1 do
     if not bullets[i].active then
-      del(bullets, i)
+      del(bullets, bullets[i])
     end
   end
 
