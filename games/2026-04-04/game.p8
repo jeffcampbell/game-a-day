@@ -544,9 +544,11 @@ function check_high_score()
 end
 
 function update_menu()
-  -- moved to mode select state for menu branching
-  _log("state:mode_select")
-  state = "mode_select"
+  -- transition to mode select on z button press
+  if btnp(4) then
+    _log("state:mode_select")
+    state = "mode_select"
+  end
 end
 
 function update_mode_select()
@@ -731,6 +733,7 @@ function update_play()
       gen_endless_platforms()
       px = 5
       py = 115
+      pspeed_x = 0
       pspeed_y = 0
     else
       -- campaign mode: progress through levels
