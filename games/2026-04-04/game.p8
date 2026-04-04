@@ -39,12 +39,23 @@ pspeed_x = 0
 pspeed_y = 0
 pgrounded = false
 pdir = 1  -- 1 = right, -1 = left
+panim_flip = false  -- animated sprite flipping
+
+-- visual polish
+shake_amt = 0  -- screenshake amount
+shake_x = 0
+shake_y = 0
+flash_amt = 0  -- screen flash
+particles = {}  -- particle effects
+portal_pulse = 0  -- exit portal pulse animation
+level_complete_timer = 0  -- for level transition fade
 
 -- platforms and obstacles
 platforms = {}
 fish = {}
 spikes = {}
 exit_portal = {}
+fish_collected = 0  -- track collected fish
 
 -- platform structure: {x, y, w, h}
 function init_level(lv)
@@ -52,6 +63,7 @@ function init_level(lv)
   platforms = {}
   fish = {}
   spikes = {}
+  fish_collected = 0  -- reset fish counter for new level
 
   -- level 1: basic tutorial level
   if lv == 1 then
@@ -249,6 +261,42 @@ function init_level(lv)
   py = 115
   pspeed_x = 0
   pspeed_y = 0
+  portal_pulse = 0
+  particles = {}
+end
+
+function add_particle(x, y, vx, vy, col, life)
+  add(particles, {x=x, y=y, vx=vx, vy=vy, col=col, life=life})
+end
+
+function update_particles()
+  for i = #particles, 1, -1 do
+    local p = particles[i]
+    p.x += p.vx
+    p.y += p.vy
+    p.life -= 1
+    if p.life <= 0 then
+      deli(particles, i)
+    end
+  end
+end
+
+function apply_screenshake()
+  if shake_amt > 0 then
+    shake_x = rnd(shake_amt*2) - shake_amt
+    shake_y = rnd(shake_amt*2) - shake_amt
+    shake_amt *= 0.85
+  else
+    shake_x = 0
+    shake_y = 0
+  end
+  camera(shake_x, shake_y)
+end
+
+function draw_particles()
+  for p in all(particles) do
+    pset(p.x, p.y, p.col)
+  end
 end
 
 function update_menu()
@@ -265,15 +313,19 @@ function update_menu()
 end
 
 function update_play()
-  -- horizontal movement
+  -- horizontal movement with smooth acceleration
   local input_x = 0
   if test_input(0) then input_x = -1 end
   if test_input(1) then input_x = 1 end
 
-  pspeed_x = input_x * 2.5
+  -- smooth acceleration/deceleration
+  local target_speed = input_x * 2.5
+  pspeed_x += (target_speed - pspeed_x) * 0.3
   if input_x != 0 then pdir = input_x end
 
   px += pspeed_x
+  -- animated sprite flipping
+  panim_flip = (flr(t() * 8) % 2 == 0) and input_x != 0
 
   -- gravity
   pspeed_y += 0.3
@@ -284,6 +336,10 @@ function update_play()
     pspeed_y = -3
     sfx(0)  -- jump sound
     _log("action:jump")
+    -- jump particle effect
+    for j = 1, 3 do
+      add_particle(px + rnd(4)-2, py + 4 + rnd(2), rnd(2)-1, 1 + rnd(1), 13, 12)
+    end
     pgrounded = false
   end
 
@@ -299,6 +355,8 @@ function update_play()
        py + ph > py0 and py < py0 + ph then
       if pspeed_y > 0 then  -- landing
         py = py0 - ph
+        -- screenshake based on fall velocity
+        shake_amt = max(0.5, abs(pspeed_y) * 0.2)
         pspeed_y = 0
         pgrounded = true
       end
@@ -311,6 +369,12 @@ function update_play()
       sfx(1)  -- fish collected sound
       _log("action:fish_collected")
       score += 10
+      fish_collected += 1
+      -- particle effects for collection
+      for j = 1, 6 do
+        local ang = j / 6
+        add_particle(f[1], f[2], cos(ang)*1.5, sin(ang)*1.5, 12, 20)
+      end
       f[1] = -100  -- move off screen
     end
   end
@@ -321,6 +385,14 @@ function update_play()
       sfx(2)  -- spike hit sound
       _log("action:hit_spike")
       lives -= 1
+      -- visual feedback for spike hit
+      flash_amt = 12
+      shake_amt = 2.5
+      -- spike hit particles - more aggressive burst
+      for j = 1, 8 do
+        local ang = j / 8
+        add_particle(px, py, cos(ang)*2, sin(ang)*2, 8, 20)
+      end
       px = 5
       py = 115
       pspeed_y = 0
@@ -333,6 +405,9 @@ function update_play()
     end
   end
 
+  -- update exit portal pulse
+  portal_pulse += 0.05
+
   -- check exit
   if exit_portal and
      abs(px - exit_portal[1]) < 8 and
@@ -340,13 +415,22 @@ function update_play()
     if level < 5 then
       sfx(3)  -- level complete sound
       _log("action:level_up")
+      -- level complete visual feedback
+      flash_amt = 15
+      for j = 1, 8 do
+        local ang = j / 8
+        add_particle(exit_portal[1], exit_portal[2], cos(ang)*2, sin(ang)*2, 11, 25)
+      end
       level += 1
       score += 50
+      level_complete_timer = 15
       init_level(level)
     else
       sfx(4)  -- win sound
       _log("state:gameover")
       _log("result:win")
+      -- win flash
+      flash_amt = 20
       state = "gameover"
     end
   end
@@ -356,6 +440,9 @@ function update_play()
     sfx(2)  -- spike hit sound (reuse for fall)
     _log("action:fell_off")
     lives -= 1
+    -- fall effects
+    flash_amt = 8
+    shake_amt = 1.5
     px = 5
     py = 115
     pspeed_y = 0
@@ -384,9 +471,14 @@ function _update()
   elseif state == "play" then update_play()
   elseif state == "gameover" then update_gameover()
   end
+  -- universal updates
+  update_particles()
+  if flash_amt > 0 then flash_amt -= 1 end
+  if level_complete_timer > 0 then level_complete_timer -= 1 end
 end
 
 function draw_menu()
+  camera(0, 0)
   cls(1)
   print("penguin slide", 32, 20, 7)
   print("navigate icy platforms", 18, 35, 6)
@@ -406,12 +498,24 @@ function draw_menu()
 end
 
 function draw_play()
+  apply_screenshake()
   cls(1)
 
   -- draw level label
   print("level "..level, 2, 2, 7)
   print("score: "..score, 70, 2, 7)
   print("lives: "..lives, 95, 2, 7)
+
+  -- difficulty indicator
+  local diff_str = "●●●●●"
+  if level <= 2 then diff_str = "●○○○○" end
+  if level == 3 then diff_str = "●●○○○" end
+  if level == 4 then diff_str = "●●●○○" end
+  print(diff_str, 100, 12, 3)
+
+  -- fish counter
+  local total_fish = #fish
+  print("fish:"..fish_collected.."/"..total_fish, 50, 12, 12)
 
   -- draw platforms
   for plat in all(platforms) do
@@ -428,19 +532,36 @@ function draw_play()
     spr(3, spike[1]-2, spike[2]-2)
   end
 
-  -- draw exit
+  -- draw exit with pulse effect
   if exit_portal then
+    local pulse = sin(portal_pulse) * 0.5 + 0.5
+    local pulse_col = 11 + flr(pulse * 3)
     spr(4, exit_portal[1]-2, exit_portal[2]-5)
+    -- portal glow
+    circ(exit_portal[1], exit_portal[2]-2, 4 + pulse*2, pulse_col)
   end
 
   -- draw player
-  spr(1, px-2, py-2)
+  spr(1, px-2, py-2, 1, 1, pdir == -1)
+
+  -- draw particles
+  draw_particles()
+
+  -- screen flash effect
+  if flash_amt > 0 then
+    local flash_col = flr(flash_amt / 2)
+    if flash_col > 0 and flash_col <= 7 then
+      rectfill(0, 0, 127, 127, flash_col)
+    end
+  end
 
   -- draw instruction
   print("jump: z", 2, 120, 7)
+  camera(0, 0)
 end
 
 function draw_gameover()
+  apply_screenshake()
   cls(1)
 
   if state == "gameover" then
@@ -450,15 +571,41 @@ function draw_gameover()
     end
 
     if win_state then
-      print("you win!", 45, 40, 11)
-      print("final score: "..score, 30, 60, 7)
+      -- win screen with more visual feedback
+      print("★ you win! ★", 30, 25, 11)
+      print("all levels complete!", 20, 40, 7)
+      print("", 50, 50, 6)
+      print("final score: "..score, 30, 58, 7)
+      print("fish collected: "..fish_collected, 20, 68, 12)
+      -- show stars based on score
+      if score >= 500 then
+        print("★★★ perfect! ★★★", 22, 85, 11)
+      elseif score >= 350 then
+        print("★★ excellent! ★★", 25, 85, 11)
+      else
+        print("★ great job! ★", 32, 85, 11)
+      end
     else
-      print("game over", 40, 40, 8)
-      print("score: "..score, 42, 60, 7)
+      -- game over screen
+      print("game over", 40, 30, 8)
+      print("score: "..score, 42, 45, 7)
+      print("level: "..level, 44, 55, 7)
+      print("fish: "..fish_collected, 46, 65, 12)
     end
   end
 
-  print("press z to return to menu", 14, 100, 7)
+  -- screen flash on gameover
+  if flash_amt > 0 then
+    local flash_col = flr(flash_amt / 2)
+    if flash_col > 0 and flash_col <= 7 then
+      rectfill(0, 0, 127, 127, flash_col)
+    end
+  end
+
+  if flr(t() * 2) % 2 == 0 then
+    print("press z to return to menu", 14, 110, 7)
+  end
+  camera(0, 0)
 end
 
 function _draw()
