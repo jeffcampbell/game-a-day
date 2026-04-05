@@ -50,13 +50,24 @@ function init_map()
   end
 
   -- add water hazards (edges and scattered)
+  -- top edge (y=0, x=0-15)
   for x = 0, 15 do
-    hazard_map[x * 16 + 1] = 1  -- top edge
-    hazard_map[x * 16 + 16] = 1  -- bottom edge
+    hazard_map[0 * 16 + x + 1] = 1
   end
+
+  -- bottom edge (y=15, x=0-15)
+  for x = 0, 15 do
+    hazard_map[15 * 16 + x + 1] = 1
+  end
+
+  -- left edge (x=0, y=0-15)
   for y = 0, 15 do
-    hazard_map[y * 16 + 1] = 1  -- left edge
-    hazard_map[y * 16 + 16] = 1  -- right edge
+    hazard_map[y * 16 + 0 + 1] = 1
+  end
+
+  -- right edge (x=15, y=0-15)
+  for y = 0, 15 do
+    hazard_map[y * 16 + 15 + 1] = 1
   end
 
   -- add some water patches
