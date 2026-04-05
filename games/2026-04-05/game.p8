@@ -38,6 +38,9 @@ timer_frames = 0
 time_limit_frames = 0
 time_bonus = 0
 music_playing = false
+level = 1
+cumulative_score = 0
+max_level = 3
 
 -- player
 px = 16
@@ -51,7 +54,7 @@ treasure_map = {}
 shrine_x = 120
 shrine_y = 104
 
-function init_map()
+function init_map(lvl)
   -- initialize hazard and treasure positions (16x16 grid = 256 cells)
   for i = 1, 256 do
     hazard_map[i] = 0
@@ -79,58 +82,168 @@ function init_map()
     hazard_map[y * 16 + 15 + 1] = 1
   end
 
-  -- add water patches (scaled by difficulty)
-  if difficulty == 0 then  -- easy: few hazards
-    hazard_map[48] = 1
-    hazard_map[64] = 1
-  elseif difficulty == 1 then  -- normal
-    hazard_map[48] = 1
-    hazard_map[64] = 1
-    hazard_map[80] = 1
-  else  -- hard: more hazards
-    hazard_map[48] = 1
-    hazard_map[64] = 1
-    hazard_map[80] = 1
-    hazard_map[96] = 1
-    hazard_map[112] = 1
-  end
-
-  -- add spike hazards (scaled by difficulty)
-  if difficulty == 0 then
-    hazard_map[40] = 2
-  elseif difficulty == 1 then
-    hazard_map[40] = 2
-    hazard_map[52] = 2
-  else  -- hard
-    hazard_map[40] = 2
-    hazard_map[52] = 2
-    hazard_map[68] = 2
-    hazard_map[100] = 2
-  end
-
-  -- add treasures (difficulty-based count)
-  if difficulty == 0 then  -- easy: 3 treasures
-    treasures_total = 3
-    treasure_map[36] = 1
-    treasure_map[69] = 1
-    treasure_map[85] = 1
-  elseif difficulty == 1 then  -- normal: 5 treasures
-    treasures_total = 5
-    treasure_map[36] = 1
-    treasure_map[69] = 1
-    treasure_map[85] = 1
-    treasure_map[47] = 1
-    treasure_map[102] = 1
-  else  -- hard: 8 treasures
-    treasures_total = 8
-    treasure_map[36] = 1
-    treasure_map[52] = 1
-    treasure_map[69] = 1
-    treasure_map[85] = 1
-    treasure_map[47] = 1
-    treasure_map[102] = 1
-    treasure_map[118] = 1
-    treasure_map[134] = 1
+  -- level-specific layouts
+  if lvl == 1 then
+    -- level 1: balanced
+    if difficulty == 0 then  -- easy
+      hazard_map[48] = 1
+      hazard_map[64] = 1
+      hazard_map[40] = 2
+      treasures_total = 3
+      treasure_map[36] = 1
+      treasure_map[69] = 1
+      treasure_map[85] = 1
+    elseif difficulty == 1 then  -- normal
+      hazard_map[48] = 1
+      hazard_map[64] = 1
+      hazard_map[80] = 1
+      hazard_map[40] = 2
+      hazard_map[52] = 2
+      treasures_total = 5
+      treasure_map[36] = 1
+      treasure_map[69] = 1
+      treasure_map[85] = 1
+      treasure_map[47] = 1
+      treasure_map[102] = 1
+    else  -- hard
+      hazard_map[48] = 1
+      hazard_map[64] = 1
+      hazard_map[80] = 1
+      hazard_map[96] = 1
+      hazard_map[112] = 1
+      hazard_map[40] = 2
+      hazard_map[52] = 2
+      hazard_map[68] = 2
+      hazard_map[100] = 2
+      treasures_total = 8
+      treasure_map[36] = 1
+      treasure_map[52] = 1
+      treasure_map[69] = 1
+      treasure_map[85] = 1
+      treasure_map[47] = 1
+      treasure_map[102] = 1
+      treasure_map[118] = 1
+      treasure_map[134] = 1
+    end
+  elseif lvl == 2 then
+    -- level 2: more complex
+    if difficulty == 0 then  -- easy
+      hazard_map[48] = 1
+      hazard_map[64] = 1
+      hazard_map[80] = 1
+      hazard_map[40] = 2
+      hazard_map[56] = 2
+      treasures_total = 4
+      treasure_map[34] = 1
+      treasure_map[51] = 1
+      treasure_map[84] = 1
+      treasure_map[99] = 1
+    elseif difficulty == 1 then  -- normal
+      hazard_map[48] = 1
+      hazard_map[64] = 1
+      hazard_map[80] = 1
+      hazard_map[96] = 1
+      hazard_map[40] = 2
+      hazard_map[56] = 2
+      hazard_map[72] = 2
+      treasures_total = 7
+      treasure_map[34] = 1
+      treasure_map[51] = 1
+      treasure_map[66] = 1
+      treasure_map[84] = 1
+      treasure_map[99] = 1
+      treasure_map[118] = 1
+      treasure_map[132] = 1
+    else  -- hard
+      hazard_map[48] = 1
+      hazard_map[64] = 1
+      hazard_map[80] = 1
+      hazard_map[96] = 1
+      hazard_map[112] = 1
+      hazard_map[32] = 1
+      hazard_map[40] = 2
+      hazard_map[56] = 2
+      hazard_map[72] = 2
+      hazard_map[88] = 2
+      hazard_map[104] = 2
+      treasures_total = 10
+      treasure_map[34] = 1
+      treasure_map[51] = 1
+      treasure_map[66] = 1
+      treasure_map[84] = 1
+      treasure_map[99] = 1
+      treasure_map[118] = 1
+      treasure_map[132] = 1
+      treasure_map[38] = 1
+      treasure_map[70] = 1
+      treasure_map[106] = 1
+    end
+  elseif lvl == 3 then
+    -- level 3: dense challenge
+    if difficulty == 0 then  -- easy
+      hazard_map[48] = 1
+      hazard_map[64] = 1
+      hazard_map[80] = 1
+      hazard_map[96] = 1
+      hazard_map[40] = 2
+      hazard_map[60] = 2
+      hazard_map[76] = 2
+      treasures_total = 6
+      treasure_map[34] = 1
+      treasure_map[50] = 1
+      treasure_map[67] = 1
+      treasure_map[83] = 1
+      treasure_map[98] = 1
+      treasure_map[130] = 1
+    elseif difficulty == 1 then  -- normal
+      hazard_map[48] = 1
+      hazard_map[64] = 1
+      hazard_map[80] = 1
+      hazard_map[96] = 1
+      hazard_map[112] = 1
+      hazard_map[32] = 1
+      hazard_map[40] = 2
+      hazard_map[60] = 2
+      hazard_map[76] = 2
+      hazard_map[92] = 2
+      treasures_total = 10
+      treasure_map[34] = 1
+      treasure_map[50] = 1
+      treasure_map[67] = 1
+      treasure_map[83] = 1
+      treasure_map[98] = 1
+      treasure_map[114] = 1
+      treasure_map[38] = 1
+      treasure_map[70] = 1
+      treasure_map[102] = 1
+      treasure_map[130] = 1
+    else  -- hard
+      hazard_map[48] = 1
+      hazard_map[64] = 1
+      hazard_map[80] = 1
+      hazard_map[96] = 1
+      hazard_map[112] = 1
+      hazard_map[32] = 1
+      hazard_map[44] = 1
+      hazard_map[40] = 2
+      hazard_map[60] = 2
+      hazard_map[76] = 2
+      hazard_map[92] = 2
+      hazard_map[108] = 2
+      treasures_total = 12
+      treasure_map[34] = 1
+      treasure_map[50] = 1
+      treasure_map[67] = 1
+      treasure_map[83] = 1
+      treasure_map[98] = 1
+      treasure_map[114] = 1
+      treasure_map[38] = 1
+      treasure_map[70] = 1
+      treasure_map[102] = 1
+      treasure_map[130] = 1
+      treasure_map[46] = 1
+      treasure_map[122] = 1
+    end
   end
 end
 
@@ -138,7 +251,9 @@ function _init()
   _log("state:menu")
   difficulty = 1  -- default to normal
   frame_counter = 0
-  init_map()
+  level = 1
+  cumulative_score = 0
+  init_map(level)
 end
 
 function update_menu()
@@ -171,8 +286,9 @@ function update_menu()
     frame_counter = 0
     feedback_text = ""
     feedback_timer = 0
-    init_map()
+    init_map(level)
     sfx(32)  -- start game sound
+    _log("level:"..level)
 
     if gamemode == 0 then
       state = "play"
@@ -257,8 +373,10 @@ function update_play()
   if abs(px - shrine_x) < 12 and abs(py - shrine_y) < 12 then
     if treasures_collected >= treasures_total then
       sfx(34)  -- win sound
-      _log("gameover:win")
-      state = "gameover"
+      _log("level_complete")
+      cumulative_score += score
+      state = "level_clear"
+      _log("state:level_clear")
     end
   end
 end
@@ -343,8 +461,10 @@ function update_time_attack_play()
       time_bonus = seconds_remaining * 10
       score += time_bonus
       _log("time_bonus:"..time_bonus)
-      _log("gameover:win")
-      state = "gameover"
+      _log("level_complete")
+      cumulative_score += score
+      state = "level_clear"
+      _log("state:level_clear")
     end
   end
 end
@@ -364,17 +484,67 @@ function update_gameover()
   end
 end
 
+function update_level_clear()
+  -- stop music on level clear
+  if music_playing then
+    music(-1)
+    music_playing = false
+  end
+
+  if test_input(4) or test_input(5) then  -- o or x button
+    if level < max_level then
+      level += 1
+      treasures_collected = 0
+      score = 0
+      time_bonus = 0
+      px = 16
+      py = 16
+      frame_counter = 0
+      feedback_text = ""
+      feedback_timer = 0
+      init_map(level)
+      sfx(32)  -- start game sound
+      _log("level:"..level)
+
+      if gamemode == 0 then
+        state = "play"
+        _log("state:play")
+      else
+        state = "time_attack_play"
+        if difficulty == 0 then
+          time_limit_frames = 90 * 60
+        elseif difficulty == 1 then
+          time_limit_frames = 60 * 60
+        else
+          time_limit_frames = 45 * 60
+        end
+        timer_frames = time_limit_frames
+        _log("state:time_attack_play")
+      end
+    else
+      state = "menu"
+      level = 1
+      cumulative_score = 0
+      _log("state:menu")
+    end
+  end
+end
+
 function _update()
   if state == "menu" then update_menu()
   elseif state == "play" then update_play()
   elseif state == "time_attack_play" then update_time_attack_play()
   elseif state == "gameover" then update_gameover()
+  elseif state == "level_clear" then update_level_clear()
   end
 end
 
 function draw_menu()
   cls(3)
   print("island explorer", 32, 20, 7)
+  if level > 1 then
+    print("level " .. level, 48, 28, 10)
+  end
   print("collect treasures", 24, 40, 7)
   print("avoid hazards", 28, 50, 7)
   print("reach the shrine", 24, 60, 7)
@@ -392,7 +562,11 @@ function draw_menu()
   print("difficulty: " .. diff_text, 20, 88, 7)
   print("left/right: change", 16, 96, 7)
 
-  print("press o to start", 24, 110, 7)
+  if level == 1 then
+    print("press o to start", 24, 110, 7)
+  else
+    print("press o to play", 28, 110, 7)
+  end
 end
 
 function draw_play()
@@ -433,8 +607,9 @@ function draw_play()
   spr(1, px - 4, py - 4)
 
   -- draw ui
-  print("treasures: " .. treasures_collected .. "/" .. treasures_total, 2, 2, 7)
-  print("score: " .. score, 2, 10, 7)
+  print("level " .. level, 2, 2, 7)
+  print("treasures: " .. treasures_collected .. "/" .. treasures_total, 2, 10, 7)
+  print("score: " .. score, 2, 18, 7)
 
   -- draw feedback text
   if feedback_timer > 0 then
@@ -480,7 +655,8 @@ function draw_time_attack_play()
   spr(1, px - 4, py - 4)
 
   -- draw ui
-  print("treasures: " .. treasures_collected .. "/" .. treasures_total, 2, 2, 7)
+  print("level " .. level, 2, 2, 7)
+  print("treasures: " .. treasures_collected .. "/" .. treasures_total, 2, 10, 7)
 
   -- draw timer in top-right
   local seconds = flr(timer_frames / 60)
@@ -491,6 +667,21 @@ function draw_time_attack_play()
   -- draw feedback text
   if feedback_timer > 0 then
     print(feedback_text, 40, 60, 10)
+  end
+end
+
+function draw_level_clear()
+  cls(0)
+  print("level " .. level .. " complete!", 24, 30, 10)
+  print("treasures: " .. treasures_collected, 28, 45, 7)
+  print("level score: " .. score, 24, 55, 7)
+  print("total: " .. cumulative_score, 32, 65, 7)
+
+  if level < max_level then
+    print("press o for next", 20, 110, 10)
+  else
+    print("all levels clear!", 24, 100, 10)
+    print("press o to menu", 24, 110, 10)
   end
 end
 
@@ -530,6 +721,7 @@ function _draw()
   elseif state == "play" then draw_play()
   elseif state == "time_attack_play" then draw_time_attack_play()
   elseif state == "gameover" then draw_gameover()
+  elseif state == "level_clear" then draw_level_clear()
   end
 end
 __gfx__
