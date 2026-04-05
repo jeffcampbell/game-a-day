@@ -37,6 +37,7 @@ feedback_timer = 0
 timer_frames = 0
 time_limit_frames = 0
 time_bonus = 0
+music_playing = false
 
 -- player
 px = 16
@@ -197,6 +198,12 @@ end
 function update_play()
   frame_counter += 1
 
+  -- start music on first frame
+  if not music_playing then
+    music(10)
+    music_playing = true
+  end
+
   -- update feedback timer
   if feedback_timer > 0 then
     feedback_timer -= 1
@@ -259,6 +266,12 @@ end
 function update_time_attack_play()
   frame_counter += 1
   timer_frames -= 1
+
+  -- start music on first frame
+  if not music_playing then
+    music(10)
+    music_playing = true
+  end
 
   -- check if time's up
   if timer_frames <= 0 then
@@ -337,6 +350,12 @@ function update_time_attack_play()
 end
 
 function update_gameover()
+  -- stop music on gameover
+  if music_playing then
+    music(-1)
+    music_playing = false
+  end
+
   if test_input(4) or test_input(5) then  -- o or x button
     feedback_text = ""
     feedback_timer = 0
@@ -404,9 +423,11 @@ function draw_play()
     end
   end
 
-  -- draw shrine (more distinctive)
-  rectfill(shrine_x - 8, shrine_y - 8, shrine_x + 8, shrine_y + 8, 6)
-  rect(shrine_x - 6, shrine_y - 6, shrine_x + 6, shrine_y + 6, 7)
+  -- draw shrine with idle animation
+  local shrine_pulse = sin(frame_counter / 120) * 2 + 1
+  local shrine_sz = flr(8 + shrine_pulse)
+  rectfill(shrine_x - shrine_sz, shrine_y - shrine_sz, shrine_x + shrine_sz, shrine_y + shrine_sz, 6)
+  rect(shrine_x - shrine_sz + 2, shrine_y - shrine_sz + 2, shrine_x + shrine_sz - 2, shrine_y + shrine_sz - 2, 7)
 
   -- draw player
   spr(1, px - 4, py - 4)
@@ -449,9 +470,11 @@ function draw_time_attack_play()
     end
   end
 
-  -- draw shrine (more distinctive)
-  rectfill(shrine_x - 8, shrine_y - 8, shrine_x + 8, shrine_y + 8, 6)
-  rect(shrine_x - 6, shrine_y - 6, shrine_x + 6, shrine_y + 6, 7)
+  -- draw shrine with idle animation
+  local shrine_pulse = sin(frame_counter / 120) * 2 + 1
+  local shrine_sz = flr(8 + shrine_pulse)
+  rectfill(shrine_x - shrine_sz, shrine_y - shrine_sz, shrine_x + shrine_sz, shrine_y + shrine_sz, 6)
+  rect(shrine_x - shrine_sz + 2, shrine_y - shrine_sz + 2, shrine_x + shrine_sz - 2, shrine_y + shrine_sz - 2, 7)
 
   -- draw player
   spr(1, px - 4, py - 4)
@@ -546,6 +569,18 @@ __sfx__
 00200f00047004700470047004700470047004700470047004700470047004700470047000100010000100001000010000100001000010000100001000010000100001000010000100001000010000100001000
 001007001c701c701c701c701c701c701c701c701c701c701c701c701c701c701c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001a0d00336033603360336033603360336033603360336033603360336033603360336000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__music__
+00 41000000 00000000
+00 41000000 00000000
+00 41000000 00000000
+00 41000000 00000000
+00 41000000 00000000
+00 41000000 00000000
+00 41000000 00000000
+00 41000000 00000000
+00 41000000 00000000
+00 41000000 00000000
+07 41000000 00000000
 __label__
 77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777
 77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777
