@@ -29,6 +29,10 @@ state = "menu"
 score = 0
 treasures_collected = 0
 treasures_total = 5
+difficulty = 0  -- 0=easy, 1=normal, 2=hard
+frame_counter = 0
+feedback_text = ""
+feedback_timer = 0
 
 -- player
 px = 16
@@ -36,7 +40,7 @@ py = 16
 pw = 8
 ph = 8
 
--- hazard map (1=water, 2=spikes, 3=enemy)
+-- hazard map (1=water, 2=spikes)
 hazard_map = {}
 treasure_map = {}
 shrine_x = 120
@@ -70,41 +74,103 @@ function init_map()
     hazard_map[y * 16 + 15 + 1] = 1
   end
 
-  -- add some water patches
-  hazard_map[48] = 1
-  hazard_map[64] = 1
-  hazard_map[80] = 1
+  -- add water patches (scaled by difficulty)
+  if difficulty == 0 then  -- easy: few hazards
+    hazard_map[48] = 1
+    hazard_map[64] = 1
+  elseif difficulty == 1 then  -- normal
+    hazard_map[48] = 1
+    hazard_map[64] = 1
+    hazard_map[80] = 1
+  else  -- hard: more hazards
+    hazard_map[48] = 1
+    hazard_map[64] = 1
+    hazard_map[80] = 1
+    hazard_map[96] = 1
+    hazard_map[112] = 1
+  end
 
-  -- add spike hazards
-  hazard_map[40] = 2
-  hazard_map[52] = 2
+  -- add spike hazards (scaled by difficulty)
+  if difficulty == 0 then
+    hazard_map[40] = 2
+  elseif difficulty == 1 then
+    hazard_map[40] = 2
+    hazard_map[52] = 2
+  else  -- hard
+    hazard_map[40] = 2
+    hazard_map[52] = 2
+    hazard_map[68] = 2
+    hazard_map[100] = 2
+  end
 
-  -- add treasures
-  treasure_map[36] = 1   -- treasure 1
-  treasure_map[69] = 1   -- treasure 2
-  treasure_map[85] = 1   -- treasure 3
-  treasure_map[47] = 1   -- treasure 4
-  treasure_map[102] = 1  -- treasure 5
+  -- add treasures (difficulty-based count)
+  if difficulty == 0 then  -- easy: 3 treasures
+    treasures_total = 3
+    treasure_map[36] = 1
+    treasure_map[69] = 1
+    treasure_map[85] = 1
+  elseif difficulty == 1 then  -- normal: 5 treasures
+    treasures_total = 5
+    treasure_map[36] = 1
+    treasure_map[69] = 1
+    treasure_map[85] = 1
+    treasure_map[47] = 1
+    treasure_map[102] = 1
+  else  -- hard: 8 treasures
+    treasures_total = 8
+    treasure_map[36] = 1
+    treasure_map[52] = 1
+    treasure_map[69] = 1
+    treasure_map[85] = 1
+    treasure_map[47] = 1
+    treasure_map[102] = 1
+    treasure_map[118] = 1
+    treasure_map[134] = 1
+  end
 end
 
 function _init()
   _log("state:menu")
+  difficulty = 1  -- default to normal
+  frame_counter = 0
   init_map()
 end
 
 function update_menu()
+  -- left/right to change difficulty
+  if test_input(0) then
+    difficulty = max(0, difficulty - 1)
+    _log("difficulty:"..difficulty)
+  end
+  if test_input(1) then
+    difficulty = min(2, difficulty + 1)
+    _log("difficulty:"..difficulty)
+  end
+
   if test_input(4) or test_input(5) then  -- o or x button
     state = "play"
     treasures_collected = 0
     score = 0
     px = 16
     py = 16
+    frame_counter = 0
+    feedback_text = ""
+    feedback_timer = 0
     init_map()
+    sfx(32)  -- start game sound
     _log("state:play")
+    _log("difficulty:"..difficulty)
   end
 end
 
 function update_play()
+  frame_counter += 1
+
+  -- update feedback timer
+  if feedback_timer > 0 then
+    feedback_timer -= 1
+  end
+
   local new_px = px
   local new_py = py
 
@@ -125,6 +191,9 @@ function update_play()
 
   if cell_idx >= 1 and cell_idx <= #hazard_map then
     if hazard_map[cell_idx] > 0 then
+      sfx(33)  -- hazard hit sound
+      feedback_text = "hazard!"
+      feedback_timer = 30
       _log("hit_hazard")
       _log("gameover:lose")
       state = "gameover"
@@ -136,16 +205,20 @@ function update_play()
   py = new_py
 
   -- treasure collection
-  if treasure_map[cell_idx] == 1 then
+  if cell_idx >= 1 and cell_idx <= #treasure_map and treasure_map[cell_idx] == 1 then
     treasure_map[cell_idx] = 0
     treasures_collected += 1
     score += 100
+    sfx(32)  -- treasure sound
+    feedback_text = "treasure!"
+    feedback_timer = 30
     _log("treasure_collected")
   end
 
   -- check win condition (at shrine with all treasures)
   if abs(px - shrine_x) < 12 and abs(py - shrine_y) < 12 then
     if treasures_collected >= treasures_total then
+      sfx(34)  -- win sound
       _log("gameover:win")
       state = "gameover"
     end
@@ -154,6 +227,8 @@ end
 
 function update_gameover()
   if test_input(4) or test_input(5) then  -- o or x button
+    feedback_text = ""
+    feedback_timer = 0
     state = "menu"
     _log("state:menu")
   end
@@ -172,7 +247,14 @@ function draw_menu()
   print("collect treasures", 24, 40, 7)
   print("avoid hazards", 28, 50, 7)
   print("reach the shrine", 24, 60, 7)
-  print("arrows: move", 28, 80, 7)
+
+  -- difficulty selection
+  local diff_text = "easy"
+  if difficulty == 1 then diff_text = "normal"
+  elseif difficulty == 2 then diff_text = "hard" end
+  print("difficulty: " .. diff_text, 20, 75, 7)
+  print("left/right: change", 16, 85, 7)
+
   print("press o to start", 24, 100, 7)
 end
 
@@ -193,17 +275,20 @@ function draw_play()
     end
   end
 
-  -- draw treasures
+  -- draw treasures with animation
   for i = 1, #treasure_map do
     if treasure_map[i] == 1 then
       local gx = ((i - 1) % 16) * 8 + 4
       local gy = flr((i - 1) / 16) * 8 + 4
-      circfill(gx, gy, 3, 10)  -- yellow treasure
+      -- pulsing animation
+      local pulse = flr(sin(frame_counter / 15) * 2) + 3
+      circfill(gx, gy, pulse, 10)  -- yellow treasure
     end
   end
 
-  -- draw shrine
-  rectfill(shrine_x - 6, shrine_y - 6, shrine_x + 6, shrine_y + 6, 6)
+  -- draw shrine (more distinctive)
+  rectfill(shrine_x - 8, shrine_y - 8, shrine_x + 8, shrine_y + 8, 6)
+  rect(shrine_x - 6, shrine_y - 6, shrine_x + 6, shrine_y + 6, 7)
 
   -- draw player
   spr(1, px - 4, py - 4)
@@ -211,10 +296,21 @@ function draw_play()
   -- draw ui
   print("treasures: " .. treasures_collected .. "/" .. treasures_total, 2, 2, 7)
   print("score: " .. score, 2, 10, 7)
+
+  -- draw feedback text
+  if feedback_timer > 0 then
+    print(feedback_text, 40, 60, 10)
+  end
 end
 
 function draw_gameover()
   cls(0)
+
+  -- difficulty indicator
+  local diff_text = "easy"
+  if difficulty == 1 then diff_text = "normal"
+  elseif difficulty == 2 then diff_text = "hard" end
+  print("difficulty: " .. diff_text, 28, 20, 7)
 
   if treasures_collected >= treasures_total then
     print("you won!", 48, 40, 10)
@@ -266,6 +362,10 @@ __gfx__
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__sfx__
+00200f00047004700470047004700470047004700470047004700470047004700470047000100010000100001000010000100001000010000100001000010000100001000010000100001000010000100001000
+001007001c701c701c701c701c701c701c701c701c701c701c701c701c701c701c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001a0d00336033603360336033603360336033603360336033603360336033603360336000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __label__
 77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777
 77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777
