@@ -30,9 +30,13 @@ score = 0
 treasures_collected = 0
 treasures_total = 5
 difficulty = 0  -- 0=easy, 1=normal, 2=hard
+gamemode = 0  -- 0=normal explore, 1=time attack
 frame_counter = 0
 feedback_text = ""
 feedback_timer = 0
+timer_frames = 0
+time_limit_frames = 0
+time_bonus = 0
 
 -- player
 px = 16
@@ -137,6 +141,16 @@ function _init()
 end
 
 function update_menu()
+  -- up/down to change game mode
+  if test_input(2) then
+    gamemode = max(0, gamemode - 1)
+    _log("gamemode:"..gamemode)
+  end
+  if test_input(3) then
+    gamemode = min(1, gamemode + 1)
+    _log("gamemode:"..gamemode)
+  end
+
   -- left/right to change difficulty
   if test_input(0) then
     difficulty = max(0, difficulty - 1)
@@ -148,9 +162,9 @@ function update_menu()
   end
 
   if test_input(4) or test_input(5) then  -- o or x button
-    state = "play"
     treasures_collected = 0
     score = 0
+    time_bonus = 0
     px = 16
     py = 16
     frame_counter = 0
@@ -158,7 +172,24 @@ function update_menu()
     feedback_timer = 0
     init_map()
     sfx(32)  -- start game sound
-    _log("state:play")
+
+    if gamemode == 0 then
+      state = "play"
+      _log("state:play")
+    else
+      state = "time_attack_play"
+      -- set time limit based on difficulty
+      if difficulty == 0 then
+        time_limit_frames = 90 * 60  -- 90 seconds
+      elseif difficulty == 1 then
+        time_limit_frames = 60 * 60  -- 60 seconds
+      else
+        time_limit_frames = 45 * 60  -- 45 seconds
+      end
+      timer_frames = time_limit_frames
+      _log("state:time_attack_play")
+      _log("time_limit:"..time_limit_frames)
+    end
     _log("difficulty:"..difficulty)
   end
 end
@@ -225,6 +256,86 @@ function update_play()
   end
 end
 
+function update_time_attack_play()
+  frame_counter += 1
+  timer_frames -= 1
+
+  -- check if time's up
+  if timer_frames <= 0 then
+    timer_frames = 0
+    sfx(33)  -- hazard/loss sound
+    feedback_text = "time's up!"
+    feedback_timer = 30
+    _log("timer_expired")
+    _log("gameover:lose")
+    state = "gameover"
+    return
+  end
+
+  -- update feedback timer
+  if feedback_timer > 0 then
+    feedback_timer -= 1
+  end
+
+  local new_px = px
+  local new_py = py
+
+  -- handle input
+  if test_input(0) then new_px -= 2 end  -- left
+  if test_input(1) then new_px += 2 end  -- right
+  if test_input(2) then new_py -= 2 end  -- up
+  if test_input(3) then new_py += 2 end  -- down
+
+  -- boundary check
+  new_px = mid(8, new_px, 120)
+  new_py = mid(8, new_py, 120)
+
+  -- collision detection with hazards
+  local grid_x = flr(new_px / 8)
+  local grid_y = flr(new_py / 8)
+  local cell_idx = grid_y * 16 + grid_x + 1
+
+  if cell_idx >= 1 and cell_idx <= #hazard_map then
+    if hazard_map[cell_idx] > 0 then
+      sfx(33)  -- hazard hit sound
+      feedback_text = "hazard!"
+      feedback_timer = 30
+      _log("hit_hazard")
+      _log("gameover:lose")
+      state = "gameover"
+      return
+    end
+  end
+
+  px = new_px
+  py = new_py
+
+  -- treasure collection
+  if cell_idx >= 1 and cell_idx <= #treasure_map and treasure_map[cell_idx] == 1 then
+    treasure_map[cell_idx] = 0
+    treasures_collected += 1
+    score += 100
+    sfx(32)  -- treasure sound
+    feedback_text = "treasure!"
+    feedback_timer = 30
+    _log("treasure_collected")
+  end
+
+  -- check win condition (at shrine with all treasures)
+  if abs(px - shrine_x) < 12 and abs(py - shrine_y) < 12 then
+    if treasures_collected >= treasures_total then
+      sfx(34)  -- win sound
+      -- calculate time bonus: remaining seconds * 10
+      local seconds_remaining = flr(timer_frames / 60)
+      time_bonus = seconds_remaining * 10
+      score += time_bonus
+      _log("time_bonus:"..time_bonus)
+      _log("gameover:win")
+      state = "gameover"
+    end
+  end
+end
+
 function update_gameover()
   if test_input(4) or test_input(5) then  -- o or x button
     feedback_text = ""
@@ -237,6 +348,7 @@ end
 function _update()
   if state == "menu" then update_menu()
   elseif state == "play" then update_play()
+  elseif state == "time_attack_play" then update_time_attack_play()
   elseif state == "gameover" then update_gameover()
   end
 end
@@ -248,14 +360,20 @@ function draw_menu()
   print("avoid hazards", 28, 50, 7)
   print("reach the shrine", 24, 60, 7)
 
+  -- gamemode selection
+  local mode_text = "explore"
+  if gamemode == 1 then mode_text = "time attack" end
+  print("mode: " .. mode_text, 28, 70, 7)
+  print("up/down: change", 20, 78, 7)
+
   -- difficulty selection
   local diff_text = "easy"
   if difficulty == 1 then diff_text = "normal"
   elseif difficulty == 2 then diff_text = "hard" end
-  print("difficulty: " .. diff_text, 20, 75, 7)
-  print("left/right: change", 16, 85, 7)
+  print("difficulty: " .. diff_text, 20, 88, 7)
+  print("left/right: change", 16, 96, 7)
 
-  print("press o to start", 24, 100, 7)
+  print("press o to start", 24, 110, 7)
 end
 
 function draw_play()
@@ -303,6 +421,56 @@ function draw_play()
   end
 end
 
+function draw_time_attack_play()
+  cls(1)
+
+  -- draw island tile background
+  for y = 0, 15 do
+    for x = 0, 15 do
+      local cell_idx = y * 16 + x + 1
+      if hazard_map[cell_idx] == 1 then
+        rectfill(x * 8, y * 8, x * 8 + 7, y * 8 + 7, 1)  -- water
+      elseif hazard_map[cell_idx] == 2 then
+        rectfill(x * 8, y * 8, x * 8 + 7, y * 8 + 7, 8)  -- spikes (dark)
+      else
+        rectfill(x * 8, y * 8, x * 8 + 7, y * 8 + 7, 3)  -- grass
+      end
+    end
+  end
+
+  -- draw treasures with animation
+  for i = 1, #treasure_map do
+    if treasure_map[i] == 1 then
+      local gx = ((i - 1) % 16) * 8 + 4
+      local gy = flr((i - 1) / 16) * 8 + 4
+      -- pulsing animation
+      local pulse = flr(sin(frame_counter / 15) * 2) + 3
+      circfill(gx, gy, pulse, 10)  -- yellow treasure
+    end
+  end
+
+  -- draw shrine (more distinctive)
+  rectfill(shrine_x - 8, shrine_y - 8, shrine_x + 8, shrine_y + 8, 6)
+  rect(shrine_x - 6, shrine_y - 6, shrine_x + 6, shrine_y + 6, 7)
+
+  -- draw player
+  spr(1, px - 4, py - 4)
+
+  -- draw ui
+  print("treasures: " .. treasures_collected .. "/" .. treasures_total, 2, 2, 7)
+
+  -- draw timer in top-right
+  local seconds = flr(timer_frames / 60)
+  local timer_color = 7
+  if seconds < 10 then timer_color = 8 end  -- red when <10 seconds
+  print(seconds .. "s", 110, 2, timer_color)
+
+  -- draw feedback text
+  if feedback_timer > 0 then
+    print(feedback_text, 40, 60, 10)
+  end
+end
+
 function draw_gameover()
   cls(0)
 
@@ -312,20 +480,32 @@ function draw_gameover()
   elseif difficulty == 2 then diff_text = "hard" end
   print("difficulty: " .. diff_text, 28, 20, 7)
 
+  -- mode indicator
+  local mode_text = "explore"
+  if gamemode == 1 then mode_text = "time attack" end
+  print("mode: " .. mode_text, 32, 28, 7)
+
   if treasures_collected >= treasures_total then
     print("you won!", 48, 40, 10)
-    print("treasures found: " .. treasures_collected, 20, 60, 7)
+    print("treasures found: " .. treasures_collected, 20, 55, 7)
+    if gamemode == 1 then
+      print("score: " .. score, 44, 70, 10)
+    else
+      print("score: " .. score, 44, 70, 7)
+    end
   else
     print("you lost!", 48, 40, 8)
-    print("treasures: " .. treasures_collected .. "/" .. treasures_total, 12, 60, 7)
+    print("treasures: " .. treasures_collected .. "/" .. treasures_total, 12, 55, 7)
+    print("score: " .. score, 44, 70, 7)
   end
 
-  print("press o to return", 16, 100, 7)
+  print("press o to return", 16, 110, 7)
 end
 
 function _draw()
   if state == "menu" then draw_menu()
   elseif state == "play" then draw_play()
+  elseif state == "time_attack_play" then draw_time_attack_play()
   elseif state == "gameover" then draw_gameover()
   end
 end
