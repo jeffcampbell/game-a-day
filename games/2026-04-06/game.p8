@@ -67,14 +67,28 @@ menu_options = 4
 menu_highlight_y = 55  -- smooth position for highlight
 
 -- difficulty tuning
-time_limits = {30, 20, 10}  -- frames for easy, normal, hard
-base_points = {150, 100, 50}  -- base points per match
+time_limits = {35, 25, 18}  -- frames for easy, normal, hard (adjusted for 6x6 challenge)
+base_points = {150, 110, 90}  -- base points per match (higher reward for harder modes)
+
+function get_time_limit()
+  -- get time limit for current game state
+  if mode == "endless" then
+    if level == 1 then return 30  -- 4x4 board
+    elseif level == 2 then return 22  -- 6x6 board, more challenging
+    else return 15  -- 8x8 board, very challenging
+    end
+  else
+    local time_idx = min(difficulty, 3)
+    return time_limits[time_idx]
+  end
+end
 
 function calc_score()
   local mult = max(1, combo)
   if mode == "endless" then
     local base = 50  -- endless base points per match
-    local level_mult = min(level, 4)  -- 1x at level 1, 2x at level 2, 3x at level 3, 4x+ at level 4+
+    -- level multiplier: 1x level 1, 2x level 2, 3x level 3, 5x level 4, 7x level 5+
+    local level_mult = level == 1 and 1 or level == 2 and 2 or level == 3 and 3 or level == 4 and 5 or 7
     local current_level_score = matches * base * mult * level_mult
     return session_score + current_level_score  -- include accumulated score from previous levels
   else
@@ -373,9 +387,8 @@ function update_play()
         if #selected == 2 then
           moves += 1
           locked = true
-          -- use appropriate time limit
-          local time_idx = min(difficulty, 3)
-          match_timer = time_limits[time_idx]
+          -- use appropriate time limit based on difficulty and level
+          match_timer = get_time_limit()
         end
       end
     end
