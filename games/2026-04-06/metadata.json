@@ -1,0 +1,9 @@
+{
+  "title": "Memory Match",
+  "description": "Flip tiles to find matching pairs. Test your memory with three difficulty levels. Fewer moves earn higher scores.",
+  "genres": ["puzzle"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general"
+}
