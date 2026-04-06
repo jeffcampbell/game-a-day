@@ -27,6 +27,8 @@ score = 0
 moves = 0
 matches = 0
 matches_needed = 0
+combo = 0  -- current combo streak
+combo_display = 0  -- smooth animation of combo
 
 -- board setup
 board_w = 4
@@ -50,6 +52,7 @@ match_flash_duration = 10
 score_pop_timer = 0
 score_pop_y = 113  -- starting y position for pop animation
 last_score = 0
+combo_pop_timer = 0  -- bonus combo announcement
 
 -- music
 music_playing = false
@@ -59,11 +62,58 @@ menu_selected = 0
 menu_options = 3
 menu_highlight_y = 55  -- smooth position for highlight
 
+-- difficulty tuning
+time_limits = {30, 20, 10}  -- frames for easy, normal, hard
+base_points = {150, 100, 50}  -- base points per match
+
+function calc_score()
+  local mult = max(1, combo)
+  return matches * base_points[difficulty] * mult
+end
+
+function draw_tile_sprite(val, px, py, scale)
+  -- draw themed sprite based on tile value
+  -- val ranges from 1 to 8 for 4x4, 1 to 18 for 6x6
+  local col = 8 + ((val - 1) % 8)
+  local cx, cy = 8, 8  -- tile center
+
+  if val % 4 == 1 then  -- circles
+    circfill(px + cx, py + cy, 5 * scale, col)
+  elseif val % 4 == 2 then  -- squares (10x10, centered)
+    local s = 5 * scale
+    rectfill(px + cx - s, py + cy - s, px + cx + s, py + cy + s, col)
+  elseif val % 4 == 3 then  -- diamonds (centered)
+    -- points relative to center: top(0,-6), right(5,0), bottom(0,6), left(-6,0)
+    local t, r, b, l = 6 * scale, 5 * scale, 6 * scale, 6 * scale
+    pset(px + cx, py + cy - t, col)
+    pset(px + cx + r, py + cy, col)
+    pset(px + cx, py + cy + b, col)
+    pset(px + cx - l, py + cy, col)
+    line(px + cx, py + cy - t, px + cx + r, py + cy, col)
+    line(px + cx + r, py + cy, px + cx, py + cy + b, col)
+    line(px + cx, py + cy + b, px + cx - l, py + cy, col)
+    line(px + cx - l, py + cy, px + cx, py + cy - t, col)
+  else  -- stars (centered)
+    -- points as offsets from center(8,8): (0,-6), (3,-1), (6,0), (4,3), (5,7), (0,5), (-5,7), (-4,3), (-6,0), (-3,-1)
+    local pts = {
+      {0, -6}, {3, -1}, {6, 0}, {4, 3}, {5, 7},
+      {0, 5}, {-5, 7}, {-4, 3}, {-6, 0}, {-3, -1}
+    }
+    for i = 1, #pts do
+      local x = pts[i][1] * scale
+      local y = pts[i][2] * scale
+      pset(px + cx + x, py + cy + y, col)
+    end
+  end
+end
+
 function init_game()
   _log("state:play")
   score = 0
   moves = 0
   matches = 0
+  combo = 0
+  combo_display = 0
   selected = {}
   match_timer = 0
   locked = false
@@ -72,6 +122,7 @@ function init_game()
   flip_anim = {}
   match_flash_timer = 0
   score_pop_timer = 0
+  combo_pop_timer = 0
   last_score = 0
 
   -- set board size by difficulty
@@ -149,6 +200,8 @@ function update_play()
   -- update animations
   match_flash_timer = max(0, match_flash_timer - 1)
   score_pop_timer = max(0, score_pop_timer - 1)
+  combo_pop_timer = max(0, combo_pop_timer - 1)
+  combo_display += (combo - combo_display) * 0.15
 
   if locked then
     match_timer -= 1
@@ -159,7 +212,25 @@ function update_play()
         matches += 1
         revealed[selected[1]] = true
         revealed[selected[2]] = true
+        combo += 1
+        _log("combo:"..combo)
         sfx(1)  -- match found sound
+
+        -- bonus sounds for combo milestones
+        if combo == 2 then
+          sfx(4)
+          combo_pop_timer = 15
+          _log("combo_bonus:2x")
+        elseif combo == 3 then
+          sfx(4)
+          combo_pop_timer = 15
+          _log("combo_bonus:3x")
+        elseif combo >= 4 then
+          sfx(4)
+          combo_pop_timer = 15
+          _log("combo_bonus:4x+")
+        end
+
         match_flash_timer = match_flash_duration
         if matches == matches_needed then
           _log("gameover:win")
@@ -169,6 +240,8 @@ function update_play()
       else
         _log("match:failed")
         sfx(2)  -- mismatch sound
+        combo = 0  -- reset combo on mismatch
+        _log("combo:reset")
         -- cards don't match, flip back
       end
       selected = {}
@@ -210,14 +283,8 @@ function update_play()
 
         if #selected == 2 then
           moves += 1
-          local new_score = max(0, 100 - moves * 5)
-          if new_score != last_score then
-            score_pop_timer = 15
-            last_score = new_score
-          end
-          score = new_score
           locked = true
-          match_timer = 30
+          match_timer = time_limits[difficulty]
         end
       end
     end
@@ -313,7 +380,7 @@ function draw_play()
         end
 
         if is_selected then
-          -- show card value with scale animation
+          -- show tile sprite with scale animation
           local val = board[pos]
           local scale = 1.0
           if flip_anim[pos] != nil then
@@ -328,7 +395,7 @@ function draw_play()
           end
 
           if scale > 0.3 then
-            print(val, px + 6, py + 4, 7)
+            draw_tile_sprite(val, px, py, scale)
           end
         end
       end
@@ -341,30 +408,42 @@ function draw_play()
     end
   end
 
-  -- draw score with pop animation
-  if score_pop_timer > 0 then
-    local pop_offset = (15 - score_pop_timer) * 1.5
-    local pop_y = 113 - pop_offset
-    local pop_col = 11
-    print("+"..score, 8, pop_y, pop_col)
-  else
-    print("moves:"..moves, 8, 105, 7)
-    print("score:"..score, 8, 113, 7)
+  -- calculate current score
+  score = calc_score()
+
+  -- draw HUD
+  print("matches:"..matches.."/"..matches_needed, 60, 105, 7)
+  print("score:"..score, 60, 113, 7)
+
+  -- draw combo display
+  if combo > 0 then
+    local combo_disp = flr(combo_display + 0.5)
+    if combo_disp > 0 then
+      local combo_txt = combo_disp.."x combo!"
+      local col = 11
+      if combo_disp >= 3 then col = 10
+      if combo_disp >= 4 then col = 8
+      print(combo_txt, 8, 105, col)
+    end
   end
 
-  print("matches:"..matches.."/"..matches_needed, 60, 113, 7)
+  -- bonus announcement
+  if combo_pop_timer > 0 then
+    print("✦ milestone! ✦", 8, 95, 10)
+  end
 end
 
 function draw_gameover()
   print("you won!", 48, 40, 10)
   print("moves:"..moves, 48, 55, 7)
-  print("score:"..score, 48, 65, 7)
+  print("score:"..score, 48, 63, 7)
+  print("max combo:"..combo, 40, 71, 7)
 
   local stars = "★"
   if score > 300 then stars = "★★★"
   elseif score > 150 then stars = "★★"
   end
-  print(stars, 45, 80, 11)
+  print(stars, 45, 82, 11)
 
   print("press z to replay", 30, 100, 6)
   print("press x for menu", 32, 110, 6)
