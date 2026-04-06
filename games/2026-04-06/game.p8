@@ -22,13 +22,17 @@ end
 
 -- game state
 state = "menu"
-difficulty = 1  -- 1=easy(4x4), 2=normal(4x4), 3=hard(6x6)
+difficulty = 1  -- 1=easy(4x4), 2=normal(4x4), 3=hard(6x6), 4=endless
+mode = "standard"  -- "standard" or "endless"
 score = 0
 moves = 0
 matches = 0
 matches_needed = 0
 combo = 0  -- current combo streak
 combo_display = 0  -- smooth animation of combo
+level = 1  -- for endless mode
+endless_high_score = 0  -- track best endless score
+session_score = 0  -- score in current endless session
 
 -- board setup
 board_w = 4
@@ -59,7 +63,7 @@ music_playing = false
 
 -- menu
 menu_selected = 0
-menu_options = 3
+menu_options = 4
 menu_highlight_y = 55  -- smooth position for highlight
 
 -- difficulty tuning
@@ -68,7 +72,13 @@ base_points = {150, 100, 50}  -- base points per match
 
 function calc_score()
   local mult = max(1, combo)
-  return matches * base_points[difficulty] * mult
+  if mode == "endless" then
+    local base = 50  -- endless base points per match
+    local level_mult = min(level, 4)  -- 1x at level 1, 2x at level 2, 3x at level 3, 4x+ at level 4+
+    return matches * base * mult * level_mult
+  else
+    return matches * base_points[difficulty] * mult
+  end
 end
 
 function draw_tile_sprite(val, px, py, scale)
@@ -125,21 +135,93 @@ function init_game()
   combo_pop_timer = 0
   last_score = 0
 
-  -- set board size by difficulty
+  -- determine mode and level
+  if difficulty == 4 then
+    mode = "endless"
+    level = 1
+    session_score = 0
+  else
+    mode = "standard"
+  end
+
+  -- set board size by difficulty/level
   if difficulty == 1 then
     board_w = 4
     board_h = 4
   elseif difficulty == 2 then
     board_w = 4
     board_h = 4
-  else  -- difficulty 3
+  elseif difficulty == 3 then
     board_w = 6
     board_h = 6
+  else  -- difficulty 4 (endless), start at level 1 (4x4)
+    board_w = 4
+    board_h = 4
   end
 
   matches_needed = (board_w * board_h) / 2
 
   -- create deck with pairs
+  local deck = {}
+  for i = 1, (board_w * board_h) / 2 do
+    add(deck, i)
+    add(deck, i)
+  end
+
+  -- shuffle deck
+  for i = 1, 100 do
+    local a = flr(rnd(#deck)) + 1
+    local b = flr(rnd(#deck)) + 1
+    local temp = deck[a]
+    deck[a] = deck[b]
+    deck[b] = temp
+  end
+
+  -- populate board
+  board = {}
+  revealed = {}
+  local idx = 1
+  for y = 0, board_h - 1 do
+    for x = 0, board_w - 1 do
+      board[y * board_w + x] = deck[idx]
+      revealed[y * board_w + x] = false
+      idx += 1
+    end
+  end
+end
+
+function next_endless_level()
+  -- progress level in endless mode
+  level += 1
+  session_score = score
+
+  -- expand board: 4x4 -> 6x6 -> 8x8 (stays at 8x8)
+  if level == 2 then
+    board_w = 6
+    board_h = 6
+  elseif level == 3 then
+    board_w = 8
+    board_h = 8
+  end
+  -- level 4+ stays at 8x8
+
+  _log("endless:level_"..level)
+
+  -- reset for next level but keep score/combo
+  matches = 0
+  moves = 0
+  selected = {}
+  match_timer = 0
+  locked = false
+  cur_x = 0
+  cur_y = 0
+  flip_anim = {}
+  match_flash_timer = 0
+  combo_pop_timer = 0
+
+  matches_needed = (board_w * board_h) / 2
+
+  -- create new deck with pairs
   local deck = {}
   for i = 1, (board_w * board_h) / 2 do
     add(deck, i)
@@ -233,9 +315,15 @@ function update_play()
 
         match_flash_timer = match_flash_duration
         if matches == matches_needed then
-          _log("gameover:win")
-          sfx(3)  -- victory sound
-          state = "gameover"
+          if mode == "endless" then
+            _log("endless:cleared_level_"..level)
+            sfx(3)  -- victory sound
+            next_endless_level()
+          else
+            _log("gameover:win")
+            sfx(3)  -- victory sound
+            state = "gameover"
+          end
         end
       else
         _log("match:failed")
@@ -284,7 +372,9 @@ function update_play()
         if #selected == 2 then
           moves += 1
           locked = true
-          match_timer = time_limits[difficulty]
+          -- use appropriate time limit
+          local time_idx = min(difficulty, 3)
+          match_timer = time_limits[time_idx]
         end
       end
     end
@@ -292,6 +382,14 @@ function update_play()
 
   -- menu escape
   if test_input(5) then  -- x button
+    if mode == "endless" then
+      _log("endless:quit_score_"..score)
+      -- update high score
+      if score > endless_high_score then
+        endless_high_score = score
+        _log("endless:new_high_"..endless_high_score)
+      end
+    end
     _log("state:menu")
     music(-1)  -- stop music
     music_playing = false
@@ -320,13 +418,14 @@ end
 
 function draw_menu()
   print("memory match", 40, 20, 7)
-  print("select difficulty:", 35, 40, 7)
+  print("select mode:", 40, 40, 7)
 
   local y = 55
   for i = 0, menu_options - 1 do
     local label = "easy (4x4)"
     if i == 1 then label = "normal (4x4)"
     elseif i == 2 then label = "hard (6x6)"
+    elseif i == 3 then label = "endless"
     end
 
     local col = 7
@@ -340,8 +439,13 @@ function draw_menu()
     y += 12
   end
 
+  -- show endless high score
+  if endless_high_score > 0 then
+    print("best endless:"..endless_high_score, 24, 105, 6)
+  end
+
   print("press z to start", 28, 95, 6)
-  print("press x to quit", 30, 105, 6)
+  print("press x to quit", 30, 115, 6)
 end
 
 function draw_play()
@@ -412,8 +516,14 @@ function draw_play()
   score = calc_score()
 
   -- draw HUD
-  print("matches:"..matches.."/"..matches_needed, 60, 105, 7)
-  print("score:"..score, 60, 113, 7)
+  if mode == "endless" then
+    print("level:"..level, 65, 105, 7)
+    print("score:"..score, 65, 113, 7)
+    print("best:"..endless_high_score, 8, 105, 6)
+  else
+    print("matches:"..matches.."/"..matches_needed, 60, 105, 7)
+    print("score:"..score, 60, 113, 7)
+  end
 
   -- draw combo display
   if combo > 0 then
@@ -423,13 +533,13 @@ function draw_play()
       local col = 11
       if combo_disp >= 3 then col = 10
       if combo_disp >= 4 then col = 8
-      print(combo_txt, 8, 105, col)
+      print(combo_txt, 8, 95, col)
     end
   end
 
   -- bonus announcement
   if combo_pop_timer > 0 then
-    print("✦ milestone! ✦", 8, 95, 10)
+    print("✦ milestone! ✦", 10, 85, 10)
   end
 end
 
