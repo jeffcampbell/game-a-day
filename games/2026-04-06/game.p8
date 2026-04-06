@@ -23,7 +23,7 @@ end
 -- game state
 state = "menu"
 difficulty = 1  -- 1=easy(4x4), 2=normal(4x4), 3=hard(6x6), 4=endless
-mode = "standard"  -- "standard" or "endless"
+mode = "standard"  -- "standard", "endless", or "challenge"
 score = 0
 moves = 0
 matches = 0
@@ -33,6 +33,15 @@ combo_display = 0  -- smooth animation of combo
 level = 1  -- for endless mode
 endless_high_score = 0  -- track best endless score
 session_score = 0  -- score in current endless session
+
+-- challenge mode variables
+challenge_mode = nil  -- "blitz", "time_attack", "survival"
+challenge_selected = 0  -- which challenge (0=blitz, 1=time_attack, 2=survival)
+challenge_best_scores = {0, 0, 0}  -- best scores for each challenge
+challenge_moves_limit = 10  -- blitz: 10 moves to match all pairs
+challenge_time_limit = 3600  -- time attack: 60 seconds (3600 frames at 60fps)
+challenge_lives = 3  -- survival: 3 lives
+challenge_perfect_combos = 0  -- survival: perfect consecutive matches
 
 -- board setup
 board_w = 4
@@ -63,12 +72,15 @@ music_playing = false
 
 -- menu
 menu_selected = 0
-menu_options = 4
+menu_options = 5
 menu_highlight_y = 55  -- smooth position for highlight
 
 -- difficulty tuning
 time_limits = {35, 25, 18}  -- frames for easy, normal, hard (adjusted for 6x6 challenge)
 base_points = {150, 110, 90}  -- base points per match (higher reward for harder modes)
+
+-- challenge mode names
+challenge_names = {"blitz", "time_attack", "survival"}
 
 function get_time_limit()
   -- get time limit for current game state
@@ -205,6 +217,72 @@ function init_game()
   end
 end
 
+function init_challenge_game()
+  _log("challenge:play_"..challenge_mode)
+  score = 0
+  moves = 0
+  matches = 0
+  combo = 0
+  combo_display = 0
+  selected = {}
+  match_timer = 0
+  locked = false
+  cur_x = 0
+  cur_y = 0
+  flip_anim = {}
+  match_flash_timer = 0
+  score_pop_timer = 0
+  combo_pop_timer = 0
+  last_score = 0
+
+  mode = "challenge"
+  board_w = 4
+  board_h = 4
+  matches_needed = 8
+
+  -- initialize challenge-specific variables
+  if challenge_mode == "blitz" then
+    challenge_moves_limit = 10
+    moves = 0
+    _log("challenge:blitz_start")
+  elseif challenge_mode == "time_attack" then
+    challenge_time_limit = 3600  -- 60 seconds at 60fps
+    _log("challenge:time_attack_start")
+  elseif challenge_mode == "survival" then
+    challenge_lives = 3
+    challenge_perfect_combos = 0
+    _log("challenge:survival_start")
+  end
+
+  -- create deck with pairs (4x4 board = 8 pairs)
+  local deck = {}
+  for i = 1, 8 do
+    add(deck, i)
+    add(deck, i)
+  end
+
+  -- shuffle deck
+  for i = 1, 100 do
+    local a = flr(rnd(#deck)) + 1
+    local b = flr(rnd(#deck)) + 1
+    local temp = deck[a]
+    deck[a] = deck[b]
+    deck[b] = temp
+  end
+
+  -- populate board
+  board = {}
+  revealed = {}
+  local idx = 1
+  for y = 0, 3 do
+    for x = 0, 3 do
+      board[y * 4 + x] = deck[idx]
+      revealed[y * 4 + x] = false
+      idx += 1
+    end
+  end
+end
+
 function next_endless_level()
   -- progress level in endless mode
   level += 1
@@ -267,8 +345,11 @@ end
 
 function _update()
   if state == "menu" then update_menu()
+  elseif state == "challenge_select" then update_challenge_select()
   elseif state == "play" then update_play()
+  elseif state == "challenge_play" then update_challenge_play()
   elseif state == "gameover" then update_gameover()
+  elseif state == "challenge_result" then update_challenge_result()
   end
 end
 
@@ -280,17 +361,46 @@ function update_menu()
     menu_selected = (menu_selected - 1 + menu_options) % menu_options
   end
   if test_input(4) then  -- o button
-    difficulty = menu_selected + 1
     sfx(3)  -- victory sound for menu selection
-    state = "play"
-    music(0)  -- start background music
-    music_playing = true
-    init_game()
+    if menu_selected < 4 then
+      -- standard/endless modes
+      difficulty = menu_selected + 1
+      state = "play"
+      music(0)  -- start background music
+      music_playing = true
+      init_game()
+    else
+      -- challenge mode
+      state = "challenge_select"
+      challenge_selected = 0
+    end
   end
 
   -- smooth menu highlight animation
   local target_y = 55 + menu_selected * 12
   menu_highlight_y += (target_y - menu_highlight_y) * 0.2
+end
+
+function update_challenge_select()
+  if test_input(2) then  -- right
+    challenge_selected = (challenge_selected + 1) % 3
+  end
+  if test_input(0) then  -- left
+    challenge_selected = (challenge_selected - 1 + 3) % 3
+  end
+  if test_input(4) then  -- o button
+    _log("challenge:start_"..challenge_names[challenge_selected + 1])
+    challenge_mode = challenge_names[challenge_selected + 1]
+    state = "challenge_play"
+    music(0)  -- start background music
+    music_playing = true
+    init_challenge_game()
+  end
+  if test_input(5) then  -- x button
+    _log("state:menu")
+    state = "menu"
+    menu_selected = 0
+  end
 end
 
 function update_play()
@@ -412,6 +522,158 @@ function update_play()
   end
 end
 
+function update_challenge_play()
+  -- update animations
+  match_flash_timer = max(0, match_flash_timer - 1)
+  score_pop_timer = max(0, score_pop_timer - 1)
+  combo_pop_timer = max(0, combo_pop_timer - 1)
+  combo_display += (combo - combo_display) * 0.15
+
+  -- update challenge-specific timers
+  if challenge_mode == "time_attack" then
+    challenge_time_limit -= 1
+    if challenge_time_limit <= 0 then
+      _log("challenge:time_expired")
+      state = "challenge_result"
+      return
+    end
+  end
+
+  if locked then
+    match_timer -= 1
+    if match_timer <= 0 then
+      -- check if cards match
+      if board[selected[1]] == board[selected[2]] then
+        _log("match:found")
+        matches += 1
+        revealed[selected[1]] = true
+        revealed[selected[2]] = true
+        combo += 1
+        challenge_perfect_combos += 1
+        _log("combo:"..combo)
+        sfx(1)  -- match found sound
+
+        -- bonus sounds for combo milestones
+        if combo == 2 then
+          sfx(4)
+          combo_pop_timer = 15
+          _log("combo_bonus:2x")
+        elseif combo == 3 then
+          sfx(4)
+          combo_pop_timer = 15
+          _log("combo_bonus:3x")
+        elseif combo >= 4 then
+          sfx(4)
+          combo_pop_timer = 15
+          _log("combo_bonus:4x+")
+        end
+
+        match_flash_timer = match_flash_duration
+        if matches == matches_needed then
+          _log("challenge:completed_"..challenge_mode)
+          sfx(3)  -- victory sound
+          state = "challenge_result"
+        end
+      else
+        _log("match:failed")
+        sfx(2)  -- mismatch sound
+        combo = 0  -- reset combo on mismatch
+        challenge_perfect_combos = 0  -- reset perfect combo on failure
+        _log("combo:reset")
+
+        -- survival mode: lose a life
+        if challenge_mode == "survival" then
+          challenge_lives -= 1
+          _log("challenge:life_lost_remaining_"..challenge_lives)
+          if challenge_lives <= 0 then
+            _log("challenge:survival_failed")
+            state = "challenge_result"
+          end
+        end
+      end
+      selected = {}
+      locked = false
+    end
+    return
+  end
+
+  -- handle cursor movement
+  if test_input(0) then  -- left
+    cur_x = max(0, cur_x - 1)
+  end
+  if test_input(1) then  -- right
+    cur_x = min(3, cur_x + 1)
+  end
+  if test_input(2) then  -- up
+    cur_y = max(0, cur_y - 1)
+  end
+  if test_input(3) then  -- down
+    cur_y = min(3, cur_y + 1)
+  end
+
+  -- check for tile selection with o button
+  if test_input(4) then  -- o button
+    local pos = cur_y * 4 + cur_x
+    if not revealed[pos] and #selected < 2 then
+      local already_selected = false
+      for i = 1, #selected do
+        if selected[i] == pos then
+          already_selected = true
+        end
+      end
+
+      if not already_selected then
+        add(selected, pos)
+        flip_anim[pos] = 0  -- start flip animation
+        sfx(0)  -- tile flip sound
+        _log("flip:"..pos)
+
+        if #selected == 2 then
+          moves += 1
+          locked = true
+          match_timer = 30  -- fixed time limit for challenges
+
+          -- blitz mode: check move limit
+          if challenge_mode == "blitz" and moves >= challenge_moves_limit then
+            if matches < matches_needed then
+              _log("challenge:move_limit_exceeded")
+              state = "challenge_result"
+              return
+            end
+          end
+        end
+      end
+    end
+  end
+
+  -- menu escape
+  if test_input(5) then  -- x button
+    _log("challenge:quit_"..challenge_mode)
+    _log("state:menu")
+    music(-1)  -- stop music
+    music_playing = false
+    state = "menu"
+    menu_selected = 0
+    challenge_mode = nil
+  end
+end
+
+function update_challenge_result()
+  if test_input(4) then  -- o button (try again)
+    _log("challenge:replay_"..challenge_mode)
+    state = "challenge_play"
+    init_challenge_game()
+  end
+  if test_input(5) then  -- x button (return to menu)
+    _log("state:menu")
+    music(-1)  -- stop music
+    music_playing = false
+    state = "menu"
+    menu_selected = 0
+    challenge_mode = nil
+  end
+end
+
 function update_gameover()
   if test_input(4) then  -- o button
     _log("state:menu")
@@ -425,8 +687,11 @@ end
 function _draw()
   cls(0)
   if state == "menu" then draw_menu()
+  elseif state == "challenge_select" then draw_challenge_select()
   elseif state == "play" then draw_play()
+  elseif state == "challenge_play" then draw_challenge_play()
   elseif state == "gameover" then draw_gameover()
+  elseif state == "challenge_result" then draw_challenge_result()
   end
 end
 
@@ -440,6 +705,7 @@ function draw_menu()
     if i == 1 then label = "normal (4x4)"
     elseif i == 2 then label = "hard (6x6)"
     elseif i == 3 then label = "endless"
+    elseif i == 4 then label = "challenge"
     end
 
     local col = 7
@@ -460,6 +726,38 @@ function draw_menu()
 
   print("press z to start", 28, 95, 6)
   print("press x to quit", 30, 115, 6)
+end
+
+function draw_challenge_select()
+  print("challenge mode", 36, 20, 7)
+  print("select challenge:", 28, 40, 7)
+
+  local challenges = {"blitz", "time attack", "survival"}
+  local descriptions = {
+    "10 moves to match",
+    "60 sec to match",
+    "3 lives to match"
+  }
+
+  local y = 55
+  for i = 0, 2 do
+    local col = 7
+    if i == challenge_selected then
+      col = 8
+      print(">", 30, y, col)
+    end
+    print(challenges[i + 1], 38, y, col)
+
+    -- show best score
+    local best = challenge_best_scores[i + 1]
+    if best > 0 then
+      print("best:"..best, 55, y, 6)
+    end
+    y += 12
+  end
+
+  print("press z to play", 30, 100, 6)
+  print("press x to back", 32, 110, 6)
 end
 
 function draw_play()
@@ -557,6 +855,110 @@ function draw_play()
   end
 end
 
+function draw_challenge_play()
+  -- apply match flash tint
+  local flash_col = 0
+  if match_flash_timer > 0 then
+    flash_col = 11  -- yellow flash
+  end
+
+  -- draw board (4x4 always)
+  for y = 0, 3 do
+    for x = 0, 3 do
+      local pos = y * 4 + x
+      local px = board_x + x * tile_size
+      local py = board_y + y * tile_size
+
+      if revealed[pos] then
+        -- matched card - empty with flash
+        if flash_col != 0 then
+          rectfill(px, py, px + tile_size - 1, py + tile_size - 1, flash_col)
+        else
+          rectfill(px, py, px + tile_size - 1, py + tile_size - 1, 5)
+        end
+        print("✓", px + 5, py + 4, 10)
+      else
+        -- face down card
+        rectfill(px, py, px + tile_size - 1, py + tile_size - 1, 3)
+        rect(px, py, px + tile_size - 1, py + tile_size - 1, 7)
+
+        -- show selected cards with flip animation
+        local is_selected = false
+        for i = 1, #selected do
+          if selected[i] == pos then
+            is_selected = true
+          end
+        end
+
+        if is_selected then
+          -- show tile sprite with scale animation
+          local val = board[pos]
+          local scale = 1.0
+          if flip_anim[pos] != nil then
+            flip_anim[pos] += 1
+            if flip_anim[pos] > 12 then
+              flip_anim[pos] = nil
+            else
+              -- smooth ease-in-out for flip animation
+              local t = flip_anim[pos] / 12.0
+              scale = 0.5 + 0.5 * sin(t * 0.5)
+            end
+          end
+
+          if scale > 0.3 then
+            draw_tile_sprite(val, px, py, scale)
+          end
+        end
+      end
+
+      -- draw cursor highlight
+      if x == cur_x and y == cur_y then
+        rect(px, py, px + tile_size - 1, py + tile_size - 1, 10)
+        rect(px + 1, py + 1, px + tile_size - 2, py + tile_size - 2, 10)
+      end
+    end
+  end
+
+  -- calculate score based on challenge type
+  if challenge_mode == "blitz" then
+    score = max(0, (challenge_moves_limit - moves) * 100)
+  elseif challenge_mode == "time_attack" then
+    score = matches * 50 + max(0, challenge_time_limit)
+  elseif challenge_mode == "survival" then
+    score = challenge_lives * 200 + challenge_perfect_combos * 50
+  end
+
+  -- draw challenge-specific HUD
+  if challenge_mode == "blitz" then
+    print("moves:"..moves.."/"..challenge_moves_limit, 60, 105, 7)
+    print("score:"..score, 60, 113, 7)
+  elseif challenge_mode == "time_attack" then
+    local sec = challenge_time_limit / 60
+    print("time:"..sec.."s", 70, 105, 7)
+    print("pairs:"..matches.."/8", 65, 113, 7)
+  elseif challenge_mode == "survival" then
+    print("lives:"..challenge_lives, 70, 105, 7)
+    print("pairs:"..matches.."/8", 65, 113, 7)
+  end
+
+  -- draw combo display
+  if combo > 0 then
+    local combo_disp = flr(combo_display + 0.5)
+    if combo_disp > 0 then
+      local combo_txt = combo_disp.."x combo!"
+      local col = 11
+      if combo_disp >= 3 then col = 10
+      if combo_disp >= 4 then col = 8
+      print(combo_txt, 8, 95, col)
+    end
+  end
+
+  -- bonus announcement
+  if combo_pop_timer > 0 then
+    print("✦ milestone! ✦", 10, 85, 10)
+  end
+end
+
 function draw_gameover()
   print("you won!", 48, 40, 10)
   print("moves:"..moves, 48, 55, 7)
@@ -570,6 +972,44 @@ function draw_gameover()
   print(stars, 45, 82, 11)
 
   print("press z to replay", 30, 100, 6)
+  print("press x for menu", 32, 110, 6)
+end
+
+function draw_challenge_result()
+  local challenge_title = "blitz challenge"
+  if challenge_mode == "time_attack" then
+    challenge_title = "time attack"
+  elseif challenge_mode == "survival" then
+    challenge_title = "survival"
+  end
+
+  print(challenge_title, 40, 20, 7)
+
+  -- check if won
+  local won = matches == 8
+  if challenge_mode == "survival" and matches < 8 then
+    won = false
+  end
+
+  if won then
+    print("success!", 48, 35, 10)
+  else
+    print("game over!", 44, 35, 12)
+  end
+
+  print("score:"..score, 48, 50, 7)
+
+  -- update and show best score
+  local idx = challenge_selected + 1
+  if score > challenge_best_scores[idx] then
+    challenge_best_scores[idx] = score
+    _log("challenge:new_best_"..challenge_mode.."_"..score)
+    print("best:"..score, 48, 60, 11)
+  else
+    print("best:"..challenge_best_scores[idx], 48, 60, 6)
+  end
+
+  print("press z to retry", 32, 95, 6)
   print("press x for menu", 32, 110, 6)
 end
 
