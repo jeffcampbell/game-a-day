@@ -43,9 +43,18 @@ match_timer = 0
 cur_x = 0
 cur_y = 0
 
+-- animations
+flip_anim = {}  -- tracks animation progress for each position
+match_flash_timer = 0
+match_flash_duration = 10
+score_pop_timer = 0
+score_pop_y = 113  -- starting y position for pop animation
+last_score = 0
+
 -- menu
 menu_selected = 0
 menu_options = 3
+menu_highlight_y = 55  -- smooth position for highlight
 
 function init_game()
   _log("state:play")
@@ -57,6 +66,10 @@ function init_game()
   locked = false
   cur_x = 0
   cur_y = 0
+  flip_anim = {}
+  match_flash_timer = 0
+  score_pop_timer = 0
+  last_score = 0
 
   -- set board size by difficulty
   if difficulty == 1 then
@@ -117,12 +130,21 @@ function update_menu()
   end
   if test_input(4) then  -- o button
     difficulty = menu_selected + 1
+    sfx(3)  -- victory sound for menu selection
     state = "play"
     init_game()
   end
+
+  -- smooth menu highlight animation
+  local target_y = 55 + menu_selected * 12
+  menu_highlight_y += (target_y - menu_highlight_y) * 0.2
 end
 
 function update_play()
+  -- update animations
+  match_flash_timer = max(0, match_flash_timer - 1)
+  score_pop_timer = max(0, score_pop_timer - 1)
+
   if locked then
     match_timer -= 1
     if match_timer <= 0 then
@@ -132,12 +154,16 @@ function update_play()
         matches += 1
         revealed[selected[1]] = true
         revealed[selected[2]] = true
+        sfx(1)  -- match found sound
+        match_flash_timer = match_flash_duration
         if matches == matches_needed then
           _log("gameover:win")
+          sfx(3)  -- victory sound
           state = "gameover"
         end
       else
         _log("match:failed")
+        sfx(2)  -- mismatch sound
         -- cards don't match, flip back
       end
       selected = {}
@@ -173,11 +199,18 @@ function update_play()
 
       if not already_selected then
         add(selected, pos)
+        flip_anim[pos] = 0  -- start flip animation
+        sfx(0)  -- tile flip sound
         _log("flip:"..pos)
 
         if #selected == 2 then
           moves += 1
-          score = max(0, 100 - moves * 5)
+          local new_score = max(0, 100 - moves * 5)
+          if new_score != last_score then
+            score_pop_timer = 15
+            last_score = new_score
+          end
+          score = new_score
           locked = true
           match_timer = 30
         end
@@ -223,7 +256,9 @@ function draw_menu()
     local col = 7
     if i == menu_selected then
       col = 8
-      print(">", 30, y, col)
+      -- draw animated highlight
+      local highlight_y = flr(menu_highlight_y + 0.5)
+      print(">", 30, highlight_y, col)
     end
     print(label, 38, y, col)
     y += 12
@@ -234,6 +269,12 @@ function draw_menu()
 end
 
 function draw_play()
+  -- apply match flash tint
+  local flash_col = 0
+  if match_flash_timer > 0 then
+    flash_col = 11  -- yellow flash
+  end
+
   -- draw board
   for y = 0, board_h - 1 do
     for x = 0, board_w - 1 do
@@ -242,15 +283,19 @@ function draw_play()
       local py = board_y + y * tile_size
 
       if revealed[pos] then
-        -- matched card - empty
-        rectfill(px, py, px + tile_size - 1, py + tile_size - 1, 5)
+        -- matched card - empty with flash
+        if flash_col != 0 then
+          rectfill(px, py, px + tile_size - 1, py + tile_size - 1, flash_col)
+        else
+          rectfill(px, py, px + tile_size - 1, py + tile_size - 1, 5)
+        end
         print("✓", px + 5, py + 4, 10)
       else
         -- face down card
         rectfill(px, py, px + tile_size - 1, py + tile_size - 1, 3)
         rect(px, py, px + tile_size - 1, py + tile_size - 1, 7)
 
-        -- show selected cards
+        -- show selected cards with flip animation
         local is_selected = false
         for i = 1, #selected do
           if selected[i] == pos then
@@ -259,9 +304,23 @@ function draw_play()
         end
 
         if is_selected then
-          -- show card value
+          -- show card value with scale animation
           local val = board[pos]
-          print(val, px + 6, py + 4, 7)
+          local scale = 1.0
+          if flip_anim[pos] != nil then
+            flip_anim[pos] += 1
+            if flip_anim[pos] > 12 then
+              flip_anim[pos] = nil
+            else
+              -- smooth ease-in-out for flip animation
+              local t = flip_anim[pos] / 12.0
+              scale = 0.5 + 0.5 * sin(t * 0.5)
+            end
+          end
+
+          if scale > 0.3 then
+            print(val, px + 6, py + 4, 7)
+          end
         end
       end
 
@@ -273,9 +332,17 @@ function draw_play()
     end
   end
 
-  -- draw score
-  print("moves:"..moves, 8, 105, 7)
-  print("score:"..score, 8, 113, 7)
+  -- draw score with pop animation
+  if score_pop_timer > 0 then
+    local pop_offset = (15 - score_pop_timer) * 1.5
+    local pop_y = 113 - pop_offset
+    local pop_col = 11
+    print("+"..score, 8, pop_y, pop_col)
+  else
+    print("moves:"..moves, 8, 105, 7)
+    print("score:"..score, 8, 113, 7)
+  end
+
   print("matches:"..matches.."/"..matches_needed, 60, 113, 7)
 end
 
@@ -293,6 +360,12 @@ function draw_gameover()
   print("press z to replay", 30, 100, 6)
   print("press x for menu", 32, 110, 6)
 end
+
+__sfx__
+000100000d33000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000001634016340163401634016340163400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001000000b4400b4400b3000b3000b3000b30000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0010000027740277502776027760277402773027700000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
