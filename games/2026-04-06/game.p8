@@ -75,31 +75,35 @@ function draw_tile_sprite(val, px, py, scale)
   -- draw themed sprite based on tile value
   -- val ranges from 1 to 8 for 4x4, 1 to 18 for 6x6
   local col = 8 + ((val - 1) % 8)
+  local cx, cy = 8, 8  -- tile center
 
   if val % 4 == 1 then  -- circles
-    circfill(px + 8, py + 8, 5 * scale, col)
-  elseif val % 4 == 2 then  -- squares
-    rectfill(px + 3, py + 3, px + 13, py + 13, col)
-  elseif val % 4 == 3 then  -- diamonds
-    pset(px + 8, py + 2, col)
-    pset(px + 13, py + 8, col)
-    pset(px + 8, py + 14, col)
-    pset(px + 2, py + 8, col)
-    line(px + 8, py + 2, px + 13, py + 8, col)
-    line(px + 13, py + 8, px + 8, py + 14, col)
-    line(px + 8, py + 14, px + 2, py + 8, col)
-    line(px + 2, py + 8, px + 8, py + 2, col)
-  else  -- stars
-    pset(px + 8, py + 2, col)
-    pset(px + 11, py + 7, col)
-    pset(px + 14, py + 8, col)
-    pset(px + 12, py + 11, col)
-    pset(px + 13, py + 15, col)
-    pset(px + 8, py + 13, col)
-    pset(px + 3, py + 15, col)
-    pset(px + 4, py + 11, col)
-    pset(px + 2, py + 8, col)
-    pset(px + 5, py + 7, col)
+    circfill(px + cx, py + cy, 5 * scale, col)
+  elseif val % 4 == 2 then  -- squares (10x10, centered)
+    local s = 5 * scale
+    rectfill(px + cx - s, py + cy - s, px + cx + s, py + cy + s, col)
+  elseif val % 4 == 3 then  -- diamonds (centered)
+    -- points relative to center: top(0,-6), right(5,0), bottom(0,6), left(-6,0)
+    local t, r, b, l = 6 * scale, 5 * scale, 6 * scale, 6 * scale
+    pset(px + cx, py + cy - t, col)
+    pset(px + cx + r, py + cy, col)
+    pset(px + cx, py + cy + b, col)
+    pset(px + cx - l, py + cy, col)
+    line(px + cx, py + cy - t, px + cx + r, py + cy, col)
+    line(px + cx + r, py + cy, px + cx, py + cy + b, col)
+    line(px + cx, py + cy + b, px + cx - l, py + cy, col)
+    line(px + cx - l, py + cy, px + cx, py + cy - t, col)
+  else  -- stars (centered)
+    -- points as offsets from center(8,8): (0,-6), (3,-1), (6,0), (4,3), (5,7), (0,5), (-5,7), (-4,3), (-6,0), (-3,-1)
+    local pts = {
+      {0, -6}, {3, -1}, {6, 0}, {4, 3}, {5, 7},
+      {0, 5}, {-5, 7}, {-4, 3}, {-6, 0}, {-3, -1}
+    }
+    for i = 1, #pts do
+      local x = pts[i][1] * scale
+      local y = pts[i][2] * scale
+      pset(px + cx + x, py + cy + y, col)
+    end
   end
 end
 
