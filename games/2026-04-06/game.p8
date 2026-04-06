@@ -593,6 +593,14 @@ function update_challenge_play()
       end
       selected = {}
       locked = false
+
+      -- blitz mode: check move limit after match resolution
+      if challenge_mode == "blitz" and moves >= challenge_moves_limit then
+        if matches < matches_needed then
+          _log("challenge:move_limit_exceeded")
+          state = "challenge_result"
+        end
+      end
     end
     return
   end
@@ -632,15 +640,6 @@ function update_challenge_play()
           moves += 1
           locked = true
           match_timer = 30  -- fixed time limit for challenges
-
-          -- blitz mode: check move limit
-          if challenge_mode == "blitz" and moves >= challenge_moves_limit then
-            if matches < matches_needed then
-              _log("challenge:move_limit_exceeded")
-              state = "challenge_result"
-              return
-            end
-          end
         end
       end
     end
