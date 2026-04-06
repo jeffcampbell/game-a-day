@@ -75,7 +75,8 @@ function calc_score()
   if mode == "endless" then
     local base = 50  -- endless base points per match
     local level_mult = min(level, 4)  -- 1x at level 1, 2x at level 2, 3x at level 3, 4x+ at level 4+
-    return matches * base * mult * level_mult
+    local current_level_score = matches * base * mult * level_mult
+    return session_score + current_level_score  -- include accumulated score from previous levels
   else
     return matches * base_points[difficulty] * mult
   end
