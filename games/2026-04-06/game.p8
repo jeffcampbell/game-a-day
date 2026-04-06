@@ -12,10 +12,6 @@ function _log(msg)
   if testmode then add(test_log, msg) end
 end
 
-function _capture()
-  if testmode then add(test_log, "screen:"..tostr(stat(0))) end
-end
-
 function test_input(b)
   if testmode and test_input_idx < #test_inputs then
     test_input_idx += 1
@@ -44,6 +40,8 @@ selected = {}
 locked = false
 card_value = 0
 match_timer = 0
+cur_x = 0
+cur_y = 0
 
 -- menu
 menu_selected = 0
@@ -57,6 +55,8 @@ function init_game()
   selected = {}
   match_timer = 0
   locked = false
+  cur_x = 0
+  cur_y = 0
 
   -- set board size by difficulty
   if difficulty == 1 then
@@ -146,31 +146,40 @@ function update_play()
     return
   end
 
-  -- check for clicks on tiles
+  -- handle cursor movement
+  if test_input(0) then  -- left
+    cur_x = max(0, cur_x - 1)
+  end
+  if test_input(1) then  -- right
+    cur_x = min(board_w - 1, cur_x + 1)
+  end
+  if test_input(2) then  -- up
+    cur_y = max(0, cur_y - 1)
+  end
+  if test_input(3) then  -- down
+    cur_y = min(board_h - 1, cur_y + 1)
+  end
+
+  -- check for tile selection with o button
   if test_input(4) then  -- o button
-    local mx = (stat(32) - board_x) / tile_size
-    local my = (stat(33) - board_y) / tile_size
-
-    if mx >= 0 and mx < board_w and my >= 0 and my < board_h then
-      local pos = flr(my) * board_w + flr(mx)
-      if not revealed[pos] and #selected < 2 then
-        local already_selected = false
-        for i = 1, #selected do
-          if selected[i] == pos then
-            already_selected = true
-          end
+    local pos = cur_y * board_w + cur_x
+    if not revealed[pos] and #selected < 2 then
+      local already_selected = false
+      for i = 1, #selected do
+        if selected[i] == pos then
+          already_selected = true
         end
+      end
 
-        if not already_selected then
-          add(selected, pos)
-          _log("flip:"..pos)
+      if not already_selected then
+        add(selected, pos)
+        _log("flip:"..pos)
 
-          if #selected == 2 then
-            moves += 1
-            score = max(0, 100 - moves * 5)
-            locked = true
-            match_timer = 30
-          end
+        if #selected == 2 then
+          moves += 1
+          score = max(0, 100 - moves * 5)
+          locked = true
+          match_timer = 30
         end
       end
     end
@@ -254,6 +263,12 @@ function draw_play()
           local val = board[pos]
           print(val, px + 6, py + 4, 7)
         end
+      end
+
+      -- draw cursor highlight
+      if x == cur_x and y == cur_y then
+        rect(px, py, px + tile_size - 1, py + tile_size - 1, 10)
+        rect(px + 1, py + 1, px + tile_size - 2, py + tile_size - 2, 10)
       end
     end
   end
