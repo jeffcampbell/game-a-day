@@ -46,7 +46,7 @@ fi
 if command -v pico8 &>/dev/null; then
     echo "Exporting to HTML..." | tee -a "$DEPLOY_LOG"
     sed -i 's/^version 42$/version 41/' "$GAME_DIR/game.p8"
-    pico8 "$GAME_DIR/game.p8" -export "$GAME_DIR/game.html" >> "$DEPLOY_LOG" 2>&1
+    xvfb-run pico8 "$GAME_DIR/game.p8" -export "$GAME_DIR/game.html" >> "$DEPLOY_LOG" 2>&1
 fi
 
 # Generate game library catalog
