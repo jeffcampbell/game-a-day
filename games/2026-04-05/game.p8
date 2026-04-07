@@ -479,6 +479,7 @@ function update_gameover()
   if test_input(4) or test_input(5) then  -- o or x button
     feedback_text = ""
     feedback_timer = 0
+    _log("gameover:lose")
     state = "menu"
     _log("state:menu")
   end

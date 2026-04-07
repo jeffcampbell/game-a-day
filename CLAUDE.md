@@ -19,9 +19,13 @@ Check `date +%Y-%m-%d` to get today's date, then look for `games/YYYY-MM-DD/`.
 - If today's directory **exists with `game.p8` that is a skeleton/template** (e.g.
   "Untitled Game", minimal code, no real gameplay) → flesh it out into a real,
   playable, fun game with actual mechanics, sprites, and a win/lose condition.
-- If today's directory **exists with a complete game** → improve, fix bugs, or polish
-  the existing game rather than starting over. There is always more polish to do:
-  better sprites, sound effects, difficulty tuning, smoother animations, more levels.
+- If today's directory **exists with a complete game** → check `metadata.json`:
+  - If `completion_status` is `"complete"` → the game is done for the day. Do NOT generate
+    feature or polish specs. Only accept specs for critical bug fixes and token optimizations.
+    At midnight, move on to tomorrow's game.
+  - If `completion_status` is `"in-progress"` → improve, fix bugs, or polish the game.
+    There is always more polish to do: better sprites, sound effects, difficulty tuning,
+    smoother animations, more levels.
 - **Never create games for future dates.** Only work on today's game (`date +%Y-%m-%d`).
   A new game starts at midnight, not before.
 - **Never modify previous days' games** unless explicitly asked. **Exception:** Token limit
@@ -29,6 +33,13 @@ Check `date +%Y-%m-%d` to get today's date, then look for `games/YYYY-MM-DD/`.
   exceptions. These make a game non-shippable and should be fixed immediately.
 - **Never propose tooling, infrastructure, library systems, or meta-features.**
   The game comes first — always. If you run out of ideas, polish the game more.
+
+## Sharing Games
+
+**Always push to GitHub after merging.** Part of the fun is sharing games with others.
+The orchestrator handles this automatically via the `push_after_merge` flag in
+projects.json, but if you're working manually, always `git push origin main` after
+committing a game.
 
 ## Directory Structure
 
