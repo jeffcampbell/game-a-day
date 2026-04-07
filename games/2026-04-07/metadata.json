@@ -1,0 +1,12 @@
+{
+  "title": "Dungeon Delver",
+  "description": "A turn-based roguelike exploration game. Navigate a procedurally-arranged dungeon, defeat enemies in turn-based combat, collect treasure, and reach the exit. Each run is different with randomized enemy placements and loot.",
+  "genres": ["strategy", "roguelike"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general",
+  "token_count": 1043,
+  "sprite_count": 6,
+  "sound_count": 0
+}
