@@ -1,0 +1,388 @@
+pico-8 cartridge // http://www.pico-8.com
+version 42
+__lua__
+-- forest quest: adventure game
+-- explore the forest, collect items, find treasure
+
+-- test infrastructure
+testmode = false
+test_log = {}
+test_inputs = {}
+test_input_idx = 0
+
+function _log(msg)
+  if testmode then add(test_log, msg) end
+end
+
+function _capture()
+  if testmode then add(test_log, "screen:"..stat(0)) end
+end
+
+function test_input(b)
+  if testmode and test_input_idx < #test_inputs then
+    test_input_idx += 1
+    return test_inputs[test_input_idx] or 0
+  end
+  return btn()
+end
+
+-- game state
+state = "menu"
+score = 0
+items_collected = 0
+has_mushroom = false
+has_gem = false
+has_flower = false
+
+-- player
+px, py = 32, 32
+pw, ph = 8, 8
+pspeed = 2
+
+-- world
+world = {}
+for i=1,16 do world[i] = 0 end
+
+-- treasure info
+treasure_x, treasure_y = 96, 96
+treasure_found = false
+
+-- forest items: {x, y, type, collected}
+items = {
+  {x=20, y=20, type=1, collected=false},  -- mushroom
+  {x=110, y=30, type=2, collected=false}, -- gem
+  {x=60, y=110, type=3, collected=false}  -- flower
+}
+
+function _update()
+  if state == "menu" then
+    update_menu()
+  elseif state == "play" then
+    update_play()
+  elseif state == "win" then
+    update_win()
+  elseif state == "lose" then
+    update_lose()
+  end
+end
+
+function update_menu()
+  if test_input(4) > 0 then  -- o button
+    _log("state:play")
+    state = "play"
+    items_collected = 0
+    has_mushroom = false
+    has_gem = false
+    has_flower = false
+    px, py = 32, 32
+  end
+end
+
+function update_play()
+  -- movement
+  local new_px = px
+  local new_py = py
+
+  if test_input(0) > 0 then new_px -= pspeed end  -- left
+  if test_input(1) > 0 then new_px += pspeed end  -- right
+  if test_input(2) > 0 then new_py -= pspeed end  -- up
+  if test_input(3) > 0 then new_py += pspeed end  -- down
+
+  -- clamp to world
+  if new_px > 0 and new_px < 120 then px = new_px end
+  if new_py > 0 and new_py < 120 then py = new_py end
+
+  -- collision with forest boundaries
+  if px < 4 then px = 4 end
+  if px > 124 then px = 124 end
+  if py < 4 then py = 4 end
+  if py > 124 then py = 124 end
+
+  -- check item collection
+  for i, item in ipairs(items) do
+    if not item.collected then
+      local dist = sqrt((px - item.x)^2 + (py - item.y)^2)
+      if dist < 12 then
+        item.collected = true
+        items_collected += 1
+        if item.type == 1 then
+          has_mushroom = true
+          _log("item:mushroom")
+        elseif item.type == 2 then
+          has_gem = true
+          _log("item:gem")
+        elseif item.type == 3 then
+          has_flower = true
+          _log("item:flower")
+        end
+      end
+    end
+  end
+
+  -- check treasure
+  if items_collected == 3 then
+    local dist = sqrt((px - treasure_x)^2 + (py - treasure_y)^2)
+    if dist < 12 then
+      treasure_found = true
+      _log("state:win")
+      state = "win"
+      score = 100
+    end
+  end
+end
+
+function update_win()
+  if test_input(4) > 0 then
+    _log("action:menu")
+    state = "menu"
+  end
+end
+
+function update_lose()
+  if test_input(4) > 0 then
+    _log("action:menu")
+    state = "menu"
+  end
+end
+
+function _draw()
+  cls(2)  -- green background
+
+  if state == "menu" then
+    draw_menu()
+  elseif state == "play" then
+    draw_play()
+  elseif state == "win" then
+    draw_win()
+  elseif state == "lose" then
+    draw_lose()
+  end
+end
+
+function draw_menu()
+  print("forest quest", 40, 20, 7)
+  print("collect 3 items", 35, 35, 7)
+  print("find the treasure", 32, 45, 7)
+
+  print("mushroom gem flower", 25, 65, 8)
+
+  print("o: start", 48, 85, 7)
+
+  -- decorative trees
+  spr(2, 16, 100, 1, 1, false, false)
+  spr(2, 96, 105, 1, 1, false, false)
+end
+
+function draw_play()
+  -- forest background with simple pattern
+  for x=0, 128, 16 do
+    for y=0, 128, 16 do
+      if (x/16 + y/16) % 2 == 0 then
+        rectfill(x, y, x+15, y+15, 3)
+      else
+        rectfill(x, y, x+15, y+15, 2)
+      end
+    end
+  end
+
+  -- draw items
+  for i, item in ipairs(items) do
+    if not item.collected then
+      if item.type == 1 then
+        spr(1, item.x-4, item.y-4, 1, 1)  -- mushroom
+      elseif item.type == 2 then
+        spr(3, item.x-4, item.y-4, 1, 1)  -- gem
+      elseif item.type == 3 then
+        spr(4, item.x-4, item.y-4, 1, 1)  -- flower
+      end
+    end
+  end
+
+  -- draw treasure chest
+  if items_collected == 3 then
+    spr(5, treasure_x-4, treasure_y-4, 1, 1)  -- treasure chest (ready)
+  else
+    spr(6, treasure_x-4, treasure_y-4, 1, 1)  -- treasure chest (locked)
+  end
+
+  -- draw player
+  spr(7, px-4, py-4, 1, 1)
+
+  -- HUD
+  print("items: "..items_collected.."/3", 4, 4, 7)
+  if has_mushroom then print("m", 70, 4, 13) end
+  if has_gem then print("g", 78, 4, 13) end
+  if has_flower then print("f", 86, 4, 13) end
+end
+
+function draw_win()
+  cls(5)  -- blue screen
+  print("you found the treasure!", 20, 50, 7)
+  print("score: "..score, 45, 65, 7)
+  print("o: menu", 50, 85, 7)
+end
+
+function draw_lose()
+  cls(2)
+  print("game over", 48, 50, 8)
+  print("o: menu", 50, 85, 7)
+end
+
+__gfx__
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000088880000888800008888000088880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000888880008988980089989800899898000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000089980000888800008888000088880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000088880000800800008008000080080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000088880000888800008888000088880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000888880008988980089989800899898000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000089980000888800008888000088880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000088880000800800008008000080080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
+__gfx__
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000044440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000444440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000044440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000044440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000044440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000099990000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000999990000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000099990000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000099990000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000099990000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000099990000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
+__gfx__
+00000000066660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000666660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000066660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000066660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000066660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000066660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000011110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000111110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000011110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000011110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000011110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000011110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
+__gfx__
+00000000088880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000089880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000089880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000089880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000088880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000055550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000555550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000055550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000055550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000055550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000055550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
+__label__
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
