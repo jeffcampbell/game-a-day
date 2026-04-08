@@ -1,0 +1,9 @@
+# Game Sync Log
+# Tracks when games are synced to pixel-dashboard
+
+## 2026-04-08 - Forest Quest
+- Date: 2026-04-08
+- Game: Forest Quest
+- Status: Synced to pixel-dashboard/public/game/2026-04-08/
+- Files: game.html, game.js
+- Manifest: Updated with 2026-04-08 entry
