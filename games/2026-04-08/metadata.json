@@ -1,0 +1,18 @@
+{
+  "title": "Forest Quest",
+  "description": "Explore a mystical forest, collect hidden items (mushroom, gem, flower), and find the treasure chest to win. A peaceful adventure exploring nature with discovery-based gameplay.",
+  "genres": ["adventure", "exploration"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general",
+  "token_count": 805,
+  "sprite_count": 8,
+  "sound_count": 0,
+  "state_transitions": ["menu", "play", "win"],
+  "game_mechanics": [
+    "item_collection",
+    "exploration",
+    "goal_finding"
+  ]
+}
