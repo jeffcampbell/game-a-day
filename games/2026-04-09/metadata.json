@@ -1,0 +1,13 @@
+{
+  "date": "2026-04-09",
+  "title": "Dice Dueler",
+  "description": "A turn-based roguelike battle game. Each turn, roll a die (for flavor), then choose your action: attack, defend, heal, or critical strike. Defeat three enemy encounters with increasing difficulty to win. Strategic decision-making in a classic turn-based format.",
+  "genres": ["action", "strategy"],
+  "difficulty": 2,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general",
+  "token_count": 985,
+  "sprite_count": 0,
+  "sound_count": 0
+}
