@@ -1,0 +1,13 @@
+{
+  "title": "Rhythm Blast",
+  "description": "Match button presses to beat patterns in this rhythmic action game. Test your timing and combo skills across multiple levels with increasing difficulty.",
+  "genres": ["rhythm", "action"],
+  "difficulty": 3,
+  "target_audience": "general",
+  "playtime_minutes": 5,
+  "token_count": 568,
+  "sprite_count": 0,
+  "sound_count": 0,
+  "completion_status": "complete",
+  "date": "2026-04-22"
+}
