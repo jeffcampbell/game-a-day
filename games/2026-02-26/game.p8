@@ -1721,7 +1721,7 @@ function draw_pause()
     circfill(p2x,p2y,3,p2_invincible>0 and p2_invincible%8<4 and 9 or 7)
     circfill(p2x-1,p2y-1,1,8)
   end
-  for y=0,127 do for x=((y+1)%2),127,2 do pset(x,y,0)end end
+  for y=0,127 do for x=(y%2),127,2 do pset(x,y,0)end end
 
  
   print("paused", 44, 30, 7)
