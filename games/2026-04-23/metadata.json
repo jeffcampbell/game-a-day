@@ -1,0 +1,12 @@
+{
+  "title": "Space Runner",
+  "description": "An endless runner action game where you pilot a small spaceship through asteroid fields. Dodge incoming obstacles and collect shield power-ups to survive. Features progressive difficulty and a scoring system.",
+  "genres": ["action", "arcade"],
+  "difficulty": 3,
+  "token_count": 686,
+  "sprite_count": 3,
+  "sound_count": 2,
+  "playtime_minutes": 5,
+  "completion_status": "complete",
+  "target_audience": "general"
+}
