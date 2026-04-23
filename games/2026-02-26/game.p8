@@ -25,13 +25,8 @@ end
 
 function test_input2()
   if testmode then return 0 end
-  local b = 0
-  if btn(0, 1) then b += 1 end
-  if btn(1, 1) then b += 2 end
-  if btn(2, 1) then b += 4 end
-  if btn(3, 1) then b += 8 end
-  if btn(4, 1) then b += 16 end
-  if btn(5, 1) then b += 32 end
+  local b=0
+  for i=0,5 do if btn(i,1) then b+=2^i end end
   return b
 end
 
@@ -496,20 +491,11 @@ function update_pause()
 end
 
 function get_mode_name()
-  if difficulty_preset == 1 then return "zen"
-  elseif difficulty_preset == 3 then return "hard"
-  elseif difficulty_preset == 4 then return "insane"
-  else return "normal" end
+  return ({"zen","normal","hard","insane"})[difficulty_preset] or "normal"
 end
 
 function get_pattern_name(p)
-  if p == 1 then return "convergence"
-  elseif p == 2 then return "scatter"
-  elseif p == 3 then return "zigzag"
-  elseif p == 4 then return "spiral"
-  elseif p == 5 then return "sweep"
-  elseif p == 6 then return "spread"
-  else return "normal" end
+  return ({"convergence","scatter","zigzag","spiral","sweep","spread"})[p] or "normal"
 end
 
 function spawn_meteor()
@@ -602,24 +588,13 @@ function spawn_meteor()
     sweep_side = sweep_side 
   })
 
-  local tname = "normal"
-  if mtype == 1 then tname = "fast"
-  elseif mtype == 2 then tname = "slow" end
-  _log("meteor_spawn:"..tname)
+  _log("meteor_spawn:"..({[1]="fast",[2]="slow"}[mtype] or "normal"))
 end
 
 function spawn_powerup()
- 
   local ptype = flr(rnd(3)) + 1
-  add(powerups, {
-    x = rnd(112) + 8,
-    y = rnd(100) + 10,
-    age = 0,
-    type = ptype
-  })
-
-  local pn={"shield","slowtime","invincibility"} local pname=pn[ptype] or "shield"
-  _log("powerup_spawn:"..pname)
+  add(powerups, {x=rnd(112)+8,y=rnd(100)+10,age=0,type=ptype})
+  _log("powerup_spawn:"..({[1]="shield",[2]="slowtime",[3]="invincibility"}[ptype] or "shield"))
 end
 
 function spawn_particles(x, y, count, color, spread)
@@ -1542,35 +1517,13 @@ function draw_menu()
   print("mode:", 46, 58, 13)
 
  
-  local zen_col = difficulty_preset == 1 and 10 or 5
-  print("zen", 10, 66, zen_col)
-  if difficulty_preset == 1 then
-    print("\151", 2, 66, 10) 
+  local modes={{"zen",10,2},{" normal",36,28},{" hard",74,66},{" insane",102,94}}
+  for i,m in pairs(modes) do
+    local c=difficulty_preset==i and 10 or (i==4 and (insane_unlocked and 5 or 2) or 5)
+    print(m[1],m[2],66,c)
+    if difficulty_preset==i then print("\151",m[3],66,10)end
   end
-
- 
-  local normal_col = difficulty_preset == 2 and 10 or 5
-  print("normal", 36, 66, normal_col)
-  if difficulty_preset == 2 then
-    print("\151", 28, 66, 10) 
-  end
-
- 
-  local hard_col = difficulty_preset == 3 and 10 or 5
-  print("hard", 74, 66, hard_col)
-  if difficulty_preset == 3 then
-    print("\151", 66, 66, 10) 
-  end
-
- 
-  local insane_col = difficulty_preset == 4 and 10 or (insane_unlocked and 5 or 2)
-  print("insane", 102, 66, insane_col)
-  if not insane_unlocked then
-    print("[locked]", 98, 74, 2)
-  end
-  if difficulty_preset == 4 then
-    print("\151", 94, 66, 10) 
-  end
+  if not insane_unlocked then print("[locked]",98,74,2)end
 
   if not insane_unlocked then
     print("unlock: 5k norm", 28, 84, 13)
@@ -1579,9 +1532,7 @@ function draw_menu()
   end
 
  
-  local coop_text = coop_mode and "co-op" or "solo"
-  local coop_col = coop_mode and 10 or 6
-  print("\136: "..coop_text, 38, 92, coop_col)
+  print("\136: "..(coop_mode and "co-op" or "solo"),38,92,coop_mode and 10 or 6)
 
   print("z: start", 42, 98, 11)
   print("x: help", 42, 106, 13)
@@ -1709,20 +1660,10 @@ function draw_leaderboard()
       local y = 46 + i * 12
 
      
-      local rank_col = 10
-      if i == 1 then rank_col = 10 
-      elseif i == 2 then rank_col = 9 
-      elseif i == 3 then rank_col = 8 
-      else rank_col = 6 end
-      print(i..".", 8, y, rank_col)
-
-     
-      local score_col = 7
-      if entry.score >= 10000 then score_col = 10
-      elseif entry.score >= 5000 then score_col = 11
-      elseif entry.score >= 2000 then score_col = 12
-      else score_col = 6 end
-      print(entry.score, 22, y, score_col)
+      local rc=({{10},{10},{9},{8}})[i] or {6}
+      print(i..".",8,y,rc[1])
+      local sc=entry.score>=10000 and 10 or entry.score>=5000 and 11 or entry.score>=2000 and 12 or 6
+      print(entry.score,22,y,sc)
 
      
       local mins = flr(entry.time / 60)
@@ -1743,10 +1684,7 @@ function draw_leaderboard()
 end
 
 function get_diff_name(d)
-  if d == 1 then return "zen"
-  elseif d == 2 then return "normal"
-  elseif d == 3 then return "hard"
-  else return "insane" end
+  return ({"zen","normal","hard","insane"})[d] or "insane"
 end
 
 function draw_pause()
@@ -1759,11 +1697,9 @@ function draw_pause()
 
  
   for m in all(meteors) do
-    local mcol = 6
-    if m.type == 1 then mcol = 8
-    elseif m.type == 2 then mcol = 12 end
-    circfill(m.x, m.y, m.size, mcol)
-    circfill(m.x, m.y, m.size - 2, 2)
+    local mc=m.type==1 and 8 or m.type==2 and 12 or 6
+    circfill(m.x,m.y,m.size,mc)
+    circfill(m.x,m.y,m.size-2,2)
   end
 
  
@@ -1778,32 +1714,14 @@ function draw_pause()
   end
 
  
-  local pcol = 7
-  if invincible > 0 and (invincible % 8 < 4) then
-    pcol = 10
-  end
-  circfill(px, py, 3, pcol)
-  circfill(px - 1, py - 1, 1, 12)
-
- 
+  local pc=invincible>0 and invincible%8<4 and 10 or 7
+  circfill(px,py,3,pc)
+  circfill(px-1,py-1,1,12)
   if coop_mode then
-    local c2 = p2_invincible > 0 and p2_invincible % 8 < 4 and 9 or 7
-    circfill(p2x, p2y, 3, c2)
-    circfill(p2x-1, p2y-1, 1, 8)
+    circfill(p2x,p2y,3,p2_invincible>0 and p2_invincible%8<4 and 9 or 7)
+    circfill(p2x-1,p2y-1,1,8)
   end
-
- 
-  for y=0,127 do
-    if y % 2 == 0 then
-      for x=0,127,2 do
-        pset(x, y, 0)
-      end
-    else
-      for x=1,127,2 do
-        pset(x, y, 0)
-      end
-    end
-  end
+  for y=0,127 do for x=((y+1)%2),127,2 do pset(x,y,0)end end
 
  
   print("paused", 44, 30, 7)
@@ -1824,97 +1742,37 @@ end
 
 function draw_play()
  
-  for s in all(stars_bg) do
-    local col = s.bright == 1 and 1 or 0
-    pset(s.x, s.y, col)
+  for s in all(stars_bg) do pset(s.x,s.y,s.bright==1 and 1 or 0)end
+  for i=0,20 do pset(i*37%128,i*53+t()*10%128,5)end
+
+ 
+  if wave_warning>0 and flr(wave_warning/8)%2==0 then
+    rect(0,0,127,127,8)
+    rect(1,1,126,126,8)
   end
 
  
-  for i=0,20 do
-    local sx = (i * 37) % 128
-    local sy = (i * 53 + t() * 10) % 128
-    pset(sx, sy, 5)
+  if wave_border_pulse>0 then
+    local ps=wave_border_pulse/6
+    local col=wave_intensity>=3 and 8 or wave_intensity>=2 and 9 or 10
+    rect(0,0,127,127,col)
+    if ps>2 then rect(1,1,126,126,col)end
   end
 
  
-  if wave_warning > 0 then
-    local pulse = flr(wave_warning / 8) % 2
-    if pulse == 0 then
-      local col = 8 
-      rect(0, 0, 127, 127, col)
-      rect(1, 1, 126, 126, col)
-    end
+  if wave_state=="active" then
+    local wt=({"wave "..wave_count,"wave "..wave_count,"danger!","critical!"})[wave_intensity+1] or "wave "..wave_count
+    local ic=({{10},{10},{9},{8}})[wave_intensity+1] or {10}
+    local pc=ic[1]+(wave_intensity>=2 and (flr(t()*8)%2)*-1 or 0)
+    print(wt,2,14,pc)
+    local pt=get_pattern_name(pattern_type)..(pattern_type2 and "+"..get_pattern_name(pattern_type2) or "")
+    print(pt,2,120,7)
   end
 
  
-  if wave_border_pulse > 0 then
-    local pulse_size = wave_border_pulse / 6
-    local col = 10 
-    if wave_intensity >= 3 then col = 8 
-    elseif wave_intensity >= 2 then col = 9 end 
-    rect(0, 0, 127, 127, col)
-    if pulse_size > 2 then
-      rect(1, 1, 126, 126, col)
-    end
-  end
-
- 
-  if wave_state == "active" then
-    local wave_text = "wave "..wave_count
-    local intensity_col = 10 
-    if wave_intensity >= 3 then
-      wave_text = "critical!"
-      intensity_col = 8 
-    elseif wave_intensity >= 2 then
-      wave_text = "danger!"
-      intensity_col = 9 
-    elseif wave_intensity >= 1 then
-      wave_text = "wave "..wave_count
-      intensity_col = 10 
-    end
-
-    local pulse_col = intensity_col
-    if wave_intensity >= 2 then
-      pulse_col = intensity_col + (flr(t() * 8) % 2) * -1
-    end
-    print(wave_text, 2, 14, pulse_col)
-
-   
-    local pattern_text = get_pattern_name(pattern_type)
-    if pattern_type2 then
-      pattern_text = get_pattern_name(pattern_type).."+"..get_pattern_name(pattern_type2)
-    end
-    print(pattern_text, 2, 120, 7)
-  end
-
- 
-  if invincible == 0 or invincible % 4 < 2 then
-    local body_col, inner_col, cockpit_col = 12, 7, 10
-
-   
-    if invincible > 54 then
-      body_col, inner_col, cockpit_col = 7, 7, 7
-    end
-
-   
-    circfill(px, py, 3, body_col)
-    circfill(px, py, 2, inner_col)
-   
-    circfill(px, py - 1, 1, cockpit_col)
-   
-    pset(px - 3, py + 1, 6)
-    pset(px + 3, py + 1, 6)
-  end
-
- 
-  if coop_mode and (p2_invincible == 0 or p2_invincible % 4 < 2) then
-    local bc, ic, cc = 9, 7, 8
-    if p2_invincible > 54 then bc, ic, cc = 7, 7, 7 end
-    circfill(p2x, p2y, 3, bc)
-    circfill(p2x, p2y, 2, ic)
-    circfill(p2x, p2y-1, 1, cc)
-    pset(p2x-3, p2y+1, 6)
-    pset(p2x+3, p2y+1, 6)
+  draw_player(px,py,invincible,invincible>54 and 7 or 12,invincible>54 and 7 or 7,invincible>54 and 7 or 10)
+  if coop_mode then
+    draw_player(p2x,p2y,p2_invincible,p2_invincible>54 and 7 or 9,p2_invincible>54 and 7 or 7,p2_invincible>54 and 7 or 8)
   end
 
  
@@ -1926,67 +1784,32 @@ function draw_play()
 
  
   if shield_active then
-    local ring_offset = (t() * 4) % 8
-    circ(px, py, 5 + ring_offset * 0.2, 12)
-    if coop_mode then
-      circ(p2x, p2y, 5 + ring_offset * 0.2, 12)
-    end
+    local ro=t()*4%8
+    circ(px,py,5+ro*0.2,12)
+    if coop_mode then circ(p2x,p2y,5+ro*0.2,12)end
   end
 
  
   for m in all(meteors) do
-    local col1, col2
-    if m.type == 1 then
-     
-      col1 = 8
-      col2 = 2
-    elseif m.type == 2 then
-     
-      col1 = 12
-      col2 = 1
-    else
-     
-      col1 = 8
-      col2 = 2
-    end
-
-   
+    local col1,col2=m.type==2 and 12 or 8,m.type==2 and 1 or 2
     for i=1,3 do
-      local trail_y = m.y - i * 2
-      local trail_size = m.size - i * 0.5
-      if trail_size > 0 then
-        circ(m.x, trail_y, trail_size, col2)
-      end
+      if m.size-i*0.5>0 then circ(m.x,m.y-i*2,m.size-i*0.5,col2)end
     end
-
-    circfill(m.x, m.y, m.size, col1)
-    circfill(m.x, m.y, m.size - 2, col2)
-    circfill(m.x - 1, m.y - 1, 1, 5)
+    circfill(m.x,m.y,m.size,col1)
+    circfill(m.x,m.y,m.size-2,col2)
+    circfill(m.x-1,m.y-1,1,5)
   end
 
  
   if boss_meteor then
-   
-    local outer_col, mid_col, core_col
-    if boss_hp == 3 then
-      outer_col, mid_col, core_col = 10, 9, 7 
-    elseif boss_hp == 2 then
-      outer_col, mid_col, core_col = 9, 8, 2 
-    else
-      outer_col, mid_col, core_col = 8, 2, 14 
-    end
-
-   
-    local pulse = sin(t() * 2) * 2
-    circ(boss_meteor.x, boss_meteor.y, boss_meteor.size + 2 + pulse, outer_col)
-    circ(boss_meteor.x, boss_meteor.y, boss_meteor.size + 4 + pulse, mid_col)
-
-   
-    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size, outer_col)
-    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size - 2, mid_col)
-    circfill(boss_meteor.x, boss_meteor.y, boss_meteor.size - 4, core_col)
-   
-    circfill(boss_meteor.x - 1, boss_meteor.y - 1, 2, core_col)
+    local oc,mc,cc=({[1]={8,2,14},[2]={9,8,2},[3]={10,9,7}})[boss_hp] or {8,2,14}
+    local pulse=sin(t()*2)*2
+    circ(boss_meteor.x,boss_meteor.y,boss_meteor.size+2+pulse,oc)
+    circ(boss_meteor.x,boss_meteor.y,boss_meteor.size+4+pulse,mc)
+    circfill(boss_meteor.x,boss_meteor.y,boss_meteor.size,oc)
+    circfill(boss_meteor.x,boss_meteor.y,boss_meteor.size-2,mc)
+    circfill(boss_meteor.x,boss_meteor.y,boss_meteor.size-4,cc)
+    circfill(boss_meteor.x-1,boss_meteor.y-1,2,cc)
   end
 
  
@@ -1997,24 +1820,16 @@ function draw_play()
   end
 
  
-  if boss_warning > 0 then
-    local pulse_col = 8 + flr(t() * 8) % 2
-    print("boss!", 50, 10, pulse_col)
+  if boss_warning>0 then
+    print("boss!",50,10,8+flr(t()*8)%2)
   elseif boss_meteor then
-   
-    local hp_x = 32
-    local hp_y = 10
-    rect(hp_x, hp_y, hp_x + 64, hp_y + 4, 5)
-    if boss_hp > 0 then
-      local hp_width = flr(boss_hp / 3 * 64)
-      rectfill(hp_x + 1, hp_y + 1, hp_x + hp_width, hp_y + 3, boss_hp == 3 and 10 or boss_hp == 2 and 9 or 8)
+    rect(32,10,96,14,5)
+    if boss_hp>0 then
+      rectfill(33,11,32+flr(boss_hp/3*64),13,boss_hp==3 and 10 or boss_hp==2 and 9 or 8)
     end
-
-   
-    if boss_attack_warning > 0 then
-      local attack_names = {"ring!", "beam!"}
-      local warn_col = 8 + flr(boss_attack_warning / 8) % 2
-      print(attack_names[boss_attack_type], 48, 18, warn_col)
+    if boss_attack_warning>0 then
+      local an=({"ring!","beam!"})[boss_attack_type] or ""
+      print(an,48,18,8+flr(boss_attack_warning/8)%2)
     end
   end
 
@@ -2039,54 +1854,18 @@ function draw_play()
   print("hi:"..highscore, 2, 8, 10)
 
  
-  if combo > 0 then
-    local combo_text = "x"..combo
-    local text_width = #combo_text * 4
-    local combo_x = 127 - text_width
-    local combo_y = 2
-
-   
-    local combo_col = 7 
-    if combo >= 50 then
-      combo_col = 8 
-    elseif combo >= 25 then
-      combo_col = 9 
-    elseif combo >= 10 then
-      combo_col = 10 
-    end
-
-   
-    if combo_pulse > 0 then
-      combo_y -= flr(combo_pulse / 5)
-    end
-
-    print(combo_text, combo_x, combo_y, combo_col)
+  if combo>0 then
+    local ct="x"..combo
+    local cy=2-(combo_pulse>0 and flr(combo_pulse/5) or 0)
+    local cc=combo>=50 and 8 or combo>=25 and 9 or combo>=10 and 10 or 7
+    print(ct,127-#ct*4,cy,cc)
   end
-
- 
-  if multiplier > 1.0 then
-    local mult_text = flr(multiplier * 10) / 10 .. "x"
-    local text_width = #mult_text * 4
-    local mult_x = 64 - text_width / 2
-    local mult_y = 2
-
-   
-    local mult_col = 10 
-    if multiplier >= 5.0 then
-      mult_col = 8 
-    elseif multiplier >= 3.0 then
-      mult_col = 9 
-    end
-
-   
-    if multiplier_pulse > 0 then
-      local scale = 1 + multiplier_pulse / 20
-      mult_y -= flr(multiplier_pulse / 3)
-     
-      print(mult_text, mult_x + 1, mult_y + 1, 1)
-    end
-
-    print(mult_text, mult_x, mult_y, mult_col)
+  if multiplier>1.0 then
+    local mt=flr(multiplier*10)/10.."x"
+    local my=2-(multiplier_pulse>0 and flr(multiplier_pulse/3) or 0)
+    local mc=multiplier>=5.0 and 8 or multiplier>=3.0 and 9 or 10
+    if multiplier_pulse>0 then print(mt,64-#mt*2+1,my+1,1)end
+    print(mt,64-#mt*2,my,mc)
   end
 
  
@@ -2114,18 +1893,11 @@ function draw_gameover()
   print("game over!", 36, 4, title_col)
 
  
-  if gameover_timer >= 0 then
-    local score_col = 10
-    if score >= 10000 then score_col = 12
-    elseif score >= 5000 then score_col = 10
-    else score_col = 7 end
-
-    print("final score:", 30, 14, 7)
-    print(score, 64 - (#tostr(score) * 2), 20, score_col)
-
-    if score == highscore and score > 0 then
-      print("new high score!", 28, 28, 10)
-    end
+  if gameover_timer>=0 then
+    local sc=score>=10000 and 12 or score>=5000 and 10 or 7
+    print("final score:",30,14,7)
+    print(score,64-#tostr(score)*2,20,sc)
+    if score==highscore and score>0 then print("new high score!",28,28,10)end
   end
 
  
@@ -2137,95 +1909,52 @@ function draw_gameover()
   local spacing = 6
 
  
-  if gameover_timer >= 12 then
-    local time_col = 6
-    if survival_time >= 120 then time_col = 12
-    elseif survival_time >= 60 then time_col = 10
-    elseif survival_time >= 30 then time_col = 9 end
-    print("\139 time: "..survival_time.."s", 3, y, time_col)
-    _log("metric_display:time:"..survival_time)
+  if gameover_timer>=12 then
+    local tc=survival_time>=120 and 12 or survival_time>=60 and 10 or survival_time>=30 and 9 or 6
+    print("\139 time:"..survival_time.."s",3,y,tc)
+    y+=spacing
   end
-  y += spacing
-
- 
-  if gameover_timer >= 15 then
-    local combo_col = 6
-    if max_combo >= 100 then combo_col = 12
-    elseif max_combo >= 50 then combo_col = 10
-    elseif max_combo >= 25 then combo_col = 9 end
-    print("\148 combo: x"..max_combo, 3, y, combo_col)
-    _log("metric_display:max_combo:"..max_combo)
+  if gameover_timer>=15 then
+    local cc=max_combo>=100 and 12 or max_combo>=50 and 10 or max_combo>=25 and 9 or 6
+    print("\148 combo:x"..max_combo,3,y,cc)
+    y+=spacing
   end
-  y += spacing
-
- 
-  if gameover_timer >= 18 then
-    local max_mult_rounded = flr(max_multiplier * 10) / 10
-    local mult_col = 6
-    if max_multiplier >= 5.0 then mult_col = 12
-    elseif max_multiplier >= 3.0 then mult_col = 10
-    elseif max_multiplier >= 2.0 then mult_col = 9 end
-    print("\151 mult: "..max_mult_rounded.."x", 3, y, mult_col)
-    _log("metric_display:max_multiplier:"..max_mult_rounded)
+  if gameover_timer>=18 then
+    local mc=max_multiplier>=5.0 and 12 or max_multiplier>=3.0 and 10 or max_multiplier>=2.0 and 9 or 6
+    print("\151 mult:"..flr(max_multiplier*10)/10.."x",3,y,mc)
+    y+=spacing
   end
-  y += spacing
-
- 
-  if gameover_timer >= 21 then
-    local wave_col = 6
-    if wave_count >= 10 then wave_col = 12
-    elseif wave_count >= 6 then wave_col = 10
-    elseif wave_count >= 3 then wave_col = 9 end
-    print("\131 waves: "..wave_count, 3, y, wave_col)
-    _log("metric_display:wave_count:"..wave_count)
-  end
-  y += spacing
-
- 
-  if gameover_timer >= 24 then
-    local star_col = 6
-    if total_stars >= 20 then star_col = 12
-    elseif total_stars >= 10 then star_col = 10
-    elseif total_stars >= 5 then star_col = 9 end
-    print("\143 stars: "..total_stars, 3, y, star_col)
-    _log("metric_display:total_stars:"..total_stars)
-  end
-  y += spacing
-
- 
-  if gameover_timer >= 27 then
-    local pwrup_col = 6
-    if total_powerups >= 10 then pwrup_col = 12
-    elseif total_powerups >= 5 then pwrup_col = 10
-    elseif total_powerups >= 3 then pwrup_col = 14 end
-    print("\014 power: "..total_powerups, 3, y, pwrup_col)
-    _log("metric_display:total_powerups:"..total_powerups)
-  end
-  y += spacing
-
- 
-  if gameover_timer >= 30 then
-    local boss_col = 6
-    if boss_defeats >= 3 then boss_col = 12
-    elseif boss_defeats >= 2 then boss_col = 10
-    elseif boss_defeats >= 1 then boss_col = 8 end
-    print("\007 bosses: "..boss_defeats, 3, y, boss_col)
-    _log("metric_display:boss_defeats:"..boss_defeats)
+  if gameover_timer>=21 then
+    local wc=wave_count>=10 and 12 or wave_count>=6 and 10 or wave_count>=3 and 9 or 6
+    print("\131 waves:"..wave_count,3,y,wc)
+    y+=spacing
   end
 
  
-  if coop_mode and gameover_timer >= 33 then
-    y += spacing
-    print("--- co-op ---", 32, y, 13)
-    y += spacing+2
-    print("p1:"..near_misses.." p2:"..p2_near_misses, 3, y, 10)
+  if gameover_timer>=24 then
+    local sc=total_stars>=20 and 12 or total_stars>=10 and 10 or total_stars>=5 and 9 or 6
+    print("\143 stars:"..total_stars,3,y,sc)
+    y+=spacing
+  end
+  if gameover_timer>=27 then
+    local pc=total_powerups>=10 and 12 or total_powerups>=5 and 10 or total_powerups>=3 and 14 or 6
+    print("\014 power:"..total_powerups,3,y,pc)
+    y+=spacing
+  end
+  if gameover_timer>=30 then
+    local bc=boss_defeats>=3 and 12 or boss_defeats>=2 and 10 or boss_defeats>=1 and 8 or 6
+    print("\007 bosses:"..boss_defeats,3,y,bc)
   end
 
  
-  if just_unlocked_insane and gameover_timer >= 10 then
-    local unlock_col = 10 + (flr(gameover_timer / 8) % 2) 
-    print("unlocked:", 38, 88, 7)
-    print("insane mode!", 30, 96, unlock_col)
+  if coop_mode and gameover_timer>=33 then
+    y+=spacing
+    print("--- co-op ---",32,y,13)
+    print("p1:"..near_misses.." p2:"..p2_near_misses,3,y+spacing+2,10)
+  end
+  if just_unlocked_insane and gameover_timer>=10 then
+    print("unlocked:",38,88,7)
+    print("insane mode!",30,96,10+(flr(gameover_timer/8)%2))
   end
 
  
@@ -2247,6 +1976,13 @@ function draw_gameover()
  
   local prompt_col = 11 + (flr(gameover_timer / 15) % 2)
   print("press z to retry", 22, 118, prompt_col)
+end
+
+function draw_player(px,py,inv,bc,ic,cc)
+  if inv==0 or inv%4<2 then
+    circfill(px,py,3,bc)circfill(px,py,2,ic)circfill(px,py-1,1,cc)
+    pset(px-3,py+1,6)pset(px+3,py+1,6)
+  end
 end
 
 function draw_star(x, y)
